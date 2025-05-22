@@ -1,9 +1,10 @@
 import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { StockDataComponent } from './stock-data/stock-data.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  standalone: true,
+  imports: [StockDataComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
