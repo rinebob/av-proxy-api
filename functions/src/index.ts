@@ -172,3 +172,5 @@ export const getDailyStockData = onRequest(async (req, res) => {
     // --- End Error Handling ---
   }
 });
+
+export { getDailyStockDataSimple } from './getDailyStockDataSimple';

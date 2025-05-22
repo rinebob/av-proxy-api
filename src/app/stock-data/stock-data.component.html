@@ -1,10 +1,10 @@
-<form (ngSubmit)="onSubmit()" class="stock-form">
+<form [formGroup]="stockForm" (ngSubmit)="onSubmit()" class="stock-form">
   <div>
     <label for="ticker">Ticker Symbol:</label>
-    
-    <input id="ticker" type="text" [(ngModel)]="tickerSymbol" name="ticker">
+    <input id="ticker" type="text" formControlName="tickerSymbol">
   </div>
   <button type="submit">Get Stock Data</button>
 </form>
 
 <p>Stock Data:</p>
+<p>{{stockData | json}}</p>
