@@ -1,52 +1,43 @@
-import * as functions from 'firebase-functions';
-import axios from 'axios';
-import { defineString } from 'firebase-functions/params';
+import { onRequest } from "firebase-functions/v2/https";
+import * as logger from "firebase-functions/logger";
+import {
+  setCorsHeaders,
+  handleOptionsRequest,
+  getAlphavantageApiKey,
+  fetchStockData
+} from './utils'; // Import helper functions
 
-const ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
-
-const alphavantageKey = defineString('ALPHAVANTAGE_KEY');
-
-function getAlphavantageApiKey(): string | undefined {
-  // Check Firebase Environment Configuration first
-  const apiKey = alphavantageKey.value();
-  // If not found, check process.env (for local development)
-  return apiKey || process.env.ALPHAVANTAGE_KEY;
-}
-
-export const getDailyStockDataSimple = functions.https.onRequest(async (req, res) => {
+export const getDailyStockDataSimple = onRequest(async (req, res) => {
   // Set CORS headers for all responses
-  res.set('Access-Control-Allow-Origin', '*');
+  setCorsHeaders(res); // Use helper function
 
-  console.log('gDSDS req.query: ', req.query);
+  logger.info('gDSDS simple req.query: ', req.query);
+  logger.info('gDSDS simple req.headers: ', req.headers);
 
-  if (req.method === 'OPTIONS') {
-    // Send response to OPTIONS requests
-    res.set('Access-Control-Allow-Methods', 'GET, POST');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
-    res.status(204).send('');
+  // Handle OPTIONS requests using helper function
+  if (handleOptionsRequest(req as any, res as any)) { // Type casting might be needed depending on exact types
     return;
   }
 
   const tickerSymbol = req.query.symbol as string | undefined;
+  logger.info('gDSDS simple tickerSymbol: ', tickerSymbol);
 
   if (!tickerSymbol) {
     res.status(400).json({ error: 'Ticker symbol is required.' });
     return;
   }
 
-  const apiKey = getAlphavantageApiKey();
+  // Get API key using helper function
+  const apiKey = getAlphavantageApiKey(); 
 
   if (!apiKey) {
     res.status(500).json({ error: 'Alpha Vantage API key not configured.' });
     return;
   }
-  const alphaVantageUrl = `${ALPHAVANTAGE_BASE_URL}?function=TIME_SERIES_DAILY&symbol=${tickerSymbol}&apikey=${apiKey}`;
 
   try {
-    console.log('Alphavantage url:', alphaVantageUrl);
-    const response = await axios.get(alphaVantageUrl);
-    const stockData = response.data as any;
-
+    const stockData = await fetchStockData(tickerSymbol, apiKey);
+    
     if (stockData['Error Message']) {
       res.status(400).json({ error: stockData['Error Message'] });
     } else if (!stockData['Time Series (Daily)']) {
@@ -57,7 +48,7 @@ export const getDailyStockDataSimple = functions.https.onRequest(async (req, res
     }
 
   } catch (error) {
-    console.error('Error fetching stock data:', error);
+    logger.error('Error fetching stock data:', error);
     res.status(500).json({ error: 'Failed to fetch stock data.' });
   }
 });

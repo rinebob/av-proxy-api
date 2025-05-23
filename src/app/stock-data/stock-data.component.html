@@ -1,3 +1,6 @@
+
+<button (click)="toggleFunction()">Toggle function</button>
+<p>Using function: {{functionToUse()}}</p>
 <form [formGroup]="stockForm" (ngSubmit)="onSubmit()" class="stock-form">
   <div>
     <label for="ticker">Ticker Symbol:</label>
