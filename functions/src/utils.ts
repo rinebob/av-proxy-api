@@ -90,7 +90,7 @@ export async function fetchStockData(symbol: string, apiKey: string): Promise<an
     console.log('fn utils fSD response: ', response);
     console.log('fn utils fSD response.data: ', response.data);
 
-    return response.data;
+    return response;
   } catch (error: any) {
     console.log('fn utils fSD error: ', error);
     // Re-throw with more context or handle specifically if needed
