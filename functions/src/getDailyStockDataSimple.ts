@@ -37,6 +37,7 @@ export const getDailyStockDataSimple = onRequest(async (req, res) => {
 
   try {
     const stockData = await fetchStockData(tickerSymbol, apiKey);
+    console.log('gDSDS simple stockData resp.data: ', stockData)
     
     if (stockData['Error Message']) {
       res.status(400).json({ error: stockData['Error Message'] });
