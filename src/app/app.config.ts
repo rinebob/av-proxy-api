@@ -7,6 +7,7 @@ import { connectAuthEmulator, getAuth, provideAuth } from '@angular/fire/auth';
 import { connectFirestoreEmulator, getFirestore, provideFirestore } from '@angular/fire/firestore';
 import { connectFunctionsEmulator, getFunctions, provideFunctions } from '@angular/fire/functions';
 
+import { environment } from '../environments/environment';
 import { routes } from './app.routes';
 import { firebaseConfig, app } from '../firebase/firebase.config'; // Adjust the path
 
@@ -20,7 +21,7 @@ export const appConfig: ApplicationConfig = {
 
     provideAuth(() => {
       const auth = getAuth(app);
-       if (window.location.hostname === "localhost" || process.env['NODE_ENV'] !== 'production') {
+       if (!environment.production) {
         connectAuthEmulator(auth, 'http://127.0.0.1:9099');
       }
       return auth;
@@ -28,7 +29,7 @@ export const appConfig: ApplicationConfig = {
 
     provideFirestore(() => {
       const firestore = getFirestore(app);
-      if (window.location.hostname === "localhost" || process.env['NODE_ENV'] !== 'production') {
+      if (!environment.production) {
         connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
       }
       return firestore;
@@ -36,7 +37,7 @@ export const appConfig: ApplicationConfig = {
 
     provideFunctions(() => {
       const functions = getFunctions(app);
-       if (window.location.hostname === "localhost" || process.env['NODE_ENV'] !== 'production') {
+       if (!environment.production) {
         connectFunctionsEmulator(functions, '127.0.0.1', 5001);
       }
       return functions;
