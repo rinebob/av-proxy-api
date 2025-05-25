@@ -3,20 +3,19 @@ import {
  defineString
 } from "firebase-functions/params";
 import * as dotenv from 'dotenv';
+import {
+  ALPHAVANTAGE_BASE_URL, // Import the base URL from common-fn.ts
+  AlphaVantageFunction, // Import the AlphaVantageFunction enum from common-fn.ts
+  // You might also need to import types for specific function responses
+  // if fetchStockData were to return a more specific Promise type,
+  // but we'll keep Promise<any> for now as per existing code.
+} from './common-fn';
 
 // Load environment variables from .env during local development
 // This will not run in the deployed Firebase Function environment
 if (process.env['NODE_ENV'] !== 'production') {
   dotenv.config(); // Access using bracket notation
 }
-
-export const ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
-export const CACHE_DURATION_MS = 1000 * 60 * 30; // Cache for 30 minutes
-
-export const RATE_LIMIT_WINDOW_MS = 1000 * 60; // 1 minute
-export const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 requests per minute
-
-
 
 /**
  * Sets common CORS headers on the response object.
@@ -76,7 +75,7 @@ export function getAlphavantageApiKey(): string | undefined {
  * @returns A Promise resolving with the API response data.
  * @throws An error if the API call fails.
  */
-export async function fetchStockData(symbol: string, apiKey: string): Promise<any> {
+export async function fetchStockDataOld(symbol: string, apiKey: string): Promise<any> {
   const params = {
     function: 'TIME_SERIES_DAILY',
     symbol: symbol,
@@ -95,5 +94,46 @@ export async function fetchStockData(symbol: string, apiKey: string): Promise<an
     console.log('fn utils fSD error: ', error);
     // Re-throw with more context or handle specifically if needed
     throw new Error(`Util - Failed to fetch data for symbol ${symbol}: ${error.message}`);
+  }
+}
+
+
+/**
+ * Fetches data from the Alphavantage API for a specified function and symbol.
+ * @param alphaVantageFunction The specific Alpha Vantage function to call (e.g., TIME_SERIES_DAILY, GLOBAL_QUOTE).
+ * @param symbol The stock symbol or relevant asset symbol.
+ * @param apiKey The Alphavantage API key.
+ * @param additionalParams Optional additional parameters for the API call (e.g., interval for TIME_SERIES_INTRADAY).
+ * @returns A Promise resolving with the Axios API response.
+ * @throws An error if the API call fails.
+ */
+export async function fetchStockData(
+  alphaVantageFunction: AlphaVantageFunction, // Accept AlphaVantageFunction enum
+  symbol: string,
+  apiKey: string,
+  additionalParams: { [key: string]: string } = {} // Allow for additional parameters
+): Promise<any> { // Return Promise<AxiosResponse<any>> for better type info
+  const params = {
+      function: alphaVantageFunction, // Use the passed function parameter
+      symbol: symbol,
+      apikey: apiKey,
+      ...additionalParams, // Include any additional parameters
+  };
+
+  console.log('fn utils fSD function/symbol/apiKey: ', alphaVantageFunction, symbol, apiKey);
+  console.log('fn utils fSD axios request URL params:', params);
+
+  try {
+      // Use the imported ALPHAVANTAGE_BASE_URL
+      const response = await axios.get(ALPHAVANTAGE_BASE_URL, { params });
+      console.log('fn utils fSD response status: ', response.status);
+      // Avoid logging large response data in production, useful for debugging though
+      // console.log('fn utils fSD response.data: ', response.data);
+
+      return response; // Return the full axios response object
+  } catch (error: any) {
+    console.error(`fn utils fSD error fetching data for ${symbol} with function ${alphaVantageFunction}:`, error);
+      // Re-throw the error to be handled by the calling function
+      throw error; // Re-throwing the original error is often better for preserving stack trace
   }
 }

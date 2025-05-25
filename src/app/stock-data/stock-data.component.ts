@@ -4,6 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormGroup, FormControl } from '@angul
 import { JsonPipe } from '@angular/common';
 const DAILY_STOCK_DATA_URL_ROBUST = 'https://getdailystockdatarobust-lsluydmucq-uc.a.run.app';
 const DAILY_STOCK_DATA_URL_SIMPLE = 'https://getdailystockdatasimple-lsluydmucq-uc.a.run.app';
+const GET_GLOBAL_QUOTE_URL = 'https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/getGlobalQuote';
 
 @Component({
     selector: 'app-stock-data',
@@ -26,7 +27,7 @@ export class StockDataComponent {
     errorMessage: string = '';
 
     toggleFunction() {
-        this.functionToUse.set(this.functionToUse() === DAILY_STOCK_DATA_URL_SIMPLE ? DAILY_STOCK_DATA_URL_ROBUST : DAILY_STOCK_DATA_URL_SIMPLE);
+        this.functionToUse.set(this.functionToUse() === DAILY_STOCK_DATA_URL_SIMPLE ? GET_GLOBAL_QUOTE_URL : DAILY_STOCK_DATA_URL_SIMPLE);
     }
 
     onSubmit() {
