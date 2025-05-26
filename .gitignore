@@ -46,4 +46,5 @@ Thumbs.db
 *-debug.log
 .runtimeconfig.json
 .idx/integrations.json
-src/environments/secrets/secrets.ts
+functions/.env.alpha-vantage-proxy-api
+.env.*

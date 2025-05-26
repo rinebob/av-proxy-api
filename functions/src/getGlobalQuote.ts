@@ -2,11 +2,12 @@
 
 import { onRequest } from "firebase-functions/v2/https";
 import axios from 'axios';
+import { alphaVantageApiKeyParam } from './utils';
 
 import {
     setCorsHeaders,
     handleOptionsRequest,
-    getAlphavantageApiKey,
+    getAlphaVantageApiKey,
 } from './utils'; 
 
 import {
@@ -16,7 +17,9 @@ import {
     ALPHAVANTAGE_BASE_URL,
 } from './common-fn';
 
-export const getGlobalQuote = onRequest(async (req, res) => {
+export const getGlobalQuote = onRequest(
+    { secrets: [alphaVantageApiKeyParam] }, 
+    async (req, res) => {
     console.info('----------- gGQ getGlobalQuote ---------------');
     console.info('gGQ get global quote for: ', req.query.symbol);
     setCorsHeaders(res);
@@ -33,7 +36,7 @@ export const getGlobalQuote = onRequest(async (req, res) => {
         return;
     }
 
-    const apiKey = getAlphavantageApiKey();
+    const apiKey = getAlphaVantageApiKey();
     if (!apiKey) {
         console.error('gGQ Alphavantage API key is not configured.');
         res.status(500).json({ error: 'Alphavantage API key is not configured.' });

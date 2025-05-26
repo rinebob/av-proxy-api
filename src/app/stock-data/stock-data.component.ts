@@ -2,9 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
 import { JsonPipe } from '@angular/common';
-const DAILY_STOCK_DATA_URL_ROBUST = 'https://getdailystockdatarobust-lsluydmucq-uc.a.run.app';
-const DAILY_STOCK_DATA_URL_SIMPLE = 'https://getdailystockdatasimple-lsluydmucq-uc.a.run.app';
-const GET_GLOBAL_QUOTE_URL = 'https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/getGlobalQuote';
+import { StockDataUrl } from '../common/common-app';
 
 @Component({
     selector: 'app-stock-data',
@@ -17,7 +15,7 @@ export class StockDataComponent {
 
     private http = inject(HttpClient);
 
-    functionToUse = signal<string>(DAILY_STOCK_DATA_URL_SIMPLE)
+    functionToUse = signal<string>(StockDataUrl.DAILY_STOCK_DATA_SIMPLE)
 
     stockForm = new FormGroup({
         tickerSymbol: new FormControl('')
@@ -27,7 +25,7 @@ export class StockDataComponent {
     errorMessage: string = '';
 
     toggleFunction() {
-        this.functionToUse.set(this.functionToUse() === DAILY_STOCK_DATA_URL_SIMPLE ? GET_GLOBAL_QUOTE_URL : DAILY_STOCK_DATA_URL_SIMPLE);
+        this.functionToUse.set(this.functionToUse() === StockDataUrl.DAILY_STOCK_DATA_SIMPLE ? StockDataUrl.GET_GLOBAL_QUOTE : StockDataUrl.DAILY_STOCK_DATA_SIMPLE);
     }
 
     onSubmit() {

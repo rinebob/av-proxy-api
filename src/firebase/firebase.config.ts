@@ -1,13 +1,8 @@
 import { initializeApp, FirebaseApp } from "firebase/app";
-import { FIREBASE_CONFIG } from "../environments/secrets/secrets";
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
-    ...FIREBASE_CONFIG
-};
+import { environment } from "../environments/environment";
 
 // Initialize Firebase App
-const app: FirebaseApp = initializeApp(firebaseConfig);
+const app: FirebaseApp = initializeApp(environment.firebaseConfig);
 
 // Export the initialized app instance
-export { app, firebaseConfig };
+export { app };

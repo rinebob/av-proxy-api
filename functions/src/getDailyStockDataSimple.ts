@@ -1,11 +1,12 @@
 // functions/src/getDailyStockDataSimple.ts
 
 import { onRequest } from "firebase-functions/v2/https";
+import { alphaVantageApiKeyParam } from './utils';
 
 import {
     setCorsHeaders,
     handleOptionsRequest,
-    getAlphavantageApiKey,
+    getAlphaVantageApiKey,
     fetchStockData, // Assuming fetchStockData is a helper that makes the HTTP request
 } from './utils'; // Import helper functions from utils.ts
 
@@ -18,7 +19,9 @@ import {
 } from './common-fn';
 
 
-export const getDailyStockDataSimple = onRequest(async (req, res) => {
+export const getDailyStockDataSimple = onRequest(
+    { secrets: [alphaVantageApiKeyParam] }, 
+    async (req, res) => {
     setCorsHeaders(res);
 
     // Use console instead of logger
@@ -48,7 +51,7 @@ export const getDailyStockDataSimple = onRequest(async (req, res) => {
     }
 
     // Get API key using helper function
-    const apiKey = getAlphavantageApiKey();
+    const apiKey = getAlphaVantageApiKey();
 
     if (!apiKey) {
         res.status(500).json({ error: 'Dude wtf? Alpha Vantage API key not configured.' });

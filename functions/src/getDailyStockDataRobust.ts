@@ -1,9 +1,10 @@
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from 'firebase-admin';
+import { alphaVantageApiKeyParam } from './utils';
 import {
   setCorsHeaders,
   handleOptionsRequest,
-  getAlphavantageApiKey,
+  getAlphaVantageApiKey,
   fetchStockData, // Assuming fetchStockData is updated in utils.ts
 } from './utils';
 
@@ -23,7 +24,9 @@ if (!admin.apps.length) {
 
 const db = admin.firestore(); // Keep this if Firestore is used
 
-export const getDailyStockDataRobust = onRequest(async (req, res) => {
+export const getDailyStockDataRobust = onRequest(
+    { secrets: [alphaVantageApiKeyParam] }, 
+    async (req, res) => {
     setCorsHeaders(res);
 
     console.info('gDSDR robust calling handleOptionsRequest. query: ', req.query);
@@ -126,7 +129,7 @@ export const getDailyStockDataRobust = onRequest(async (req, res) => {
     // --- End Rate Limiting Check ---
 
     const symbol = (req.query['symbol'] as string);
-    const apiKey = getAlphavantageApiKey();
+    const apiKey = getAlphaVantageApiKey();
 
     if (!apiKey) {
         console.error('Alphavantage API key is not configured.');
@@ -216,7 +219,7 @@ export const getDailyStockDataRobust = onRequest(async (req, res) => {
 // import {
 //  setCorsHeaders,
 //  handleOptionsRequest,
-//  getAlphavantageApiKey,
+//  getAlphaVantageApiKey,
 //  fetchStockData
 // } from './utils';
 
@@ -308,7 +311,7 @@ export const getDailyStockDataRobust = onRequest(async (req, res) => {
 
 
 //     const symbol = (req.query['symbol'] as string); // Access using bracket notation
-//     const apiKey = getAlphavantageApiKey();
+//     const apiKey = getAlphaVantageApiKey();
 
 //     if (!apiKey) {
 //       logger.error('Alphavantage API key is not configured.');

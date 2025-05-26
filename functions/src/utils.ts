@@ -1,15 +1,22 @@
 import axios from 'axios';
-import {
- defineString
-} from "firebase-functions/params";
+import { defineSecret } from "firebase-functions/params";
+import * as logger from "firebase-functions/logger";
 import * as dotenv from 'dotenv';
-import {
-  ALPHAVANTAGE_BASE_URL, // Import the base URL from common-fn.ts
-  AlphaVantageFunction, // Import the AlphaVantageFunction enum from common-fn.ts
-  // You might also need to import types for specific function responses
-  // if fetchStockData were to return a more specific Promise type,
-  // but we'll keep Promise<any> for now as per existing code.
-} from './common-fn';
+import { ALPHAVANTAGE_BASE_URL, AlphaVantageFunction } from './common-fn';
+
+/** Define the Alpha Vantage API key as a Firebase Function parameter
+* The key 'ALPHAVANTAGE_API_KEY' is what you'll see in the .env.<project-id> file
+and what you'd set in the Google Cloud Console if managing directly.
+The CLI command `firebase functions:config:set alphavantage.key="YOUR_KEY"`
+actually creates an entry that defineString can pick up if the key name matches.
+Let's use a clear name for the parameter.
+*/
+export const alphaVantageApiKeyParam = defineSecret("ALPHAVANTAGE_API_KEY"); 
+// You can also provide a default, description, etc.
+// const alphaVantageApiKeyParam = defineString("ALPHAVANTAGE_API_KEY", {
+//   description: "The API key for Alpha Vantage",
+//   // default: "YOUR_DEFAULT_KEY_IF_ANY_FOR_LOCAL_EMULATION_WITHOUT_ENV_FILE",
+// });
 
 // Load environment variables from .env during local development
 // This will not run in the deployed Firebase Function environment
@@ -55,18 +62,24 @@ export function handleOptionsRequest(req: any, res: any): boolean {
 }
 
 
-// Define the configuration key for Firebase Environment Configuration
-const alphavantageKey = defineString('ALPHAVANTAGE_KEY');
-
-// Function to get the Alphavantage API key, handling both local and deployed environments
-export function getAlphavantageApiKey(): string | undefined {
-  // In the deployed environment, use Firebase Environment Configuration
-  if (process.env['K_SERVICE']) { // K_SERVICE is an environment variable set in Cloud Run/Functions
-    return alphavantageKey.value(); // Access using bracket notation
+/**
+ * Retrieves the Alpha Vantage API key from Firebase environment configuration.
+ * Logs an error if the key is not found.
+ * @returns {string} The API key. Throws an error if not found.
+ */
+export function getAlphaVantageApiKey(): string {
+  const key = alphaVantageApiKeyParam.value(); // Access the value of the defined parameter
+  if (!key) {
+    logger.error(
+      "Alpha Vantage API key (ALPHAVANTAGE_API_KEY) not found in Firebase Functions configuration (Secret Manager). " +
+      "Ensure it's set via 'firebase functions:secrets:set ALPHAVANTAGE_API_KEY' and that the function has permissions to access it."
+    );
+    // Throw an error to make it clear the function cannot proceed
+    throw new Error("Configuration error: Alpha Vantage API key is missing or not accessible.");
   }
-  // In the local development environment, use process.env
-  return process.env['ALPHAVANTAGE_API_KEY']; // Access using bracket notation
+  return key;
 }
+
 
 /**
  * Fetches daily stock data from the Alphavantage API.

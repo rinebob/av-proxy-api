@@ -9,7 +9,7 @@ import { connectFunctionsEmulator, getFunctions, provideFunctions } from '@angul
 
 import { environment } from '../environments/environment';
 import { routes } from './app.routes';
-import { firebaseConfig, app } from '../firebase/firebase.config'; // Adjust the path
+import { app } from '../firebase/firebase.config'; // Adjust the path
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -17,7 +17,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideHttpClient(), 
 
-    provideFirebaseApp(() => initializeApp(firebaseConfig)),
+    provideFirebaseApp(() => initializeApp(environment.firebaseConfig)),
 
     provideAuth(() => {
       const auth = getAuth(app);
