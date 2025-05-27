@@ -1,0 +1,17 @@
+<div class="login-container">
+  <h2>Login</h2>
+  <button (click)="loginWithGoogle()" [disabled]="isLoading">
+    @if (!isLoading) {
+      <span>Sign in with Google</span>
+    } @else if (isLoading) {
+      <span>Signing in...</span>
+    }
+  </button>
+
+  @if (authError) {
+    <div class="error-message">
+      <p>Login Failed:</p>
+      <pre>{{ authError.message || authError | json }}</pre>
+    </div>
+  }
+</div>

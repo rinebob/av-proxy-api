@@ -33,15 +33,19 @@ export class StockDataComponent {
         console.log('sD oS tickerSymbol: ', tickerSymbol);
         if (!tickerSymbol) {
             this.errorMessage = 'Please enter a ticker symbol.';
+            this.stockData = null;
             return;
         }
 
         const url = `${this.functionToUse()}?symbol=${tickerSymbol.toUpperCase()}`;
         console.log('sD oS url: ', url);
         this.errorMessage = ''; // Clear previous errors
+        this.stockData = null; // Clear previous data before new request
 
-
-        this.http.get(url).subscribe({ // Use the subscribe method with an observer object
+        // The AuthInterceptor will automatically add the Authorization header if a user is signed in.
+        // If no user is signed in, or token is unavailable, the interceptor currently lets the request pass,
+        // and the backend will return a 401/403, which will be caught by the error block below.
+        this.http.get(url).subscribe({
             next: (data) => {
                 console.log('sD oS url: ', url);
                 console.log('sD oS tickerSymbol: ', tickerSymbol);
@@ -52,7 +56,12 @@ export class StockDataComponent {
                 console.log('sD oS url: ', url);
                 console.log('sD oS tickerSymbol: ', tickerSymbol);
                 console.error('sD oS dude - error fetching stock data:', error);
-                this.errorMessage = 'Error fetching stock data: ' + (error.message || 'Unknown error'); // Provide a more informative error
+                // More specific error handling based on status
+                if (error.status === 401 || error.status === 403) {
+                    this.errorMessage = 'Authentication failed. Please ensure you are signed in correctly.';
+                } else {
+                    this.errorMessage = 'Error fetching stock data: ' + (error.error?.message || error.message || 'Unknown error');
+                }
                 this.stockData = null; // Clear previous data on error if any
             }
         });
