@@ -4,10 +4,12 @@ import { onRequest } from "firebase-functions/v2/https";
 import axios from 'axios';
 import { alphaVantageApiKeyParam } from './utils';
 
+
 import {
     setCorsHeaders,
     handleOptionsRequest,
     getAlphaVantageApiKey,
+    authenticateFirebaseUser // Import the new utility function
 } from './utils'; 
 
 import {
@@ -29,6 +31,15 @@ export const getGlobalQuote = onRequest(
         return;
     }
     console.info('gGQ after calling handleOptionsRequest');
+
+    // --- Firebase ID Token Authentication using utility function ---
+    const decodedToken = await authenticateFirebaseUser(req, res, 'getGlobalQuote');
+    if (!decodedToken) {
+        // authenticateFirebaseUser already sent the response, so just return
+        return;
+    }
+    // const uid = decodedToken.uid; // uid is available if needed for further logic
+    // --- End Firebase ID Token Authentication ---
 
     if (req.method !== 'GET') {
         console.warn('gGQ received non-GET request:', req.method);

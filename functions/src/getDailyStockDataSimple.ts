@@ -3,11 +3,13 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { alphaVantageApiKeyParam } from './utils';
 
+
 import {
     setCorsHeaders,
     handleOptionsRequest,
     getAlphaVantageApiKey,
     fetchStockData, // Assuming fetchStockData is a helper that makes the HTTP request
+    authenticateFirebaseUser // Import the new utility function
 } from './utils'; // Import helper functions from utils.ts
 
 // Import all necessary types, enum, and constants from common-fn.ts
@@ -31,6 +33,15 @@ export const getDailyStockDataSimple = onRequest(
     }
     // Use console instead of logger
     console.info('gDSDS simple after calling handleOptionsRequest');
+
+    // --- Firebase ID Token Authentication using utility function ---
+    const decodedToken = await authenticateFirebaseUser(req, res, 'getDailyStockDataSimple');
+    if (!decodedToken) {
+        // authenticateFirebaseUser already sent the response, so just return
+        return;
+    }
+    // const uid = decodedToken.uid; // uid is available if needed for further logic
+    // --- End Firebase ID Token Authentication ---
 
     // Ensure it's a GET request
     if (req.method !== 'GET') {
