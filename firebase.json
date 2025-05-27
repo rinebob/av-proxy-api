@@ -1,44 +1,26 @@
 {
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ],
-      "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run build"
-      ]
-    }
-  ],
   "firestore": {
-    "database": "alpha-vantage-proxy-api-db",
     "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
+    "indexes": "firestore.indexes.json",
+    "database": "alpha-vantage-proxy-api-db"
   },
-  "apphosting": {
-    "backendId": "av-proxy-api",
-    "staticSite": {
-      "outputPath": "dist/myapp" 
-    },
+  "functions": {
+    "source": "functions",
+    "codebase": "default",
     "ignore": [
       "node_modules",
       ".git",
       "firebase-debug.log",
       "firebase-debug.*.log",
-      "functions"
+      "*.local"
     ],
-    "alwaysDeployFromSource": false
+    "predeploy": [
+      "npm --prefix \"$RESOURCE_DIR\" run build"
+    ]
   },
   "emulators": {
-    "apphosting": {
-      "port": 5002,
-      "rootDirectory": "./",
-      "startCommand": "npm run dev"
+    "auth": {
+      "port": 9099
     },
     "functions": {
       "port": 5001
@@ -47,9 +29,7 @@
       "port": 8080
     },
     "ui": {
-      "enabled": true,
-      "port": 5000
-    },
-    "singleProjectMode": true
+      "enabled": true
+    }
   }
 }
