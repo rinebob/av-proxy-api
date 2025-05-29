@@ -1,0 +1,167 @@
+// Stock data component styles
+
+.stock-data-container {
+  display: flex;
+  justify-content: center;
+  padding: 40px 24px 24px;
+  min-height: calc(100vh - 64px);
+  background-color: #f5f7fa;
+  padding-top: 80px; // Added extra top padding
+}
+
+.stock-card {
+  width: 100%;
+  max-width: 900px;
+  height: fit-content;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  }
+}
+
+mat-card-header {
+  padding: 48px 24px 24px; // Increased top padding
+  background-color: #e8eaf6; // Light indigo-50 equivalent
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  margin-bottom: 8px;
+  
+  .mat-mdc-card-header-text {
+    margin: 0;
+    width: 100%;
+  }
+}
+
+mat-card-title {
+  font-size: 24px;
+  font-weight: 500;
+  color: #1a237e; // Indigo-900
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  
+  mat-icon {
+    color: #3f51b5; // Indigo-500
+  }
+}
+
+mat-card-subtitle {
+  color: #757575; // Grey-600
+  margin: 0;
+  padding: 0 8px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Form styles */
+.stock-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .function-toggle {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: -8px; // Reduce space between toggle and input
+
+    .toggle-button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      padding: 0 12px;
+      border-radius: 16px;
+      height: 36px;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background-color: rgba(0, 0, 0, 0.04);
+      }
+
+      &[disabled] {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        margin-right: 4px;
+      }
+    }
+  }
+}
+
+/* Ensure the spinner is properly centered */
+mat-spinner {
+  margin: 0 auto;
+  display: inline-block;
+}
+
+/* Make sure the spinner is visible on the button */
+::ng-deep .mat-mdc-progress-spinner {
+  --mdc-circular-progress-active-indicator-color: white;
+}
+
+/* Disabled state for better visual feedback */
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  background-color: #ffebee;
+  border-radius: 4px;
+  color: #d32f2f;
+}
+
+.stock-results {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.stock-results h3 {
+  margin: 0 0 16px 0;
+  color: #333;
+  font-weight: 500;
+}
+
+pre {
+  background-color: #f5f5f5;
+  padding: 16px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .stock-data-container {
+    padding: 16px;
+  }
+  
+  mat-card-content {
+    padding: 16px;
+  }
+  
+  .submit-button {
+    width: 100%;
+  }
+}

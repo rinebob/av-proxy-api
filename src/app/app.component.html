@@ -1,1 +1,32 @@
-<router-outlet></router-outlet>
+<div class="app-container">
+  <mat-toolbar color="primary">
+    <span>AV Proxy API</span>
+    
+    <span class="spacer"></span>
+    
+    @if (currentUser(); as user) {
+      <div class="user-info">
+        <span class="welcome-text">Welcome, {{ user.email || 'User' }}</span>
+        <button mat-raised-button color="accent" (click)="handleLogout()" class="logout-button">
+          <mat-icon>logout</mat-icon>
+          <span>Logout</span>
+        </button>
+      </div>
+    } @else {
+      <button mat-button routerLink="/login" class="login-button">
+        <mat-icon>login</mat-icon>
+        <span>Login</span>
+      </button>
+    }
+  </mat-toolbar>
+
+  <main class="main-content">
+    <router-outlet></router-outlet>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <span> 2025 AV Proxy API. All rights reserved.</span>
+    </div>
+  </footer>
+</div>

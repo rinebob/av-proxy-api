@@ -1,17 +1,79 @@
 <div class="login-container">
-  <h2>Login</h2>
-  <button (click)="loginWithGoogle()" [disabled]="isLoading">
-    @if (!isLoading) {
-      <span>Sign in with Google</span>
-    } @else if (isLoading) {
-      <span>Signing in...</span>
-    }
-  </button>
+  <mat-card class="login-card">
+    <mat-card-header>
+      <mat-card-title>@if (isLoginMode) { Sign In } @else { Create Account }</mat-card-title>
+    </mat-card-header>
 
-  @if (authError) {
-    <div class="error-message">
-      <p>Login Failed:</p>
-      <pre>{{ authError.message || authError | json }}</pre>
-    </div>
-  }
+    <mat-card-content>
+      <mat-tab-group [(selectedIndex)]="selectedTab" (selectedTabChange)="onTabChange($event)">
+        <mat-tab label="Email & Password">
+          <form [formGroup]="loginForm" (ngSubmit)="onEmailSubmit()" class="login-form">
+            <mat-form-field appearance="outline">
+              <mat-label>Email</mat-label>
+              <input matInput placeholder="Enter your email" formControlName="email" type="email" required>
+              @if (loginForm.get('email')?.hasError('required')) {
+                <mat-error>Email is required</mat-error>
+              }
+              @if (loginForm.get('email')?.hasError('email')) {
+                <mat-error>Please enter a valid email</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Password</mat-label>
+              <input matInput [type]="hidePassword ? 'password' : 'text'" 
+                     formControlName="password" required
+                     placeholder="Enter your password">
+              <button type="button" mat-icon-button matSuffix (click)="hidePassword = !hidePassword" 
+                      [attr.aria-label]="'Hide password'" [attr.aria-pressed]="hidePassword">
+                <mat-icon>@if (hidePassword) { visibility_off } @else { visibility }</mat-icon>
+              </button>
+              @if (loginForm.get('password')?.hasError('required')) {
+                <mat-error>Password is required</mat-error>
+              }
+              @if (loginForm.get('password')?.hasError('minlength')) {
+                <mat-error>Password must be at least 6 characters</mat-error>
+              }
+            </mat-form-field>
+
+            <div class="form-actions">
+              <button mat-raised-button color="primary" type="submit" [disabled]="loginForm.invalid">
+                @if (!isLoading) {
+                  <span>@if (isLoginMode) { Sign In } @else { Create Account }</span>
+                } @else {
+                  <mat-spinner diameter="24"></mat-spinner>
+                }
+              </button>
+              
+              <button type="button" mat-button color="primary" (click)="switchMode()">
+                @if (isLoginMode) { Create an account } @else { Already have an account? Sign in }
+              </button>
+            </div>
+          </form>
+        </mat-tab>
+
+        <mat-tab label="Continue with Google">
+          <div class="social-login">
+            <button mat-raised-button class="google-button" (click)="loginWithGoogle()" [disabled]="isLoading">
+              <img src="assets/google-logo.svg" alt="Google" class="google-logo">
+              <span>Continue with Google</span>
+            </button>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+
+      @if (!isLoginMode) {
+        <div class="terms">
+          <p>By creating an account, you agree to our Terms of Service and Privacy Policy</p>
+        </div>
+      }
+
+      @if (authError) {
+        <div class="error-message">
+          <mat-icon color="warn">error_outline</mat-icon>
+          <span>{{ authError }}</span>
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
 </div>

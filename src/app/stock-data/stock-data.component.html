@@ -1,16 +1,81 @@
-
 <div class="stock-data-container">
-  <button (click)="toggleFunction()">Toggle function</button>
-  <p>Using function: {{functionToUse()}}</p>
-  <form [formGroup]="stockForm" (ngSubmit)="onSubmit()" class="stock-form">
-    <div>
-      <label for="ticker">Ticker Symbol:</label>
-      <input id="ticker" type="text" formControlName="tickerSymbol">
-    </div>
-    <button type="submit">Get Stock Data</button>
-  </form>
+  <mat-card class="stock-card">
+    <mat-card-header>
+      <mat-card-title>Stock Data Lookup</mat-card-title>
+      <mat-card-subtitle>
+        @if (functionToUse() === StockDataUrl.DAILY_STOCK_DATA_SIMPLE) {
+          Daily Stock Data
+        } @else {
+          Global Quote
+        }
+      </mat-card-subtitle>
+    </mat-card-header>
+    
+    <mat-card-content>
+      <form [formGroup]="stockForm" (ngSubmit)="onSubmit()" class="stock-form">
+        <div class="function-toggle">
+          <button 
+            mat-stroked-button 
+            (click)="toggleFunction()" 
+            matTooltip="Toggle between Daily and Quote data"
+            type="button"
+            [disabled]="stockForm.disabled"
+            class="toggle-button">
+            <mat-icon>swap_horiz</mat-icon>
+            <span>
+              @if (functionToUse() === StockDataUrl.DAILY_STOCK_DATA_SIMPLE) {
+                Daily Data
+              } @else {
+                Global Quote
+              }
+            </span>
+          </button>
+        </div>
+        
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Stock Ticker Symbol</mat-label>
+          <input 
+            matInput 
+            id="ticker" 
+            type="text" 
+            formControlName="tickerSymbol" 
+            placeholder="e.g. AAPL" 
+            required>
+        </mat-form-field>
 
+        <div class="button-container">
+          <button 
+            mat-raised-button 
+            color="primary" 
+            type="submit" 
+            [disabled]="!stockForm.valid || !stockForm.get('tickerSymbol')?.value"
+            class="submit-button">
+            <span class="button-content">
+              @if (!isLoading) {
+                <mat-icon>search</mat-icon>
+              } @else {
+                <mat-spinner diameter="20"></mat-spinner>
+              }
+              <span>@if (isLoading) { Loading... } @else { Get Stock Data }</span>
+            </span>
+          </button>
+        </div>
+      </form>
+
+      @if (errorMessage) {
+        <div class="error-message">
+          <mat-icon color="warn">error_outline</mat-icon>
+          <span>{{ errorMessage }}</span>
+        </div>
+      }
+
+      @if (stockData) {
+        <div class="stock-results">
+          <mat-divider></mat-divider>
+          <h3>Results:</h3>
+          <pre>{{ stockData | json }}</pre>
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
 </div>
-
-<p>Stock Data:</p>
-<p>{{stockData | json}}</p>
