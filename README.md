@@ -2,13 +2,31 @@
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.12.
 
-## Development server
+## Development Setup
+
+### Test User
+
+For local development, a test user is pre-configured in the code:
+
+- **UID**: `uRKneMHfKo6tvVORmysEvdFb5mqS` (hardcoded for development)
+- **Email**: `test@user.com`
+- **Password**: `aaaaaa`
+
+### Starting the Development Server
 
 To start a local development server, run:
 
 ```bash
+# Start the Angular development server
 ng serve
+
+# In a separate terminal, start the Firebase emulators
+firebase emulators:start --only "auth,firestore,functions" --project alpha-vantage-proxy-api
 ```
+
+### Authentication in Development
+
+In development mode, any request with a valid Firebase ID token will be accepted if the UID matches the hardcoded test user UID (`testuser123`). No additional setup is required.
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
