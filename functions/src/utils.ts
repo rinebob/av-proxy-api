@@ -178,7 +178,8 @@ export async function authenticateFirebaseUser(
 export function setCorsHeaders(res: any): void {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-debug-request');
+  res.set('Access-Control-Expose-Headers', 'x-debug-request');
   res.set('Access-Control-Max-Age', '3600');
   res.set('Access-Control-Allow-Credentials', 'true');
 }
@@ -195,7 +196,8 @@ export function handleOptionsRequest(req: any, res: any): boolean {
     
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-debug-request');
+    res.set('Access-Control-Expose-Headers', 'x-debug-request');
     res.set('Access-Control-Max-Age', '3600');
     res.set('Access-Control-Allow-Credentials', 'true');
     
