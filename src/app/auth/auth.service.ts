@@ -1,12 +1,27 @@
-import { Injectable, inject } from '@angular/core';
-import { Auth, idToken, authState, User } from '@angular/fire/auth';
+import { Injectable, inject, NgZone } from '@angular/core';
+import { 
+  Auth, 
+  idToken, 
+  authState, 
+  User, 
+  signOut, 
+  GoogleAuthProvider, 
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail
+} from '@angular/fire/auth';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+import { Router } from '@angular/router';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
   private auth: Auth = inject(Auth);
+  private router: Router = inject(Router);
+  private zone = inject(NgZone);
 
   // Observable for the current user's ID token
   // Emits null if no user is signed in or token is unavailable
@@ -20,13 +35,13 @@ export class AuthService {
 
   constructor() { 
     // You can log auth state changes here for debugging if needed
-    // this.authState$.subscribe(user => {
-    //   if (user) {
-    //     console.log('AuthService: User is signed in', user.uid);
-    //   } else {
-    //     console.log('AuthService: User is signed out');
-    //   }
-    // });
+    this.authState$.subscribe(user => {
+      if (user) {
+        console.log('AuthService: User is signed in', user.uid);
+      } else {
+        console.log('AuthService: User is signed out');
+      }
+    });
   }
 
   // Method to get the current token once (useful for interceptors or one-off checks)
@@ -36,25 +51,52 @@ export class AuthService {
     return this.idToken$;
   }
 
-  // You can add login/logout methods here if needed, e.g.:
-  // import { GoogleAuthProvider, signInWithPopup, signOut } from '@angular/fire/auth';
-  // async loginWithGoogle() {
-  //   const provider = new GoogleAuthProvider();
-  //   try {
-  //     const credential = await signInWithPopup(this.auth, provider);
-  //     return credential.user;
-  //   } catch (error) {
-  //     console.error('Login failed:', error);
-  //     return null;
-  //   }
-  // }
+  async login(email: string, password: string): Promise<User> {
+    try {
+      const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
+      return userCredential.user;
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    }
+  }
 
-  // async logout() {
-  //   try {
-  //     await signOut(this.auth);
-  //   } catch (error) {
-  //     console.error('Logout failed:', error);
-  //   }
-  // }
+  async signup(email: string, password: string): Promise<User> {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
+      return userCredential.user;
+    } catch (error) {
+      console.error('Signup failed:', error);
+      throw error;
+    }
+  }
+
+  async resetPassword(email: string): Promise<void> {
+    try {
+      await sendPasswordResetEmail(this.auth, email);
+    } catch (error) {
+      console.error('Password reset failed:', error);
+      throw error;
+    }
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await this.zone.run(async () => {
+        await signOut(this.auth);
+        console.log('User logged out successfully');
+        this.router.navigate(['/login']);
+      });
+    } catch (error: unknown) {
+      console.error('Logout failed:', error);
+      throw error;
+    }
+  }
+
+  isAuthenticated(): Observable<boolean> {
+    return this.authState$.pipe(
+      map((user: User | null) => !!user)
+    );
+  }
 }
 

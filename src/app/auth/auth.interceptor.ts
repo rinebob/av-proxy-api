@@ -42,9 +42,9 @@ export const authInterceptor: HttpInterceptorFn = (
       }
     }),
     catchError(error => {
-      console.error('AuthInterceptor: Error in token processing', error);
-      // Consider rethrowing the error or returning a user-friendly error response
-      return next(req); // Or throw error;
+      // Only log error message, not the full error object
+      console.error('AuthInterceptor: Error in token processing -', error.message);
+      return next(req);
     })
   );
 };
