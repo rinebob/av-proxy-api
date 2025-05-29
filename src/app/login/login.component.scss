@@ -1,78 +1,54 @@
 @use '@angular/material' as mat;
 
 :host {
+  display: block;
+  min-height: calc(100vh - 64px);
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
   padding: 16px;
   background-color: #f5f5f5;
-}
-
-mat-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 24px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  
-  mat-card-header {
-    margin-bottom: 24px;
-    text-align: center;
-    justify-content: center;
-    
-    .mat-card-title {
-      font-size: 24px;
-      font-weight: 500;
-      margin-bottom: 8px;
-    }
-  }
-  
-  .mat-form-field {
-    width: 100%;
-    margin-bottom: 16px;
-  }
-  
-  .actions {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 24px;
-    
-    button {
-      min-width: 120px;
-    }
-  }
-  
-  .error-message {
-    margin-top: 16px;
-    color: #d32f2f; // Red-700
-    font-size: 14px;
-  }
 }
 
 .login-container {
   width: 100%;
   max-width: 450px;
   margin: 0 auto;
+}
 
-  .login-card {
-    padding: 24px;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-
-    .mat-card-header {
-      margin-bottom: 24px;
-      text-align: center;
-
-      .mat-card-title {
-        font-size: 24px;
+.login-card {
+  width: 100%;
+  padding: 32px 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  background: white;
+  
+  ::ng-deep {
+    .mat-mdc-card-header {
+      display: flex;
+      justify-content: center;
+      padding: 0;
+      margin-bottom: 40px;
+      
+      .mat-mdc-card-header-text {
+        margin: 0;
+        width: 100%;
+        text-align: center;
+      }
+      
+      .mat-mdc-card-title {
+        font-size: 28px;
         font-weight: 500;
         color: #333;
+        margin: 0;
+        width: 100%;
+        text-align: center;
       }
     }
-
-    .mat-card-content {
-      padding: 0 8px;
-    }
+  }
+  
+  .mat-card-content {
+    padding: 0 8px;
   }
 }
 
@@ -80,40 +56,251 @@ mat-card {
   display: flex;
   flex-direction: column;
   gap: 16px;
-
+  
   .mat-form-field {
     width: 100%;
-    margin-bottom: 8px;
-
+    margin-bottom: 16px;
+    
     .mat-form-field-wrapper {
       padding-bottom: 0;
     }
-
+    
     .mat-form-field-outline {
       color: rgba(0, 0, 0, 0.12);
     }
-
+    
     .mat-form-field-outline-thick {
       color: #3f51b5;
     }
+    
+    .mat-mdc-form-field-infix {
+      min-height: 44px;
+      padding-top: 8px !important;
+      padding-bottom: 8px !important;
+    }
+    
+    .mat-mdc-form-field-subscript-wrapper {
+      position: static;
+      margin-top: 2px;
+      margin-bottom: 0;
+      height: 16px;
+    }
   }
+  
+  // Form specific styles
+  
+}
 
-  .form-actions {
+// Divider between form and Google login
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 32px 0 24px;
+  color: rgba(0, 0, 0, 0.54);
+  font-size: 14px;
+  
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  }
+  
+  span {
+    padding: 0 12px;
+    background: white;
+    position: relative;
+    top: -1px;
+  }
+}
+
+.google-button-container {
+  width: 100%;
+  margin-bottom: 16px;
+  
+  .google-login-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 44px;
+    padding: 0;
+    margin: 0 0 16px;
+    border: 1px solid #e0e0e0;
+    background-color: white;
+    color: rgba(0, 0, 0, 0.87);
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    
+    .button-content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      width: 100%;
+      padding: 0 16px;
+    }
+    
+    &:hover {
+      background-color: #f8f9fa;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+      transform: translateY(-1px);
+    }
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    .google-logo {
+      width: 18px;
+      height: 18px;
+      margin-right: 12px;
+      object-fit: contain;
+    }
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-top: 16px;
+    gap: 16px;
 
-    button[mat-raised-button] {
-      height: 44px;
-      font-size: 16px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    .mat-form-field {
+      width: 100%;
+      margin-bottom: 16px;
+
+      .mat-form-field-wrapper {
+        padding-bottom: 0;
+      }
+
+      .mat-form-field-outline {
+        color: rgba(0, 0, 0, 0.12);
+      }
+
+      .mat-form-field-outline-thick {
+        color: #3f51b5;
+      }
+
+      .mat-mdc-form-field-infix {
+        min-height: 44px;
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+      }
+
+      .mat-mdc-form-field-subscript-wrapper {
+        position: static;
+        margin-top: 2px;
+        margin-bottom: 0;
+        height: 16px;
+      }
     }
 
-    button[mat-button] {
+    // Form specific styles
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 32px 0 24px;
+    color: rgba(0, 0, 0, 0.54);
+    font-size: 14px;
+
+    &::before,
+    &::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    }
+
+    span {
+      padding: 0 12px;
+      background: white;
+      position: relative;
+      top: -1px;
+    }
+  }
+
+  .google-button-container {
+    width: 100%;
+    margin-bottom: 16px;
+
+    .google-login-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 44px;
+      padding: 0;
+      margin: 0 0 16px;
+      border: 1px solid #e0e0e0;
+      background-color: white;
+      color: rgba(0, 0, 0, 0.87);
       font-size: 14px;
+      font-weight: 500;
+      text-transform: none;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s ease;
+      border-radius: 4px;
+
+      .button-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        width: 100%;
+        padding: 0 16px;
+      }
+
+      &:hover {
+        background-color: #f8f9fa;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+        transform: translateY(-1px);
+      }
+
+      &:active {
+        transform: translateY(0);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      .google-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        margin-right: 12px;
+
+        svg {
+          width: 100%;
+          height: 100%;
+        }
+      }
+
+      .button-text {
+        line-height: 1;
+      }
+    }
+
+    .form-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin: 16px 0;
+
+      button[mat-raised-button] {
+        height: 44px;
+        font-size: 16px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      button[mat-button] {
+        font-size: 14px;
+      }
     }
   }
 }
@@ -163,21 +350,38 @@ mat-card {
   }
 }
 
+.form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0;
+  
+  button[mat-raised-button] {
+    height: 48px;
+    font-weight: 500;
+  }
+  
+  button[mat-button] {
+    margin-top: 8px;
+  }
+}
+
 .error-message {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 16px;
+  margin: 16px 0;
   padding: 12px;
   background-color: #ffebee;
   border-radius: 4px;
-  color: #d32f2f;
   font-size: 14px;
+  color: #d32f2f;
 
   mat-icon {
+    color: #d32f2f;
     font-size: 20px;
-    width: 20px;
     height: 20px;
+    width: 20px;
   }
 }
 

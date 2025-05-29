@@ -1,4 +1,5 @@
-import { Component, inject, NgZone } from '@angular/core';
+import { Component, inject, NgZone, OnInit } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { 
@@ -23,7 +24,8 @@ import { MaterialModule } from '../shared/material.module';
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
+  googleLogoUrl = 'https://www.google.com/favicon.ico'; // Default favicon as fallback
   private auth: Auth = inject(Auth);
   private router: Router = inject(Router);
   private zone = inject(NgZone);
@@ -32,9 +34,24 @@ export class LoginComponent {
   loginForm: FormGroup;
   isLoginMode = true;
   isLoading = false;
+  isGoogleLoading = false;
   authError: string | null = null;
   hidePassword = true;
   selectedTab = 0; // 0 for login, 1 for signup
+
+  private http = inject(HttpClient);
+
+  // Add the OnInit implementation
+  ngOnInit(): void {
+    this.fetchGoogleLogo();
+  }
+
+  private fetchGoogleLogo(): void {
+    // Use the Google G logo from Firebase UI assets
+    this.googleLogoUrl = 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg';
+    
+    // No need for additional checks since we're using a reliable CDN
+  }
 
   constructor() {
     this.loginForm = this.fb.group({
@@ -81,36 +98,29 @@ export class LoginComponent {
     }
   }
 
-  async loginWithGoogle(): Promise<void> {
-    if (this.isLoading) return;
+  async onGoogleLogin() {
+    if (this.isGoogleLoading) return;
     
-    this.isLoading = true;
+    this.isGoogleLoading = true;
     this.authError = null;
     
-    // Disable form controls while submitting
-    this.loginForm.disable();
-
     try {
-      await this.zone.run(async () => {
-        const provider = new GoogleAuthProvider();
-        const credential = await signInWithPopup(this.auth, provider);
-        if (credential.user) {
-          this.router.navigate(['/stock-data']);
-        }
-      });
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(this.auth, provider);
+      
+      // This will be handled by the auth state listener in the constructor
+      console.log('Google login successful', result.user);
     } catch (error: any) {
       console.error('Google login error:', error);
-      this.authError = this.getErrorMessage(error.code || 'auth/error');
+      this.authError = error.message || 'Failed to sign in with Google';
     } finally {
-      this.isLoading = false;
-      // Re-enable form controls after submission is complete
-      this.loginForm.enable();
+      this.isGoogleLoading = false;
     }
   }
 
-  onTabChange(event: any) {
-    this.selectedTab = event.index;
-    this.authError = null;
+  // Alias for backward compatibility
+  async loginWithGoogle() {
+    await this.onGoogleLogin();
     
     // Reset form when switching tabs
     this.loginForm.reset();
