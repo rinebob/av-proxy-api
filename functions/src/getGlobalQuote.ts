@@ -57,7 +57,6 @@ export const getGlobalQuote = onRequest(
     const symbol = req.query.symbol as string;
 
     console.info('gGQ received symbol:', symbol);
-
     if (!symbol) {
         console.error('gGQ Symbol parameter is missing in query string');
         res.status(400).json({ error: 'symbol parameter is required in the query string.' });

@@ -1,45 +1,37 @@
 import axios from 'axios';
 import { defineSecret, defineString } from "firebase-functions/params"; // Ensure defineString is imported
-import * as logger from "firebase-functions/logger";
 import * as dotenv from 'dotenv';
 import admin from 'firebase-admin';
 import { ALPHAVANTAGE_BASE_URL, AlphaVantageFunction } from './common-fn';
 
 /** Define the Alpha Vantage API key as a Firebase Function parameter
 * The key 'ALPHAVANTAGE_API_KEY' is what you'll see in the .env.<project-id> file
-and what you'd set in the Google Cloud Console if managing directly.
-The CLI command `firebase functions:config:set alphavantage.key="YOUR_KEY"`
-actually creates an entry that defineString can pick up if the key name matches.
-Let's use a clear name for the parameter.
+* and what you'd set in the Google Cloud Console if managing directly.
+* The CLI command `firebase functions:config:set alphavantage.key="YOUR_KEY"`
+* actually creates an entry that defineString can pick up if the key name matches.
+* Let's use a clear name for the parameter.
 */
 export const alphaVantageApiKeyParam = defineSecret("ALPHAVANTAGE_API_KEY");
 
-// New param for local emulator. This is read from .env.<project-id> by the emulator.
-// It uses a different name to avoid conflicts during deployment when ALPHAVANTAGE_API_KEY
-// (the secret) is sourced from Secret Manager.
+/**
+ * New param for local emulator. This is read from .env.<project-id> by the emulator.
+ * It uses a different name to avoid conflicts during deployment when ALPHAVANTAGE_API_KEY
+ * (the secret) is sourced from Secret Manager.
+ */
 const localEmulatorAlphaVantageApiKeyParam = defineString("LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY", {
   input: {text: {}},
   default: "", // Default to empty string, so value() doesn't throw if not set, allowing logic to proceed
   description: "API key for Alpha Vantage, ONLY for local emulator use. For deployed functions, the ALPHAVANTAGE_API_KEY secret is used.",
 });
-export const allowedUserUidParam = defineString("ALLOWED_USER_UID"); // Define your UID as a string parameter
+export const allowedUserUidParam = defineString("ALLOWED_USER_UID");
  
-// You can also provide a default, description, etc.
-// const alphaVantageApiKeyParam = defineString("ALPHAVANTAGE_API_KEY", {
-//   description: "The API key for Alpha Vantage",
-//   // default: "YOUR_DEFAULT_KEY_IF_ANY_FOR_LOCAL_EMULATION_WITHOUT_ENV_FILE",
-// });
-
-// Load environment variables from .env during local development
-// This will not run in the deployed Firebase Function environment
 if (process.env['NODE_ENV'] !== 'production') {
-  dotenv.config(); // Access using bracket notation
+  dotenv.config();
 }
 
-// Initialize Firebase Admin SDK if not already initialized
 if (admin.apps.length === 0) {
   admin.initializeApp();
-  logger.info('Firebase Admin SDK initialized.');
+  console.info('ut Firebase Admin SDK initialized.');
 }
 
 /**
@@ -57,7 +49,7 @@ export async function authenticateFirebaseUser(
 ): Promise<admin.auth.DecodedIdToken | null> {
   const authorizationHeader = req.headers.authorization;
   if (!authorizationHeader || !authorizationHeader.startsWith('Bearer ')) {
-    logger.warn(`${functionName}: Unauthorized - No Bearer token provided.`);
+    console.warn(`ut aFU ${functionName}: Unauthorized - No Bearer token provided.`);
     res.status(401).json({ error: 'Unauthorized: No Bearer token provided.' });
     return null;
   }
@@ -66,26 +58,31 @@ export async function authenticateFirebaseUser(
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     
-    // ADD THIS CHECK:
-    const allowedUidFromEnv = allowedUserUidParam.value(); // Retrieve UID from params
+    // In development with emulator, allow any authenticated user
+    if (process.env.FUNCTIONS_EMULATOR === 'true') {
+      console.info(`ut aFU ${functionName}: Development mode - Allowing emulator user: ${decodedToken.uid}`);
+      return decodedToken;
+    }
+    
+    // In production or for non-test users, check against allowed UID
+    const allowedUidFromEnv = allowedUserUidParam.value();
     
     if (!allowedUidFromEnv) {
-      logger.error(`${functionName}: Configuration error - ALLOWED_USER_UID is not set in environment.`);
+      console.error(`ut aFU ${functionName}: Configuration error - ALLOWED_USER_UID is not set in environment.`);
       res.status(500).json({ error: 'Internal server error: Configuration issue.' });
       return null;
     }
 
     if (decodedToken.uid !== allowedUidFromEnv) {
-      logger.warn(`${functionName}: Forbidden - User ${decodedToken.uid} is not the allowed user.`);
+      console.warn(`ut aFU ${functionName}: Forbidden - User ${decodedToken.uid} is not the allowed user.`);
       res.status(403).json({ error: 'Forbidden: Access restricted.' });
       return null;
     }
-    // END OF ADDED CHECK
 
-    logger.info(`${functionName}: Authenticated and authorized user: ${decodedToken.uid}`);
+    console.info(`ut aFU ${functionName}: Authenticated and authorized user: ${decodedToken.uid}`);
     return decodedToken;
   } catch (error) {
-    logger.error(`${functionName}: Error verifying Firebase ID token:`, error);
+    console.error(`ut aFU ${functionName}: Error verifying Firebase ID token:`, error);
     res.status(403).json({ error: 'Forbidden: Invalid or expired token.' });
     return null;
   }
@@ -99,9 +96,10 @@ export async function authenticateFirebaseUser(
  */
 export function setCorsHeaders(res: any): void {
   res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, POST');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.set('Access-Control-Max-Age', '3600');
+  res.set('Access-Control-Allow-Credentials', 'true');
 }
 
 /**
@@ -111,22 +109,20 @@ export function setCorsHeaders(res: any): void {
  * @returns True if the OPTIONS request was handled, false otherwise.
  */
 export function handleOptionsRequest(req: any, res: any): boolean {
-  // If it's an OPTIONS request, end the response here
   if (req.method === 'OPTIONS') {
-    // Handle CORS for OPTIONS requests
-    // res.set('Access-Control-Allow-Origin', '*');
-    // res.set('Access-Control-Allow-Methods', 'GET, POST');
-    // res.set('Access-Control-Allow-Headers', 'Content-Type');
-    // res.set('Access-Control-Max-Age', '3600');
-    console.log('fn utils hOR options block req.query: ', req.query)
-    console.log('fn utils hOR options block req/res: ', req, res)
-    res.status(204).send();
+    console.log('fn utils hOR options block req.query: ', req.query);
+    
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '3600');
+    res.set('Access-Control-Allow-Credentials', 'true');
+    
+    res.status(204).send('');
     return true;
   }
 
   console.log('fn utils hOR not options block req.query: ', req.query)
-  console.log('fn utils hOR not options block req/res: ', req, res)
-  // For other methods, just set the headers and continue
   return false;
 }
 
@@ -142,18 +138,18 @@ export function getAlphaVantageApiKey(): string {
   // Check if running in emulator AND local emulator key is provided via .env file
   if (process.env.FUNCTIONS_EMULATOR === "true" && localEmulatorAlphaVantageApiKeyParam.value()) {
     key = localEmulatorAlphaVantageApiKeyParam.value();
-    logger.info("Using LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY from .env file for local emulator.");
+    console.info("Using LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY from .env file for local emulator.");
   } else {
     // For deployed functions or if local emulator key is not set, use the secret
     key = alphaVantageApiKeyParam.value();
     // Log only if the key was successfully retrieved from secrets, to avoid confusion before a potential error throw
     if (key) {
-        logger.info("Using ALPHAVANTAGE_API_KEY secret for deployed function or as fallback.");
+        console.info("Using ALPHAVANTAGE_API_KEY secret for deployed function or as fallback.");
     }
   }
 
   if (!key) {
-    logger.error(
+    console.error(
       "Alpha Vantage API key could not be retrieved. " +
       "For deployed functions, ensure ALPHAVANTAGE_API_KEY secret is set via 'firebase functions:secrets:set ALPHAVANTAGE_API_KEY'. " +
       "For local emulator, ensure LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY is set in your .env.<project-id> file."
@@ -172,9 +168,16 @@ export function getAlphaVantageApiKey(): string {
  * @throws An error if the API call fails.
  */
 export async function fetchStockDataOld(symbol: string, apiKey: string): Promise<any> {
+  // Validate input parameters
+  if (!symbol || !apiKey) {
+    throw new Error('Symbol and API key are required.');
+  }
+
   const params = {
     function: 'TIME_SERIES_DAILY',
     symbol: symbol,
+    outputsize: 'compact',
+    datatype: 'json',
     apikey: apiKey,
   };
 
@@ -182,14 +185,12 @@ export async function fetchStockDataOld(symbol: string, apiKey: string): Promise
   console.log('fn utils fSD axios request URL:', `${ALPHAVANTAGE_BASE_URL}?${new URLSearchParams(params).toString()}`);
   try {
     const response = await axios.get(ALPHAVANTAGE_BASE_URL, { params });
-    console.log('fn utils fSD response: ', response);
     console.log('fn utils fSD response.data: ', response.data);
 
     return response;
   } catch (error: any) {
-    console.log('fn utils fSD error: ', error);
-    // Re-throw with more context or handle specifically if needed
-    throw new Error(`Util - Failed to fetch data for symbol ${symbol}: ${error.message}`);
+    console.error(`Error fetching data for symbol ${symbol}:`, error.message);
+    throw new Error(`Util - Failed to fetch data for symbol ${symbol}`);
   }
 }
 
@@ -204,14 +205,19 @@ export async function fetchStockDataOld(symbol: string, apiKey: string): Promise
  * @throws An error if the API call fails.
  */
 export async function fetchStockData(
-  alphaVantageFunction: AlphaVantageFunction, // Accept AlphaVantageFunction enum
+  alphaVantageFunction: AlphaVantageFunction, 
   symbol: string,
   apiKey: string,
-  additionalParams: { [key: string]: string } = {} // Allow for additional parameters
-): Promise<any> { // Return Promise<AxiosResponse<any>> for better type info
-  const params = {
-      function: alphaVantageFunction, // Use the passed function parameter
+  additionalParams: { [key: string]: string } = {} 
+): Promise<any> { 
+  if (!symbol || !apiKey) {
+    throw new Error('Symbol and API key are required.');
+  }
+
+  const params: any = {
+      function: alphaVantageFunction,
       symbol: symbol,
+      datatype: 'json',
       apikey: apiKey,
       ...additionalParams, // Include any additional parameters
   };
@@ -220,16 +226,13 @@ export async function fetchStockData(
   console.log('fn utils fSD axios request URL params:', params);
 
   try {
-      // Use the imported ALPHAVANTAGE_BASE_URL
       const response = await axios.get(ALPHAVANTAGE_BASE_URL, { params });
       console.log('fn utils fSD response status: ', response.status);
-      // Avoid logging large response data in production, useful for debugging though
-      // console.log('fn utils fSD response.data: ', response.data);
+      console.log('fn utils fSD response.data: ', response.data);
 
-      return response; // Return the full axios response object
+      return response; 
   } catch (error: any) {
-    console.error(`fn utils fSD error fetching data for ${symbol} with function ${alphaVantageFunction}:`, error);
-      // Re-throw the error to be handled by the calling function
-      throw error; // Re-throwing the original error is often better for preserving stack trace
+    console.error(`fn utils fSD error fetching data for ${symbol} with function ${alphaVantageFunction}:`);
+      throw error;
   }
 }
