@@ -34,12 +34,35 @@ export class AuthService {
   readonly user$: Observable<User | null> = authState(this.auth);
 
   constructor() { 
-    // You can log auth state changes here for debugging if needed
-    this.authState$.subscribe(user => {
+    // Log detailed auth state changes
+    this.authState$.subscribe(async user => {
       if (user) {
-        console.log('AuthService: User is signed in', user.uid);
+        console.log('AuthService: User is signed in', {
+          uid: user.uid,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          isAnonymous: user.isAnonymous,
+          lastSignInTime: user.metadata?.lastSignInTime,
+          creationTime: user.metadata?.creationTime
+        });
+        
+        // Log ID token details
+        try {
+          const token = await user.getIdToken();
+          const decoded = JSON.parse(atob(token.split('.')[1]));
+          console.log('AuthService: Current ID token details:', {
+            uid: decoded.user_id || decoded.uid,
+            email: decoded.email,
+            auth_time: new Date(decoded.auth_time * 1000).toISOString(),
+            issued_at: new Date(decoded.iat * 1000).toISOString(),
+            expires_at: new Date(decoded.exp * 1000).toISOString(),
+            token_length: token.length
+          });
+        } catch (error) {
+          console.error('AuthService: Error decoding ID token:', error);
+        }
       } else {
-        console.log('AuthService: User is signed out');
+        console.log('AuthService: No user is currently signed in');
       }
     });
   }

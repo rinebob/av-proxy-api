@@ -26,19 +26,37 @@ export const authInterceptor: HttpInterceptorFn = (
   return authService.idToken$.pipe(
     take(1), // Get the current token once
     switchMap(token => {
+      console.log('AuthInterceptor: Processing request to', req.url);
+      console.log('AuthInterceptor: Has token?', !!token);
       if (token) {
+        try {
+          // Decode the token to see its contents (client-side only for debugging)
+          const decodedToken = JSON.parse(atob(token.split('.')[1]));
+          console.log('AuthInterceptor: Token UID:', decodedToken.uid);
+          console.log('AuthInterceptor: Token email:', decodedToken.email);
+          console.log('AuthInterceptor: Token issued at:', new Date(decodedToken.iat * 1000).toISOString());
+          console.log('AuthInterceptor: Token expires at:', new Date(decodedToken.exp * 1000).toISOString());
+        } catch (e) {
+          console.warn('AuthInterceptor: Could not decode token:', e);
+        }
+        
         const clonedReq = req.clone({
           setHeaders: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
+            'X-Debug-Request': 'true' // Add a debug header
           }
         });
-        console.log('AuthInterceptor: Token added to request for', req.url);
+        console.log('AuthInterceptor: Added token to request headers');
         return next(clonedReq);
       } else {
         console.warn('AuthInterceptor: No token available for backend request to', req.url);
-        // For now, let the request proceed; backend will handle unauthorized access.
-        // Consider returning EMPTY or throwing an error to block client-side.
-        return next(req);
+        // Add debug header even without token
+        const clonedReq = req.clone({
+          setHeaders: {
+            'X-Debug-Request': 'true'
+          }
+        });
+        return next(clonedReq);
       }
     }),
     catchError(error => {

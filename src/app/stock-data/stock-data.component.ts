@@ -49,61 +49,123 @@ export class StockDataComponent {
   async onSubmit() {
     if (this.isLoading) return;
     
-    const tickerSymbol = this.stockForm.get('tickerSymbol')?.value;
-    if (!tickerSymbol) {
-      this.errorMessage = 'Please enter a ticker symbol.';
-      this.stockData = null;
+    console.log('--- sD oS onSubmit: Starting request ---');
+    console.log('Using function:', this.functionToUse());
+    console.log('Form value:', this.stockForm.value);
+    
+    // Get current user and token
+    const user = this.auth.currentUser;
+    console.log('Current user:', user ? {
+      uid: user.uid,
+      email: user.email,
+      emailVerified: user.emailVerified
+    } : 'No user signed in');
+    
+    if (!user) {
+      this.errorMessage = 'You must be logged in to fetch stock data.';
       return;
     }
     
-    // Disable form during submission
-    this.stockForm.disable();
-    this.isLoading = true;
-    console.log('sD oS tickerSymbol: ', tickerSymbol);
-    if (!tickerSymbol) {
-      this.errorMessage = 'Please enter a ticker symbol.';
-      this.stockData = null;
+    let idToken: string;
+    try {
+      idToken = await user.getIdToken();
+      console.log('ID token retrieved, length:', idToken.length);
+      console.log('ID token first 10 chars:', `${idToken.substring(0, 10)}...`);
+    } catch (error) {
+      console.error('Error getting ID token:', error);
+      this.errorMessage = 'Authentication error. Please sign in again.';
       return;
     }
-
+    
+    // Prepare request
+    const symbol = this.stockForm.get('tickerSymbol')?.value?.trim().toUpperCase() || '';
+    if (!symbol) {
+      console.warn('No symbol provided');
+      this.errorMessage = 'Please enter a stock symbol';
+      return;
+    }
+    
+    const url = this.functionToUse();
+    const params = { symbol };
+    const headers = new HttpHeaders({
+      'Authorization': `Bearer ${idToken}`,
+      'X-Debug-Request': 'true'
+    });
+    
+    console.log('Sending request:', { 
+      url, 
+      params, 
+      headers: Object.fromEntries(headers.keys().map(k => [k, k === 'Authorization' ? 'Bearer ***' : '***'])) 
+    });
+    
+    this.isLoading = true;
+    this.errorMessage = '';
+    this.stockData = null;
+    
+    const startTime = Date.now();
     try {
-      // Get the current user from Firebase Auth
-      const user = this.auth.currentUser;
-      if (!user) {
-        this.errorMessage = 'Please sign in to fetch stock data.';
-        return;
-      }
-
-      // Get the ID token
-      const idToken = await user.getIdToken();
+      console.log('Sending HTTP request...');
       
-      const url = `${this.functionToUse()}?symbol=${tickerSymbol.toUpperCase()}`;
-      console.log('sD oS url: ', url);
-      this.errorMessage = ''; // Clear previous errors
-      this.stockData = null; // Clear previous data before new request
-      this.isLoading = true;
-
-      // Make the request with the ID token in the Authorization header
-      const headers = new HttpHeaders({
-        'Authorization': `Bearer ${idToken}`
-      });
-
-      const response = await this.http.get(url, { headers }).toPromise();
-      this.stockData = response;
+      const response = await this.http.get(url, { 
+        params,
+        headers,
+        observe: 'response'
+      }).toPromise();
+      
+      if (!response) {
+        throw new Error('No response received from server');
+      }
+      
+      const endTime = Date.now();
+      console.log(`Request completed in ${endTime - startTime}ms`);
+      console.log('Response status:', response.status, response.statusText);
+      console.log('Response headers:', 
+        Array.from(response.headers.keys())
+          .map(k => `${k}: ${response.headers.get(k)}`)
+          .join('\n  ')
+      );
+      console.log('Response body:', response.body);
+      
+      this.stockData = response.body;
+      console.log('Stock data received:', this.stockData);
+      
     } catch (error: any) {
-    //   console.error('Error fetching stock data:', error.message);
-      console.error('Error fetching stock data dude:');
-      this.errorMessage = 'Error fetching stock data. Please try again.';
+      const endTime = Date.now();
+      const duration = error ? `${endTime - startTime}ms` : 'unknown time';
+      console.error(`Request failed after ${duration}`, error);
       
-      if (error.status === 401 || error.status === 403) {
-        this.errorMessage = 'Authentication error. Please sign in again.';
-      } else if (error.error?.message) {
-        this.errorMessage = error.error.message;
+      if (error?.error) {
+        console.error('Error response body:', error.error);
+        if (error.error instanceof Blob) {
+          // If the error is a Blob, read it as text
+          try {
+            const errorText = await error.error.text();
+            console.error('Error response body (as text):', errorText);
+          } catch (e) {
+            console.error('Could not read error blob:', e);
+          }
+        }
       }
+      
+      if (error?.status === 0) {
+        this.errorMessage = 'Network error. Please check your connection.';
+      } else if (error?.status === 401) {
+        this.errorMessage = 'Session expired. Please sign in again.';
+      } else if (error?.status === 403) {
+        this.errorMessage = 'Access denied. You do not have permission to access this resource.';
+      } else if (error?.status === 404) {
+        this.errorMessage = 'The requested resource was not found.';
+      } else if (error?.status && error.status >= 500) {
+        this.errorMessage = 'Server error. Please try again later.';
+      } else {
+        this.errorMessage = error?.error?.error || error?.message || 'An unexpected error occurred';
+      }
+      
+      console.error('Error details:', error);
     } finally {
       this.isLoading = false;
-      // Re-enable form after submission is complete
-      this.stockForm.enable();
-    }
+      console.log('--- Request completed ---');
+    }  
+    this.stockForm.enable();
   }
 }

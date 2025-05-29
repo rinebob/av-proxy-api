@@ -23,7 +23,7 @@ const localEmulatorAlphaVantageApiKeyParam = defineString("LOCAL_EMULATOR_ALPHAV
   default: "", // Default to empty string, so value() doesn't throw if not set, allowing logic to proceed
   description: "API key for Alpha Vantage, ONLY for local emulator use. For deployed functions, the ALPHAVANTAGE_API_KEY secret is used.",
 });
-export const allowedUserUidParam = defineString("ALLOWED_USER_UID");
+export const allowedUserUidsParam = defineString("ALLOWED_USER_UIDS");
  
 if (process.env['NODE_ENV'] !== 'production') {
   dotenv.config();
@@ -43,20 +43,53 @@ if (admin.apps.length === 0) {
  * @returns A Promise resolving with the decoded ID token (admin.auth.DecodedIdToken) if successful, or null if authentication failed and response was sent.
  */
 export async function authenticateFirebaseUser(
-  req: any, // Consider using import { Request } from 'firebase-functions/v2/https'; for stronger typing if using v2
-  res: any, // Consider using import { Response } from 'express'; for stronger typing
-  functionName: string = 'CloudFunction' // Default function name for logging
+  req: any,
+  res: any,
+  functionName: string = 'CloudFunction'
 ): Promise<admin.auth.DecodedIdToken | null> {
+  console.log(`---ut aFU ${functionName}: Starting authentication ---`);
+  console.log(`Request method: ${req.method}`);
+  console.log(`Request URL: ${req.url}`);
+  console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+  
   const authorizationHeader = req.headers.authorization;
-  if (!authorizationHeader || !authorizationHeader.startsWith('Bearer ')) {
-    console.warn(`ut aFU ${functionName}: Unauthorized - No Bearer token provided.`);
-    res.status(401).json({ error: 'Unauthorized: No Bearer token provided.' });
+  if (!authorizationHeader) {
+    const errorMsg = `ut aFU ${functionName}: Unauthorized - No Authorization header provided.`;
+    console.warn(errorMsg);
+    res.status(401).json({ 
+      error: 'Unauthorized: No Authorization header provided.',
+      details: 'Missing Authorization header',
+      function: functionName
+    });
+    return null;
+  }
+  
+  if (!authorizationHeader.startsWith('Bearer ')) {
+    const errorMsg = `ut aFU ${functionName}: Unauthorized - Invalid Authorization header format. Expected 'Bearer <token>'`;
+    console.warn(errorMsg);
+    res.status(401).json({ 
+      error: 'Unauthorized: Invalid token format.',
+      details: 'Expected Bearer token',
+      function: functionName
+    });
     return null;
   }
 
   const idToken = authorizationHeader.split('Bearer ')[1];
+  console.log(`ut aFU ${functionName}: Extracted token (${idToken.length} chars)`);
+  
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    console.log(`ut aFU ${functionName}: Verifying ID token...`);
+    const decodedToken = await admin.auth().verifyIdToken(idToken, true); // Check for token revocation
+    
+    console.log(`ut aFU ${functionName}: Successfully decoded token:`, {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      auth_time: new Date(decodedToken.auth_time * 1000).toISOString(),
+      issued_at: new Date(decodedToken.iat * 1000).toISOString(),
+      expires_at: new Date(decodedToken.exp * 1000).toISOString(),
+      is_emulator: process.env.FUNCTIONS_EMULATOR === 'true'
+    });
     
     // In development with emulator, allow any authenticated user
     if (process.env.FUNCTIONS_EMULATOR === 'true') {
@@ -64,26 +97,74 @@ export async function authenticateFirebaseUser(
       return decodedToken;
     }
     
-    // In production or for non-test users, check against allowed UID
-    const allowedUidFromEnv = allowedUserUidParam.value();
+    // In production or for non-test users, check against allowed UIDs
+    console.log(`ut aFU ${functionName}: Checking allowed UIDs...`);
+    const allowedUidsFromEnv = allowedUserUidsParam.value();
     
-    if (!allowedUidFromEnv) {
-      console.error(`ut aFU ${functionName}: Configuration error - ALLOWED_USER_UID is not set in environment.`);
-      res.status(500).json({ error: 'Internal server error: Configuration issue.' });
+    if (!allowedUidsFromEnv) {
+      const errorMsg = `ut aFU ${functionName}: Configuration error - ALLOWED_USER_UIDS is not set in environment.`;
+      console.error(errorMsg);
+      res.status(500).json({ 
+        error: 'Internal server error: Configuration issue.',
+        details: 'Missing ALLOWED_USER_UIDS',
+        function: functionName
+      });
       return null;
     }
 
-    if (decodedToken.uid !== allowedUidFromEnv) {
-      console.warn(`ut aFU ${functionName}: Forbidden - User ${decodedToken.uid} is not the allowed user.`);
-      res.status(403).json({ error: 'Forbidden: Access restricted.' });
+    const allowedUids = allowedUidsFromEnv.split(',').map(uid => uid.trim());
+    console.log(`ut aFU ${functionName}: Allowed UIDs from config:`, allowedUids);
+    console.log(`ut aFU ${functionName}: User UID from token: ${decodedToken.uid}`);
+    
+    if (!allowedUids.includes(decodedToken.uid)) {
+      const errorMsg = `ut aFU ${functionName}: Forbidden - User ${decodedToken.uid} is not in the allowed users list.`;
+      console.warn(errorMsg);
+      res.status(403).json({ 
+        error: 'Forbidden: Access restricted.',
+        details: 'User not authorized',
+        allowedUids: allowedUids,
+        function: functionName
+      });
       return null;
     }
 
-    console.info(`ut aFU ${functionName}: Authenticated and authorized user: ${decodedToken.uid}`);
+    console.info(`ut aFU ${functionName}: Successfully authenticated and authorized user: ${decodedToken.uid}`);
     return decodedToken;
-  } catch (error) {
+  } catch (error: any) {
     console.error(`ut aFU ${functionName}: Error verifying Firebase ID token:`, error);
-    res.status(403).json({ error: 'Forbidden: Invalid or expired token.' });
+    
+    let errorMessage = 'Authentication failed';
+    let errorDetails = 'Unknown error';
+    let statusCode = 403;
+    
+    // Handle specific error cases
+    if (error.code === 'auth/id-token-expired') {
+      errorMessage = 'Token has expired';
+      errorDetails = 'The provided token has expired. Please sign in again.';
+      statusCode = 401; // Unauthorized
+    } else if (error.code === 'auth/id-token-revoked') {
+      errorMessage = 'Token has been revoked';
+      errorDetails = 'The provided token has been revoked. Please sign in again.';
+      statusCode = 401; // Unauthorized
+    } else if (error.code === 'auth/argument-error') {
+      errorMessage = 'Invalid token format';
+      errorDetails = 'The provided token is malformed.';
+      statusCode = 400; // Bad Request
+    } else if (error.code) {
+      errorMessage = `Authentication error (${error.code})`;
+      errorDetails = error.message || 'Unknown authentication error';
+    } else {
+      errorDetails = error.message || 'Unknown error during authentication';
+    }
+    
+    console.error(`${functionName}: ${errorMessage} - ${errorDetails}`);
+    res.status(statusCode).json({
+      error: errorMessage,
+      details: errorDetails,
+      code: error.code || 'auth/unknown-error',
+      function: functionName,
+      timestamp: new Date().toISOString()
+    });
     return null;
   }
 }
