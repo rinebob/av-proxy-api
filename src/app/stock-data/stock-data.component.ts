@@ -147,6 +147,17 @@ export class StockDataComponent {
         }
       }
       
+      // Extract the error message from the error object
+      const errorMessage = error?.error?.error || error?.message || 'An unexpected error occurred';
+      
+      // Log the full error for debugging
+      console.error('Error details:', { 
+        status: error?.status,
+        message: errorMessage,
+        error: error?.error 
+      });
+      
+      // Set appropriate error message based on status code and content
       if (error?.status === 0) {
         this.errorMessage = 'Network error. Please check your connection.';
       } else if (error?.status === 401) {
@@ -155,10 +166,13 @@ export class StockDataComponent {
         this.errorMessage = 'Access denied. You do not have permission to access this resource.';
       } else if (error?.status === 404) {
         this.errorMessage = 'The requested resource was not found.';
+      } else if (error?.status === 429 || errorMessage?.toLowerCase().includes('rate limit')) {
+        this.errorMessage = 'API rate limit reached. Please try again later or upgrade your Alpha Vantage API plan.';
       } else if (error?.status && error.status >= 500) {
         this.errorMessage = 'Server error. Please try again later.';
       } else {
-        this.errorMessage = error?.error?.error || error?.message || 'An unexpected error occurred';
+        // Show the extracted error message for other cases
+        this.errorMessage = errorMessage;
       }
       
       console.error('Error details:', error);

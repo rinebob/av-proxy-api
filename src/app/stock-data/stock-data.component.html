@@ -51,21 +51,31 @@
             [disabled]="!stockForm.valid || !stockForm.get('tickerSymbol')?.value"
             class="submit-button">
             <span class="button-content">
-              @if (!isLoading) {
-                <mat-icon>search</mat-icon>
-              } @else {
+              @if (isLoading) {
                 <mat-spinner diameter="20"></mat-spinner>
+                <span>Loading...</span>
+              } @else {
+                <mat-icon>search</mat-icon>
+                <span>Get Quote</span>
               }
-              <span>@if (isLoading) { Loading... } @else { Get Stock Data }</span>
             </span>
           </button>
         </div>
       </form>
 
       @if (errorMessage) {
-        <div class="error-message">
+        <div class="error-message" [class.rate-limit-error]="errorMessage.includes('API rate limit')">
           <mat-icon color="warn">error_outline</mat-icon>
-          <span>{{ errorMessage }}</span>
+          <div class="error-content">
+            <div class="error-title">
+              @if (errorMessage.includes('API rate limit')) {
+                <span>Rate Limit Reached</span>
+              } @else {
+                <span>Error</span>
+              }
+            </div>
+            <div class="error-details">{{ errorMessage }}</div>
+          </div>
         </div>
       }
 
