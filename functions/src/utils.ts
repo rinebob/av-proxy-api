@@ -2,7 +2,13 @@ import axios from 'axios';
 import { defineSecret, defineString } from "firebase-functions/params"; // Ensure defineString is imported
 import * as dotenv from 'dotenv';
 import admin from 'firebase-admin';
-import { ALPHAVANTAGE_BASE_URL, AlphaVantageFunction } from './common-fn';
+import { 
+    ALPHAVANTAGE_BASE_URL, 
+    AlphaVantageFunction,
+    CloudFunctionName,
+    AuthValidationResult,
+    OutputSize
+} from './common-fn';
 
 /** Define the Alpha Vantage API key as a Firebase Function parameter
 * The key 'ALPHAVANTAGE_API_KEY' is what you'll see in the .env.<project-id> file
@@ -33,6 +39,8 @@ if (admin.apps.length === 0) {
   admin.initializeApp();
   console.info('ut Firebase Admin SDK initialized.');
 }
+
+export const firebaseAdmin = admin;
 
 /**
  * Authenticates a Firebase user based on the ID token in the Authorization header.
@@ -243,6 +251,8 @@ export async function fetchStockDataOld(symbol: string, apiKey: string): Promise
  * @returns A Promise resolving with the Axios API response.
  * @throws An error if the API call fails.
  */
+
+
 export async function fetchStockData(
   alphaVantageFunction: AlphaVantageFunction, 
   symbol: string,
@@ -257,8 +267,9 @@ export async function fetchStockData(
       function: alphaVantageFunction,
       symbol: symbol,
       datatype: 'json',
+      outputsize: 'compact', // Default to compact (100 data points), can be overridden in additionalParams
       apikey: apiKey,
-      ...additionalParams, // Include any additional parameters
+      ...additionalParams, // This will override any of the above if specified
   };
 
   console.log('fn utils fSD function/symbol/apiKey: ', alphaVantageFunction, symbol, apiKey);
@@ -267,11 +278,168 @@ export async function fetchStockData(
   try {
       const response = await axios.get(ALPHAVANTAGE_BASE_URL, { params });
       console.log('fn utils fSD response status: ', response.status);
-      console.log('fn utils fSD response.data: ', response.data);
+      // console.log('fn utils fSD response.data: ', response.data);
 
       return response; 
   } catch (error: any) {
     console.error(`fn utils fSD error fetching data for ${symbol} with function ${alphaVantageFunction}:`);
       throw error;
+  }
+}
+
+/**
+ * Validates the HTTP request method
+ */
+export function validateRequestMethod(req: any, res: any): boolean {
+    if (req.method !== 'GET') {
+        console.warn('Received non-GET request:', req.method);
+        res.status(405).json({ 
+            error: 'Method Not Allowed',
+            message: 'Please send a GET request.'
+        });
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Validates and extracts query parameters
+ */
+export function validateAndExtractQueryParams(req: any, res: any): { symbol: string; outputSize: OutputSize } | null {
+    const symbol = typeof req.query.symbol === 'string' ? req.query.symbol.trim() : null;
+    if (!symbol) {
+        res.status(400).json({ 
+            error: 'Bad Request',
+            message: 'Missing required parameter: symbol'
+        });
+        return null;
+    }
+
+    const outputSize = typeof req.query.outputsize === 'string' && 
+                     Object.values(OutputSize).includes(req.query.outputsize.toLowerCase() as OutputSize)
+                     ? req.query.outputsize.toLowerCase() as OutputSize
+                     : OutputSize.COMPACT;
+
+    return { symbol, outputSize };
+}
+
+/**
+ * Validates the API key
+ */
+export function validateApiKey(apiKey: string | undefined, res: any): boolean {
+    if (!apiKey) {
+        console.error('Alpha Vantage API key not configured');
+        res.status(500).json({ 
+            error: 'Internal Server Error',
+            message: 'API key not configured'
+        });
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Validates and authenticates the incoming request
+ */
+export async function validateAndAuthenticateRequest(
+    req: any, 
+    res: any,
+    functionName: CloudFunctionName
+): Promise<AuthValidationResult | null> {
+    // Authentication
+    const decodedToken = await authenticateFirebaseUser(req, res, functionName);
+    if (!decodedToken) return null;
+
+    // Request validation
+    if (!validateRequestMethod(req, res)) return null;
+    
+    const params = validateAndExtractQueryParams(req, res);
+    if (!params) return null;
+    
+    const apiKey = getAlphaVantageApiKey();
+    if (!validateApiKey(apiKey, res)) return null;
+    
+    return { decodedToken, params, apiKey };
+}
+
+/**
+ * Handles errors from API calls and sends appropriate HTTP responses
+ * @param error The error object caught in a try-catch block
+ * @param res The Express response object
+ * @param context Optional context string for logging
+ * @returns True if the error was handled, false otherwise
+ */
+export function handleApiError(error: any, res: any, context: string = ''): boolean {
+  const contextPrefix = context ? `${context} - ` : '';
+  
+  // Check for rate limit error first and handle without stack trace
+  if (error.message?.startsWith('RATE_LIMIT:')) {
+      const rateLimitMessage = error.message.replace('RATE_LIMIT:', '').trim();
+      console.warn(`${contextPrefix}Rate limit error:`, rateLimitMessage);
+      res.status(429).json({
+          error: 'Rate Limit Exceeded',
+          message: rateLimitMessage,
+          code: 'RATE_LIMIT_EXCEEDED'
+      });
+      return true;
+  }
+  
+  // For other errors, log the full error
+  console.error(`${contextPrefix}Error processing response:`, error);
+  
+  // If we have an error response from Alpha Vantage
+  if (error.response?.data) {
+      const errorData = error.response.data;
+      console.error(`${contextPrefix}Alpha Vantage error response:`, errorData);
+      
+      if (errorData['Error Message']) {
+          res.status(400).json({ 
+              error: 'Alpha Vantage API Error',
+              message: errorData['Error Message']
+          });
+      } else if (errorData['Information']) {
+          res.status(400).json({ 
+              error: 'API Error',
+              message: errorData['Information']
+          });
+      } else if (errorData['Note']) {
+          res.status(429).json({ 
+              error: 'Rate Limit Exceeded',
+              message: errorData['Note']
+          });
+      } else {
+          res.status(400).json({ 
+              error: 'API Error',
+              message: 'Unknown error from Alpha Vantage API',
+              details: errorData
+          });
+      }
+      return true;
+  } 
+  // If we have an error from our transform function
+  else if (error.message) {
+      res.status(400).json({ 
+          error: 'Data Processing Error',
+          message: error.message
+      });
+      return true;
+  }
+  // If we have a network error
+  else if (error.request) {
+      console.error(`${contextPrefix}No response received from API:`, error.request);
+      res.status(504).json({ 
+          error: 'Gateway Timeout',
+          message: 'No response received from AlphaVantage API' 
+      });
+      return true;
+  }
+  // For any other errors
+  else {
+      console.error(`${contextPrefix}Unexpected error:`, error);
+      res.status(500).json({
+          error: 'Internal Server Error',
+          message: error.message || 'An unexpected error occurred'
+      });
+      return true;
   }
 }

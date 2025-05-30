@@ -2,7 +2,19 @@
 
 /////////// INTERFACES ///////////////////////
 
-
+// Extended data point that includes calculated fields from Global Quote
+export interface StockDataPoint {
+    // Core data from Time Series
+    "1. open": string;
+    "2. high": string;
+    "3. low": string;
+    "4. close": string;
+    "5. volume": string;
+    // Calculated fields (same as Global Quote)
+    "09. change"?: string;
+    "10. change percent"?: string;
+    "08. previous close"?: string;
+}
 
 // TIME_SERIES_DAILY / TIME_SERIES_DAILY_ADJUSTED
 // Define types for the data of a single day in the time series
@@ -17,6 +29,29 @@ export interface DailyTimeSeriesData {
     "6. volume"?: string; // Volume is repeated but documented with different keys sometimes
     "7. dividend amount"?: string;
     "8. split coefficient"?: string;
+    // Calculated fields
+    "9. previous close"?: string;
+    "10. change"?: string;
+    "11. change percent"?: string;
+}
+
+// Clean version of DailyTimeSeriesData without numbered keys
+export interface DailyTimeSeriesDataTwo {
+    date: string; // Date string in YYYY-MM-DD format
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    volume: string;
+    // These are specific to TIME_SERIES_DAILY_ADJUSTED
+    adjustedClose?: string;
+    volumeAdjusted?: string;
+    dividendAmount?: string;
+    splitCoefficient?: string;
+    // Calculated fields
+    previousClose?: string;
+    change?: string;
+    changePercent?: string;
 }
 
 // Define type for the object where keys are dates and values are DailyTimeSeriesData
@@ -35,6 +70,16 @@ export interface TimeSeriesMetaData {
     "6. Time Zone"?: string; // Sometimes key is 6
 }
 
+// Clean version of TimeSeriesMetaData without numbered keys
+export interface TimeSeriesMetaDataTwo {
+    information: string;      // "1. Information"
+    symbol: string;           // "2. Symbol"
+    lastRefreshed: string;    // "3. Last Refreshed"
+    outputSize: string;       // "4. Output Size"
+    timeZone: string;         // "5. Time Zone"
+    timeZoneAlt?: string;     // "6. Time Zone" (alternative key)
+}
+
 // Define type for the overall TIME_SERIES_DAILY response
 export interface AlphaVantageDailyTimeSeriesResponse {
     "Meta Data": TimeSeriesMetaData;
@@ -43,6 +88,15 @@ export interface AlphaVantageDailyTimeSeriesResponse {
     "Information"?: string; // For API-level errors/info
     "Note"?: string;       // For rate limit messages
     // Add other potential top-level keys if Alpha Vantage uses them
+}
+
+// Clean version of AlphaVantageDailyTimeSeriesResponse with consistent naming
+export interface AlphaVantageDailyTimeSeriesTwo {
+    metaData: TimeSeriesMetaDataTwo;
+    timeSeriesDaily: DailyTimeSeriesDataTwo[]; // Array of daily data points
+    timeSeriesDailyAdjusted?: DailyTimeSeriesDataTwo[]; // Optional array of adjusted daily data points
+    information?: string; // For API-level errors/info
+    note?: string;       // For rate limit messages
 }
 
 // GLOBAL_QUOTE
@@ -71,6 +125,12 @@ export interface AlphaVantageGlobalQuoteResponse {
 //////////////////////////////////////
 
 ///////////// ENUMS /////////////////////
+
+export enum OutputSize {
+    COMPACT = 'compact',
+    FULL = 'full'
+}
+
 
 // Define an enum for Cloud Function names
 export enum CloudFunctionName {
@@ -134,5 +194,25 @@ export const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 requests per minute
 
 
 
+
+// Interface for authentication and validation result
+export interface AuthValidationResult {
+    decodedToken: any; // Consider using a more specific type if available
+    params: QueryParams;
+    apiKey: string;
+}
+
+// Interface for query parameters
+export interface QueryParams {
+    symbol: string;
+    outputSize: OutputSize;
+}
+
+// Interface for authentication and validation result
+export interface AuthValidationResult {
+    decodedToken: any; // Consider using a more specific type if available
+    params: QueryParams;
+    apiKey: string;
+}
 
 ////////////////////////////////////////////////
