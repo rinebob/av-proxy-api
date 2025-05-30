@@ -2,7 +2,7 @@
 
 import { onRequest } from "firebase-functions/v2/https";
 import axios from 'axios';
-import { alphaVantageApiKeyParam } from './utils';
+import { alphaVantageApiKeyParam, allowedUserUidsSecret } from './utils';
 
 
 import {
@@ -17,10 +17,14 @@ import {
     AlphaVantageGlobalQuoteResponse,
     AlphaVantageFunction,
     ALPHAVANTAGE_BASE_URL,
+    CloudFunctionName
 } from './common-fn';
 
 export const getGlobalQuote = onRequest(
-    { secrets: [alphaVantageApiKeyParam] }, 
+    { 
+      secrets: [alphaVantageApiKeyParam, allowedUserUidsSecret],
+      memory: '256MiB'
+    }, 
     async (req, res) => {
     console.info('----------- gGQ getGlobalQuote ---------------');
     console.info('gGQ get global quote for: ', req.query.symbol);
@@ -33,7 +37,13 @@ export const getGlobalQuote = onRequest(
     console.info('gGQ after calling handleOptionsRequest');
 
     // --- Firebase ID Token Authentication using utility function ---
-    const decodedToken = await authenticateFirebaseUser(req, res, 'getGlobalQuote');
+    const allowedUids = allowedUserUidsSecret.value().split(',').map((uid: string) => uid.trim());
+    const decodedToken = await authenticateFirebaseUser(
+      req, 
+      res, 
+      CloudFunctionName.GET_GLOBAL_QUOTE,
+      allowedUids
+    );
     if (!decodedToken) {
         // authenticateFirebaseUser already sent the response, so just return
         return;

@@ -23,9 +23,11 @@ const localEmulatorAlphaVantageApiKeyParam = defineString("LOCAL_EMULATOR_ALPHAV
   default: "", // Default to empty string, so value() doesn't throw if not set, allowing logic to proceed
   description: "API key for Alpha Vantage, ONLY for local emulator use. For deployed functions, the ALPHAVANTAGE_API_KEY secret is used.",
 });
-export const allowedUserUidsParam = defineString("ALLOWED_USER_UIDS");
- 
-if (process.env['NODE_ENV'] !== 'production') {
+// SECRET_ALLOWED_USER_UIDS is managed as a secret
+export const allowedUserUidsSecret = defineSecret("SECRET_ALLOWED_USER_UIDS");
+
+// Only load .env in non-production environment
+if (process.env.FUNCTIONS_EMULATOR === 'true') {
   dotenv.config();
 }
 
@@ -45,7 +47,8 @@ if (admin.apps.length === 0) {
 export async function authenticateFirebaseUser(
   req: any,
   res: any,
-  functionName: string = 'CloudFunction'
+  functionName: string = 'CloudFunction',
+  allowedUserUids: string[] = []
 ): Promise<admin.auth.DecodedIdToken | null> {
   console.log(`---ut aFU ${functionName}: Starting authentication ---`);
   console.log(`Request method: ${req.method}`);
@@ -97,32 +100,18 @@ export async function authenticateFirebaseUser(
       return decodedToken;
     }
     
-    // In production or for non-test users, check against allowed UIDs
+    // Check if the user's UID is in the allowed list
     console.log(`ut aFU ${functionName}: Checking allowed UIDs...`);
-    const allowedUidsFromEnv = allowedUserUidsParam.value();
-    
-    if (!allowedUidsFromEnv) {
-      const errorMsg = `ut aFU ${functionName}: Configuration error - ALLOWED_USER_UIDS is not set in environment.`;
-      console.error(errorMsg);
-      res.status(500).json({ 
-        error: 'Internal server error: Configuration issue.',
-        details: 'Missing ALLOWED_USER_UIDS',
-        function: functionName
-      });
-      return null;
-    }
-
-    const allowedUids = allowedUidsFromEnv.split(',').map(uid => uid.trim());
-    console.log(`ut aFU ${functionName}: Allowed UIDs from config:`, allowedUids);
+    console.log(`ut aFU ${functionName}: Allowed UIDs:`, allowedUserUids);
     console.log(`ut aFU ${functionName}: User UID from token: ${decodedToken.uid}`);
     
-    if (!allowedUids.includes(decodedToken.uid)) {
+    if (allowedUserUids.length > 0 && !allowedUserUids.includes(decodedToken.uid)) {
       const errorMsg = `ut aFU ${functionName}: Forbidden - User ${decodedToken.uid} is not in the allowed users list.`;
       console.warn(errorMsg);
       res.status(403).json({ 
         error: 'Forbidden: Access restricted.',
         details: 'User not authorized',
-        allowedUids: allowedUids,
+        allowedUids: allowedUserUids,
         function: functionName
       });
       return null;

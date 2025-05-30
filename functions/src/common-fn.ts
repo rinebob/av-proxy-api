@@ -68,16 +68,15 @@ export interface AlphaVantageGlobalQuoteResponse {
     // You might add other potential top-level keys if Alpha Vantage uses them
 }
 
-
-
-
-
-
-
-
 //////////////////////////////////////
 
 ///////////// ENUMS /////////////////////
+
+// Define an enum for Cloud Function names
+export enum CloudFunctionName {
+  GET_DAILY_STOCK_DATA_SIMPLE = 'getDailyStockDataSimple',
+  GET_GLOBAL_QUOTE = 'getGlobalQuote',
+}
 
 // Define an enum for Alpha Vantage API functions
 // This helps provide type safety when specifying which function to call

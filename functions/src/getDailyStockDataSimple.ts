@@ -1,13 +1,14 @@
 // functions/src/getDailyStockDataSimple.ts
 
-import { onRequest } from "firebase-functions/v2/https";
-import { alphaVantageApiKeyParam } from './utils';
-import {
-    setCorsHeaders,
-    handleOptionsRequest,
-    getAlphaVantageApiKey,
-    fetchStockData,
-    authenticateFirebaseUser
+import { onRequest } from 'firebase-functions/v2/https';
+import { 
+    alphaVantageApiKeyParam, 
+    allowedUserUidsSecret,
+    setCorsHeaders, 
+    handleOptionsRequest, 
+    getAlphaVantageApiKey, 
+    fetchStockData, 
+    authenticateFirebaseUser 
 } from './utils';
 
 import {
@@ -15,11 +16,14 @@ import {
     TimeSeriesMetaData,
     DailyTimeSeries,
     AlphaVantageFunction,
+    CloudFunctionName
 } from './common-fn';
 
-
 export const getDailyStockDataSimple = onRequest(
-    { secrets: [alphaVantageApiKeyParam] }, 
+    { 
+      secrets: [alphaVantageApiKeyParam, allowedUserUidsSecret],
+      memory: '256MiB'
+    }, 
     async (req, res) => {
     console.info('----------- gDSDS getDailyStockDataSimple ---------------');
     
@@ -32,7 +36,13 @@ export const getDailyStockDataSimple = onRequest(
     console.info('gDSDS simple after calling handleOptionsRequest');
 
     // --- Firebase ID Token Authentication using utility function ---
-    const decodedToken = await authenticateFirebaseUser(req, res, 'getDailyStockDataSimple');
+    const allowedUids = allowedUserUidsSecret.value().split(',').map((uid: string) => uid.trim());
+    const decodedToken = await authenticateFirebaseUser(
+      req, 
+      res, 
+      CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE,
+      allowedUids
+    );
     if (!decodedToken) {
         return;
     }
