@@ -6,9 +6,12 @@ const getBaseUrl = (functionName: CloudFunctionName) => {
   if (environment.useEmulator) {
     return `http://localhost:5001/alpha-vantage-proxy-api/us-central1/${functionName}`;
   }
-  // In production, use the deployed Cloud Functions URLs
-  const baseUrl = 'https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net';
-  return `${baseUrl}/${functionName}`;
+  // In production, use the deployed Cloud Run URLs
+  const urls = {
+    [CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE]: 'https://getdailystockdatasimple-lsluydmucq-uc.a.run.app',
+    [CloudFunctionName.GET_GLOBAL_QUOTE]: 'https://getglobalquote-lsluydmucq-uc.a.run.app'
+  };
+  return urls[functionName];
 };
 
 // Interface for function info

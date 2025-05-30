@@ -23,8 +23,6 @@ const localEmulatorAlphaVantageApiKeyParam = defineString("LOCAL_EMULATOR_ALPHAV
   default: "", // Default to empty string, so value() doesn't throw if not set, allowing logic to proceed
   description: "API key for Alpha Vantage, ONLY for local emulator use. For deployed functions, the ALPHAVANTAGE_API_KEY secret is used.",
 });
-// SECRET_ALLOWED_USER_UIDS is managed as a secret
-export const allowedUserUidsSecret = defineSecret("SECRET_ALLOWED_USER_UIDS");
 
 // Only load .env in non-production environment
 if (process.env.FUNCTIONS_EMULATOR === 'true') {
@@ -38,7 +36,7 @@ if (admin.apps.length === 0) {
 
 /**
  * Authenticates a Firebase user based on the ID token in the Authorization header.
- * Sends a 401 or 403 response if authentication fails.
+ * Sends a 401 response if authentication fails.
  * @param req The Express request object.
  * @param res The Express response object.
  * @param functionName For logging purposes, the name of the calling Cloud Function.
@@ -47,13 +45,11 @@ if (admin.apps.length === 0) {
 export async function authenticateFirebaseUser(
   req: any,
   res: any,
-  functionName: string = 'CloudFunction',
-  allowedUserUids: string[] = []
+  functionName: string = 'CloudFunction'
 ): Promise<admin.auth.DecodedIdToken | null> {
   console.log(`---ut aFU ${functionName}: Starting authentication ---`);
   console.log(`Request method: ${req.method}`);
   console.log(`Request URL: ${req.url}`);
-  console.log('Request headers:', JSON.stringify(req.headers, null, 2));
   
   const authorizationHeader = req.headers.authorization;
   if (!authorizationHeader) {
@@ -85,56 +81,27 @@ export async function authenticateFirebaseUser(
     console.log(`ut aFU ${functionName}: Verifying ID token...`);
     const decodedToken = await admin.auth().verifyIdToken(idToken, true); // Check for token revocation
     
-    console.log(`ut aFU ${functionName}: Successfully decoded token:`, {
+    console.log(`ut aFU ${functionName}: Successfully authenticated user:`, {
       uid: decodedToken.uid,
       email: decodedToken.email,
-      auth_time: new Date(decodedToken.auth_time * 1000).toISOString(),
-      issued_at: new Date(decodedToken.iat * 1000).toISOString(),
-      expires_at: new Date(decodedToken.exp * 1000).toISOString(),
       is_emulator: process.env.FUNCTIONS_EMULATOR === 'true'
     });
     
-    // In development with emulator, allow any authenticated user
-    if (process.env.FUNCTIONS_EMULATOR === 'true') {
-      console.info(`ut aFU ${functionName}: Development mode - Allowing emulator user: ${decodedToken.uid}`);
-      return decodedToken;
-    }
-    
-    // Check if the user's UID is in the allowed list
-    console.log(`ut aFU ${functionName}: Checking allowed UIDs...`);
-    console.log(`ut aFU ${functionName}: Allowed UIDs:`, allowedUserUids);
-    console.log(`ut aFU ${functionName}: User UID from token: ${decodedToken.uid}`);
-    
-    if (allowedUserUids.length > 0 && !allowedUserUids.includes(decodedToken.uid)) {
-      const errorMsg = `ut aFU ${functionName}: Forbidden - User ${decodedToken.uid} is not in the allowed users list.`;
-      console.warn(errorMsg);
-      res.status(403).json({ 
-        error: 'Forbidden: Access restricted.',
-        details: 'User not authorized',
-        allowedUids: allowedUserUids,
-        function: functionName
-      });
-      return null;
-    }
-
-    console.info(`ut aFU ${functionName}: Successfully authenticated and authorized user: ${decodedToken.uid}`);
     return decodedToken;
   } catch (error: any) {
     console.error(`ut aFU ${functionName}: Error verifying Firebase ID token:`, error);
     
     let errorMessage = 'Authentication failed';
     let errorDetails = 'Unknown error';
-    let statusCode = 403;
+    let statusCode = 401; // Default to 401 for authentication failures
     
     // Handle specific error cases
     if (error.code === 'auth/id-token-expired') {
       errorMessage = 'Token has expired';
       errorDetails = 'The provided token has expired. Please sign in again.';
-      statusCode = 401; // Unauthorized
     } else if (error.code === 'auth/id-token-revoked') {
       errorMessage = 'Token has been revoked';
       errorDetails = 'The provided token has been revoked. Please sign in again.';
-      statusCode = 401; // Unauthorized
     } else if (error.code === 'auth/argument-error') {
       errorMessage = 'Invalid token format';
       errorDetails = 'The provided token is malformed.';

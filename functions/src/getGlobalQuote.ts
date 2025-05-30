@@ -2,7 +2,7 @@
 
 import { onRequest } from "firebase-functions/v2/https";
 import axios from 'axios';
-import { alphaVantageApiKeyParam, allowedUserUidsSecret } from './utils';
+import { alphaVantageApiKeyParam } from './utils';
 
 
 import {
@@ -22,7 +22,7 @@ import {
 
 export const getGlobalQuote = onRequest(
     { 
-      secrets: [alphaVantageApiKeyParam, allowedUserUidsSecret],
+      secrets: [alphaVantageApiKeyParam],
       memory: '256MiB'
     }, 
     async (req, res) => {
@@ -37,12 +37,10 @@ export const getGlobalQuote = onRequest(
     console.info('gGQ after calling handleOptionsRequest');
 
     // --- Firebase ID Token Authentication using utility function ---
-    const allowedUids = allowedUserUidsSecret.value().split(',').map((uid: string) => uid.trim());
     const decodedToken = await authenticateFirebaseUser(
       req, 
       res, 
-      CloudFunctionName.GET_GLOBAL_QUOTE,
-      allowedUids
+      CloudFunctionName.GET_GLOBAL_QUOTE
     );
     if (!decodedToken) {
         // authenticateFirebaseUser already sent the response, so just return

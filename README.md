@@ -8,24 +8,23 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 
 1. **Environment Variables**
    - Create a `.env.alpha-vantage-proxy-api` file in the `functions` directory
-   - Add the following variables:
+   - Add the following variable for local development:
      ```env
      # Alpha Vantage API Key for local development
      LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY="your-api-key-here"
-     
-     # Comma-separated list of allowed user UIDs for local development
-     SECRET_ALLOWED_USER_UIDS="user-uid-1,user-uid-2"
      ```
 
-2. **Firebase Secrets (for production)**
+2. **Firebase Secret (for production)**
    ```bash
-   # Set Alpha Vantage API Key (only needed if different from local key)
+   # Set Alpha Vantage API Key for production
    firebase functions:secrets:set ALPHAVANTAGE_API_KEY
-   
-   # Set allowed user UIDs
-   firebase functions:secrets:set SECRET_ALLOWED_USER_UIDS
    ```
-   When prompted, enter the respective values.
+   When prompted, enter your Alpha Vantage API key.
+
+### Authentication
+- The application uses Firebase Authentication for user management
+- Only authenticated users with valid Firebase ID tokens can access the API endpoints
+- No additional user whitelisting is required beyond standard Firebase Authentication
 
 ### Test User
 

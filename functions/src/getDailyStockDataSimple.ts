@@ -2,8 +2,7 @@
 
 import { onRequest } from 'firebase-functions/v2/https';
 import { 
-    alphaVantageApiKeyParam, 
-    allowedUserUidsSecret,
+    alphaVantageApiKeyParam,
     setCorsHeaders, 
     handleOptionsRequest, 
     getAlphaVantageApiKey, 
@@ -21,7 +20,7 @@ import {
 
 export const getDailyStockDataSimple = onRequest(
     { 
-      secrets: [alphaVantageApiKeyParam, allowedUserUidsSecret],
+      secrets: [alphaVantageApiKeyParam],
       memory: '256MiB'
     }, 
     async (req, res) => {
@@ -36,12 +35,10 @@ export const getDailyStockDataSimple = onRequest(
     console.info('gDSDS simple after calling handleOptionsRequest');
 
     // --- Firebase ID Token Authentication using utility function ---
-    const allowedUids = allowedUserUidsSecret.value().split(',').map((uid: string) => uid.trim());
     const decodedToken = await authenticateFirebaseUser(
       req, 
       res, 
-      CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE,
-      allowedUids
+      CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE
     );
     if (!decodedToken) {
         return;
