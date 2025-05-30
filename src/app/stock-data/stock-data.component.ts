@@ -3,7 +3,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
 import { JsonPipe, CommonModule } from '@angular/common';
-import { StockDataUrl } from '../common/common-app';
+import { StockDataFunctions, StockDataFunction } from '../common/common-app';
 import { MaterialModule } from '../shared/material.module';
 import { Auth } from '@angular/fire/auth';
 
@@ -22,8 +22,7 @@ import { Auth } from '@angular/fire/auth';
     styleUrls: ['./stock-data.component.scss']
 })
 export class StockDataComponent {
-  // Expose StockDataUrl to template
-  StockDataUrl = StockDataUrl;
+  StockDataFunctions = StockDataFunctions;
 
   private http = inject(HttpClient);
   private auth = inject(Auth);
@@ -33,24 +32,37 @@ export class StockDataComponent {
   errorMessage: string = '';
   isLoading = false;
 
-  // Signals
-  functionToUse = signal<string>(StockDataUrl.DAILY_STOCK_DATA_SIMPLE)
+  // Current function being used
+  currentFunction = signal<StockDataFunction>(StockDataFunctions.DAILY_STOCK_DATA)
 
   // Form
   stockForm = new FormGroup({
     tickerSymbol: new FormControl({ value: '', disabled: false })
   });
 
-  // Methods
+  // Toggle between available functions
   toggleFunction() {
-    this.functionToUse.set(this.functionToUse() === StockDataUrl.DAILY_STOCK_DATA_SIMPLE ? StockDataUrl.GET_GLOBAL_QUOTE : StockDataUrl.DAILY_STOCK_DATA_SIMPLE);
+    const currentFn = this.currentFunction();
+    let nextFn: StockDataFunction;
+    
+    switch (currentFn) {
+      case StockDataFunctions.DAILY_STOCK_DATA:
+        nextFn = StockDataFunctions.GLOBAL_QUOTE;
+        break;
+      case StockDataFunctions.GLOBAL_QUOTE:
+      default:
+        nextFn = StockDataFunctions.DAILY_STOCK_DATA;
+        break;
+    }
+    
+    this.currentFunction.set(nextFn);
   }
 
   async onSubmit() {
     if (this.isLoading) return;
     
     console.log('--- sD oS onSubmit: Starting request ---');
-    console.log('Using function:', this.functionToUse());
+    console.log('Using function:', this.currentFunction().displayName);
     console.log('Form value:', this.stockForm.value);
     
     // Get current user and token
@@ -85,7 +97,7 @@ export class StockDataComponent {
       return;
     }
     
-    const url = this.functionToUse();
+    const { url, buttonText } = this.currentFunction();
     const params = { symbol };
     const headers = new HttpHeaders({
       'Authorization': `Bearer ${idToken}`,

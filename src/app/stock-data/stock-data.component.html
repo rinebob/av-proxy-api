@@ -3,11 +3,7 @@
     <mat-card-header>
       <mat-card-title>Stock Data Lookup</mat-card-title>
       <mat-card-subtitle>
-        @if (functionToUse() === StockDataUrl.DAILY_STOCK_DATA_SIMPLE) {
-          Daily Stock Data
-        } @else {
-          Global Quote
-        }
+        {{ currentFunction().displayName }}
       </mat-card-subtitle>
     </mat-card-header>
     
@@ -23,10 +19,13 @@
             class="toggle-button">
             <mat-icon>swap_horiz</mat-icon>
             <span>
-              @if (functionToUse() === StockDataUrl.DAILY_STOCK_DATA_SIMPLE) {
-                Daily Data
-              } @else {
-                Global Quote
+              @switch (currentFunction()) {
+                @case (StockDataFunctions.DAILY_STOCK_DATA) {
+                  Switch to {{ StockDataFunctions.GLOBAL_QUOTE.displayName }}
+                }
+                @case (StockDataFunctions.GLOBAL_QUOTE) {
+                  Switch to {{ StockDataFunctions.DAILY_STOCK_DATA.displayName }}
+                }
               }
             </span>
           </button>
@@ -56,7 +55,7 @@
                 <span>Loading...</span>
               } @else {
                 <mat-icon>search</mat-icon>
-                <span>Get Quote</span>
+                <span>{{ currentFunction().buttonText }}</span>
               }
             </span>
           </button>

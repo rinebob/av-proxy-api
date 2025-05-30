@@ -11,8 +11,36 @@ const getBaseUrl = (functionName: CloudFunctionName) => {
   return `${baseUrl}/${functionName}`;
 };
 
-// Export URL constants
+// Interface for function info
+export interface StockDataFunction {
+  url: string;
+  displayName: string;
+  buttonText: string;
+}
+
+// Function to create a function info object
+const createFunctionInfo = (functionName: CloudFunctionName, displayName: string, buttonText?: string): StockDataFunction => ({
+  url: getBaseUrl(functionName),
+  displayName,
+  buttonText: buttonText || `Get ${displayName}`
+});
+
+// Export function information
+export const StockDataFunctions = {
+  DAILY_STOCK_DATA: createFunctionInfo(
+    CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE,
+    'Daily Data',
+    'Get Daily Data'
+  ),
+  GLOBAL_QUOTE: createFunctionInfo(
+    CloudFunctionName.GET_GLOBAL_QUOTE,
+    'Global Quote',
+    'Get Quote'
+  )
+} as const;
+
+// For backward compatibility
 export const StockDataUrl = {
-    DAILY_STOCK_DATA_SIMPLE: getBaseUrl(CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE),
-    GET_GLOBAL_QUOTE: getBaseUrl(CloudFunctionName.GET_GLOBAL_QUOTE)
+  DAILY_STOCK_DATA_SIMPLE: StockDataFunctions.DAILY_STOCK_DATA.url,
+  GET_GLOBAL_QUOTE: StockDataFunctions.GLOBAL_QUOTE.url
 } as const;
