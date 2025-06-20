@@ -136,7 +136,7 @@ export class StockDataComponent {
           .map(k => `${k}: ${response.headers.get(k)}`)
           .join('\n  ')
       );
-      console.log('Response body:', response.body);
+      // console.log('Response body:', response.body);
       
       this.stockData = response.body;
       console.log('Stock data received:', this.stockData);

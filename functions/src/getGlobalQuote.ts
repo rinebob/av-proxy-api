@@ -1,123 +1,175 @@
-// functions/src/getGlobalQuote.ts
-
-import { onRequest } from "firebase-functions/v2/https";
-import axios from 'axios';
-import { alphaVantageApiKeyParam } from './utils';
-
-
-import {
-    setCorsHeaders,
-    handleOptionsRequest,
-    getAlphaVantageApiKey,
-    authenticateFirebaseUser // Import the new utility function
-} from './utils'; 
-
-import {
-    GlobalQuoteData,
-    AlphaVantageGlobalQuoteResponse,
+import { onRequest } from 'firebase-functions/v2/https';
+import { 
+    setCorsHeaders, 
+    handleOptionsRequest, 
+    getAlphaVantageApiKey, 
+    fetchStockData,
+    authenticateFirebaseUser,
+    firebaseAdmin 
+} from './utils';
+import { 
     AlphaVantageFunction,
-    ALPHAVANTAGE_BASE_URL,
-    CloudFunctionName
+    CloudFunctionName,
+    AlphaVantageGlobalQuoteResponse,
+    GlobalQuoteData
 } from './common-fn';
+
+const db = firebaseAdmin.firestore();
+
+// Helper function to save global quote to Firestore
+async function saveGlobalQuoteToFirestore(
+    symbol: string, 
+    globalQuote: GlobalQuoteData
+): Promise<void> {
+    if (!globalQuote) {
+        return;
+    }
+
+    const batch = db.batch();
+    const quoteRef = db.collection('globalQuotes').doc(symbol);
+    
+    try {
+        // Prepare the data for Firestore
+        const quoteData = {
+            symbol: symbol,
+            lastUpdated: firebaseAdmin.firestore.FieldValue.serverTimestamp(),
+            ...globalQuote
+        };
+
+        // Set the quote document
+        batch.set(quoteRef, quoteData, { merge: true });
+        
+        // Commit the batch
+        await batch.commit();
+        console.log(`Successfully saved global quote for ${symbol} to Firestore`);
+    } catch (error) {
+        console.error('Error in saveGlobalQuoteToFirestore:', error);
+        throw error; // Re-throw to be handled by the caller
+    }
+}
 
 export const getGlobalQuote = onRequest(
     { 
-      secrets: [alphaVantageApiKeyParam],
+      secrets: ['ALPHAVANTAGE_API_KEY'],
       memory: '256MiB'
     }, 
     async (req, res) => {
-    console.info('----------- gGQ getGlobalQuote ---------------');
-    console.info('gGQ get global quote for: ', req.query.symbol);
-    setCorsHeaders(res);
+        console.info('----------- getGlobalQuote ---------------');
+        
+        setCorsHeaders(res);
 
-    console.info('gGQ calling handleOptionsRequest. query: ', req.query);
-    if (handleOptionsRequest(req as any, res as any)) {
-        return;
-    }
-    console.info('gGQ after calling handleOptionsRequest');
-
-    // --- Firebase ID Token Authentication using utility function ---
-    const decodedToken = await authenticateFirebaseUser(
-      req, 
-      res, 
-      CloudFunctionName.GET_GLOBAL_QUOTE
-    );
-    if (!decodedToken) {
-        // authenticateFirebaseUser already sent the response, so just return
-        return;
-    }
-    // const uid = decodedToken.uid; // uid is available if needed for further logic
-    // --- End Firebase ID Token Authentication ---
-
-    if (req.method !== 'GET') {
-        console.warn('gGQ received non-GET request:', req.method);
-        res.status(405).json({ error: 'Method Not Allowed. Please send a GET request.' });
-        return;
-    }
-
-    const apiKey = getAlphaVantageApiKey();
-    if (!apiKey) {
-        console.error('gGQ Alphavantage API key is not configured.');
-        res.status(500).json({ error: 'Alphavantage API key is not configured.' });
-        return;
-    }
-
-    const symbol = req.query.symbol as string;
-
-    console.info('gGQ received symbol:', symbol);
-    if (!symbol) {
-        console.error('gGQ Symbol parameter is missing in query string');
-        res.status(400).json({ error: 'symbol parameter is required in the query string.' });
-        return;
-    }
-
-    const apiUrl = `${ALPHAVANTAGE_BASE_URL}?function=${AlphaVantageFunction.GLOBAL_QUOTE}&symbol=${symbol}&apikey=${apiKey}`;
-
-    try {
-        console.info(`gGQ Fetching global quote for symbol: ${symbol}`);
-        const response = await axios.get<AlphaVantageGlobalQuoteResponse>(apiUrl);
-
-        console.info(`gGQ Response status for ${symbol}: ${response.status}`);
-
-        if (response.status === 200) {
-            const globalQuoteData: GlobalQuoteData | undefined = response.data['Global Quote'];
-
-            if (globalQuoteData && Object.keys(globalQuoteData).length > 0) {
-                res.status(200).json(globalQuoteData);
-            } else if (response.data.Information) {
-                console.warn(`gGQ API returned information/error for ${symbol}: ${response.data.Information}`);
-                res.status(500).json({ error: `API Error: ${response.data.Information}` });
-            } else if (response.data.Note) {
-                console.warn(`gGQ API returned note for ${symbol}: ${response.data.Note}`);
-                 res.status(429).json({ error: `API Rate Limit Exceeded: ${response.data.Note}` });
-            }
-            else {
-                console.warn(`gGQ Received unexpected data format for ${symbol}:`, response.data);
-                res.status(500).json({ error: 'Unexpected API response format.' });
-            }
-        } else {
-            console.error(`gGQ API returned non-200 status for ${symbol}: ${response.status} - ${response.statusText}`);
-            res.status(response.status).json({ error: `API error: ${response.statusText}` });
+        // Handle CORS preflight
+        if (handleOptionsRequest(req as any, res as any)) {
+            return;
         }
 
-    } catch (error: any) {
-        console.error(`gGQ Error fetching global quote for ${symbol}:`, error);
+        try {
+            // --- Firebase ID Token Authentication ---
+            const decodedToken = await authenticateFirebaseUser(
+                req, 
+                res, 
+                CloudFunctionName.GET_GLOBAL_QUOTE
+            );
+            if (!decodedToken) {
+                return; // Response already handled by authenticateFirebaseUser
+            }
+            // uid is available if needed for further logic: const uid = decodedToken.uid;
+            // --- End Firebase ID Token Authentication ---
 
-        if (error.response?.status) {
-            console.error(`gGQ HTTP Error Response for ${symbol}: ${error.response.status} - ${error.response.statusText}`);
-            const apiErrorData = error.response.data as AlphaVantageGlobalQuoteResponse | undefined;
-            if (apiErrorData?.Information) {
-                 res.status(error.response.status).json({ error: `API Error: ${apiErrorData.Information}` });
+            if (req.method !== 'GET') {
+                console.warn('Received non-GET request:', req.method);
+                res.status(405).json({ error: 'Method Not Allowed. Please send a GET request.' });
+                return;
+            }
+
+            const { symbol } = req.query;
+
+            if (!symbol) {
+                res.status(400).json({ 
+                    error: 'Bad Request',
+                    message: 'Missing required parameter: symbol'
+                });
+                return;
+            }
+
+            const apiKey = getAlphaVantageApiKey();
+            if (!apiKey) {
+                console.error('Alpha Vantage API key not configured');
+                res.status(500).json({ 
+                    error: 'Internal Server Error',
+                    message: 'API key not configured'
+                });
+                return;
+            }
+
+            const response = await fetchStockData(
+                AlphaVantageFunction.GLOBAL_QUOTE,
+                symbol as string,
+                apiKey
+            );
+
+            const responseData = response.data as AlphaVantageGlobalQuoteResponse;
+
+            // Save to Firestore if we have global quote data
+            const globalQuote = responseData['Global Quote'];
+            if (globalQuote) {
+                try {
+                    // Format numeric values to 2 decimal places
+                    const formattedQuote: GlobalQuoteData = {
+                        '01. symbol': globalQuote['01. symbol'],
+                        '02. open': parseFloat(globalQuote['02. open']).toFixed(2),
+                        '03. high': parseFloat(globalQuote['03. high']).toFixed(2),
+                        '04. low': parseFloat(globalQuote['04. low']).toFixed(2),
+                        '05. price': parseFloat(globalQuote['05. price']).toFixed(2),
+                        '06. volume': globalQuote['06. volume'],
+                        '07. latest trading day': globalQuote['07. latest trading day'],
+                        '08. previous close': parseFloat(globalQuote['08. previous close']).toFixed(2),
+                        '09. change': parseFloat(globalQuote['09. change']).toFixed(2),
+                        '10. change percent': globalQuote['10. change percent'] // Keep as is since it's already a percentage string
+                    };
+
+                    await saveGlobalQuoteToFirestore(symbol as string, formattedQuote);
+                    console.log(`Successfully saved global quote for ${symbol}`);
+                } catch (error) {
+                    console.error('Error saving to Firestore:', error);
+                    // Continue even if Firestore save fails
+                }
+            }
+
+            res.status(200).json(responseData);
+
+        } catch (error: any) {
+            console.error('Error in getGlobalQuote:', error);
+            
+            if (error.response?.status) {
+                console.error(`HTTP Error Response: ${error.response.status} - ${error.response.statusText}`);
+                const apiErrorData = error.response.data as AlphaVantageGlobalQuoteResponse | undefined;
+                if (apiErrorData?.Information) {
+                    console.error('API Error Information:', apiErrorData.Information);
+                    res.status(400).json({ error: `API Error: ${apiErrorData.Information}` });
+                } else if (apiErrorData?.Note) {
+                    console.error('API Rate Limit Note:', apiErrorData.Note);
+                    res.status(429).json({ error: `API Rate Limit Exceeded: ${apiErrorData.Note}` });
+                } else {
+                    res.status(error.response.status).json({ 
+                        error: 'API Error',
+                        message: error.response.statusText || 'Failed to fetch global quote'
+                    });
+                }
+            } else if (error.request) {
+                console.error('No response received from API:', error.request);
+                res.status(504).json({ 
+                    error: 'Gateway Timeout',
+                    message: 'No response received from AlphaVantage API' 
+                });
             } else {
-                 res.status(error.response.status).json({ error: `HTTP error: ${error.response.status} - ${error.response.statusText}` });
+                const statusCode = 500;
+                const message = error.message || 'Internal Server Error';
+                res.status(statusCode).json({
+                    error: 'Internal Server Error',
+                    message: message
+                });
             }
-
-        } else if (error.request) {
-            console.error(`gGQ Request Error for ${symbol}: No response received`, error.message);
-            res.status(500).json({ error: 'Request error: No response from API.' });
-        } else {
-            console.error(`gGQ General Request Setup Error for ${symbol}:`, error.message);
-            res.status(500).json({ error: `An unexpected error occurred: ${error.message}` });
         }
     }
-});
+);

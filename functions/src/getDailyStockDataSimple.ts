@@ -52,7 +52,7 @@ export const getDailyStockDataSimple = onRequest(
                 { outputsize: params.outputSize }
             );
             
-            console.log(`Fetching data with outputsize: ${params.outputSize}`);
+            console.log(`gDSDS Fetching data with outputsize: ${params.outputSize}`);
             
             // Transform the Alpha Vantage response to our format
             const transformedData = transformAlphaVantageResponse(dailyResponse.data);

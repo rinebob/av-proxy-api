@@ -21,16 +21,26 @@ export interface StoredStockData {
 import { firebaseAdmin } from './utils';
 
 const db = firebaseAdmin.firestore();
+db.settings({ ignoreUndefinedProperties: true });
+
 const { serverTimestamp } = FieldValue;
 
 /**
- * Transforms the raw Alpha Vantage API response into a normalized format for storage
- * @param response The raw response from Alpha Vantage API
- * @returns Normalized stock data in AlphaVantageDailyTimeSeriesTwo format
+ * Transforms the response from Alpha Vantage into a structured format for Firestore.
+ * @param response The raw response from the Alpha Vantage API.
+ * @returns The transformed data structure.
  * @throws {Error} With appropriate error message for different types of API responses
  */
 export function transformAlphaVantageResponse(response: any): AlphaVantageDailyTimeSeriesTwo {
-    console.log('fsh transformAlphaVantageResponse - Starting transformation');
+  // Guard clause: If the data is already transformed, return it directly.
+  if (response && response.metaData && response.timeSeriesDaily) {
+    console.log('fsh tAVR: Response already transformed. Skipping.');
+    return response;
+  }
+
+  console.log('fsh tAVR response keys: ', Object.keys(response));
+  console.log('fsh tAVR response metadata: ', response['Meta Data']);
+    console.log('fsh tAVR Starting transformation');
     
     // Helper function to check for rate limit messages
     const isRateLimitMessage = (message: string): boolean => {
@@ -50,14 +60,14 @@ export function transformAlphaVantageResponse(response: any): AlphaVantageDailyT
         // Check for error responses first
         if (response['Error Message']) {
             const errorMsg = response['Error Message'];
-            console.error('fsh transformAlphaVantageResponse - API Error:', errorMsg);
+            console.error('fsh tAVR API Error:', errorMsg);
             throw new Error(`API Error: ${errorMsg}`);
         }
         
         // Check for rate limit or information messages first
         if (response['Information']) {
             const infoMsg = response['Information'];
-            console.warn('fsh transformAlphaVantageResponse - API Information:', infoMsg);
+            console.warn('fsh tAVR API Information:', infoMsg);
             
             if (isRateLimitMessage(infoMsg)) {
                 throw new Error(`RATE_LIMIT: ${infoMsg}`);
@@ -71,7 +81,7 @@ export function transformAlphaVantageResponse(response: any): AlphaVantageDailyT
         
         if (response['Note']) {
             const noteMsg = response['Note'];
-            console.warn('fsh transformAlphaVantageResponse - API Note:', noteMsg);
+            console.warn('fsh tAVR API Note:', noteMsg);
             
             if (isRateLimitMessage(noteMsg)) {
                 throw new Error(`RATE_LIMIT: ${noteMsg}`);
@@ -79,18 +89,19 @@ export function transformAlphaVantageResponse(response: any): AlphaVantageDailyT
         }
         
         // Check for required fields
-        if (!response['Meta Data']) {
-            throw new Error('Invalid Alpha Vantage response: Missing Meta Data');
+        if (!response['Meta Data'] && !response['metaData']) {
+          console.warn('fsh tAVR Missing Meta Data');
+            // throw new Error('Invalid Alpha Vantage response: Missing Meta Data');
         }
         
         // Determine which time series to use (daily or daily adjusted)
-        const timeSeriesData = response['Time Series (Daily)'] || response['Time Series (Daily - Adjusted)'];
+        const timeSeriesData = response['Time Series (Daily)'] || response['Time Series (Daily - Adjusted)'] || response['timeSeriesDaily'];
         
         if (!timeSeriesData) {
             throw new Error('No valid time series data found in response');
         }
         
-        const metaData = response['Meta Data'];
+        const metaData = response['Meta Data'] || response['metaData'];
         
         // Convert the time series to our storage format (array of data points)
         const processedTimeSeries: DailyTimeSeriesDataTwo[] = [];
@@ -122,7 +133,7 @@ export function transformAlphaVantageResponse(response: any): AlphaVantageDailyT
         if (processedTimeSeries.length > 0) {
             const firstItem = processedTimeSeries[0];
             const lastItem = processedTimeSeries[processedTimeSeries.length - 1];
-            console.log('fsh transformAlphaVantageResponse - Processed time series', {
+            console.log('fsh tAVR Processed time series', {
                 symbol: metaData['2. Symbol'],
                 entries: processedTimeSeries.length,
                 dateRange: { first: firstItem.date, last: lastItem.date },
@@ -147,10 +158,10 @@ export function transformAlphaVantageResponse(response: any): AlphaVantageDailyT
     } catch (error) {
         // Don't log stack trace for rate limit errors
         if (error instanceof Error && error.message.startsWith('RATE_LIMIT:')) {
-            console.warn('fsh transformAlphaVantageResponse - Rate limit error:', error.message);
+            console.warn('fsh tAVR Rate limit error:', error.message);
         } else {
-            console.error('fsh transformAlphaVantageResponse - Error during transformation:', error);
-            console.error('fsh transformAlphaVantageResponse - Response data:', JSON.stringify(response, null, 2));
+            console.error('fsh tAVR Error during transformation:', error);
+            console.error('fsh tAVR Response data:', JSON.stringify(response, null, 2));
         }
         throw error; // Re-throw to be handled by the caller
     }
@@ -164,12 +175,12 @@ export function transformAlphaVantageResponse(response: any): AlphaVantageDailyT
 function processDailyData(
   timeSeries: DailyTimeSeriesDataTwo[]
 ): DailyTimeSeriesDataTwo[] {
-  console.log('fsh processDailyData - Starting to process time series data');
+  console.log('fsh pDD processDailyData - Starting to process time series data');
   const processedData: DailyTimeSeriesDataTwo[] = [];
   
-  console.log('fsh processDailyData - Total dates to process:', timeSeries.length);
+  console.log('fsh pDD processDailyData - Total dates to process:', timeSeries.length);
   if (timeSeries.length > 0) {
-    console.log('fsh processDailyData - Date range:', { 
+    console.log('fsh pDD processDailyData - Date range:', { 
       first: timeSeries[0].date, 
       last: timeSeries[timeSeries.length - 1].date 
     });
@@ -191,7 +202,7 @@ function processDailyData(
       data.changePercent = `${changePercent.toFixed(2)}%`;
       
       if (i <= 2) { // Log first few calculations for debugging
-        console.log('fsh processDailyData - Change calculation', {
+        console.log('fsh pDD processDailyData - Change calculation', {
           date: data.date,
           prevDate: prevData.date,
           prevClose,
@@ -201,7 +212,7 @@ function processDailyData(
         });
       }
     } else {
-      console.log('fsh processDailyData - First day data (no change calculation):', {
+      console.log('fsh pDD processDailyData - First day data (no change calculation):', {
         date: data.date,
         close: data.close
       });
@@ -223,13 +234,13 @@ export async function saveDailyStockData(
   symbol: string, 
   response: any
 ): Promise<AlphaVantageDailyTimeSeriesTwo> {
-  console.log(`fsh saveDailyStockData - Starting to save data for symbol: ${symbol}`);
+  console.log(`fsh sDSD saveDailyStockData - Starting to save data for symbol: ${symbol}`);
   
   // Transform the response if it's in Alpha Vantage format
   const transformedResponse = transformAlphaVantageResponse(response);
   
   const result = await saveTransformedDailyStockData(symbol, transformedResponse);
-  console.log(`fsh saveDailyStockData - Successfully processed and saved daily data for ${symbol}`);
+  console.log(`fsh sDSD saveDailyStockData - Successfully processed and saved daily data for ${symbol}`);
   
   return result;
 }
@@ -241,10 +252,10 @@ async function saveTransformedDailyStockData(
   symbol: string, 
   response: AlphaVantageDailyTimeSeriesTwo
 ): Promise<AlphaVantageDailyTimeSeriesTwo> {
-  console.log('fsh saveDailyStockData - Starting to process data for symbol:', symbol);
+  console.log('fsh sTDSD saveTransformedDailyStockData - Starting to process data for symbol:', symbol);
   
   if (!response || !response.timeSeriesDaily) {
-    const errorMsg = 'fsh saveDailyStockData - Invalid response format from Alpha Vantage';
+    const errorMsg = 'fsh sTDSD saveTransformedDailyStockData - Invalid response format from Alpha Vantage';
     console.error(errorMsg, { 
       hasResponse: !!response, 
       hasTimeSeries: !!response?.timeSeriesDaily 
@@ -253,7 +264,7 @@ async function saveTransformedDailyStockData(
   }
 
   const entryCount = response.timeSeriesDaily.length;
-  console.log('fsh saveDailyStockData - Raw data entries:', entryCount);
+  console.log('fsh sTDSD saveTransformedDailyStockData - Raw data entries:', entryCount);
   
   // Process the time series data to calculate changes and other derived fields
   const processedTimeSeries = processDailyData(response.timeSeriesDaily);
@@ -292,19 +303,19 @@ async function saveTransformedDailyStockData(
   }
   
   // Log the data structure for debugging
-  console.log('fsh saveDailyStockData - Saving document for symbol:', symbol);
-  console.log('fsh saveDailyStockData - Document data keys:', Object.keys(docData));
+  console.log('fsh sTDSD saveTransformedDailyStockData - Saving document for symbol:', symbol);
+  console.log('fsh sTDSD saveTransformedDailyStockData - Document data keys:', Object.keys(docData));
   
   if (docData.timeSeriesDaily && docData.timeSeriesDaily.length > 0) {
     const firstItem = docData.timeSeriesDaily[0];
     const lastItem = docData.timeSeriesDaily[docData.timeSeriesDaily.length - 1];
     
-    console.log(`fsh saveDailyStockData - Time series contains ${docData.timeSeriesDaily.length} entries`);
-    console.log('fsh saveDailyStockData - Date range:', {
+    console.log(`fsh sTDSD saveTransformedDailyStockData - Time series contains ${docData.timeSeriesDaily.length} entries`);
+    console.log('fsh sTDSD saveTransformedDailyStockData - Date range:', {
       first: firstItem.date,
       last: lastItem.date
     });
-    console.log('fsh saveDailyStockData - First item data:', firstItem);
+    console.log('fsh sTDSD saveTransformedDailyStockData - First item data:', firstItem);
   }
   
   // Save the document with the symbol as the document ID
@@ -312,10 +323,10 @@ async function saveTransformedDailyStockData(
   
   try {
     await docRef.set(docData, { merge: true });
-    console.log('fsh saveDailyStockData - Successfully saved document for symbol:', symbol);
+    console.log('fsh sTDSD saveTransformedDailyStockData - Successfully saved document for symbol:', symbol);
     return response; // Return the transformed response
   } catch (error) {
-    console.error('fsh saveDailyStockData - Error saving document:', error);
+    console.error('fsh sTDSD saveTransformedDailyStockData - Error saving document:', error);
     throw error;
   }
 }
