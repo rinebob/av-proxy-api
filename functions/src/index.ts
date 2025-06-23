@@ -1,4 +1,2 @@
-import { getDailyStockDataSimple } from "./getDailyStockDataSimple";
-import { getGlobalQuote } from "./getGlobalQuote";
-
-export { getDailyStockDataSimple, getGlobalQuote };
+export { getDailyStockDataSimple } from './alpha-vantage/getDailyStockDataSimple.js';
+export { getGlobalQuote } from './alpha-vantage/getGlobalQuote.js';

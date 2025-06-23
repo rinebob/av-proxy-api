@@ -3,23 +3,18 @@ import {
     setCorsHeaders, 
     handleOptionsRequest,
     fetchStockData,
-    firebaseAdmin,
     handleApiError,
     validateAndAuthenticateRequest
-} from './utils';
+} from '../utils.js';
 import { 
     CloudFunctionName,
     AlphaVantageFunction
-} from './common-fn';
+} from '../common/common-fn.js';
 import { 
     transformAlphaVantageResponse,
-    saveStockData 
-} from './firestore-helpers';
-
-// Initialize Firebase Admin if not already initialized
-if (!firebaseAdmin.apps.length) {
-    firebaseAdmin.initializeApp();
-}
+    saveStockData, 
+    getStockData
+} from './av-firestore-helpers.js';
 
 export const getDailyStockDataSimple = onRequest(
     { 
@@ -47,13 +42,23 @@ export const getDailyStockDataSimple = onRequest(
             // TEMPORARY LOG: Securely log the end of the API key to verify the secret
             console.log(`gDSDS Using API Key ending in: ${apiKey.slice(-4)}`);
 
+            // Check cache first
+            const cachedData = await getStockData(params.symbol, CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE);
+            if (cachedData) {
+                console.info(`[${params.symbol}] CACHE HIT`);
+                res.status(200).send(cachedData);
+                return;
+            }
+
+            // Create the correctly-typed parameters object for the API call
+            const apiParams: { [key: string]: string } = {
+                function: AlphaVantageFunction.TIME_SERIES_DAILY,
+                symbol: params.symbol,
+                outputsize: params.outputSize
+            };
+
             // Make API call to get daily data and save to Firestore
-            const dailyResponse = await fetchStockData(
-                AlphaVantageFunction.TIME_SERIES_DAILY,
-                params.symbol,
-                apiKey,
-                { outputsize: params.outputSize }
-            );
+            const dailyResponse = await fetchStockData(apiParams, apiKey);
 
             // Check if the Alpha Vantage API returned an error
             if (dailyResponse['Error Message'] || dailyResponse['Note']) {
@@ -65,16 +70,21 @@ export const getDailyStockDataSimple = onRequest(
                 return;
             }
             
+            // Type guard to ensure we have the correct response shape before transforming.
+            if (!('Time Series (Daily)' in dailyResponse)) {
+                console.error('Invalid response shape for daily time series:', dailyResponse);
+                throw new Error('Received an invalid data structure from Alpha Vantage for a daily time series request.');
+            }
+
             console.log(`gDSDS Fetching data with outputsize: ${params.outputSize}`);
             
             // Transform the Alpha Vantage response to our format
             const transformedData = transformAlphaVantageResponse(dailyResponse);
             
             // Save the transformed data to Firestore
-            await saveStockData(params.symbol, transformedData);
+            await saveStockData(params.symbol, transformedData, CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE);
 
             // Log the final output for debugging
-            // console.log('Final output data:', JSON.stringify(dailyData, null, 2));
             const timeSeries = transformedData.timeSeriesDaily;
             const firstEntry = timeSeries ? Object.entries(timeSeries)[0] : 'No data';
             console.log('gDSDS First daily data entry:', firstEntry);
@@ -82,7 +92,7 @@ export const getDailyStockDataSimple = onRequest(
             console.log('gDSDS RUNNING LOCAL VERSION - ' + new Date().toISOString());
             
             // Respond with the transformed data
-            res.status(200).json(transformedData);
+            res.status(200).send(transformedData);
             return;
 
             } catch (error: any) {

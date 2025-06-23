@@ -1,12 +1,14 @@
-// functions/src/firestore-helpers.ts
-import { db } from './utils';
+// functions/src/alpha-vantage/firestore-helpers.ts
+import { db } from '../utils';
 import {
   AlphaVantageDailyTimeSeriesResponse,
+  CloudFunctionName,
   DailyTimeSeriesData,
   DailyTimeSeriesDataTwo,
+  GlobalQuoteData,
   StoredStockData,
   TimeSeriesMetaDataTwo,
-} from './common-fn';
+} from '../common/common-fn.js';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
@@ -67,51 +69,66 @@ export function transformAlphaVantageResponse(
 }
 
 /**
- * Saves the transformed stock data to Firestore.
+ * Saves stock data to Firestore, handling different data structures based on the function type.
  * @param symbol The stock symbol, used as the document ID.
- * @param data The transformed stock data to save.
+ * @param data The data to save (either daily data or a global quote).
+ * @param functionName The name of the cloud function, to determine how to structure the data.
  */
 export async function saveStockData(
   symbol: string,
-  data: StoredStockData
+  data: StoredStockData | GlobalQuoteData,
+  functionName: CloudFunctionName
 ): Promise<void> {
   if (!symbol) {
     throw new Error('Symbol is required to save stock data.');
   }
   const docRef = db.collection('stockData').doc(symbol);
-  await docRef.set(data, { merge: true });
-  console.log(`Successfully saved data for ${symbol} to Firestore.`);
+
+  let dataToSave;
+  if (functionName === CloudFunctionName.GET_GLOBAL_QUOTE) {
+    // For global quotes, save the data inside a 'globalQuote' field to avoid overwriting daily data.
+    dataToSave = { globalQuote: data, lastUpdatedGlobalQuote: FieldValue.serverTimestamp() };
+  } else {
+    // For daily data, the data object is already structured correctly.
+    dataToSave = data;
+  }
+
+  await docRef.set(dataToSave, { merge: true });
+  console.log(`Successfully saved data for ${symbol} (${functionName}) to Firestore.`);
 }
 
 /**
- * Retrieves stock data from Firestore.
+ * Retrieves a specific type of stock data from a Firestore document.
  * @param symbol The stock symbol.
- * @param limit Optional limit for the number of time series entries to return.
- * @returns The stored stock data, or null if not found.
+ * @param functionName The type of data to retrieve (e.g., global quote or daily data).
+ * @returns The requested data, or null if not found.
  */
 export async function getStockData(
   symbol: string,
-  limit?: number
-): Promise<StoredStockData | null> {
+  functionName: CloudFunctionName
+): Promise<StoredStockData | GlobalQuoteData | null> {
   try {
     const doc = await db.collection('stockData').doc(symbol).get();
     if (!doc.exists) {
       return null;
     }
 
-    const data = doc.data() as StoredStockData;
-
-    if (limit && data.timeSeriesDaily) {
-      data.timeSeriesDaily = data.timeSeriesDaily.slice(0, limit);
-    }
-    if (limit && data.timeSeriesDailyAdjusted) {
-      data.timeSeriesDailyAdjusted = data.timeSeriesDailyAdjusted.slice(
-        0,
-        limit
-      );
+    const data = doc.data();
+    if (!data) {
+      return null;
     }
 
-    return data;
+    // Return the specific part of the document based on the function type.
+    if (functionName === CloudFunctionName.GET_GLOBAL_QUOTE) {
+      return (data.globalQuote as GlobalQuoteData) || null;
+    }
+
+    if (functionName === CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE) {
+      // For daily data, the document itself is the data we need.
+      return data as StoredStockData;
+    }
+
+    return null;
   } catch (error) {
     console.error(`Error getting stock data for ${symbol}:`, error);
     throw new Error('Could not retrieve stock data from Firestore.');

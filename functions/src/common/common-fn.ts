@@ -87,7 +87,7 @@ export interface AlphaVantageDailyTimeSeriesResponse {
     "Time Series (Daily - Adjusted)"?: DailyTimeSeries; // For TIME_SERIES_DAILY_ADJUSTED
     "Information"?: string; // For API-level errors/info
     "Note"?: string;       // For rate limit messages
-    // Add other potential top-level keys if Alpha Vantage uses them
+    "Error Message"?: string; // For API-level errors
 }
 
 // Clean version of AlphaVantageDailyTimeSeriesResponse with consistent naming
@@ -97,6 +97,7 @@ export interface AlphaVantageDailyTimeSeriesTwo {
     timeSeriesDailyAdjusted?: DailyTimeSeriesDataTwo[]; // Optional array of adjusted daily data points
     information?: string; // For API-level errors/info
     note?: string;       // For rate limit messages
+    errorMessage?: string; // For API-level errors
 }
 
 // GLOBAL_QUOTE
@@ -119,7 +120,7 @@ export interface AlphaVantageGlobalQuoteResponse {
     "Global Quote"?: GlobalQuoteData; // Optional because it might be an error response
     "Information"?: string; // For API-level errors/info
     "Note"?: string;       // For rate limit messages
-    // You might add other potential top-level keys if Alpha Vantage uses them
+    "Error Message"?: string; // For API-level errors
 }
 
 // Interface for the data structure stored in Firestore.
@@ -129,6 +130,7 @@ export interface StoredStockData {
   timeSeriesDailyAdjusted?: DailyTimeSeriesDataTwo[];
   information?: string;
   note?: string;
+  errorMessage?: string; // For API-level errors
   lastUpdated: Timestamp | FieldValue;
 }
 
