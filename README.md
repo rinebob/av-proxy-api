@@ -34,41 +34,45 @@ For local development, you can use the Firebase Authentication emulator with the
 - **Password**: `aaaaaa`
 - **UID**: Will be generated automatically in the emulator
 
-### Running Locally
+### Streamlined Development Workflow
 
-1. Start the Firebase emulators:
-   ```bash
-   firebase emulators:start --only "auth,firestore,functions" --project alpha-vantage-proxy-api
-   ```
+For an efficient development experience with automatic data persistence and live code reloading, use the following two-terminal setup:
 
-2. In a separate terminal, start the Angular development server:
-   ```bash
-   ng serve
-   ```
+**Terminal 1: Start Emulators with Data Persistence**
 
-3. Access the application at `http://localhost:4200/`
-
-### Authentication in Development
-
-In development mode, the application uses the Firebase Authentication emulator. Any request with a valid Firebase ID token will be accepted if the UID is in the `ALLOWED_USER_UIDS` list from your `.env.alpha-vantage-proxy-api` file.
-
-### Starting the Development Server
-
-To start a local development server, run:
+In the project root directory (`av-proxy-api`), run:
 
 ```bash
-# Start the Angular development server
-ng serve
-
-# In a separate terminal, start the Firebase emulators
-firebase emulators:start --only "auth,firestore,functions" --project alpha-vantage-proxy-api
+# This starts the emulators and handles importing/exporting data
+npm run emulators
 ```
 
-### Authentication in Development
+This script will:
+- Start the Firebase emulators for Functions, Firestore, and Auth.
+- Automatically import data (like users) from the `./.firebase/emulator-data` directory.
+- Save the current state of the emulators back to that directory when you stop the process (`Ctrl+C`).
 
-In development mode, any request with a valid Firebase ID token will be accepted if the UID matches the hardcoded test user UID (`testuser123`). No additional setup is required.
+**Terminal 2: Watch for Backend Code Changes**
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+In the `functions` directory (`av-proxy-api/functions`), run:
+
+```bash
+# This watches for changes and automatically recompiles the TypeScript
+npm run build:watch
+```
+
+This script will automatically recompile your TypeScript functions whenever you save a file. The Functions emulator will detect the changes and hot-reload your code.
+
+**Terminal 3: Run the Angular Frontend**
+
+In the project root directory (`av-proxy-api`), run:
+
+```bash
+# This starts the Angular development server
+ng serve
+```
+
+Now you can access the application at `http://localhost:4200/` and any changes you make to your backend or frontend code will be automatically reflected.
 
 ## Code scaffolding
 

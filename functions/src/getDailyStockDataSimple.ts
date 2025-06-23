@@ -13,7 +13,7 @@ import {
 } from './common-fn';
 import { 
     transformAlphaVantageResponse,
-    saveDailyStockData 
+    saveStockData 
 } from './firestore-helpers';
 
 // Initialize Firebase Admin if not already initialized
@@ -44,6 +44,9 @@ export const getDailyStockDataSimple = onRequest(
             
             const { params, apiKey } = validation;
 
+            // TEMPORARY LOG: Securely log the end of the API key to verify the secret
+            console.log(`gDSDS Using API Key ending in: ${apiKey.slice(-4)}`);
+
             // Make API call to get daily data and save to Firestore
             const dailyResponse = await fetchStockData(
                 AlphaVantageFunction.TIME_SERIES_DAILY,
@@ -51,25 +54,35 @@ export const getDailyStockDataSimple = onRequest(
                 apiKey,
                 { outputsize: params.outputSize }
             );
+
+            // Check if the Alpha Vantage API returned an error
+            if (dailyResponse['Error Message'] || dailyResponse['Note']) {
+                console.error('Alpha Vantage API returned an error:', dailyResponse);
+                res.status(400).json({ 
+                    message: 'Failed to fetch data from Alpha Vantage. The symbol may be invalid or the API limit reached.',
+                    error: dailyResponse['Error Message'] || dailyResponse['Note'] 
+                });
+                return;
+            }
             
             console.log(`gDSDS Fetching data with outputsize: ${params.outputSize}`);
             
             // Transform the Alpha Vantage response to our format
-            const transformedData = transformAlphaVantageResponse(dailyResponse.data);
+            const transformedData = transformAlphaVantageResponse(dailyResponse);
             
-            // Save the transformed data to Firestore and get the result
-            const dailyData = await saveDailyStockData(params.symbol, transformedData);
+            // Save the transformed data to Firestore
+            await saveStockData(params.symbol, transformedData);
 
             // Log the final output for debugging
             // console.log('Final output data:', JSON.stringify(dailyData, null, 2));
-            const timeSeries = dailyData.timeSeriesDaily;
+            const timeSeries = transformedData.timeSeriesDaily;
             const firstEntry = timeSeries ? Object.entries(timeSeries)[0] : 'No data';
             console.log('gDSDS First daily data entry:', firstEntry);
 
             console.log('gDSDS RUNNING LOCAL VERSION - ' + new Date().toISOString());
             
-            // Return the data (test or real)
-            res.status(200).json(dailyData);
+            // Respond with the transformed data
+            res.status(200).json(transformedData);
             return;
 
             } catch (error: any) {

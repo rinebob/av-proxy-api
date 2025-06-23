@@ -35,12 +35,19 @@ if (process.env.FUNCTIONS_EMULATOR === 'true') {
   dotenv.config();
 }
 
+import { getFirestore } from 'firebase-admin/firestore';
+
 if (admin.apps.length === 0) {
   admin.initializeApp();
   console.info('ut Firebase Admin SDK initialized.');
 }
 
+// Get a reference to the Firestore database, specifying the database ID
+const db = getFirestore('alpha-vantage-proxy-api-db');
+db.settings({ ignoreUndefinedProperties: true });
+
 export const firebaseAdmin = admin;
+export { db };
 
 /**
  * Authenticates a Firebase user based on the ID token in the Authorization header.
@@ -203,9 +210,9 @@ export function getAlphaVantageApiKey(): string {
     );
     throw new Error("Configuration error: Alpha Vantage API key is missing or not accessible.");
   }
+  console.log(`ut gAVAK: Retrieved key ending in: ...${key.slice(-4)}`);
   return key;
 }
-
 
 /**
  * Fetches daily stock data from the Alphavantage API.
@@ -280,7 +287,7 @@ export async function fetchStockData(
       console.log('fn utils fSD response status: ', response.status);
       // console.log('fn utils fSD response.data: ', response.data);
 
-      return response; 
+      return response.data; 
   } catch (error: any) {
     console.error(`fn utils fSD error fetching data for ${symbol} with function ${alphaVantageFunction}:`);
       throw error;
@@ -443,3 +450,5 @@ export function handleApiError(error: any, res: any, context: string = ''): bool
       return true;
   }
 }
+
+// Force redeploy to apply IAM changes.

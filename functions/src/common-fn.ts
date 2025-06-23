@@ -1,4 +1,4 @@
-
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 /////////// INTERFACES ///////////////////////
 
@@ -122,6 +122,16 @@ export interface AlphaVantageGlobalQuoteResponse {
     // You might add other potential top-level keys if Alpha Vantage uses them
 }
 
+// Interface for the data structure stored in Firestore.
+export interface StoredStockData {
+  metaData: TimeSeriesMetaDataTwo;
+  timeSeriesDaily?: DailyTimeSeriesDataTwo[];
+  timeSeriesDailyAdjusted?: DailyTimeSeriesDataTwo[];
+  information?: string;
+  note?: string;
+  lastUpdated: Timestamp | FieldValue;
+}
+
 //////////////////////////////////////
 
 ///////////// ENUMS /////////////////////
@@ -130,7 +140,6 @@ export enum OutputSize {
     COMPACT = 'compact',
     FULL = 'full'
 }
-
 
 // Define an enum for Cloud Function names
 export enum CloudFunctionName {
@@ -191,9 +200,6 @@ export const CACHE_DURATION_MS = 1000 * 60 * 30; // Cache for 30 minutes
 
 export const RATE_LIMIT_WINDOW_MS = 1000 * 60; // 1 minute
 export const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 requests per minute
-
-
-
 
 // Interface for authentication and validation result
 export interface AuthValidationResult {
