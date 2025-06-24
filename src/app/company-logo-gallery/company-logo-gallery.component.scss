@@ -1,0 +1,201 @@
+@use '@angular/material' as mat;
+
+// Define default colors if theme is not available
+$primary: #3f51b5;
+$accent: #ff4081;
+$warn: #f44336;
+
+// Main container
+.company-logo-gallery {
+  padding: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+// Search section
+.search-section {
+  margin-bottom: 2rem;
+  
+  .search-form {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    
+    .search-field {
+      flex: 1;
+      
+      ::ng-deep .mat-mdc-form-field-flex {
+        background-color: #f5f5f5;
+        border-radius: 4px;
+      }
+      
+      ::ng-deep .mat-mdc-form-field-outline {
+        color: rgba(0, 0, 0, 0.12);
+      }
+      
+      ::ng-deep .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__leading,
+      ::ng-deep .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__notch,
+      ::ng-deep .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__trailing {
+        border-color: rgba(0, 0, 0, 0.12);
+      }
+    }
+    
+    .search-button {
+      margin-top: 0.5rem;
+      height: 56px;
+      
+      .mat-icon {
+        margin-right: 0.5rem;
+      }
+    }
+  }
+  
+  @media (max-width: 600px) {
+    .search-form {
+      flex-direction: column;
+      
+      .search-button {
+        width: 100%;
+        margin-top: 0.5rem;
+      }
+    }
+  }
+}
+
+// Loading spinner
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 0;
+  color: $primary;
+  
+  p {
+    margin-top: 1rem;
+    color: $primary;
+  }
+}
+
+// Results section
+.results-section {
+  margin-top: 2rem;
+  
+  h2 {
+    margin-bottom: 1.5rem;
+    color: darken($primary, 10%);
+  }
+  
+  .logo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+    
+    @media (max-width: 600px) {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+  }
+  
+  .logo-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .logo-image {
+      width: 100%;
+      height: 120px;
+      object-fit: contain;
+      padding: 1rem;
+      background-color: #f9f9f9;
+      border-bottom: 1px solid #eee;
+    }
+    
+    mat-card-content {
+      padding: 1rem;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      
+      h3 {
+        margin: 0 0 0.5rem;
+        font-size: 1rem;
+        font-weight: 500;
+        line-height: 1.2;
+        color: #212121;
+      }
+      
+      .ticker {
+        margin: 0;
+        font-size: 0.875rem;
+        color: $primary;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+// Empty state
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1rem;
+  text-align: center;
+  color: $primary;
+  
+  .empty-icon {
+    font-size: 4rem;
+    width: 4rem;
+    height: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.7;
+  }
+  
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.5rem;
+    font-weight: 500;
+  }
+  
+  p {
+    margin: 0;
+    font-size: 1rem;
+    color: lighten($primary, 10%);
+    max-width: 400px;
+  }
+}
+
+// Dark theme overrides (using CSS variables for theming)
+:host-context(.dark-theme) {
+  .search-section {
+    .search-form {
+      .search-field {
+        ::ng-deep .mat-mdc-form-field-flex {
+          background-color: rgba(255, 255, 255, 0.05);
+        }
+        
+        ::ng-deep .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__leading,
+        ::ng-deep .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__notch,
+        ::ng-deep .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__trailing {
+          border-color: rgba(255, 255, 255, 0.12);
+        }
+      }
+    }
+  }
+  
+  .logo-card {
+    .logo-image {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  }
+}

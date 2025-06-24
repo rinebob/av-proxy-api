@@ -18,6 +18,34 @@
       "npm --prefix \"$RESOURCE_DIR\" run build"
     ]
   },
+  "hosting": [
+    {
+      "target": "app",
+      "public": "dist/av-proxy-api/browser",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        {
+          "source": "/api/benzinga/logo",
+          "function": "getCompanyLogo"
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "/**/*.@(js|css|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000"
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "emulators": {
     "auth": {
       "port": 9099,
@@ -30,6 +58,9 @@
     "firestore": {
       "port": 8080,
       "host": "127.0.0.1"
+    },
+    "hosting": {
+      "port": 5000
     },
     "ui": {
       "enabled": true

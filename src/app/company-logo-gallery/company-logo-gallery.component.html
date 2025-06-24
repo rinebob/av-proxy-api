@@ -1,0 +1,88 @@
+<div class="company-logo-gallery">
+  <!-- Search Section -->
+  <section class="search-section">
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Company Logo Search</mat-card-title>
+        <mat-card-subtitle>Enter stock ticker symbols (comma-separated for multiple)</mat-card-subtitle>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <form (ngSubmit)="onSearch()" class="search-form">
+          <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Search by Ticker (e.g., AAPL, MSFT, GOOGL)</mat-label>
+            <input 
+              matInput 
+              type="text" 
+              [formControl]="searchControl"
+              placeholder="Enter ticker symbols..."
+              aria-label="Stock ticker symbols"
+            >
+            <button 
+              matSuffix 
+              mat-icon-button 
+              type="submit"
+              [disabled]="isLoading()"
+              aria-label="Search"
+            >
+              <mat-icon>search</mat-icon>
+            </button>
+          </mat-form-field>
+          
+          <button 
+            mat-raised-button 
+            color="primary" 
+            type="submit"
+            [disabled]="isLoading() || !searchControl.value?.trim()"
+            class="search-button"
+          >
+            <mat-icon>search</mat-icon>
+            <span>Search</span>
+          </button>
+        </form>
+      </mat-card-content>
+    </mat-card>
+  </section>
+
+  <!-- Loading State -->
+  @if (isLoading()) {
+    <div class="loading-spinner">
+      <mat-spinner diameter="40"></mat-spinner>
+      <p>Loading company logos...</p>
+    </div>
+  }
+
+  <!-- Results Section -->
+  @if (!isLoading() && !isEmpty()) {
+    <section class="results-section">
+      <h2>Company Logos</h2>
+      <div class="logo-grid">
+        @for (logo of displayLogos(); track $index) {
+          <mat-card class="logo-card">
+            <img 
+              [src]="logo.hasError ? 'assets/images/logo-placeholder.png' : logo.logoUrl" 
+              [alt]="logo.altText"
+              class="logo-image"
+              (error)="logo.hasError = true"
+            >
+            <mat-card-content>
+              <h3>{{ logo.displayName }}</h3>
+              @if (logo.ticker) {
+                <p class="ticker">{{ logo.ticker }}</p>
+              }
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    </section>
+  }
+
+  <!-- Empty State -->
+  @if (!isLoading() && isEmpty()) {
+    <div class="empty-state">
+      <mat-icon class="empty-icon">image_search</mat-icon>
+      <h3>No Logos Found</h3>
+      <p>Try searching for company ticker symbols (e.g., AAPL, MSFT, GOOGL)</p>
+    </div>
+  }
+</div>
