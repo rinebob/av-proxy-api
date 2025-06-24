@@ -124,26 +124,31 @@ export class BenzingaPageComponent implements OnInit {
     this.currentPage = 0; // Reset to first page on new search
 
     const { ticker, startDate, endDate } = this.searchForm.value;
-
-    const formatDate = (date: Date) => this.datePipe.transform(date, 'yyyy-MM-dd') || '';
     
-    const params: EarningsParams = {
-      tickers: ticker.toUpperCase(),
-      date_from: formatDate(startDate),
-      date_to: formatDate(endDate),
-      page: 1, // Always request first page from API
-      pagesize: 100 // Request more items to have enough for pagination
-    };
+    // Ensure we have valid date objects
+    if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
+      this.error = 'Invalid date range selected';
+      this.isLoading = false;
+      return;
+    }
 
-    this.benzingaService.getEarningsCalendar(params).subscribe({
+    console.log('Searching with dates:', { startDate, endDate });
+
+    this.benzingaService.getEarningsCalendar({
+      tickers: ticker.toUpperCase(),
+      startDate,
+      endDate,
+      page: 1,
+      pageSize: 100
+    }).subscribe({
       next: (response: any) => {
-        // Store original earnings
+        console.log('API Response:', response);
         this.originalEarnings = response.earnings || [];
         
         // Create duplicated data if needed
         this.duplicatedEarnings = [];
         for (let i = 0; i < 10; i++) {
-          const duplicated = this.originalEarnings.map((item: EarningsItem) => ({
+          const duplicated = this.originalEarnings.map((item: any) => ({
             ...item,
             id: `${item.id || ''}-${i}`,
             eps_act: item.eps_act ? item.eps_act + (Math.random() * 0.1 - 0.05) : item.eps_act,
@@ -152,7 +157,6 @@ export class BenzingaPageComponent implements OnInit {
           this.duplicatedEarnings.push(...duplicated);
         }
         
-        // Update displayed data based on toggle state
         this.updateDisplayedData();
         this.isLoading = false;
       },

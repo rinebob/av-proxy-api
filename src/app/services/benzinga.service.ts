@@ -84,16 +84,22 @@ export class BenzingaService {
     page?: number,
     pageSize?: number
   }): Observable<any> {
-    // Set default date range (last 5 years)
+    // Use provided dates or default to last 30 days
     const endDate = params.endDate || new Date();
     const startDate = params.startDate || new Date();
-    startDate.setFullYear(endDate.getFullYear() - 5);
+    startDate.setDate(endDate.getDate() - 30); // Default to last 30 days if no dates provided
 
     // Format dates as YYYY-MM-DD
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
     
-    const queryParams: EarningsParams = {
-      tickers: params.tickers,
+    // Use date_from and date_to to match Cloud Function expectations
+    const queryParams: any = {
+      tickers: Array.isArray(params.tickers) ? params.tickers.join(',') : params.tickers,
       date_from: formatDate(startDate),
       date_to: formatDate(endDate),
       page: params.page || 1,
@@ -101,25 +107,19 @@ export class BenzingaService {
       type: 'earnings'
     };
 
-    return from(this.authService.getCurrentToken()).pipe(
-      switchMap(token => {
-        if (!token) {
-          return throwError(() => new Error('No authentication token available'));
-        }
-
-        const headers = new HttpHeaders({
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        });
-
-        return this.http.get(`${this.BASE_URL}/getBenzingaCalendar`, {
-          params: this.createHttpParams(queryParams),
+    console.log('BenzingaService - Query params:', queryParams);
+    
+    return this.getAuthHeaders().pipe(
+      switchMap(headers => {
+        return this.http.get<EarningsResponse>(`${this.BASE_URL}/getBenzingaCalendar`, {
+          params: queryParams,
           headers
-        });
-      }),
-      catchError(error => {
-        console.error('Error fetching earnings data:', error);
-        return throwError(() => new Error('Failed to fetch earnings data'));
+        }).pipe(
+          catchError((error: HttpErrorResponse) => {
+            console.error('Benzinga API Error:', error);
+            return throwError(() => new Error('Failed to fetch earnings data'));
+          })
+        );
       })
     );
   }
@@ -160,5 +160,20 @@ export class BenzingaService {
     });
 
     return httpParams;
+  }
+
+  private getAuthHeaders(): Observable<HttpHeaders> {
+    return from(this.authService.getCurrentToken()).pipe(
+      map(token => {
+        if (!token) {
+          throw new Error('No authentication token available');
+        }
+
+        return new HttpHeaders({
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        });
+      })
+    );
   }
 }
