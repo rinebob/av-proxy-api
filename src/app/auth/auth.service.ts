@@ -9,11 +9,13 @@ import {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  getIdToken
 } from '@angular/fire/auth';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, from, of, throwError } from 'rxjs';
+import { map, switchMap, catchError, take } from 'rxjs/operators';
 import { Router } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 
 @Injectable({
   providedIn: 'root'
@@ -22,6 +24,7 @@ export class AuthService {
   private auth: Auth = inject(Auth);
   private router: Router = inject(Router);
   private zone = inject(NgZone);
+  private http = inject(HttpClient);
 
   // Observable for the current user's ID token
   // Emits null if no user is signed in or token is unavailable
@@ -32,6 +35,10 @@ export class AuthService {
 
   // Observable for the current user object (User or null)
   readonly user$: Observable<User | null> = authState(this.auth);
+
+  // Token refresh in progress flag to prevent multiple refresh attempts
+  private refreshInProgress = false;
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor() { 
     // Log detailed auth state changes
@@ -47,36 +54,96 @@ export class AuthService {
         });
         
         // Log ID token details
-        try {
-          const token = await user.getIdToken();
-          const decoded = JSON.parse(atob(token.split('.')[1]));
-          console.log('AuthService: Current ID token details:', {
-            uid: decoded.user_id || decoded.uid,
-            email: decoded.email,
-            auth_time: new Date(decoded.auth_time * 1000).toISOString(),
-            issued_at: new Date(decoded.iat * 1000).toISOString(),
-            expires_at: new Date(decoded.exp * 1000).toISOString(),
-            token_length: token.length
-          });
-        } catch (error) {
-          console.error('AuthService: Error decoding ID token:', error);
-        }
+        await this.logTokenDetails(user);
       } else {
         console.log('AuthService: No user is currently signed in');
       }
     });
   }
 
-  // Method to get the current token once (useful for interceptors or one-off checks)
-  // idToken observable already provides the current token and updates on change.
-  // This is essentially a pass-through but can be useful for clarity or if you add more logic.
-  getCurrentToken(): Observable<string | null> {
-    return this.idToken$;
+  private async logTokenDetails(user: User): Promise<void> {
+    try {
+      const token = await user.getIdToken();
+      const decoded = JSON.parse(atob(token.split('.')[1]));
+      console.log('AuthService: Current ID token details:', {
+        uid: decoded.user_id || decoded.uid,
+        email: decoded.email,
+        auth_time: new Date(decoded.auth_time * 1000).toISOString(),
+        issued_at: new Date(decoded.iat * 1000).toISOString(),
+        expires_at: new Date(decoded.exp * 1000).toISOString(),
+        token_length: token.length
+      });
+    } catch (error) {
+      console.error('AuthService: Error decoding ID token:', error);
+    }
+  }
+
+  // Refresh the current user's ID token
+  async refreshToken(forceRefresh = false): Promise<string | null> {
+    const user = this.auth.currentUser;
+    if (!user) {
+      console.warn('AuthService: Cannot refresh token - no user is signed in');
+      return null;
+    }
+
+    // If we already have a refresh in progress, return that promise
+    if (this.refreshInProgress && !forceRefresh) {
+      console.log('AuthService: Token refresh already in progress, returning existing promise');
+      return this.refreshPromise!;
+    }
+
+    try {
+      this.refreshInProgress = true;
+      console.log('AuthService: Refreshing ID token...');
+      
+      // Create a new promise for the refresh operation
+      this.refreshPromise = new Promise<string | null>(async (resolve) => {
+        try {
+          // Force refresh the token
+          const token = await user.getIdToken(true);
+          console.log('AuthService: Successfully refreshed ID token');
+          await this.logTokenDetails(user);
+          resolve(token);
+        } catch (error) {
+          console.error('AuthService: Error refreshing token:', error);
+          // If refresh fails, sign out the user
+          await this.logout();
+          resolve(null);
+        } finally {
+          // Reset the refresh state
+          this.refreshInProgress = false;
+          this.refreshPromise = null;
+        }
+      });
+
+      return await this.refreshPromise;
+    } catch (error) {
+      console.error('AuthService: Error in refreshToken:', error);
+      this.refreshInProgress = false;
+      this.refreshPromise = null;
+      return null;
+    }
+  }
+
+  // Method to get the current token once with optional force refresh
+  getCurrentToken(forceRefresh = false): Promise<string | null> {
+    const user = this.auth.currentUser;
+    if (!user) {
+      return Promise.resolve(null);
+    }
+    return user.getIdToken(forceRefresh);
+  }
+
+  // Get the current user's ID token as an Observable
+  getTokenObservable(forceRefresh = false): Observable<string | null> {
+    return from(this.getCurrentToken(forceRefresh));
   }
 
   async login(email: string, password: string): Promise<User> {
     try {
       const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
+      // Force token refresh on login to ensure we have a fresh token
+      await userCredential.user.getIdToken(true);
       return userCredential.user;
     } catch (error) {
       console.error('Login failed:', error);
@@ -122,4 +189,3 @@ export class AuthService {
     );
   }
 }
-

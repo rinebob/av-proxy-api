@@ -1,121 +1,195 @@
-# Myapp
+# Alpha Vantage Proxy API
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.12.
+A secure proxy service for Alpha Vantage and Benzinga APIs with Firebase Authentication and Firestore caching.
+
+## Features
+
+- 🔒 Secure API proxy with Firebase Authentication
+- ⚡ Cached responses in Firestore for better performance
+- 🔄 Automatic token refresh and retry logic
+- 🌐 CORS support with origin whitelisting
+- 📊 Supports multiple API endpoints (Alpha Vantage & Benzinga)
 
 ## Development Setup
 
+### Prerequisites
+
+- Node.js 18+
+- Firebase CLI (`npm install -g firebase-tools`)
+- Angular CLI (`npm install -g @angular/cli`)
+- Firebase project with Firestore and Authentication enabled
+
 ### Environment Setup
 
-1. **Environment Variables**
-   - Create a `.env.alpha-vantage-proxy-api` file in the `functions` directory
-   - Add the following variable for local development:
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/av-proxy-api.git
+   cd av-proxy-api
+   ```
+
+2. **Install dependencies**
+   ```bash
+   # Install root dependencies
+   npm install
+   
+   # Install functions dependencies
+   cd functions
+   npm install
+   cd ..
+   ```
+
+3. **Environment Configuration**
+   - Create `.env.alpha-vantage-proxy-api` in the `functions` directory:
      ```env
      # Alpha Vantage API Key for local development
      LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY="your-api-key-here"
+     
+     # Benzinga API Key (optional)
+     LOCAL_EMULATOR_BENZINGA_CALENDAR_API_KEY="your-benzinga-key-here"
      ```
 
-2. **Firebase Secret (for production)**
+4. **Firebase Setup**
    ```bash
-   # Set Alpha Vantage API Key for production
-   firebase functions:secrets:set ALPHAVANTAGE_API_KEY
+   firebase login
+   firebase init
+   firebase use your-project-id
    ```
-   When prompted, enter your Alpha Vantage API key.
 
-### Authentication
-- The application uses Firebase Authentication for user management
-- Only authenticated users with valid Firebase ID tokens can access the API endpoints
-- No additional user whitelisting is required beyond standard Firebase Authentication
+5. **Set Production Secrets**
+   ```bash
+   # Set Alpha Vantage API Key
+   firebase functions:secrets:set ALPHAVANTAGE_API_KEY
+   
+   # Set Benzinga API Key (if using Benzinga features)
+   firebase functions:secrets:set BENZINGA_CALENDAR_API_KEY
+   firebase functions:secrets:set BENZINGA_WIIM_API_KEY
+   ```
 
-### Test User
+## Running Locally
 
-For local development, you can use the Firebase Authentication emulator with these test credentials:
-
-- **Email**: `test@user.com`
-- **Password**: `aaaaaa`
-- **UID**: Will be generated automatically in the emulator
-
-### Streamlined Development Workflow
-
-For an efficient development experience with automatic data persistence and live code reloading, use the following two-terminal setup:
-
-**Terminal 1: Start Emulators with Data Persistence**
-
-In the project root directory (`av-proxy-api`), run:
-
+### Terminal 1: Start Emulators
+In the project root:
 ```bash
-# This starts the emulators and handles importing/exporting data
 npm run emulators
 ```
 
-This script will:
-- Start the Firebase emulators for Functions, Firestore, and Auth.
-- Automatically import data (like users) from the `./.firebase/emulator-data` directory.
-- Save the current state of the emulators back to that directory when you stop the process (`Ctrl+C`).
-
-**Terminal 2: Watch for Backend Code Changes**
-
-In the `functions` directory (`av-proxy-api/functions`), run:
-
+### Terminal 2: Watch Backend Changes
+In the `functions` directory:
 ```bash
-# This watches for changes and automatically recompiles the TypeScript
 npm run build:watch
 ```
 
-This script will automatically recompile your TypeScript functions whenever you save a file. The Functions emulator will detect the changes and hot-reload your code.
-
-**Terminal 3: Run the Angular Frontend**
-
-In the project root directory (`av-proxy-api`), run:
-
+### Terminal 3: Run Frontend
+In the project root:
 ```bash
-# This starts the Angular development server
 ng serve
 ```
 
-Now you can access the application at `http://localhost:4200/` and any changes you make to your backend or frontend code will be automatically reflected.
+## API Endpoints
 
-## Code scaffolding
+### Alpha Vantage
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
+#### Get Daily Stock Data
+```
+GET /getDailyStockDataSimple?symbol={symbol}&outputSize={compact|full}
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
+#### Get Global Quote
+```
+GET /getGlobalQuote?symbol={symbol}
 ```
 
-## Building
+### Benzinga
 
-To build the project run:
-
-```bash
-ng build
+#### Get Calendar Data
+```
+GET /getBenzingaCalendar?parameters
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+## Authentication
 
-## Running unit tests
+All API endpoints require a valid Firebase ID token in the `Authorization` header:
+```
+Authorization: Bearer <firebase-id-token>
+```
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+### Getting an ID Token (Client-side)
 
+```typescript
+import { getAuth } from 'firebase/auth';
+
+const auth = getAuth();
+const idToken = await auth.currentUser?.getIdToken();
+```
+
+## CORS Configuration
+
+The API supports CORS with the following configuration:
+- **Allowed Origins**:
+  - `http://localhost:4200` (development)
+  - `https://av-proxy-api--alpha-vantage-proxy-api.us-central1.hosted.app` (production)
+- **Allowed Methods**: `GET, POST, OPTIONS`
+- **Allowed Headers**: `Content-Type, Authorization, X-API-KEY, x-debug-request`
+
+## Deployment
+
+### Deploy Functions
 ```bash
+# Deploy all functions
+firebase deploy --only functions
+
+# Deploy specific function
+firebase deploy --only functions:getDailyStockDataSimple
+```
+
+### Deploy Hosting
+```bash
+# Build Angular app
+ng build --configuration production
+
+# Deploy to Firebase Hosting
+firebase deploy --only hosting
+```
+
+## Testing
+
+### Unit Tests
+```bash
+# Run Angular unit tests
 ng test
+
+# Run Firebase Functions tests
+cd functions
+npm test
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
+### End-to-End Tests
 ```bash
+# Run Angular e2e tests
 ng e2e
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Troubleshooting
 
-## Additional Resources
+### Common Issues
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+#### CORS Errors
+- Ensure the request origin is in the allowed origins list
+- Verify the `Authorization` header is properly formatted
+- Check browser console for detailed error messages
+
+#### Authentication Errors
+- Verify the Firebase ID token is valid and not expired
+- Ensure the user is properly authenticated
+- Check Firebase Authentication console for user status
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgements
+
+- [Alpha Vantage](https://www.alphavantage.co/)
+- [Benzinga](https://www.benzinga.com/)
+- [Firebase](https://firebase.google.com/)
+- [Angular](https://angular.io/)

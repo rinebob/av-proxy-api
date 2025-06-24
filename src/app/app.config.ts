@@ -22,7 +22,9 @@ export const appConfig: ApplicationConfig = {
     provideAnimations(),
     provideNativeDateAdapter(),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(
+      withInterceptors([authInterceptor])
+    ),
 
     provideFirebaseApp(() => initializeApp(environment.firebaseConfig)),
 

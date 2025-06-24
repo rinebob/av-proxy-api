@@ -1,17 +1,22 @@
 // functions/src/alpha-vantage/getGlobalQuote.ts
 import { onRequest } from 'firebase-functions/v2/https';
-import {
-  setCorsHeaders,
+import { 
+  setCorsHeaders, 
   handleOptionsRequest,
   fetchStockData,
   validateAndAuthenticateRequest,
-} from '../utils.js';
-import {
-  CloudFunctionName,
-  AlphaVantageGlobalQuoteResponse,
+} from '../utils';
+import { 
+  AlphaVantageFunctionName
+} from '../common/common-fn';
+import { 
   AlphaVantageFunction,
-} from '../common/common-fn.js';
-import { saveStockData, getStockData } from './av-firestore-helpers.js';
+  AlphaVantageGlobalQuoteResponse,
+} from '../common/common-av';
+import { 
+  saveStockData, 
+  getStockData 
+} from './av-firestore-helpers';
 
 export const getGlobalQuote = onRequest(
   {
@@ -22,7 +27,7 @@ export const getGlobalQuote = onRequest(
     console.info('----------- getGlobalQuote ---------------');
 
     // Handle CORS and OPTIONS
-    setCorsHeaders(res);
+    setCorsHeaders(req, res);
     if (handleOptionsRequest(req as any, res as any)) return;
 
     try {
@@ -30,7 +35,7 @@ export const getGlobalQuote = onRequest(
       const validation = await validateAndAuthenticateRequest(
         req,
         res,
-        CloudFunctionName.GET_GLOBAL_QUOTE
+        AlphaVantageFunctionName.GET_GLOBAL_QUOTE
       );
       if (!validation) return; // Stop if validation fails
 
@@ -40,7 +45,7 @@ export const getGlobalQuote = onRequest(
       console.log(`gGQ Using API Key ending in: ${apiKey.slice(-4)}`);
 
       // Check cache first
-      const cachedData = await getStockData(params.symbol, CloudFunctionName.GET_GLOBAL_QUOTE);
+      const cachedData = await getStockData(params.symbol, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
       if (cachedData) {
         console.info(`[${params.symbol}] CACHE HIT`);
         res.status(200).send(cachedData);
@@ -75,7 +80,7 @@ export const getGlobalQuote = onRequest(
       const globalQuote = apiResponse["Global Quote"];
 
       // Save to Firestore and send response
-      await saveStockData(params.symbol, globalQuote, CloudFunctionName.GET_GLOBAL_QUOTE);
+      await saveStockData(params.symbol, globalQuote, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
       res.status(200).send(globalQuote);
     } catch (error) {
       console.error('Error in getGlobalQuote:', error);

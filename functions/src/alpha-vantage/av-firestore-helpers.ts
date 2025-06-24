@@ -1,14 +1,14 @@
-// functions/src/alpha-vantage/firestore-helpers.ts
-import { db } from '../utils';
+// functions/src/alpha-vantage/av-firestore-helpers.ts
+import { db } from '../firebase-admin-init';
+import { AlphaVantageFunctionName } from '../common/common-fn';
 import {
   AlphaVantageDailyTimeSeriesResponse,
-  CloudFunctionName,
   DailyTimeSeriesData,
   DailyTimeSeriesDataTwo,
   GlobalQuoteData,
   StoredStockData,
-  TimeSeriesMetaDataTwo,
-} from '../common/common-fn.js';
+  TimeSeriesMetaDataTwo
+} from '../common/common-av';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
@@ -77,7 +77,7 @@ export function transformAlphaVantageResponse(
 export async function saveStockData(
   symbol: string,
   data: StoredStockData | GlobalQuoteData,
-  functionName: CloudFunctionName
+  functionName: AlphaVantageFunctionName
 ): Promise<void> {
   if (!symbol) {
     throw new Error('Symbol is required to save stock data.');
@@ -85,7 +85,7 @@ export async function saveStockData(
   const docRef = db.collection('stockData').doc(symbol);
 
   let dataToSave;
-  if (functionName === CloudFunctionName.GET_GLOBAL_QUOTE) {
+  if (functionName === AlphaVantageFunctionName.GET_GLOBAL_QUOTE) {
     // For global quotes, save the data inside a 'globalQuote' field to avoid overwriting daily data.
     dataToSave = { globalQuote: data, lastUpdatedGlobalQuote: FieldValue.serverTimestamp() };
   } else {
@@ -105,7 +105,7 @@ export async function saveStockData(
  */
 export async function getStockData(
   symbol: string,
-  functionName: CloudFunctionName
+  functionName: AlphaVantageFunctionName
 ): Promise<StoredStockData | GlobalQuoteData | null> {
   try {
     const doc = await db.collection('stockData').doc(symbol).get();
@@ -119,11 +119,11 @@ export async function getStockData(
     }
 
     // Return the specific part of the document based on the function type.
-    if (functionName === CloudFunctionName.GET_GLOBAL_QUOTE) {
+    if (functionName === AlphaVantageFunctionName.GET_GLOBAL_QUOTE) {
       return (data.globalQuote as GlobalQuoteData) || null;
     }
 
-    if (functionName === CloudFunctionName.GET_DAILY_STOCK_DATA_SIMPLE) {
+    if (functionName === AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE) {
       // For daily data, the document itself is the data we need.
       return data as StoredStockData;
     }

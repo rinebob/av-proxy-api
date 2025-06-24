@@ -1,70 +1,107 @@
-import admin from 'firebase-admin';
-import { CloudFunctionName } from '../common/common-fn.js';
+import * as admin from 'firebase-admin';
 
-if (admin.apps.length === 0) {
-  admin.initializeApp();
-  console.info('auth.ts: Firebase Admin SDK initialized.');
+// Initialize Firebase Admin if not already done
+if (!admin.apps.length) {
+  try {
+    // For local development with emulator
+    if (process.env.FUNCTIONS_EMULATOR === 'true') {
+      console.log('Initializing Firebase Admin with emulator configuration');
+      admin.initializeApp({
+        projectId: 'alpha-vantage-proxy-api',  // Hardcoded project ID for emulator
+        credential: admin.credential.applicationDefault(),
+        databaseURL: 'http://localhost:8080?ns=alpha-vantage-proxy-api'
+      });
+      
+      // Point to the auth emulator
+      process.env.FIREBASE_AUTH_EMULATOR_HOST = 'localhost:9099';
+    } else {
+      // For production - will use Application Default Credentials
+      console.log('Initializing Firebase Admin with Application Default Credentials');
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+        databaseURL: 'https://alpha-vantage-proxy-api.firebaseio.com'
+      });
+    }
+    console.log('Firebase Admin initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin:', error);
+    throw error;
+  }
 }
 
 /**
- * Authenticates a Firebase user based on the ID token in the Authorization header.
- * Sends a 401 response if authentication fails.
- * @param req The Express request object.
- * @param res The Express response object.
- * @param functionName For logging purposes, the name of the calling Cloud Function.
- * @returns A Promise resolving with the decoded ID token (admin.auth.DecodedIdToken) if successful, or null if authentication failed and response was sent.
+ * Verifies a Firebase ID token and returns the decoded token.
+ * @param idToken The Firebase ID token to verify
+ * @returns A promise that resolves with the decoded token, or null if verification fails
  */
 export async function authenticateFirebaseUser(
-  req: any,
-  res: any,
-  functionName: CloudFunctionName
+  idToken: string
 ): Promise<admin.auth.DecodedIdToken | null> {
-  console.log(`---auth.ts: ${functionName}: Starting authentication ---`);
-
-  const authorizationHeader = req.headers.authorization;
-  if (!authorizationHeader) {
-    const errorMsg = `auth.ts: ${functionName}: Unauthorized - No Authorization header provided.`;
-    console.warn(errorMsg);
-    res.status(401).json({ 
-      error: 'Unauthorized: No Authorization header provided.',
-      details: 'Missing Authorization header',
-      function: functionName
-    });
-    return null;
-  }
-  
-  if (!authorizationHeader.startsWith('Bearer ')) {
-    const errorMsg = `auth.ts: ${functionName}: Unauthorized - Invalid Authorization header format. Expected 'Bearer <token>'`;
-    console.warn(errorMsg);
-    res.status(401).json({ 
-      error: 'Unauthorized: Invalid token format.',
-      details: 'Expected Bearer token',
-      function: functionName
-    });
+  if (!idToken) {
+    console.warn('No ID token provided for authentication');
     return null;
   }
 
-  const idToken = authorizationHeader.split('Bearer ')[1];
-  
+  // Remove 'Bearer ' prefix if present
+  const token = idToken.startsWith('Bearer ') ? idToken.split(' ')[1] : idToken;
+
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken, true); // Check for token revocation
+    console.log('Verifying ID token...');
+    // For emulator, we need to disable token verification
+    if (process.env.FUNCTIONS_EMULATOR === 'true') {
+      console.log('Running in emulator mode, skipping token verification');
+      // Just decode the token without verification in emulator
+      return admin.auth().verifyIdToken(token, false);
+    }
     
-    console.log(`auth.ts: ${functionName}: Successfully authenticated user:`, {
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-    });
+    // In production, verify the token with all checks
+    const decodedToken = await admin.auth().verifyIdToken(token, true);
+    
+    if (!decodedToken) {
+      console.warn('Token verification returned null');
+      return null;
+    }
+
+    // Check if token is expired
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (decodedToken.exp < currentTime) {
+      console.warn('Token has expired');
+      return null;
+    }
 
     return decodedToken;
-
-  } catch (error: any) {
-    const errorMsg = `auth.ts: ${functionName}: Unauthorized - Error verifying ID token.`;
-    console.error(errorMsg, error);
-    res.status(401).json({ 
-      error: 'Unauthorized: Invalid or expired token.',
-      details: error.message,
-      code: error.code,
-      function: functionName
-    });
+  } catch (error) {
+    console.error('Error verifying ID token:', error);
     return null;
   }
+}
+
+/**
+ * Validates that the request has a valid Firebase ID token in the Authorization header.
+ * @param req The Express request object
+ * @param res The Express response object
+ * @returns The decoded token if valid, otherwise null (and sends an error response)
+ */
+export async function validateFirebaseAuth(
+  req: any,
+  res: any
+): Promise<admin.auth.DecodedIdToken | null> {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.warn('No authorization token found');
+    res.status(401).json({ error: 'Unauthorized', message: 'No authentication token provided' });
+    return null;
+  }
+
+  const token = authHeader.split(' ')[1];
+  const decodedToken = await authenticateFirebaseUser(token);
+
+  if (!decodedToken) {
+    console.warn('Invalid or expired token');
+    res.status(403).json({ error: 'Forbidden', message: 'Invalid or expired token' });
+    return null;
+  }
+
+  return decodedToken;
 }

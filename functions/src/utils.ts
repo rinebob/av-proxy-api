@@ -1,15 +1,19 @@
 import axios from 'axios';
-import { defineSecret, defineString } from "firebase-functions/params"; // Ensure defineString is imported
+import { defineSecret, defineString } from "firebase-functions/params";
 import * as dotenv from 'dotenv';
 import { 
-    ALPHAVANTAGE_BASE_URL, 
-    CloudFunctionName,
-    AuthValidationResult,
-    OutputSize,
-    AlphaVantageDailyTimeSeriesResponse, // Import the specific response type
-    AlphaVantageGlobalQuoteResponse // Import the specific response type
+    AlphaVantageFunctionName,
+    BenzingaFunctionName,
+    AuthValidationResult
 } from './common/common-fn';
-import { getFirestore } from 'firebase-admin/firestore';
+import {
+    ALPHAVANTAGE_BASE_URL,
+    OutputSize,
+    AlphaVantageDailyTimeSeriesResponse,
+    AlphaVantageGlobalQuoteResponse,
+    QueryParamsAv
+} from './common/common-av';
+import { db } from './firebase-admin-init';
 import { authenticateFirebaseUser } from './utils/auth';
 
 // Create a union type for all possible Alpha Vantage API responses
@@ -40,21 +44,30 @@ if (process.env.FUNCTIONS_EMULATOR === 'true') {
   dotenv.config();
 }
 
-// Get a reference to the Firestore database, specifying the database ID
-const db = getFirestore('alpha-vantage-proxy-api-db');
-db.settings({ ignoreUndefinedProperties: true });
-
 export { db, authenticateFirebaseUser };
 
 /**
  * Sets common CORS headers on the response object.
+ * @param req The Firebase Functions request object.
  * @param res The Firebase Functions response object.
  */
-export function setCorsHeaders(res: any): void {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-KEY, x-debug-request'); // Ensure Authorization is allowed
-  res.set('Access-Control-Max-Age', '3600');
+export function setCorsHeaders(req: any, res: any): void {
+  const allowedOrigins = [
+    'http://localhost:4200',
+    'https://av-proxy-api--alpha-vantage-proxy-api.us-central1.hosted.app'
+  ];
+  
+  const origin = req.headers.origin || '';
+  const requestOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  
+  // Set CORS headers
+  res.set({
+    'Access-Control-Allow-Origin': requestOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-KEY, x-debug-request',
+    'Vary': 'Origin',
+    'Access-Control-Max-Age': '3600'
+  });
 }
 
 /**
@@ -64,11 +77,27 @@ export function setCorsHeaders(res: any): void {
  * @returns True if the OPTIONS request was handled, false otherwise.
  */
 export function handleOptionsRequest(req: any, res: any): boolean {
+  console.log('=== OPTIONS REQUEST DETECTED ===');
+  console.log('Request Method:', req.method);
+  console.log('Request Headers:', JSON.stringify(req.headers, null, 2));
+  
   if (req.method === 'OPTIONS') {
-    setCorsHeaders(res);
-    res.status(204).send('');
+    console.log('Processing OPTIONS preflight request');
+    
+    // Use setCorsHeaders to ensure consistent CORS header handling
+    setCorsHeaders(req, res);
+    
+    // Log the headers that were actually set
+    const actualHeaders = res.getHeaders();
+    console.log('Actual response headers after setting:', JSON.stringify(actualHeaders, null, 2));
+    
+    // Send the response
+    console.log('Sending 204 No Content response for OPTIONS request');
+    res.status(204).end();
     return true;
   }
+  
+  console.log('Not an OPTIONS request, continuing...');
   return false;
 }
 
@@ -161,22 +190,31 @@ export function validateRequestMethod(req: any, res: any): boolean {
 /**
  * Validates and extracts query parameters
  */
-export function validateAndExtractQueryParams(req: any, res: any): { symbol: string; outputSize: OutputSize } | null {
-  const symbol = typeof req.query.symbol === 'string' ? req.query.symbol.trim() : null;
-  if (!symbol) {
+export function validateAndExtractQueryParams(req: any, res: any): QueryParamsAv | null {
+  const { symbol, outputSize } = req.query;
+
+  // Validate symbol
+  if (!symbol || typeof symbol !== 'string' || symbol.trim() === '') {
+    res.status(400).json({ error: 'Symbol is required and must be a non-empty string' });
+    return null;
+  }
+
+  // Validate outputSize
+  const validOutputSizes = Object.values(OutputSize);
+  const normalizedOutputSize = outputSize?.toString().toUpperCase();
+  
+  if (normalizedOutputSize && !validOutputSizes.includes(normalizedOutputSize as OutputSize)) {
     res.status(400).json({ 
-      error: 'Bad Request',
-      message: 'Missing required parameter: symbol'
+      error: 'Invalid outputSize', 
+      validValues: validOutputSizes 
     });
     return null;
   }
 
-  const outputSize = typeof req.query.outputsize === 'string' && 
-    Object.values(OutputSize).includes(req.query.outputsize.toLowerCase() as OutputSize)
-    ? req.query.outputsize.toLowerCase() as OutputSize
-    : OutputSize.COMPACT;
-
-  return { symbol, outputSize };
+  return {
+    symbol: symbol.trim().toUpperCase(),
+    outputSize: normalizedOutputSize as OutputSize || OutputSize.COMPACT
+  };
 }
 
 /**
@@ -200,22 +238,46 @@ export function validateApiKey(apiKey: string | undefined, res: any): boolean {
 export async function validateAndAuthenticateRequest(
   req: any, 
   res: any,
-  functionName: CloudFunctionName
+  functionName: AlphaVantageFunctionName | BenzingaFunctionName
 ): Promise<AuthValidationResult | null> {
-  // Authentication
-  const decodedToken = await authenticateFirebaseUser(req, res, functionName);
-  if (!decodedToken) return null;
+  try {
+    // Verify Firebase ID token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Unauthorized', message: 'No authentication token provided' });
+      return null;
+    }
 
-  // Request validation
-  if (!validateRequestMethod(req, res)) return null;
-  
-  const params = validateAndExtractQueryParams(req, res);
-  if (!params) return null;
-  
-  const apiKey = getAlphaVantageApiKey();
-  if (!validateApiKey(apiKey, res)) return null;
-  
-  return { decodedToken, params, apiKey };
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await authenticateFirebaseUser(idToken);
+    if (!decodedToken) {
+      res.status(403).json({ error: 'Forbidden', message: 'Invalid or expired token' });
+      return null;
+    }
+
+    // Validate and extract query parameters
+    const params = validateAndExtractQueryParams(req, res);
+    if (!params) {
+      return null;
+    }
+
+    // Get the appropriate API key based on the function being called
+    let apiKey: string;
+    if (Object.values(AlphaVantageFunctionName).includes(functionName as AlphaVantageFunctionName)) {
+      apiKey = getAlphaVantageApiKey();
+    } else if (Object.values(BenzingaFunctionName).includes(functionName as BenzingaFunctionName)) {
+      // TODO: Implement Benzinga API key retrieval
+      // apiKey = getBenzingaApiKey();
+      throw new Error('Benzinga API key retrieval not implemented');
+    } else {
+      throw new Error(`Unknown function name: ${functionName}`);
+    }
+
+    return { decodedToken, params, apiKey };
+  } catch (error) {
+    handleApiError(error, res, 'validateAndAuthenticateRequest');
+    return null;
+  }
 }
 
 /**
