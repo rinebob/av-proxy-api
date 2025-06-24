@@ -1,6 +1,6 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret, defineString } from 'firebase-functions/params';
-import { getCachedCalendarData, cacheCalendarData } from './benzinga-firestore-helpers';
+// import { getCachedCalendarData, cacheCalendarData } from './benzinga-firestore-helpers';
 import { 
   BenzingaCalendarParams, 
   BenzingaCalendarType,
@@ -50,37 +50,75 @@ function getBenzingaApiKey(): string {
  * Fetch calendar data from Benzinga API
  */
 async function fetchBenzingaCalendar(
-  params: BenzingaCalendarParams,
-  apiKey: string
+  apiKey: string,
+  params: BenzingaCalendarParams
 ): Promise<BenzingaCalendarResponse> {
-  const { type, tickers, dateFrom, dateTo, page = 1, pageSize = 100, updatedSince } = params;
-  
-  const url = new URL(`${BENZINGA_API_BASE_URL}/calendar/${type}`);
-  
-  // Add query parameters
-  if (tickers && tickers.length > 0) {
-    url.searchParams.append('tickers', tickers.join(','));
-  }
-  if (dateFrom) url.searchParams.append('date_from', dateFrom);
-  if (dateTo) url.searchParams.append('date_to', dateTo);
-  if (page) url.searchParams.append('page', page.toString());
-  if (pageSize) url.searchParams.append('pagesize', pageSize.toString());
-  if (updatedSince) url.searchParams.append('updated_since', updatedSince);
-  
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'X-BZ-API-KEY': apiKey
+  try {
+    const url = new URL(`${BENZINGA_API_BASE_URL}/calendar/earnings`);
+    
+    // Add API key as a top-level parameter
+    url.searchParams.append('token', apiKey);
+    
+    // Add pagesize as a top-level parameter
+    if (params.pageSize) {
+      url.searchParams.append('pagesize', params.pageSize.toString());
     }
-  });
+    
+    // Add parameters under parameters[] namespace
+    const parameters: Record<string, string> = {};
+    
+    // Add ticker filter if provided
+    if (params.tickers) {
+      const tickers = Array.isArray(params.tickers) ? params.tickers : [params.tickers];
+      parameters['tickers'] = tickers.join(',').toUpperCase();
+    }
+    
+    // Add date range if provided
+    if (params.dateFrom) parameters['date_from'] = params.dateFrom;
+    if (params.dateTo) parameters['date_to'] = params.dateTo;
+    
+    // Add sort parameter
+    parameters['date_sort'] = 'date';
+    
+    // Add all parameters under 'parameters[]' namespace
+    Object.entries(parameters).forEach(([key, value]) => {
+      url.searchParams.append(`parameters[${key}]`, value);
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Benzinga API error: ${response.status} - ${errorText}`);
+    const debugUrl = url.toString().replace(/(token=)[^&]+/, 'token=REDACTED');
+    console.log('Final API URL:', debugUrl);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    const responseText = await response.text();
+    
+    // Check if response is XML (error)
+    if (responseText.trim().startsWith('<?xml')) {
+      throw new Error(`Benzinga API returned XML error: ${responseText}`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`Benzinga API error: ${response.status} ${response.statusText}\n${responseText}`);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse API response:', responseText);
+      throw new Error('Invalid JSON response from Benzinga API');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in fetchBenzingaCalendar:', error);
+    throw error;
   }
-
-  return response.json();
 }
 
 /**
@@ -106,53 +144,58 @@ export const getBenzingaCalendar = onRequest(
 
       // Parse and validate query parameters
       const {
+        type = 'earnings',  // Default to 'earnings' if not specified
+        tickers,           // Ticker parameter (accepts single or multiple)
+        date_from,
+        date_to,
+        page = '1',        // Default to page 1
+        pagesize = '10',   // Default to 10 results
+        updated_since,
+        _nocache = 'true'  // Force bypass cache
+      } = req.query;
+
+      // Log the incoming request for debugging
+      console.log('Incoming request parameters:', {
         type,
         tickers,
         date_from,
         date_to,
         page,
         pagesize,
-        updated_since
-      } = req.query;
+        updated_since,
+        _nocache
+      });
 
       // Validate required parameters
-      if (!type || !Object.values(BenzingaCalendarType).includes(type as BenzingaCalendarType)) {
+      if (!tickers || typeof tickers !== 'string') {
         res.status(400).json({
-          error: 'Invalid or missing calendar type',
-          validTypes: Object.values(BenzingaCalendarType)
+          error: 'Ticker is required',
+          message: 'Please provide a valid ticker symbol'
         });
         return;
       }
 
       // Build params object
       const params: BenzingaCalendarParams = {
-        type: type as BenzingaCalendarType,
-        ...(tickers && { tickers: (tickers as string).split(',') }),
+        type: (type as BenzingaCalendarType) || BenzingaCalendarType.EARNINGS,
+        tickers: tickers.split(',').map(t => t.trim().toUpperCase()),
         ...(date_from && { dateFrom: date_from as string }),
         ...(date_to && { dateTo: date_to as string }),
-        ...(page && { page: parseInt(page as string, 10) }),
-        ...(pagesize && { pageSize: parseInt(pagesize as string, 10) }),
+        page: parseInt(page as string, 10) || 1,
+        pageSize: parseInt(pagesize as string, 10) || 10,
         ...(updated_since && { updatedSince: updated_since as string })
       };
 
-      // Check cache first
-      const cachedData = await getCachedCalendarData(params);
-      if (cachedData) {
-        console.log('Serving from cache');
-        res.status(200).json(cachedData);
-        return;
-      }
-
-      console.log('Fetching from Benzinga API');
-      const data = await fetchBenzingaCalendar(params, apiKey);
-      
-      // Cache the response
-      await cacheCalendarData(params, data);
+      console.log('Fetching fresh data from Benzinga API (cache bypassed)');
+      const data = await fetchBenzingaCalendar(apiKey, params);
       
       res.status(200).json(data);
     } catch (error) {
       console.error('Error in getBenzingaCalendar:', error);
-      res.status(500).json({ error: 'Internal Server Error' });
+      res.status(500).json({ 
+        error: 'Internal Server Error',
+        details: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 );

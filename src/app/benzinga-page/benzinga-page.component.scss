@@ -1,128 +1,238 @@
-// Main container styles
+/* Main container */
 .container {
-  padding: 1rem;
-  max-width: 1200px;
+  padding: 20px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
-// Card styling
+/* Card styling */
 .card {
-  margin: 1rem 0;
+  margin-bottom: 24px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   
-  mat-card-header {
-    padding: 1rem 1rem 0;
+  .mat-card-header {
+    background-color: #f5f5f5;
+    padding: 16px 24px;
+    border-radius: 8px 8px 0 0;
     
-    mat-card-title {
-      font-size: 1.5rem;
+    .mat-card-title {
+      font-size: 18px;
       font-weight: 500;
+      margin-bottom: 4px;
     }
     
-    mat-card-subtitle {
-      margin-top: 0.25rem;
+    .mat-card-subtitle {
+      margin-bottom: 0;
       color: rgba(0, 0, 0, 0.6);
     }
   }
   
-  mat-card-content {
-    padding: 1rem;
+  .mat-card-content {
+    padding: 24px;
   }
 }
 
-// Form styling
+/* Form styling */
 .form-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  padding: 1rem 0;
+  width: 100%;
 }
 
 .form-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: flex-start;
   
   .form-field {
-    flex: 1 1 300px;
-    min-width: 0;
+    flex: 1;
+    min-width: 150px;
     
-    @media (max-width: 600px) {
-      flex: 1 1 100%;
+    &.ticker {
+      max-width: 150px;
     }
+    
+    &.page-size {
+      max-width: 100px;
+    }
+  }
+  
+  .mat-form-field {
+    width: 100%;
   }
 }
 
-// Button row
+/* Button row */
 .button-row {
   display: flex;
   justify-content: flex-end;
-  margin-top: 1rem;
+  margin-top: 16px;
   
   .submit-button {
     min-width: 180px;
-    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+  }
+  
+  .spinner {
+    display: inline-block;
+    margin-left: 8px;
+  }
+}
+
+/* Error message */
+.error-message {
+  display: flex;
+  align-items: center;
+  color: #d32f2f;
+  background-color: #fde7e9;
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin-top: 16px;
+  
+  mat-icon {
+    margin-right: 8px;
+  }
+}
+
+/* Results container */
+.results-container {
+  margin-top: 24px;
+  
+  .results-card {
+    overflow: hidden;
     
-    @media (max-width: 600px) {
+    .mat-card-header {
+      background-color: #f5f5f5;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .mat-card-title {
+      font-size: 16px;
+      font-weight: 500;
+    }
+  }
+  
+  .table-container {
+    overflow-x: auto;
+    margin: -16px -24px -24px -24px;
+    
+    .earnings-table {
       width: 100%;
+      border-collapse: collapse;
+      
+      th.mat-header-cell {
+        font-weight: 600;
+        color: rgba(0, 0, 0, 0.87);
+        background-color: #f9f9f9;
+        padding: 12px 16px;
+        border-bottom: 2px solid #e0e0e0;
+        white-space: nowrap;
+      }
+      
+      td.mat-cell {
+        padding: 12px 16px;
+        border-bottom: 1px solid #f0f0f0;
+        vertical-align: top;
+      }
+      
+      tr.mat-row:hover {
+        background-color: #f9f9f9;
+      }
+      
+      .ticker {
+        font-weight: 500;
+      }
+      
+      .exchange {
+        font-size: 12px;
+        color: #666;
+        margin-top: 2px;
+      }
+      
+      .time {
+        font-size: 12px;
+        color: #666;
+        margin-top: 2px;
+      }
+      
+      .fiscal-period {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+      }
+      
+      .positive {
+        color: #2e7d32;
+        font-weight: 500;
+      }
+      
+      .negative {
+        color: #d32f2f;
+        font-weight: 500;
+      }
     }
   }
 }
 
-// Spinner
-.spinner {
-  display: inline-block;
-  margin-left: 8px;
-}
-
-// Error message
-.error-message {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #d32f2f;
-  background-color: #fde7e7;
-  padding: 12px 16px;
-  border-radius: 4px;
-  margin: 1rem 0;
-  
-  mat-icon {
-    color: #d32f2f;
-    margin-right: 4px;
-  }
-}
-
-// Results container
-.results-container {
-  margin-top: 2rem;
-  
-  pre {
-    background-color: #f5f5f5;
-    padding: 1rem;
-    border-radius: 4px;
-    overflow-x: auto;
-    max-height: 500px;
-    font-size: 0.85rem;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    border: 1px solid #e0e0e0;
-  }
-}
-
-// Responsive adjustments
-@media (max-width: 600px) {
+/* Responsive adjustments */
+@media (max-width: 959px) {
   .form-row {
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 16px;
+    
+    .form-field {
+      width: 100%;
+      max-width: 100% !important;
+    }
   }
   
   .button-row {
     justify-content: stretch;
+    
+    button {
+      width: 100%;
+    }
+  }
+  
+  .results-container {
+    .table-container {
+      .earnings-table {
+        min-width: 1000px;
+      }
+    }
+  }
+}
+
+/* Dark theme support */
+:host-context(.dark-theme) {
+  .card .mat-card-header,
+  .results-card .mat-card-header {
+    background-color: #424242;
+  }
+  
+  .results-container .table-container .earnings-table {
+    th.mat-header-cell {
+      background-color: #424242;
+      color: rgba(255, 255, 255, 0.87);
+      border-bottom-color: #616161;
+    }
+    
+    td.mat-cell {
+      border-bottom-color: #424242;
+    }
+    
+    tr.mat-row:hover {
+      background-color: #424242;
+    }
+    
+    .exchange,
+    .time,
+    .fiscal-period {
+      color: #b0b0b0;
+    }
   }
 }

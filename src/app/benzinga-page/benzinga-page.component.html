@@ -1,13 +1,24 @@
 <div class="container">
   <mat-card class="card">
     <mat-card-header>
-      <mat-card-title>Benzinga Calendar Data</mat-card-title>
-      <mat-card-subtitle>Fetch and display Benzinga calendar events</mat-card-subtitle>
+      <mat-card-title>Benzinga Earnings Calendar</mat-card-title>
+      <mat-card-subtitle>Fetch and display earnings data for stocks</mat-card-subtitle>
     </mat-card-header>
 
     <mat-card-content>
       <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-container">
         <div class="form-row">
+          <mat-form-field class="form-field ticker">
+            <mat-label>Ticker Symbol</mat-label>
+            <input matInput formControlName="ticker" placeholder="e.g. NVDA" uppercase>
+            <mat-error *ngIf="form.get('ticker')?.hasError('required')">
+              Ticker is required
+            </mat-error>
+            <mat-error *ngIf="form.get('ticker')?.hasError('pattern')">
+              Please enter a valid ticker symbol
+            </mat-error>
+          </mat-form-field>
+
           <mat-form-field class="form-field">
             <mat-label>From Date</mat-label>
             <input matInput [matDatepicker]="pickerFrom" formControlName="dateFrom">
@@ -27,8 +38,15 @@
               To date is required
             </mat-error>
           </mat-form-field>
-        </div>
 
+          <mat-form-field class="form-field page-size">
+            <mat-label>Results</mat-label>
+            <input matInput type="number" formControlName="pageSize" min="1" max="100">
+            <mat-error *ngIf="form.get('pageSize')?.hasError('min') || form.get('pageSize')?.hasError('max')">
+              Must be between 1 and 100
+            </mat-error>
+          </mat-form-field>
+        </div>
 
         <div class="button-row">
           <button 
@@ -38,7 +56,7 @@
             [disabled]="loading || form.invalid"
             class="submit-button"
           >
-            <span>Fetch Data</span>
+            <span>Fetch Earnings Data</span>
             <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
           </button>
         </div>
@@ -51,11 +69,107 @@
     </mat-card-content>
   </mat-card>
 
+  <div *ngIf="earningsData.length > 0" class="results-container">
+    <mat-card class="results-card">
+      <mat-card-header>
+        <mat-card-title>
+          Earnings Results ({{ earningsData.length }})
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="table-container">
+          <table mat-table [dataSource]="earningsData" class="earnings-table">
+            <!-- Date Column -->
+            <ng-container matColumnDef="date">
+              <th mat-header-cell *matHeaderCellDef>Date</th>
+              <td mat-cell *matCellDef="let element">
+                {{ element.date | date:'MMM d, y' }}
+                <div class="time" *ngIf="element.time">{{ element.time }}</div>
+              </td>
+            </ng-container>
 
-  <div *ngIf="!loading" class="results-container">
-    <!-- Results will be displayed here -->
-    <div class="json-display">
-      <pre>{{ getSampleRequest() | json }}</pre>
-    </div>
+            <!-- Ticker Column -->
+            <ng-container matColumnDef="ticker">
+              <th mat-header-cell *matHeaderCellDef>Ticker</th>
+              <td mat-cell *matCellDef="let element">
+                <div class="ticker">{{ element.ticker }}</div>
+                <div class="exchange" *ngIf="element.exchange">{{ element.exchange }}</div>
+              </td>
+            </ng-container>
+
+            <!-- Name Column -->
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>Company</th>
+              <td mat-cell *matCellDef="let element">{{ element.name || '-' }}</td>
+            </ng-container>
+
+            <!-- Period Column -->
+            <ng-container matColumnDef="period">
+              <th mat-header-cell *matHeaderCellDef>Period</th>
+              <td mat-cell *matCellDef="let row">{{ row.period || '-' }}</td>
+            </ng-container>
+
+            <!-- EPS Estimate Column -->
+            <ng-container matColumnDef="eps_est">
+              <th mat-header-cell *matHeaderCellDef>EPS Est.</th>
+              <td mat-cell *matCellDef="let element">{{ formatCurrency(element.eps_est) }}</td>
+            </ng-container>
+
+            <!-- EPS Actual Column -->
+            <ng-container matColumnDef="eps_act">
+              <th mat-header-cell *matHeaderCellDef>EPS Act.</th>
+              <td mat-cell *matCellDef="let element">{{ formatCurrency(element.eps_act) }}</td>
+            </ng-container>
+
+            <!-- EPS Surprise % Column -->
+            <ng-container matColumnDef="eps_surprise_percent">
+              <th mat-header-cell *matHeaderCellDef>EPS Surprise %</th>
+              <td mat-cell *matCellDef="let element">
+                <span [class.positive]="element.eps_surprise_percent > 0"
+                      [class.negative]="element.eps_surprise_percent < 0">
+                  {{ formatPercent(element.eps_surprise_percent) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- Revenue Estimate Column -->
+            <ng-container matColumnDef="revenue_est">
+              <th mat-header-cell *matHeaderCellDef>Rev. Est.</th>
+              <td mat-cell *matCellDef="let element">{{ formatCurrency(element.revenue_est) }}</td>
+            </ng-container>
+
+            <!-- Revenue Actual Column -->
+            <ng-container matColumnDef="revenue_act">
+              <th mat-header-cell *matHeaderCellDef>Rev. Act.</th>
+              <td mat-cell *matCellDef="let element">{{ formatCurrency(element.revenue_act) }}</td>
+            </ng-container>
+
+            <!-- Revenue Surprise % Column -->
+            <ng-container matColumnDef="revenue_surprise_percent">
+              <th mat-header-cell *matHeaderCellDef>Rev. Surprise %</th>
+              <td mat-cell *matCellDef="let element">
+                <span [class.positive]="element.revenue_surprise_percent > 0"
+                      [class.negative]="element.revenue_surprise_percent < 0">
+                  {{ formatPercent(element.revenue_surprise_percent) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- Conference Call Column -->
+            <ng-container matColumnDef="conference_call">
+              <th mat-header-cell *matHeaderCellDef>Conf. Call</th>
+              <td mat-cell *matCellDef="let element">
+                <mat-icon *ngIf="element.conference_call" color="primary">phone_in_talk</mat-icon>
+                <span *ngIf="!element.conference_call">-</span>
+              </td>
+            </ng-container>
+
+            <!-- Header and row definitions -->
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          </table>
+        </div>
+      </mat-card-content>
+    </mat-card>
   </div>
 </div>
