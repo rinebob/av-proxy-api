@@ -1,12 +1,12 @@
-import { Component, inject, Signal, computed, NgZone } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { Router, RouterOutlet } from '@angular/router';
+import { Component, computed, inject, OnInit, NgZone } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from './auth/auth.service';
 import { User, Auth } from '@angular/fire/auth';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { CommonModule } from '@angular/common';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-root',
@@ -14,31 +14,35 @@ import { CommonModule } from '@angular/common';
   imports: [
     CommonModule,
     RouterOutlet,
-    MatToolbarModule,
+    RouterLink,
+    RouterLinkActive,
     MatButtonModule,
-    MatIconModule
+    MatIconModule,
+    MatToolbarModule
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss']
 })
-export class AppComponent {
-  // Services
+export class AppComponent implements OnInit {
   private authService = inject(AuthService);
   private afAuth = inject(Auth);
   private router = inject(Router);
   private zone = inject(NgZone);
   
   // Signals
-  title = 'AV Proxy API';
-  currentUser = toSignal(this.authService.user$);
+  currentUser = toSignal<User | null>(this.authService.user$);
   isAuthenticated = computed(() => !!this.currentUser());
 
-  constructor() {
+  ngOnInit(): void {
+    // Initialize any required services or data
     // Attempt to "touch" Firebase Auth early within the zone
     this.zone.run(() => {
       if (this.afAuth) {
-        // Simple access to warm up Auth
+        // Accessing currentUser to warm up Auth
         const user = this.afAuth.currentUser;
+        if (user) {
+          console.log('Current user on init:', user.uid);
+        }
       }
     });
   }
@@ -49,7 +53,7 @@ export class AppComponent {
       // No need to navigate here as the AuthService already handles navigation
     } catch (error: unknown) {
       console.error('Logout failed in AppComponent:', error);
-      // You might want to show a user-friendly error message here
+      // Consider showing a user-friendly error message here
     }
   }
 }

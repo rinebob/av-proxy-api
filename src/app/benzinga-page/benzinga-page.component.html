@@ -1,0 +1,61 @@
+<div class="container">
+  <mat-card class="card">
+    <mat-card-header>
+      <mat-card-title>Benzinga Calendar Data</mat-card-title>
+      <mat-card-subtitle>Fetch and display Benzinga calendar events</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-container">
+        <div class="form-row">
+          <mat-form-field class="form-field">
+            <mat-label>From Date</mat-label>
+            <input matInput [matDatepicker]="pickerFrom" formControlName="dateFrom">
+            <mat-datepicker-toggle matSuffix [for]="pickerFrom"></mat-datepicker-toggle>
+            <mat-datepicker #pickerFrom></mat-datepicker>
+            <mat-error *ngIf="form.get('dateFrom')?.hasError('required')">
+              From date is required
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field class="form-field">
+            <mat-label>To Date</mat-label>
+            <input matInput [matDatepicker]="pickerTo" formControlName="dateTo">
+            <mat-datepicker-toggle matSuffix [for]="pickerTo"></mat-datepicker-toggle>
+            <mat-datepicker #pickerTo></mat-datepicker>
+            <mat-error *ngIf="form.get('dateTo')?.hasError('required')">
+              To date is required
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+
+        <div class="button-row">
+          <button 
+            mat-raised-button 
+            color="primary" 
+            type="submit"
+            [disabled]="loading || form.invalid"
+            class="submit-button"
+          >
+            <span>Fetch Data</span>
+            <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
+          </button>
+        </div>
+      </form>
+
+      <div *ngIf="error" class="error-message">
+        <mat-icon>error_outline</mat-icon>
+        <span>{{ error }}</span>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+
+  <div *ngIf="!loading" class="results-container">
+    <!-- Results will be displayed here -->
+    <div class="json-display">
+      <pre>{{ getSampleRequest() | json }}</pre>
+    </div>
+  </div>
+</div>

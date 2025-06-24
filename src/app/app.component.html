@@ -1,6 +1,22 @@
 <div class="app-container">
   <mat-toolbar color="primary">
-    <span>AV Proxy API</span>
+    <span class="logo" routerLink="/stock-data">AV Proxy API</span>
+    
+    <nav class="nav-links" *ngIf="currentUser()">
+      <a mat-button 
+         routerLink="/stock-data" 
+         routerLinkActive="active" 
+         [routerLinkActiveOptions]="{exact: true}">
+        <mat-icon>show_chart</mat-icon>
+        <span>Stock Data</span>
+      </a>
+      <a mat-button 
+         routerLink="/benz" 
+         routerLinkActive="active">
+        <mat-icon>event</mat-icon>
+        <span>Benzinga</span>
+      </a>
+    </nav>
     
     <span class="spacer"></span>
     

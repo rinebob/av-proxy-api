@@ -1,0 +1,128 @@
+// Main container styles
+.container {
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+// Card styling
+.card {
+  margin: 1rem 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  
+  mat-card-header {
+    padding: 1rem 1rem 0;
+    
+    mat-card-title {
+      font-size: 1.5rem;
+      font-weight: 500;
+    }
+    
+    mat-card-subtitle {
+      margin-top: 0.25rem;
+      color: rgba(0, 0, 0, 0.6);
+    }
+  }
+  
+  mat-card-content {
+    padding: 1rem;
+  }
+}
+
+// Form styling
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1rem 0;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  
+  .form-field {
+    flex: 1 1 300px;
+    min-width: 0;
+    
+    @media (max-width: 600px) {
+      flex: 1 1 100%;
+    }
+  }
+}
+
+// Button row
+.button-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  
+  .submit-button {
+    min-width: 180px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    
+    @media (max-width: 600px) {
+      width: 100%;
+    }
+  }
+}
+
+// Spinner
+.spinner {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+// Error message
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d32f2f;
+  background-color: #fde7e7;
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin: 1rem 0;
+  
+  mat-icon {
+    color: #d32f2f;
+    margin-right: 4px;
+  }
+}
+
+// Results container
+.results-container {
+  margin-top: 2rem;
+  
+  pre {
+    background-color: #f5f5f5;
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    max-height: 500px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    border: 1px solid #e0e0e0;
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 600px) {
+  .form-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .button-row {
+    justify-content: stretch;
+  }
+}
