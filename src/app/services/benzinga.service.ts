@@ -62,9 +62,8 @@ export class BenzingaService {
   private http: HttpClient;
   private authService: AuthService;
   
-  private readonly BASE_URL = environment.production 
-    ? 'https://your-production-url.com/api/benzinga' 
-    : 'http://localhost:5001/alpha-vantage-proxy-api/us-central1';
+  // Base URL for Cloud Functions
+  private readonly BASE_URL = environment.functionsBaseUrl;
 
   private readonly DEFAULT_PAGE_SIZE = 20;
   private readonly MAX_YEARS_BACK = 10; // Maximum years to look back for historical data
