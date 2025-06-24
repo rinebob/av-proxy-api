@@ -1,175 +1,206 @@
-<div class="container">
-  <mat-card class="card">
+<div class="benzinga-container">
+  <mat-card class="search-card">
     <mat-card-header>
-      <mat-card-title>Benzinga Earnings Calendar</mat-card-title>
-      <mat-card-subtitle>Fetch and display earnings data for stocks</mat-card-subtitle>
+      <mat-card-title>Earnings Calendar</mat-card-title>
+      <mat-card-subtitle>Search for company earnings data</mat-card-subtitle>
     </mat-card-header>
-
+    
     <mat-card-content>
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-container">
-        <div class="form-row">
-          <mat-form-field class="form-field ticker">
-            <mat-label>Ticker Symbol</mat-label>
-            <input matInput formControlName="ticker" placeholder="e.g. NVDA" uppercase>
-            <mat-error *ngIf="form.get('ticker')?.hasError('required')">
-              Ticker is required
-            </mat-error>
-            <mat-error *ngIf="form.get('ticker')?.hasError('pattern')">
-              Please enter a valid ticker symbol
-            </mat-error>
-          </mat-form-field>
+      <div class="search-container">
+        <form [formGroup]="searchForm" (ngSubmit)="onSubmit()" class="search-form">
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="ticker-field">
+              <mat-label>Ticker Symbol</mat-label>
+              <input matInput formControlName="ticker" placeholder="e.g. NVDA">
+              <mat-error *ngIf="searchForm.get('ticker')?.hasError('required')">Ticker is required</mat-error>
+              <mat-error *ngIf="searchForm.get('ticker')?.hasError('pattern')">Please enter a valid ticker symbol (1-5 letters)</mat-error>
+            </mat-form-field>
 
-          <mat-form-field class="form-field">
-            <mat-label>From Date</mat-label>
-            <input matInput [matDatepicker]="pickerFrom" formControlName="dateFrom">
-            <mat-datepicker-toggle matSuffix [for]="pickerFrom"></mat-datepicker-toggle>
-            <mat-datepicker #pickerFrom></mat-datepicker>
-            <mat-error *ngIf="form.get('dateFrom')?.hasError('required')">
-              From date is required
-            </mat-error>
-          </mat-form-field>
+            <mat-form-field appearance="outline" class="date-field">
+              <mat-label>Start Date</mat-label>
+              <input matInput [matDatepicker]="startPicker" formControlName="startDate">
+              <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
+              <mat-datepicker #startPicker></mat-datepicker>
+              <mat-error *ngIf="searchForm.get('startDate')?.hasError('required')">Start date is required</mat-error>
+            </mat-form-field>
 
-          <mat-form-field class="form-field">
-            <mat-label>To Date</mat-label>
-            <input matInput [matDatepicker]="pickerTo" formControlName="dateTo">
-            <mat-datepicker-toggle matSuffix [for]="pickerTo"></mat-datepicker-toggle>
-            <mat-datepicker #pickerTo></mat-datepicker>
-            <mat-error *ngIf="form.get('dateTo')?.hasError('required')">
-              To date is required
-            </mat-error>
-          </mat-form-field>
+            <mat-form-field appearance="outline" class="date-field">
+              <mat-label>End Date</mat-label>
+              <input matInput [matDatepicker]="endPicker" formControlName="endDate" [min]="searchForm.get('startDate')?.value">
+              <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
+              <mat-datepicker #endPicker></mat-datepicker>
+              <mat-error *ngIf="searchForm.get('endDate')?.hasError('required')">End date is required</mat-error>
+            </mat-form-field>
 
-          <mat-form-field class="form-field page-size">
-            <mat-label>Results</mat-label>
-            <input matInput type="number" formControlName="pageSize" min="1" max="100">
-            <mat-error *ngIf="form.get('pageSize')?.hasError('min') || form.get('pageSize')?.hasError('max')">
-              Must be between 1 and 100
-            </mat-error>
-          </mat-form-field>
-        </div>
-
-        <div class="button-row">
-          <button 
-            mat-raised-button 
-            color="primary" 
-            type="submit"
-            [disabled]="loading || form.invalid"
-            class="submit-button"
-          >
-            <span>Fetch Earnings Data</span>
-            <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
-          </button>
-        </div>
-      </form>
-
+            <button mat-raised-button color="primary" type="submit" [disabled]="isLoading || searchForm.invalid" class="search-button">
+              <mat-icon *ngIf="!isLoading">search</mat-icon>
+              <mat-spinner *ngIf="isLoading" diameter="20" class="spinner"></mat-spinner>
+              Search
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      <div class="loading-shade" *ngIf="isLoading">
+        <mat-spinner diameter="50"></mat-spinner>
+      </div>
+      
       <div *ngIf="error" class="error-message">
-        <mat-icon>error_outline</mat-icon>
-        <span>{{ error }}</span>
+        <mat-icon color="warn">error_outline</mat-icon>
+        {{ error }}
       </div>
     </mat-card-content>
   </mat-card>
+  
+  <div *ngIf="earnings.length > 0" class="results-container">
+    <div class="results-header">
+      <div class="header-left">
+        <button mat-stroked-button 
+                color="primary" 
+                (click)="toggleDuplication()"
+                class="duplication-toggle"
+                [class.duplication-enabled]="isDuplicationEnabled"
+                matTooltip="Toggle between actual and test data">
+          <mat-icon>{{ isDuplicationEnabled ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+          <span>{{ isDuplicationEnabled ? 'Show actual data' : 'Show test data' }}</span>
+        </button>
+      </div>
+      <div class="header-right">
+        <span class="results-count">{{ earnings.length }} results found ({{ totalItems }} total)</span>
+      </div>
+    </div>
+    
+    <div class="table-container" style="overflow-x: auto;">
+      <table mat-table [dataSource]="earnings" class="mat-elevation-z1" style="width: 100%;">
+        <!-- Date Column -->
+        <ng-container matColumnDef="date">
+          <th mat-header-cell *matHeaderCellDef style="min-width: 120px;">Date</th>
+          <td mat-cell *matCellDef="let element" style="white-space: nowrap;">
+            {{ element.date | date:'MMM d, yy' }}
+          </td>
+        </ng-container>
 
-  <div *ngIf="earningsData.length > 0" class="results-container">
-    <mat-card class="results-card">
-      <mat-card-header>
-        <mat-card-title>
-          Earnings Results ({{ earningsData.length }})
-        </mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="table-container">
-          <table mat-table [dataSource]="earningsData" class="earnings-table">
-            <!-- Date Column -->
-            <ng-container matColumnDef="date">
-              <th mat-header-cell *matHeaderCellDef>Date</th>
-              <td mat-cell *matCellDef="let element">
-                {{ element.date | date:'MMM d, y' }}
-                <div class="time" *ngIf="element.time">{{ element.time }}</div>
-              </td>
-            </ng-container>
+        <!-- EPS Columns -->
+        <ng-container matColumnDef="eps">
+          <th mat-header-cell *matHeaderCellDef>EPS</th>
+          <td mat-cell *matCellDef="let element">
+            {{ element.eps | currency:'USD':'symbol':'1.2-2' }}
+          </td>
+        </ng-container>
 
-            <!-- Ticker Column -->
-            <ng-container matColumnDef="ticker">
-              <th mat-header-cell *matHeaderCellDef>Ticker</th>
-              <td mat-cell *matCellDef="let element">
-                <div class="ticker">{{ element.ticker }}</div>
-                <div class="exchange" *ngIf="element.exchange">{{ element.exchange }}</div>
-              </td>
-            </ng-container>
+        <ng-container matColumnDef="eps_est">
+          <th mat-header-cell *matHeaderCellDef>EPS Est.</th>
+          <td mat-cell *matCellDef="let element">
+            {{ element.eps_est | currency:'USD':'symbol':'1.2-2' }}
+          </td>
+        </ng-container>
 
-            <!-- Name Column -->
-            <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef>Company</th>
-              <td mat-cell *matCellDef="let element">{{ element.name || '-' }}</td>
-            </ng-container>
+        <ng-container matColumnDef="eps_prior">
+          <th mat-header-cell *matHeaderCellDef>EPS Prior</th>
+          <td mat-cell *matCellDef="let element">
+            {{ element.eps_prior | currency:'USD':'symbol':'1.2-2' }}
+          </td>
+        </ng-container>
 
-            <!-- Period Column -->
-            <ng-container matColumnDef="period">
-              <th mat-header-cell *matHeaderCellDef>Period</th>
-              <td mat-cell *matCellDef="let row">{{ row.period || '-' }}</td>
-            </ng-container>
+        <ng-container matColumnDef="eps_surprise">
+          <th mat-header-cell *matHeaderCellDef>EPS Surprise</th>
+          <td mat-cell *matCellDef="let element">
+            <span [class.positive]="element.eps_surprise > 0" [class.negative]="element.eps_surprise < 0">
+              {{ element.eps_surprise | currency:'USD':'symbol':'1.2-2' }}
+            </span>
+          </td>
+        </ng-container>
 
-            <!-- EPS Estimate Column -->
-            <ng-container matColumnDef="eps_est">
-              <th mat-header-cell *matHeaderCellDef>EPS Est.</th>
-              <td mat-cell *matCellDef="let element">{{ formatCurrency(element.eps_est) }}</td>
-            </ng-container>
+        <ng-container matColumnDef="eps_surprise_percent">
+          <th mat-header-cell *matHeaderCellDef>EPS Surprise %</th>
+          <td mat-cell *matCellDef="let element">
+            <span [class.positive]="element.eps_surprise_percent > 0" [class.negative]="element.eps_surprise_percent < 0">
+              {{ element.eps_surprise_percent | percent:'1.2-2' }}
+            </span>
+          </td>
+        </ng-container>
 
-            <!-- EPS Actual Column -->
-            <ng-container matColumnDef="eps_act">
-              <th mat-header-cell *matHeaderCellDef>EPS Act.</th>
-              <td mat-cell *matCellDef="let element">{{ formatCurrency(element.eps_act) }}</td>
-            </ng-container>
+        <ng-container matColumnDef="eps_type">
+          <th mat-header-cell *matHeaderCellDef>EPS Type</th>
+          <td mat-cell *matCellDef="let element">{{ element.eps_type }}</td>
+        </ng-container>
 
-            <!-- EPS Surprise % Column -->
-            <ng-container matColumnDef="eps_surprise_percent">
-              <th mat-header-cell *matHeaderCellDef>EPS Surprise %</th>
-              <td mat-cell *matCellDef="let element">
-                <span [class.positive]="element.eps_surprise_percent > 0"
-                      [class.negative]="element.eps_surprise_percent < 0">
-                  {{ formatPercent(element.eps_surprise_percent) }}
-                </span>
-              </td>
-            </ng-container>
+        <!-- Notes Column -->
+        <ng-container matColumnDef="notes">
+          <th mat-header-cell *matHeaderCellDef>Notes</th>
+          <td mat-cell *matCellDef="let element">{{ element.notes || '-' }}</td>
+        </ng-container>
 
-            <!-- Revenue Estimate Column -->
-            <ng-container matColumnDef="revenue_est">
-              <th mat-header-cell *matHeaderCellDef>Rev. Est.</th>
-              <td mat-cell *matCellDef="let element">{{ formatCurrency(element.revenue_est) }}</td>
-            </ng-container>
+        <!-- Period Column -->
+        <ng-container matColumnDef="period">
+          <th mat-header-cell *matHeaderCellDef>Period</th>
+          <td mat-cell *matCellDef="let element" style="white-space: nowrap;">
+            {{ element.period }} '{{ (element.period_year || '').toString().slice(-2) }}
+          </td>
+        </ng-container>
 
-            <!-- Revenue Actual Column -->
-            <ng-container matColumnDef="revenue_act">
-              <th mat-header-cell *matHeaderCellDef>Rev. Act.</th>
-              <td mat-cell *matCellDef="let element">{{ formatCurrency(element.revenue_act) }}</td>
-            </ng-container>
+        <ng-container matColumnDef="period_year">
+          <th mat-header-cell *matHeaderCellDef>Year</th>
+          <td mat-cell *matCellDef="let element">{{ element.period_year }}</td>
+        </ng-container>
 
-            <!-- Revenue Surprise % Column -->
-            <ng-container matColumnDef="revenue_surprise_percent">
-              <th mat-header-cell *matHeaderCellDef>Rev. Surprise %</th>
-              <td mat-cell *matCellDef="let element">
-                <span [class.positive]="element.revenue_surprise_percent > 0"
-                      [class.negative]="element.revenue_surprise_percent < 0">
-                  {{ formatPercent(element.revenue_surprise_percent) }}
-                </span>
-              </td>
-            </ng-container>
+        <!-- Revenue Columns -->
+        <ng-container matColumnDef="revenue">
+          <th mat-header-cell *matHeaderCellDef>Revenue</th>
+          <td mat-cell *matCellDef="let element">
+            {{ element.revenue | abbreviateCurrency:0 }}
+          </td>
+        </ng-container>
 
-            <!-- Conference Call Column -->
-            <ng-container matColumnDef="conference_call">
-              <th mat-header-cell *matHeaderCellDef>Conf. Call</th>
-              <td mat-cell *matCellDef="let element">
-                <mat-icon *ngIf="element.conference_call" color="primary">phone_in_talk</mat-icon>
-                <span *ngIf="!element.conference_call">-</span>
-              </td>
-            </ng-container>
+        <ng-container matColumnDef="revenue_est">
+          <th mat-header-cell *matHeaderCellDef>Revenue Est.</th>
+          <td mat-cell *matCellDef="let element">
+            {{ element.revenue_est | abbreviateCurrency:0 }}
+          </td>
+        </ng-container>
 
-            <!-- Header and row definitions -->
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          </table>
-        </div>
-      </mat-card-content>
-    </mat-card>
+        <ng-container matColumnDef="revenue_prior">
+          <th mat-header-cell *matHeaderCellDef>Revenue Prior</th>
+          <td mat-cell *matCellDef="let element">
+            {{ element.revenue_prior | abbreviateCurrency:0 }}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="revenue_surprise">
+          <th mat-header-cell *matHeaderCellDef>Revenue Surprise</th>
+          <td mat-cell *matCellDef="let element">
+            <span [class.positive]="element.revenue_surprise > 0" [class.negative]="element.revenue_surprise < 0">
+              {{ element.revenue_surprise | abbreviateCurrency:0 }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="revenue_surprise_percent">
+          <th mat-header-cell *matHeaderCellDef>Revenue Surprise %</th>
+          <td mat-cell *matCellDef="let element">
+            <span [class.positive]="element.revenue_surprise_percent > 0" [class.negative]="element.revenue_surprise_percent < 0">
+              {{ element.revenue_surprise_percent | percent:'1.2-2' }}
+            </span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+    </div>
+    
+    <mat-paginator *ngIf="totalItems > 5"
+                   [length]="totalItems"
+                   [pageSize]="itemsPerPage"
+                   [pageSizeOptions]="[5, 10, 25, 50, 100]"
+                   (page)="onPageChange($event)"
+                   showFirstLastButtons
+                   aria-label="Select page of earnings data">
+    </mat-paginator>
+  </div>
+  
+  <div *ngIf="!isLoading && earnings.length === 0 && searchForm.get('ticker')?.value" class="no-results">
+    <mat-icon>info</mat-icon>
+    <p>No earnings data found for {{ searchForm.get('ticker')?.value?.toUpperCase() }}</p>
   </div>
 </div>

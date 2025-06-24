@@ -1,15 +1,15 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams, HttpHeaders } from '@angular/common/http';
-import { Observable, from, switchMap, map } from 'rxjs';
+import { HttpClient, HttpParams, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
+import { Observable, from, switchMap, map, catchError, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 
 export interface EarningsParams {
-  page?: number;
-  pagesize?: number;
+  tickers: string | string[];
   date_from?: string;
   date_to?: string;
-  tickers?: string;
+  page?: number;
+  pagesize?: number;
   type?: string;
 }
 
@@ -59,62 +59,106 @@ export interface EarningsItem {
   providedIn: 'root'
 })
 export class BenzingaService {
-  private http = inject(HttpClient);
-  private authService = inject(AuthService);
+  private http: HttpClient;
+  private authService: AuthService;
   
-  // Use the correct endpoint for the Cloud Function
   private readonly BASE_URL = environment.production 
-    ? 'https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/getBenzingaCalendar'
-    : 'http://localhost:5001/alpha-vantage-proxy-api/us-central1/getBenzingaCalendar';
+    ? 'https://your-production-url.com/api/benzinga' 
+    : 'http://localhost:5001/alpha-vantage-proxy-api/us-central1';
 
-  private getAuthHeaders() {
+  private readonly DEFAULT_PAGE_SIZE = 20;
+  private readonly MAX_YEARS_BACK = 10; // Maximum years to look back for historical data
+
+  constructor(http: HttpClient, authService: AuthService) {
+    this.http = http;
+    this.authService = authService;
+  }
+
+  /**
+   * Get earnings calendar data with pagination and date range support
+   */
+  getEarningsCalendar(params: {
+    tickers: string | string[],
+    startDate?: Date,
+    endDate?: Date,
+    page?: number,
+    pageSize?: number
+  }): Observable<any> {
+    // Set default date range (last 5 years)
+    const endDate = params.endDate || new Date();
+    const startDate = params.startDate || new Date();
+    startDate.setFullYear(endDate.getFullYear() - 5);
+
+    // Format dates as YYYY-MM-DD
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    
+    const queryParams: EarningsParams = {
+      tickers: params.tickers,
+      date_from: formatDate(startDate),
+      date_to: formatDate(endDate),
+      page: params.page || 1,
+      pagesize: params.pageSize || this.DEFAULT_PAGE_SIZE,
+      type: 'earnings'
+    };
+
     return from(this.authService.getCurrentToken()).pipe(
-      map(token => {
+      switchMap(token => {
         if (!token) {
-          throw new Error('No authentication token available');
+          return throwError(() => new Error('No authentication token available'));
         }
-        return {
+
+        const headers = new HttpHeaders({
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'x-debug-request': 'true'
-        };
+          'Content-Type': 'application/json'
+        });
+
+        return this.http.get(`${this.BASE_URL}/getBenzingaCalendar`, {
+          params: this.createHttpParams(queryParams),
+          headers
+        });
+      }),
+      catchError(error => {
+        console.error('Error fetching earnings data:', error);
+        return throwError(() => new Error('Failed to fetch earnings data'));
       })
     );
   }
 
   /**
-   * Fetches earnings calendar data from the Benzinga API via Cloud Function
-   * @param params Query parameters for the API call
-   * @returns Observable with the API response
+   * Get maximum available historical data for a ticker
    */
-  getEarnings(params: EarningsParams): Observable<EarningsResponse> {
-    // Create a copy of params to avoid modifying the original
-    const queryParams: EarningsParams = {
-      type: 'earnings',
-      pagesize: 10,
-      ...params,
-      // Ensure tickers is a comma-separated string if it's an array
-      tickers: Array.isArray(params.tickers) 
-        ? params.tickers.join(',') 
-        : params.tickers
-    };
+  getFullEarningsHistory(ticker: string): Observable<any> {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(endDate.getFullYear() - this.MAX_YEARS_BACK);
 
-    // Get the auth token and make the request
-    return this.getAuthHeaders().pipe(
-      switchMap(headers => {
-        // Convert the params to HttpParams
-        let httpParams = new HttpParams();
-        Object.entries(queryParams).forEach(([key, value]) => {
-          if (value !== undefined && value !== null) {
-            httpParams = httpParams.set(key, value.toString());
-          }
-        });
+    return this.getEarningsCalendar({
+      tickers: ticker,
+      startDate,
+      endDate,
+      page: 1,
+      pageSize: 100 // Request more items per page for full history
+    });
+  }
 
-        return this.http.get<EarningsResponse>(this.BASE_URL, {
-          params: httpParams,
-          headers: headers
-        });
-      })
-    );
+  /**
+   * Convert params to HttpParams
+   */
+  private createHttpParams(params: any): HttpParams {
+    let httpParams = new HttpParams();
+    
+    Object.keys(params).forEach(key => {
+      const value = params[key];
+      if (value !== undefined && value !== null) {
+        if (Array.isArray(value)) {
+          // Handle array values (e.g., multiple tickers)
+          httpParams = httpParams.set(key, value.join(','));
+        } else {
+          httpParams = httpParams.set(key, value.toString());
+        }
+      }
+    });
+
+    return httpParams;
   }
 }
