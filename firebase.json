@@ -25,15 +25,20 @@
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
       "rewrites": [
         {
-          "source": "/api/benzinga/logo",
-          "function": "getCompanyLogo"
-        },
-        {
           "source": "**",
           "destination": "/index.html"
         }
       ],
       "headers": [
+        {
+          "source": "/index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
         {
           "source": "/**/*.@(js|css|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)",
           "headers": [
