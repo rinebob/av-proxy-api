@@ -6,9 +6,10 @@ import {
   BenzingaCalendarType,
   BenzingaCalendarResponse
 } from '../common/common-benz';
+import { BenzingaFunctionName } from '../common/common-fn';
 import { 
-  handleOptionsRequest,
-  setCorsHeaders
+  authenticateRequest,
+  handleApiError
 } from '../utils';
 
 // Define the Benzinga API key as a secret
@@ -128,17 +129,16 @@ export const getBenzingaCalendar = onRequest(
   {
     secrets: [benzingaCalendarApiKeyParam],
     memory: '256MiB',
+    cors: true, // Enable CORS for this function
   },
   async (req, res) => {
-    // Handle preflight requests first
-    if (handleOptionsRequest(req, res)) {
-      return; // End the request if it was an OPTIONS request
-    }
-
-    // Set CORS headers for the actual request
-    setCorsHeaders(req, res);
-
     try {
+      // Step 1: Authenticate the request
+      const decodedToken = await authenticateRequest(req, res);
+      if (!decodedToken) {
+        return; // Authentication failed, response already sent.
+      }
+
       // Get API key
       const apiKey = getBenzingaApiKey();
 
@@ -190,12 +190,14 @@ export const getBenzingaCalendar = onRequest(
       const data = await fetchBenzingaCalendar(apiKey, params);
       
       res.status(200).json(data);
-    } catch (error) {
-      console.error('Error in getBenzingaCalendar:', error);
-      res.status(500).json({ 
-        error: 'Internal Server Error',
-        details: error instanceof Error ? error.message : String(error)
-      });
+    } catch (error: unknown) {
+      if (!handleApiError(error, res, BenzingaFunctionName.GET_CALENDAR)) {
+        console.error('Unhandled error in getBenzingaCalendar:', error);
+        res.status(500).json({ 
+          error: 'Internal Server Error',
+          details: error instanceof Error ? error.message : String(error)
+        });
+      }
     }
   }
 );

@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { admin as centralizedAdmin } from '../firebase-admin-init';
 
 // Initialize Firebase Admin if not already done
 if (!admin.apps.length) {
@@ -31,47 +32,39 @@ if (!admin.apps.length) {
 
 /**
  * Verifies a Firebase ID token and returns the decoded token.
- * @param idToken The Firebase ID token to verify
- * @returns A promise that resolves with the decoded token, or null if verification fails
+ * Adds detailed logging for debugging token signature issues.
+ * @param {string} idToken The Firebase ID token from the Authorization header.
+ * @return {Promise<DecodedIdToken | null>} The decoded token or null if invalid.
  */
 export async function authenticateFirebaseUser(
   idToken: string
 ): Promise<admin.auth.DecodedIdToken | null> {
   if (!idToken) {
-    console.warn('No ID token provided for authentication');
+    console.warn('No ID token provided for authentication.');
     return null;
   }
 
-  // Remove 'Bearer ' prefix if present
+  // The token is expected to be passed without the 'Bearer ' prefix here.
   const token = idToken.startsWith('Bearer ') ? idToken.split(' ')[1] : idToken;
 
   try {
-    console.log('Verifying ID token...');
-    // For emulator, we need to disable token verification
-    if (process.env.FUNCTIONS_EMULATOR === 'true') {
-      console.log('Running in emulator mode, skipping token verification');
-      // Just decode the token without verification in emulator
-      return admin.auth().verifyIdToken(token, false);
-    }
-    
-    // In production, verify the token with all checks
-    const decodedToken = await admin.auth().verifyIdToken(token, true);
-    
-    if (!decodedToken) {
-      console.warn('Token verification returned null');
-      return null;
-    }
+    console.log('Verifying Firebase ID token...');
+    console.log(`Token received (first 15 chars): ${token.substring(0, 15)}...`);
+    console.log(`Token length: ${token.length}`);
+    console.log(`Auth Emulator Host from env: ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
 
-    // Check if token is expired
-    const currentTime = Math.floor(Date.now() / 1000);
-    if (decodedToken.exp < currentTime) {
-      console.warn('Token has expired');
-      return null;
-    }
-
+    // verifyIdToken will automatically use the emulator if the host env var is set.
+    const decodedToken = await centralizedAdmin.auth().verifyIdToken(token, true);
+    console.log('ID token verified successfully. UID:', decodedToken.uid);
     return decodedToken;
-  } catch (error) {
-    console.error('Error verifying ID token:', error);
+
+  } catch (error: any) {
+    console.error('Error verifying Firebase ID token:', error.message);
+    console.error(`Error Code: ${error.code}`);
+    // Provide specific guidance for the most likely error cause.
+    if (error.code === 'auth/argument-error') {
+        console.error('Detailed error: The ID token is malformed or has an invalid signature. This can happen if the token is signed with a different project\'s service account, or if the Auth emulator is not configured correctly on the backend.');
+    }
     return null;
   }
 }

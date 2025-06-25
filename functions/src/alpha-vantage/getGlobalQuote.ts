@@ -1,10 +1,10 @@
 // functions/src/alpha-vantage/getGlobalQuote.ts
 import { onRequest } from 'firebase-functions/v2/https';
 import { 
-  setCorsHeaders, 
-  handleOptionsRequest,
-  fetchStockData,
-  validateAndAuthenticateRequest,
+  getAlphaVantageApiKey, 
+  fetchStockData, 
+  handleApiError,
+  authenticateRequest
 } from '../utils';
 import { 
   AlphaVantageFunctionName
@@ -26,37 +26,39 @@ export const getGlobalQuote = onRequest(
   async (req, res) => {
     console.info('----------- getGlobalQuote ---------------');
 
-    // Handle CORS and OPTIONS
-    setCorsHeaders(req, res);
-    if (handleOptionsRequest(req as any, res as any)) return;
-
     try {
-      // Validate and authenticate the request
-      const validation = await validateAndAuthenticateRequest(
-        req,
-        res,
-        AlphaVantageFunctionName.GET_GLOBAL_QUOTE
-      );
-      if (!validation) return; // Stop if validation fails
+      // Step 1: Authenticate the request
+      const decodedToken = await authenticateRequest(req, res);
+      if (!decodedToken) {
+        return; // Authentication failed, response already sent.
+      }
 
-      const { params, apiKey } = validation;
+      // Step 2: Validate specific parameters for this function
+      const { symbol } = req.query;
+      if (!symbol || typeof symbol !== 'string') {
+        res.status(400).json({ error: 'Bad Request', message: 'Symbol is required' });
+        return;
+      }
+
+      // Get the API key
+      const apiKey = getAlphaVantageApiKey();
 
       // TEMPORARY LOG: Securely log the end of the API key to verify the secret
       console.log(`gGQ Using API Key ending in: ${apiKey.slice(-4)}`);
 
       // Check cache first
-      const cachedData = await getStockData(params.symbol, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
+      const cachedData = await getStockData(symbol, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
       if (cachedData) {
-        console.info(`[${params.symbol}] CACHE HIT`);
+        console.info(`[${symbol}] CACHE HIT`);
         res.status(200).send(cachedData);
         return;
       }
-      console.info(`[${params.symbol}] CACHE MISS`);
+      console.info(`[${symbol}] CACHE MISS`);
 
       // Create the correctly-typed parameters object for the API call
       const apiParams: { [key: string]: string } = {
         function: AlphaVantageFunction.GLOBAL_QUOTE,
-        symbol: params.symbol
+        symbol: symbol
       };
 
       // Fetch from Alpha Vantage API
@@ -65,7 +67,7 @@ export const getGlobalQuote = onRequest(
       // Error handling for API response
       if (apiResponse["Error Message"] || apiResponse["Note"]) {
         const errorMessage = apiResponse["Error Message"] || apiResponse["Note"];
-        console.error(`Alpha Vantage API Error for ${params.symbol}: ${errorMessage}`);
+        console.error(`Alpha Vantage API Error for ${symbol}: ${errorMessage}`);
         res.status(500).send({ message: `Failed to fetch data: ${errorMessage}` });
         return;
       }
@@ -80,11 +82,11 @@ export const getGlobalQuote = onRequest(
       const globalQuote = apiResponse["Global Quote"];
 
       // Save to Firestore and send response
-      await saveStockData(params.symbol, globalQuote, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
+      await saveStockData(symbol, globalQuote, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
       res.status(200).send(globalQuote);
     } catch (error) {
-      console.error('Error in getGlobalQuote:', error);
-      res.status(500).send({ message: 'An unexpected error occurred.' });
+      console.error(`Error in ${AlphaVantageFunctionName.GET_GLOBAL_QUOTE}:`, error);
+      handleApiError(error, res, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
     }
   }
 );

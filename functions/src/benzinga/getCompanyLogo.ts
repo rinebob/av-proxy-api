@@ -1,10 +1,10 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import axios from 'axios';
 import { 
-  setCorsHeaders, 
-  handleOptionsRequest,
+  authenticateRequest,
   handleApiError
 } from '../utils';
+import { BenzingaFunctionName } from '../common/common-fn';
 
 export const getCompanyLogo = onRequest(
   {
@@ -14,15 +14,14 @@ export const getCompanyLogo = onRequest(
     memory: '256MiB'
   },
   async (req, res) => {
-    // Set CORS headers
-    setCorsHeaders(req, res);
-    
-    // Handle CORS preflight
-    if (handleOptionsRequest(req, res)) {
-      return;
-    }
-
     try {
+      // Step 1: Authenticate the request
+      const decodedToken = await authenticateRequest(req, res);
+      if (!decodedToken) {
+        return; // Authentication failed, response already sent.
+      }
+
+      // Step 2: Validate specific parameters for this function
       const ticker = req.query.ticker as string;
       if (!ticker) {
         res.status(400).json({ error: 'Ticker is required' });
@@ -51,8 +50,8 @@ export const getCompanyLogo = onRequest(
       res.set('Cache-Control', 'public, max-age=2592000');
       res.json(response.data);
     } catch (error: unknown) {
-      if (!handleApiError(error, res, 'getCompanyLogo')) {
-        console.error('Unhandled error in getCompanyLogo:', error);
+      if (!handleApiError(error, res, BenzingaFunctionName.GET_COMPANY_LOGO)) {
+        console.error(`Unhandled error in ${BenzingaFunctionName.GET_COMPANY_LOGO}:`, error);
         res.status(500).json({ 
           error: 'Failed to fetch company logo',
           details: error instanceof Error ? error.message : 'Unknown error'
