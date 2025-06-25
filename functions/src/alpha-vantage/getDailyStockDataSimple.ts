@@ -26,7 +26,8 @@ export const getDailyStockDataSimple = onRequest(
     cors: true, // Enable CORS for this function
   }, 
   async (req, res) => {
-        console.info('----------- getDailyStockDataSimple ---------------');
+      // Force redeploy to include updated helper functions. v2
+      console.info('----------- getDailyStockDataSimple ---------------');
         
     try {
       // Step 1: Authenticate the request

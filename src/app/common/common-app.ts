@@ -1,14 +1,24 @@
 import { environment } from '../../environments/environment';
 import { AlphaVantageFunctionName, BenzingaFunctionName } from '../../../functions/src/common/common-fn';
 
-// Hardcoded API endpoints
-const API_URLS = {
-  PROD: 'https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net',
-  DEV: 'http://localhost:5001/alpha-vantage-proxy-api/us-central1'
+// Define the production URLs for each 2nd Gen Cloud Function
+const PROD_URLS = {
+  [AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE]: 'https://getdailystockdatasimple-lsluydmucq-uc.a.run.app',
+  [AlphaVantageFunctionName.GET_GLOBAL_QUOTE]: 'https://getglobalquote-lsluydmucq-uc.a.run.app',
+  [BenzingaFunctionName.GET_CALENDAR]: 'https://getbenzingacalendar-lsluydmucq-uc.a.run.app',
+  [BenzingaFunctionName.GET_COMPANY_LOGO]: 'https://getcompanylogo-lsluydmucq-uc.a.run.app'
 } as const;
 
-// Simple function to get the base URL
-const getBaseUrl = () => environment.production ? API_URLS.PROD : API_URLS.DEV;
+// Development URL base
+const DEV_URL_BASE = 'http://localhost:5001/alpha-vantage-proxy-api/us-central1';
+
+// Function to get the correct URL based on environment and function name
+const getFunctionUrl = (functionName: AlphaVantageFunctionName | BenzingaFunctionName) => {
+  if (environment.production) {
+    return PROD_URLS[functionName];
+  }
+  return `${DEV_URL_BASE}/${functionName}`;
+};
 
 // Interface for function info
 export interface StockDataFunction {
@@ -19,8 +29,8 @@ export interface StockDataFunction {
 }
 
 // Function to create a function info object
-const createFunctionInfo = (endpointPath: string, displayName: string, buttonText: string, functionName: string): StockDataFunction => ({
-  url: `${getBaseUrl()}/${endpointPath}`,
+const createFunctionInfo = (endpointPath: AlphaVantageFunctionName | BenzingaFunctionName, displayName: string, buttonText: string, functionName: string): StockDataFunction => ({
+  url: getFunctionUrl(endpointPath),
   displayName,
   buttonText,
   functionName
@@ -49,8 +59,13 @@ export const BenzingaFunctions = {
     'Benzinga Calendar',
     'Get Calendar',
     'GET_BENZINGA_CALENDAR'
+  ),
+  GET_COMPANY_LOGO: createFunctionInfo(
+    BenzingaFunctionName.GET_COMPANY_LOGO,
+    'Company Logo',
+    'Get Logo',
+    'GET_COMPANY_LOGO'
   )
-  // Add more Benzinga functions here as needed
 } as const;
 
 // Combine all functions
@@ -67,5 +82,6 @@ export const StockDataUrl = {
   DAILY_STOCK_DATA_SIMPLE: AlphaVantageFunctions.DAILY_STOCK_DATA.url,
   GET_GLOBAL_QUOTE: AlphaVantageFunctions.GLOBAL_QUOTE.url,
   // Benzinga
-  GET_BENZINGA_CALENDAR: BenzingaFunctions.GET_CALENDAR.url
+  GET_BENZINGA_CALENDAR: BenzingaFunctions.GET_CALENDAR.url,
+  GET_COMPANY_LOGO: BenzingaFunctions.GET_COMPANY_LOGO.url
 } as const;

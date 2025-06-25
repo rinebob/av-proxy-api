@@ -24,6 +24,7 @@ export const getGlobalQuote = onRequest(
     cors: true,
   },
   async (req, res) => {
+    // Force redeploy to include updated helper functions. v2
     console.info('----------- getGlobalQuote ---------------');
 
     try {
