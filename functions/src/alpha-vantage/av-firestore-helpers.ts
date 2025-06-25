@@ -130,7 +130,9 @@ export async function getStockData(
 
     return null;
   } catch (error) {
-    console.error(`Error getting stock data for ${symbol}:`, error);
-    throw new Error('Could not retrieve stock data from Firestore.');
+    console.error(`Stock data for ${symbol} not found in cache:`, error);
+    // Treat a cache-check failure as a cache miss to make the system more resilient.
+    // The underlying error is still logged for debugging.
+    return null;
   }
 }
