@@ -1,19 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
-import { Observable, from, throwError } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Observable, throwError } from 'rxjs';
 import { catchError, switchMap, map } from 'rxjs/operators';
-import { environment } from '../../environments/environment';
+import { DailyStockParams, GlobalQuoteParams } from '../common/common-av';
 import { AuthService } from '../auth/auth.service';
-import { AlphaVantageFunctionName } from '../common/common-fn';
-
-export interface DailyStockParams {
-  symbol: string;
-  outputsize?: 'compact' | 'full';
-}
-
-export interface GlobalQuoteParams {
-  symbol: string;
-}
+import { StockDataUrl } from '../common/common-app';
 
 @Injectable({
   providedIn: 'root'
@@ -21,41 +12,32 @@ export interface GlobalQuoteParams {
 export class AlphaVantageService {
   private http = inject(HttpClient);
   private authService = inject(AuthService);
-  private readonly baseUrl = environment.functionsBaseUrl;
 
   getDailyStockData(params: DailyStockParams): Observable<any> {
-    const functionName = AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE;
-    return this.makeAuthenticatedRequest(functionName, params);
+    const url = StockDataUrl.DAILY_STOCK_DATA_SIMPLE;
+    return this.makeAuthenticatedRequest(url, params);
   }
 
   getGlobalQuote(params: GlobalQuoteParams): Observable<any> {
-    const functionName = AlphaVantageFunctionName.GET_GLOBAL_QUOTE;
-    return this.makeAuthenticatedRequest(functionName, params);
+    const url = StockDataUrl.GET_GLOBAL_QUOTE;
+    return this.makeAuthenticatedRequest(url, params);
   }
 
-  private makeAuthenticatedRequest(functionName: string, params: any): Observable<any> {
+  private makeAuthenticatedRequest(url: string, params: any): Observable<any> {
     return this.getAuthHeaders().pipe(
       switchMap(headers => {
-        const httpParams = this.createHttpParams(params);
-        return this.http.get<any>(`${this.baseUrl}/${functionName}`, { headers, params: httpParams }).pipe(
-          catchError(this.handleError)
-        );
-      })
+        const httpParams = Object.entries(params).reduce((p, [key, value]) => {
+          return value ? p.set(key, String(value)) : p;
+        }, new HttpParams());
+
+        return this.http.get(url, { headers, params: httpParams });
+      }),
+      catchError(this.handleError)
     );
   }
 
-  private createHttpParams(params: any): HttpParams {
-    let httpParams = new HttpParams();
-    for (const key in params) {
-      if (params.hasOwnProperty(key) && params[key] !== undefined && params[key] !== null) {
-        httpParams = httpParams.set(key, params[key].toString());
-      }
-    }
-    return httpParams;
-  }
-
   private getAuthHeaders(): Observable<HttpHeaders> {
-    return from(this.authService.getCurrentToken()).pipe(
+    return this.authService.idToken$.pipe(
       map(token => {
         if (!token) {
           throw new Error('No authentication token available');

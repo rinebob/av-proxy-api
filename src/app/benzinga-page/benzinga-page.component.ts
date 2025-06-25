@@ -14,13 +14,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
-import { BenzingaService, EarningsItem } from '../services/benzinga.service';
+import { BenzingaService } from '../services/benzinga.service';
+import { EarningsItem, EarningsResponse } from '../common/common-bz';
 import { AbbreviateCurrencyPipe } from '../shared/pipes/abbreviate-currency.pipe';
-
-interface EarningsResponse {
-  earnings: EarningsItem[];
-  [key: string]: any;
-}
 
 @Component({
   selector: 'app-benzinga-page',
@@ -61,10 +57,10 @@ export class BenzingaPageComponent implements OnInit {
   totalItems = signal(0);
   isDuplicationEnabled = signal(false);
   
-  earnings = signal<any[]>([]);
-  private originalEarnings = signal<any[]>([]);
-  private duplicatedEarnings = signal<any[]>([]);
-  private allEarnings = signal<any[]>([]);
+  earnings = signal<EarningsItem[]>([]);
+  private originalEarnings = signal<EarningsItem[]>([]);
+  private duplicatedEarnings = signal<EarningsItem[]>([]);
+  private allEarnings = signal<EarningsItem[]>([]);
 
   searchForm: FormGroup = this.fb.group({
     ticker: ['NVDA', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]],
@@ -138,19 +134,19 @@ export class BenzingaPageComponent implements OnInit {
 
     this.benzingaService.getEarningsCalendar({
       tickers: ticker.toUpperCase(),
-      startDate,
-      endDate,
+      date_from: this.datePipe.transform(startDate, 'yyyy-MM-dd') || '',
+      date_to: this.datePipe.transform(endDate, 'yyyy-MM-dd') || '',
       page: 1,
-      pageSize: 100
+      pagesize: 100
     }).subscribe({
-      next: (response: any) => {
+      next: (response: EarningsResponse) => {
         console.log('API Response:', response);
         this.originalEarnings.set(response.earnings || []);
         
         // Create duplicated data if needed
-        const duplicatedItems: any[] = [];
+        const duplicatedItems: EarningsItem[] = [];
         for (let i = 0; i < 10; i++) {
-          const duplicated = this.originalEarnings().map((item: any) => ({
+          const duplicated = this.originalEarnings().map((item: EarningsItem) => ({
             ...item,
             id: `${item.id || ''}-${i}`,
             eps_act: item.eps_act ? item.eps_act + (Math.random() * 0.1 - 0.05) : item.eps_act,

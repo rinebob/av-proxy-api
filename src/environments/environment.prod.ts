@@ -6,6 +6,4 @@ export const environment = {
   firebaseConfig: {
     ...FIREBASE_CONFIG
   },
-  // Base URL for all Cloud Functions in production
-  functionsBaseUrl: 'https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net'
 };
