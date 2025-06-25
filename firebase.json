@@ -18,6 +18,30 @@
       "npm --prefix \"$RESOURCE_DIR\" run build"
     ]
   },
+  "apphosting": {
+    "source": ".",
+    "run": "npm run start",
+    "headers": [
+      {
+        "source": "/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/**/*.@(js|css|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "max-age=31536000"
+          }
+        ]
+      }
+    ]
+  },
   "hosting": [
     {
       "target": "app",
@@ -27,26 +51,6 @@
         {
           "source": "**",
           "destination": "/index.html"
-        }
-      ],
-      "headers": [
-        {
-          "source": "/index.html",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "no-cache, no-store, must-revalidate"
-            }
-          ]
-        },
-        {
-          "source": "/**/*.@(js|css|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "max-age=31536000"
-            }
-          ]
         }
       ]
     }
