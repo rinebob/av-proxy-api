@@ -142,6 +142,42 @@
   overflow: hidden;
   margin-bottom: 2rem;
   
+  .company-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;  
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    
+    h2 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 500;
+      color: #2c3e50;
+      padding-left: 0.5rem;  
+      
+      @media (max-width: 600px) {
+        font-size: 1.25rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+      }
+    }
+    
+    .results-count {
+      font-size: 0.9rem;
+      color: #6c757d;
+      font-weight: 400;
+      white-space: nowrap;
+      padding-right: 0.5rem;  
+      
+      @media (max-width: 600px) {
+        font-size: 0.85rem;
+      }
+    }
+  }
+  
   .results-header {
     display: flex;
     justify-content: space-between;
@@ -156,29 +192,10 @@
       gap: 1rem;
     }
     
-    .header-right {
-      display: flex;
-      align-items: center;
-    }
-    
-    .results-count {
-      color: #666;
-      font-size: 0.9em;
-      white-space: nowrap;
-    }
-    
-    h3 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 500;
-      color: #333;
-    }
-    
     .duplication-toggle {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      margin-left: 16px;
       transition: all 0.3s ease;
       
       &.duplication-enabled {

@@ -81,12 +81,14 @@
             <span>{{ isDuplicationEnabled ? 'Show actual data' : 'Show test data' }}</span>
           </button>
         </div>
-        <div class="header-right">
-          <span class="results-count">{{ earnings.length }} results found ({{ totalItems }} total)</span>
-        </div>
       </div>
       
       <div class="table-container" style="overflow-x: auto;">
+        <div class="company-header" *ngIf="earnings.length > 0">
+          <h2>{{ earnings[0].name }} ({{ earnings[0].ticker }})</h2>
+          <span class="results-count">{{ earnings.length }} results found ({{ totalItems }} total)</span>
+        </div>
+        
         <table mat-table [dataSource]="earnings" class="mat-elevation-z1" style="width: 100%;">
           <!-- Date Column -->
           <ng-container matColumnDef="date">
