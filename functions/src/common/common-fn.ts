@@ -11,6 +11,7 @@ export enum AlphaVantageFunctionName {
 export enum BenzingaFunctionName {
   GET_CALENDAR = 'getBenzingaCalendar',
   GET_COMPANY_LOGO = 'getCompanyLogo',
+  GET_DYNAMIC_CALENDAR = 'getDynamicCalendar',
 }
 
 // Union type for all cloud function names

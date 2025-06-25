@@ -24,12 +24,20 @@ export enum BenzingaOutputFormat {
 export interface BenzingaCalendarParams {
   type: BenzingaCalendarType;
   tickers?: string[];
+  securities?: string[]; // For FDA endpoint
   dateFrom?: string;
   dateTo?: string;
   page?: number;
   pageSize?: number;
   format?: BenzingaOutputFormat;
   updatedSince?: string;
+  // Endpoint-specific params
+  date_sort?: string;
+  dividend_yield_gt?: string;
+  importance?: string;
+  country?: string;
+  category?: string;
+  fuzzy?: string;
 }
 
 export interface BenzingaCalendarResponse {
