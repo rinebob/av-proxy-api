@@ -1,3 +1,4 @@
+import { environment } from '../../environments/environment';
 import { AlphaVantageFunctionName, BenzingaFunctionName } from '../../../functions/src/common/common-fn';
 
 // Hardcoded API endpoints
@@ -6,11 +7,8 @@ const API_URLS = {
   DEV: 'http://localhost:5001/alpha-vantage-proxy-api/us-central1'
 } as const;
 
-// Set to true for development, false for production
-const IS_DEV = true;
-
 // Simple function to get the base URL
-const getBaseUrl = () => IS_DEV ? API_URLS.DEV : API_URLS.PROD;
+const getBaseUrl = () => environment.production ? API_URLS.PROD : API_URLS.DEV;
 
 // Interface for function info
 export interface StockDataFunction {
