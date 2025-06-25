@@ -129,10 +129,14 @@ export async function getStockData(
     }
 
     return null;
-  } catch (error) {
-    console.error(`Stock data for ${symbol} not found in cache:`, error);
-    // Treat a cache-check failure as a cache miss to make the system more resilient.
-    // The underlying error is still logged for debugging.
+  } catch (error: any) {
+    // Firestore 'not found' (gRPC code 5) should be treated as a cache miss, not an error
+    if (error && (error.code === 5 || error.code === 'NOT_FOUND')) {
+      console.warn(`[${symbol}] Firestore cache miss (NOT_FOUND):`, error);
+      return null;
+    }
+    // Log and treat all other errors as cache miss (but log them for debugging)
+    console.error(`[${symbol}] Unexpected error during Firestore cache check:`, error);
     return null;
   }
 }

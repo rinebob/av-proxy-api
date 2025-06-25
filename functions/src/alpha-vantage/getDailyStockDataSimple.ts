@@ -68,15 +68,40 @@ export const getDailyStockDataSimple = onRequest(
           throw error;
         }
 
-        // Fallback check if the response is not a recognized error but still malformed
+        // Fallback: if the response is missing expected fields, treat as symbol not found or unsupported
         if (!('Meta Data' in response) || !('Time Series (Daily)' in response)) {
-          console.error('Unexpected response format from Alpha Vantage API:', response);
-          throw new Error('Unexpected response format from Alpha Vantage API');
+          console.warn(`[${symbol}] Not found or unsupported by Alpha Vantage. Response:`, response);
+          res.status(404).json({
+            error: 'Symbol Not Found',
+            message: `Symbol '${symbol}' not found or not supported by Alpha Vantage.`,
+            details: response
+          });
+          return;
+        }
+
+        // Check if the response contains any data (type-safe)
+        const daily = response['Time Series (Daily)'];
+        if (!daily || Object.keys(daily).length === 0) {
+          console.info(`[${symbol}] No data found for symbol.`);
+          res.status(404).json({
+            error: 'No Data Found',
+            message: `No data found for symbol '${symbol}'.`,
+            details: response
+          });
+          return;
         }
 
         // Transform and save
         const transformedData = transformAlphaVantageResponse(response);
-        await saveStockData(symbol, transformedData, AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE);
+        try {
+          await saveStockData(symbol, transformedData, AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE);
+        } catch (error) {
+          // Log cache save error but do NOT block the response to the user
+          console.error(`Error saving stock data for ${symbol}:`, error);
+          res.set('X-Cache-Save-Error', 'true');
+          res.status(200).json(transformedData);
+          return;
+        }
 
         res.status(200).json(transformedData);
 
