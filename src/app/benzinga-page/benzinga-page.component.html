@@ -1,23 +1,26 @@
 <div class="benzinga-container">
   <mat-card class="search-card">
     <mat-card-header>
-      <mat-card-title>Earnings Calendar</mat-card-title>
-      <mat-card-subtitle>Search for company earnings data</mat-card-subtitle>
+      <mat-card-title>Calendar</mat-card-title>
+      <mat-card-subtitle>Click the button to select a calendar</mat-card-subtitle>
     </mat-card-header>
     
     <mat-card-content>
       <div class="search-container">
         <form [formGroup]="searchForm" (ngSubmit)="onSubmit()" class="search-form">
-          <div class="form-row">
+          <div class="form-row button-toggle-row">
+            <mat-button-toggle-group formControlName="calendarType" aria-label="Calendar Type">
+              @for (type of calendarTypes; track type) {
+                <mat-button-toggle [value]="type">{{ calendarTypeMetadataMap[type].displayName }}</mat-button-toggle>
+              }
+            </mat-button-toggle-group>
+          </div>
+
+          <!-- Always-visible first row of form fields -->
+          <div class="form-row input-row">
             <mat-form-field appearance="outline" class="ticker-field">
               <mat-label>Ticker Symbol</mat-label>
               <input matInput formControlName="ticker" placeholder="e.g. NVDA">
-              @if (searchForm.get('ticker')?.hasError('required')) {
-                <mat-error>Ticker is required</mat-error>
-              }
-              @if (searchForm.get('ticker')?.hasError('pattern')) {
-                <mat-error>Please enter a valid ticker symbol (1-5 letters)</mat-error>
-              }
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="date-field">
@@ -25,9 +28,6 @@
               <input matInput [matDatepicker]="startPicker" formControlName="startDate">
               <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
               <mat-datepicker #startPicker></mat-datepicker>
-              @if (searchForm.get('startDate')?.hasError('required')) {
-                <mat-error>Start date is required</mat-error>
-              }
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="date-field">
@@ -35,11 +35,19 @@
               <input matInput [matDatepicker]="endPicker" formControlName="endDate" [min]="searchForm.get('startDate')?.value">
               <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
               <mat-datepicker #endPicker></mat-datepicker>
-              @if (searchForm.get('endDate')?.hasError('required')) {
-                <mat-error>End date is required</mat-error>
-              }
             </mat-form-field>
+          </div>
 
+          <!-- Placeholder for dynamic form content -->
+          <div class="dynamic-content-placeholder">
+            @if (searchForm.get('calendarType')?.value; as value) {
+              <span>Selected Calendar: <strong>{{ value | titlecase }}</strong></span>
+            } @else {
+              <span>Select a calendar type above</span>
+            }
+          </div>
+
+          <div class="form-row">
             <button mat-raised-button color="primary" type="submit" [disabled]="isLoading() || searchForm.invalid" class="search-button">
               @if (!isLoading()) {
                 <mat-icon>search</mat-icon>
@@ -71,6 +79,9 @@
     <div class="results-container">
       <div class="results-header">
         <div class="header-left">
+          <h2>Earnings Calendar</h2>
+        </div>
+        <div class="header-right">
           <button mat-stroked-button 
                   color="primary" 
                   (click)="toggleDuplication()"

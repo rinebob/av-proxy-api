@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
-import { EarningsParams, EarningsResponse } from '../common/common-bz';
+import { BenzingaCalendarParams, EarningsResponse } from '../common/common-bz';
 import { AuthService } from '../auth/auth.service';
 import { StockDataUrl } from '../common/common-app';
 
@@ -13,12 +13,12 @@ export class BenzingaService {
   private http = inject(HttpClient);
   private authService = inject(AuthService);
 
-  getEarningsCalendar(params: EarningsParams): Observable<EarningsResponse> {
-    const url = StockDataUrl.GET_BENZINGA_CALENDAR;
+  getDynamicCalendar(params: BenzingaCalendarParams): Observable<EarningsResponse> {
+    const url = StockDataUrl.GET_DYNAMIC_CALENDAR;
     return this.makeAuthenticatedRequest(url, params);
   }
 
-  private makeAuthenticatedRequest(url: string, params: EarningsParams): Observable<EarningsResponse> {
+  private makeAuthenticatedRequest(url: string, params: BenzingaCalendarParams): Observable<EarningsResponse> {
     return this.getAuthHeaders().pipe(
       switchMap(headers => {
         const httpParams = this.createHttpParams(params);
@@ -28,11 +28,19 @@ export class BenzingaService {
     );
   }
 
-  private createHttpParams(params: EarningsParams): HttpParams {
+  private createHttpParams(params: BenzingaCalendarParams): HttpParams {
     let httpParams = new HttpParams();
-    for (const key in params) {
-      if (Object.prototype.hasOwnProperty.call(params, key)) {
-        const value = (params as any)[key];
+    const queryParams: Record<string, any> = { ...params };
+
+    // Rename calendarType to type for the API call
+    if (queryParams['calendarType']) {
+      queryParams['type'] = queryParams['calendarType'];
+      delete queryParams['calendarType'];
+    }
+
+    for (const key in queryParams) {
+      if (Object.prototype.hasOwnProperty.call(queryParams, key)) {
+        const value = queryParams[key];
         if (value !== undefined && value !== null) {
           httpParams = httpParams.set(key, value.toString());
         }

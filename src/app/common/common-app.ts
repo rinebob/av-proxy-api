@@ -6,7 +6,8 @@ const PROD_URLS = {
   [AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE]: 'https://getdailystockdatasimple-lsluydmucq-uc.a.run.app',
   [AlphaVantageFunctionName.GET_GLOBAL_QUOTE]: 'https://getglobalquote-lsluydmucq-uc.a.run.app',
   [BenzingaFunctionName.GET_CALENDAR]: 'https://getbenzingacalendar-lsluydmucq-uc.a.run.app',
-  [BenzingaFunctionName.GET_COMPANY_LOGO]: 'https://getcompanylogo-lsluydmucq-uc.a.run.app'
+  [BenzingaFunctionName.GET_COMPANY_LOGO]: 'https://getcompanylogo-lsluydmucq-uc.a.run.app',
+  [BenzingaFunctionName.GET_DYNAMIC_CALENDAR]: 'https://getdynamiccalendar-lsluydmucq-uc.a.run.app'
 } as const;
 
 // Development URL base
@@ -65,6 +66,12 @@ export const BenzingaFunctions = {
     'Company Logo',
     'Get Logo',
     'GET_COMPANY_LOGO'
+  ),
+  GET_DYNAMIC_CALENDAR: createFunctionInfo(
+    BenzingaFunctionName.GET_DYNAMIC_CALENDAR,
+    'Benzinga Dynamic Calendar',
+    'Get Dynamic Calendar',
+    'GET_DYNAMIC_CALENDAR'
   )
 } as const;
 
@@ -83,5 +90,6 @@ export const StockDataUrl = {
   GET_GLOBAL_QUOTE: AlphaVantageFunctions.GLOBAL_QUOTE.url,
   // Benzinga
   GET_BENZINGA_CALENDAR: BenzingaFunctions.GET_CALENDAR.url,
-  GET_COMPANY_LOGO: BenzingaFunctions.GET_COMPANY_LOGO.url
+  GET_COMPANY_LOGO: BenzingaFunctions.GET_COMPANY_LOGO.url,
+  GET_DYNAMIC_CALENDAR: BenzingaFunctions.GET_DYNAMIC_CALENDAR.url
 } as const;

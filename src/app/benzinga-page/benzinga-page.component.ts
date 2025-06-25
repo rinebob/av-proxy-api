@@ -3,6 +3,7 @@ import { signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatDatepicker } from '@angular/material/datepicker';
@@ -15,7 +16,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
 import { BenzingaService } from '../services/benzinga.service';
-import { EarningsItem, EarningsResponse } from '../common/common-bz';
+import { BenzingaEndpoint, BenzingaEndpointMetadata, BENZINGA_ENDPOINTS_MAP, EarningsItem, BenzingaCalendarParams, EarningsResponse } from '../common/common-bz';
 import { AbbreviateCurrencyPipe } from '../shared/pipes/abbreviate-currency.pipe';
 
 @Component({
@@ -26,6 +27,7 @@ import { AbbreviateCurrencyPipe } from '../shared/pipes/abbreviate-currency.pipe
     ReactiveFormsModule,
     FormsModule,
     MatButtonModule,
+    MatButtonToggleModule,
     MatCardModule,
     MatDatepickerModule,
     MatFormFieldModule,
@@ -43,6 +45,10 @@ import { AbbreviateCurrencyPipe } from '../shared/pipes/abbreviate-currency.pipe
   providers: [DatePipe]
 })
 export class BenzingaPageComponent implements OnInit {
+  // Expose BenzingaEndpoint enum to template
+  public BenzingaEndpoint = BenzingaEndpoint;
+  calendarTypes = Object.values(BenzingaEndpoint);
+
   // Services
   private fb = inject(FormBuilder);
   private benzingaService = inject(BenzingaService);
@@ -63,6 +69,7 @@ export class BenzingaPageComponent implements OnInit {
   private allEarnings = signal<EarningsItem[]>([]);
 
   searchForm: FormGroup = this.fb.group({
+    calendarType: [BenzingaEndpoint.EARNINGS, Validators.required],
     ticker: ['NVDA', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]],
     startDate: [this.getDefaultStartDate(), Validators.required],
     endDate: [new Date(), Validators.required]
@@ -91,10 +98,12 @@ export class BenzingaPageComponent implements OnInit {
   @ViewChild('startPicker') startPicker!: MatDatepicker<Date>;
   @ViewChild('endPicker') endPicker!: MatDatepicker<Date>;
 
+  calendarTypeMetadataMap = BENZINGA_ENDPOINTS_MAP;
+
   constructor() {}
 
   ngOnInit(): void {
-    this.searchEarnings();
+    this.searchCalendar();
   }
 
   private getDefaultStartDate(): Date {
@@ -104,16 +113,12 @@ export class BenzingaPageComponent implements OnInit {
   }
 
   onSubmit(): void {
-    if (this.searchForm.invalid) {
-      return;
-    }
-    
-    this.searchEarnings();
+    this.searchCalendar();
   }
 
-  // Update the searchEarnings method
-  searchEarnings() {
+  searchCalendar(): void {
     if (this.searchForm.invalid) {
+      this.snackBar.open('Please fill in all required fields.', 'Close', { duration: 3000 });
       return;
     }
 
@@ -121,43 +126,47 @@ export class BenzingaPageComponent implements OnInit {
     this.error.set(null);
     this.currentPage.set(0); // Reset to first page on new search
 
-    const { ticker, startDate, endDate } = this.searchForm.value;
+    const { calendarType, ticker, startDate, endDate } = this.searchForm.value;
     
     // Ensure we have valid date objects
     if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
-      this.error.set('Invalid date range selected');
+      this.error.set('Invalid date format. Please use the date picker.');
       this.isLoading.set(false);
       return;
     }
-
     console.log('Searching with dates:', { startDate, endDate });
 
-    this.benzingaService.getEarningsCalendar({
+    const params: BenzingaCalendarParams = {
+      calendarType: calendarType,
       tickers: ticker.toUpperCase(),
       date_from: this.datePipe.transform(startDate, 'yyyy-MM-dd') || '',
       date_to: this.datePipe.transform(endDate, 'yyyy-MM-dd') || '',
-      page: 1,
-      pagesize: 100
-    }).subscribe({
-      next: (response: EarningsResponse) => {
-        console.log('API Response:', response);
-        this.originalEarnings.set(response.earnings || []);
-        
-        // Create duplicated data if needed
-        const duplicatedItems: EarningsItem[] = [];
-        for (let i = 0; i < 10; i++) {
-          const duplicated = this.originalEarnings().map((item: EarningsItem) => ({
-            ...item,
-            id: `${item.id || ''}-${i}`,
-            eps_act: item.eps_act ? item.eps_act + (Math.random() * 0.1 - 0.05) : item.eps_act,
-            revenue_act: item.revenue_act ? item.revenue_act * (1 + (Math.random() * 0.1 - 0.05)) : item.revenue_act
-          }));
-          duplicatedItems.push(...duplicated);
+      page: this.currentPage(),
+      pagesize: this.itemsPerPage()
+    };
+
+    this.benzingaService.getDynamicCalendar(params).subscribe({
+      next: (response) => {
+        if (response && response.earnings) {
+          console.log('API Response:', response);
+          this.originalEarnings.set(response.earnings || []);
+          
+          // Create duplicated data if needed
+          const duplicatedItems: EarningsItem[] = [];
+          for (let i = 0; i < 10; i++) {
+            const duplicated = this.originalEarnings().map((item: EarningsItem) => ({
+              ...item,
+              id: `${item.id || ''}-${i}`,
+              eps_act: item.eps_act ? item.eps_act + (Math.random() * 0.1 - 0.05) : item.eps_act,
+              revenue_act: item.revenue_act ? item.revenue_act * (1 + (Math.random() * 0.1 - 0.05)) : item.revenue_act
+            }));
+            duplicatedItems.push(...duplicated);
+          }
+          this.duplicatedEarnings.set(duplicatedItems);
+          
+          this.updateDisplayedData();
+          this.isLoading.set(false);
         }
-        this.duplicatedEarnings.set(duplicatedItems);
-        
-        this.updateDisplayedData();
-        this.isLoading.set(false);
       },
       error: (err) => {
         console.error('Error loading earnings:', err);
@@ -180,7 +189,7 @@ export class BenzingaPageComponent implements OnInit {
   }
 
   onDateRangeChange(): void {
-    this.searchEarnings(); // Reset to first page when date range changes
+    this.searchCalendar(); // Reset to first page when date range changes
   }
 
   formatCurrency(value: string | number): string {
