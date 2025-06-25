@@ -10,7 +10,8 @@ import {
 } from '../common/common-fn';
 import { 
   AlphaVantageFunction,
-  AlphaVantageDailyTimeSeriesResponse
+  AlphaVantageDailyTimeSeriesResponse,
+  OutputSize
 } from '../common/common-av';
 import { 
   transformAlphaVantageResponse,
@@ -57,7 +58,7 @@ export const getDailyStockDataSimple = onRequest(
       const response = await fetchStockData({
         function: AlphaVantageFunction.TIME_SERIES_DAILY,
         symbol: symbol,
-        outputsize: outputsize
+        outputsize: (outputsize as string) || OutputSize.COMPACT
       }, apiKey);
 
       // Check if the response is a daily time series response

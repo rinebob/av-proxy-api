@@ -1,17 +1,10 @@
 import axios from 'axios';
 import { defineSecret, defineString } from "firebase-functions/params";
 import * as dotenv from 'dotenv';
-import { 
-    AlphaVantageFunctionName,
-    BenzingaFunctionName,
-    AuthValidationResult
-} from './common/common-fn';
 import {
     ALPHAVANTAGE_BASE_URL,
-    OutputSize,
     AlphaVantageDailyTimeSeriesResponse,
     AlphaVantageGlobalQuoteResponse,
-    QueryParamsAv
 } from './common/common-av';
 import { db } from './firebase-admin-init';
 import { authenticateFirebaseUser } from './utils/auth';

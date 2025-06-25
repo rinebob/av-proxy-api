@@ -210,3 +210,10 @@ export interface QueryParams {
     symbol: string;
     outputSize: OutputSize;
 }
+
+// Generic parameter interface for Alpha Vantage API calls
+export interface AlphaVantageParams {
+  function: AlphaVantageFunction;
+  symbol: string;
+  outputsize: OutputSize;
+}
