@@ -4,6 +4,8 @@ import { BenzingaCalendarParams } from '../common/common-benz';
 
 // Collection names
 const CALENDAR_CACHE_COLLECTION = 'benzingaCalendarCache';
+const LOGO_CACHE_COLLECTION = 'benzingaLogoCache';
+const LOGO_CACHE_DURATION_DAYS = 30;
 
 /**
  * Generate a cache key for the given calendar parameters
@@ -83,4 +85,38 @@ async function clearExpiredCache(expiryHours: number = 24): Promise<void> {
   }
 }
 
-export { getCachedCalendarData, cacheCalendarData, clearExpiredCache };
+/**
+ * Retrieves a cached company logo from Firestore if it's valid.
+ */
+async function getLogoData(ticker: string): Promise<any | null> {
+  const cacheDoc = await db.collection(LOGO_CACHE_COLLECTION).doc(ticker).get();
+
+  if (!cacheDoc.exists) {
+    return null;
+  }
+
+  const cacheData = cacheDoc.data();
+  const cacheTime = cacheData?.cachedAt?.toDate();
+  const isCacheExpired = (new Date().getTime() - cacheTime.getTime()) > LOGO_CACHE_DURATION_DAYS * 24 * 60 * 60 * 1000;
+
+  if (isCacheExpired) {
+    console.log(`[${ticker}] LOGO CACHE EXPIRED`);
+    return null;
+  }
+
+  return cacheData?.data || null;
+}
+
+/**
+ * Saves company logo data to the Firestore cache.
+ */
+async function saveLogoData(ticker: string, data: any): Promise<void> {
+  const cachePayload = {
+    cachedAt: FieldValue.serverTimestamp(),
+    data,
+  };
+
+  await db.collection(LOGO_CACHE_COLLECTION).doc(ticker).set(cachePayload);
+}
+
+export { getCachedCalendarData, cacheCalendarData, clearExpiredCache, getLogoData, saveLogoData };

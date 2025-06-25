@@ -1,14 +1,7 @@
-import { Component, inject, NgZone, OnInit } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { 
-  Auth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword 
-} from '@angular/fire/auth'; 
+import { AuthService } from '../auth/auth.service';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../shared/material.module';
 
@@ -24,117 +17,61 @@ import { MaterialModule } from '../shared/material.module';
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
-export class LoginComponent implements OnInit {
-  googleLogoUrl = 'https://www.google.com/favicon.ico'; // Default favicon as fallback
-  private auth: Auth = inject(Auth);
-  private router: Router = inject(Router);
-  private zone = inject(NgZone);
+export class LoginComponent {
+  readonly googleLogoUrl = 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg';
+  private authService = inject(AuthService);
+  private router = inject(Router);
   private fb = inject(FormBuilder);
 
-  loginForm: FormGroup;
-  isLoginMode = true;
-  isLoading = false;
-  isGoogleLoading = false;
-  authError: string | null = null;
-  hidePassword = true;
-  selectedTab = 0; // 0 for login, 1 for signup
+  loginForm: FormGroup = this.fb.group({
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(6)]]
+  });
 
-  private http = inject(HttpClient);
-
-  // Add the OnInit implementation
-  ngOnInit(): void {
-    this.fetchGoogleLogo();
-  }
-
-  private fetchGoogleLogo(): void {
-    // Use the Google G logo from Firebase UI assets
-    this.googleLogoUrl = 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg';
-    
-    // No need for additional checks since we're using a reliable CDN
-  }
-
-  constructor() {
-    this.loginForm = this.fb.group({
-      email: [{value: '', disabled: false}, [Validators.required, Validators.email]],
-      password: [{value: '', disabled: false}, [Validators.required, Validators.minLength(6)]]
-    });
-
-    this.auth.onAuthStateChanged(user => {
-      if (user) {
-        console.log('LoginComponent: User already logged in, redirecting to /stock-data');
-        this.router.navigate(['/stock-data']);
-      }
-    });
-  }
+  // Component state as signals
+  isLoginMode = signal(true);
+  isLoading = signal(false);
+  isGoogleLoading = signal(false);
+  authError = signal<string | null>(null);
+  hidePassword = signal(true);
 
   async onEmailSubmit() {
-    if (this.loginForm.invalid || this.isLoading) return;
-    
-    // Disable form controls while submitting
-    this.loginForm.disable();
+    if (this.loginForm.invalid) return;
 
-    this.isLoading = true;
-    this.authError = null;
+    this.isLoading.set(true);
+    this.authError.set(null);
     const { email, password } = this.loginForm.value;
 
     try {
-      if (this.isLoginMode) {
-        await this.zone.run(async () => {
-          await signInWithEmailAndPassword(this.auth, email, password);
-        });
+      if (this.isLoginMode()) {
+        await this.authService.login(email, password);
       } else {
-        await this.zone.run(async () => {
-          await createUserWithEmailAndPassword(this.auth, email, password);
-        });
+        await this.authService.signup(email, password);
       }
       this.router.navigate(['/stock-data']);
     } catch (error: any) {
-      console.error('Authentication error:', error);
-      this.authError = this.getErrorMessage(error.code || 'auth/error');
+      this.authError.set(this.getErrorMessage(error.code || 'auth/error'));
     } finally {
-      this.isLoading = false;
-      // Re-enable form controls after submission is complete
-      this.loginForm.enable();
+      this.isLoading.set(false);
     }
   }
 
-  async onGoogleLogin() {
-    if (this.isGoogleLoading) return;
-    
-    this.isGoogleLoading = true;
-    this.authError = null;
-    
+  async onGoogleLogin(): Promise<void> {
+    this.isGoogleLoading.set(true);
+    this.authError.set(null);
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(this.auth, provider);
-      
-      // This will be handled by the auth state listener in the constructor
-      console.log('Google login successful', result.user);
+      await this.authService.signInWithGoogle();
+      this.router.navigate(['/stock-data']);
     } catch (error: any) {
-      console.error('Google login error:', error);
-      this.authError = error.message || 'Failed to sign in with Google';
+      this.authError.set(this.getErrorMessage(error.code || 'auth/error'));
     } finally {
-      this.isGoogleLoading = false;
+      this.isGoogleLoading.set(false);
     }
-  }
-
-  // Alias for backward compatibility
-  async loginWithGoogle() {
-    await this.onGoogleLogin();
-    
-    // Reset form when switching tabs
-    this.loginForm.reset();
-    
-    // Clear all errors
-    Object.keys(this.loginForm.controls).forEach(key => {
-      const control = this.loginForm.get(key);
-      control?.setErrors(null);
-    });
   }
 
   switchMode() {
-    this.isLoginMode = !this.isLoginMode;
-    this.authError = null;
+    this.isLoginMode.update(prev => !prev);
+    this.authError.set(null);
     this.loginForm.reset();
   }
 

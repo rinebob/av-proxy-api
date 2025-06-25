@@ -1,15 +1,14 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { Auth, authState } from '@angular/fire/auth'; // Import Auth and authState
 import { map, take, tap } from 'rxjs/operators';
+import { AuthService } from './auth.service';
 
 export const authGuard: CanActivateFn = (route, state) => {
-  const auth: Auth = inject(Auth);
+  const authService = inject(AuthService);
   const router: Router = inject(Router);
 
-  return authState(auth).pipe( // Use authState to get an observable of the user's auth state
-    take(1), // Take the first emission to avoid ongoing subscriptions
-    map(user => !!user), // Map the user object to a boolean (true if user exists, false otherwise)
+  return authService.isAuthenticated().pipe(
+    take(1), // Ensure the observable completes after the first emission
     tap(loggedIn => {
       if (!loggedIn) {
         console.log('AuthGuard: User not logged in, redirecting to /login');

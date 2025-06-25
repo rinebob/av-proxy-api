@@ -15,7 +15,7 @@
             (click)="toggleFunction()" 
             matTooltip="Toggle between Daily and Quote data"
             type="button"
-            [disabled]="stockForm.disabled"
+            [disabled]="isLoading()"
             class="toggle-button">
             <mat-icon>swap_horiz</mat-icon>
             <span>
@@ -47,10 +47,10 @@
             mat-raised-button 
             color="primary" 
             type="submit" 
-            [disabled]="!stockForm.valid || !stockForm.get('tickerSymbol')?.value"
+            [disabled]="!stockForm.valid || !stockForm.get('tickerSymbol')?.value || isLoading()"
             class="submit-button">
             <span class="button-content">
-              @if (isLoading) {
+              @if (isLoading()) {
                 <mat-spinner diameter="20"></mat-spinner>
                 <span>Loading...</span>
               } @else {
@@ -62,27 +62,27 @@
         </div>
       </form>
 
-      @if (errorMessage) {
-        <div class="error-message" [class.rate-limit-error]="errorMessage.includes('API rate limit')">
+      @if (errorMessage()) {
+        <div class="error-message" [class.rate-limit-error]="errorMessage().includes('API rate limit')">
           <mat-icon color="warn">error_outline</mat-icon>
           <div class="error-content">
             <div class="error-title">
-              @if (errorMessage.includes('API rate limit')) {
+              @if (errorMessage().includes('API rate limit')) {
                 <span>Rate Limit Reached</span>
               } @else {
                 <span>Error</span>
               }
             </div>
-            <div class="error-details">{{ errorMessage }}</div>
+            <div class="error-details">{{ errorMessage() }}</div>
           </div>
         </div>
       }
 
-      @if (stockData) {
+      @if (stockData()) {
         <div class="stock-results">
           <mat-divider></mat-divider>
           <h3>Results:</h3>
-          <pre>{{ stockData | json }}</pre>
+          <pre>{{ stockData() | json }}</pre>
         </div>
       }
     </mat-card-content>

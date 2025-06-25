@@ -1,6 +1,7 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, inject, OnInit, ViewChild } from '@angular/core';
+import { signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -13,7 +14,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
-import { BenzingaService, EarningsItem, EarningsParams } from '../services/benzinga.service';
+import { BenzingaService, EarningsItem } from '../services/benzinga.service';
 import { AbbreviateCurrencyPipe } from '../shared/pipes/abbreviate-currency.pipe';
 
 interface EarningsResponse {
@@ -46,14 +47,31 @@ interface EarningsResponse {
   providers: [DatePipe]
 })
 export class BenzingaPageComponent implements OnInit {
-  searchForm: FormGroup;
-  isLoading = false;
-  error: string | null = null;
-  earnings: any[] = [];
-  private allEarnings: any[] = [];
-  currentPage = 0; // 0-based index for Material paginator
-  itemsPerPage = 10;
-  totalItems = 0;
+  // Services
+  private fb = inject(FormBuilder);
+  private benzingaService = inject(BenzingaService);
+  private snackBar = inject(MatSnackBar);
+  private datePipe = inject(DatePipe);
+
+  // State as Signals
+  isLoading = signal(false);
+  error = signal<string | null>(null);
+  currentPage = signal(0);
+  itemsPerPage = signal(10);
+  totalItems = signal(0);
+  isDuplicationEnabled = signal(false);
+  
+  earnings = signal<any[]>([]);
+  private originalEarnings = signal<any[]>([]);
+  private duplicatedEarnings = signal<any[]>([]);
+  private allEarnings = signal<any[]>([]);
+
+  searchForm: FormGroup = this.fb.group({
+    ticker: ['NVDA', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]],
+    startDate: [this.getDefaultStartDate(), Validators.required],
+    endDate: [new Date(), Validators.required]
+  });
+
   // Table configuration
   displayedColumns: string[] = [
     'date',
@@ -77,23 +95,7 @@ export class BenzingaPageComponent implements OnInit {
   @ViewChild('startPicker') startPicker!: MatDatepicker<Date>;
   @ViewChild('endPicker') endPicker!: MatDatepicker<Date>;
 
-  // Add this property to control data duplication
-  isDuplicationEnabled = false;
-  private originalEarnings: any[] = [];
-  private duplicatedEarnings: any[] = [];
-
-  constructor(
-    private fb: FormBuilder,
-    private benzingaService: BenzingaService,
-    private snackBar: MatSnackBar,
-    private datePipe: DatePipe
-  ) {
-    this.searchForm = this.fb.group({
-      ticker: ['NVDA', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]],
-      startDate: [this.getDefaultStartDate(), Validators.required],
-      endDate: [new Date(), Validators.required]
-    });
-  }
+  constructor() {}
 
   ngOnInit(): void {
     this.searchEarnings();
@@ -119,16 +121,16 @@ export class BenzingaPageComponent implements OnInit {
       return;
     }
 
-    this.isLoading = true;
-    this.error = null;
-    this.currentPage = 0; // Reset to first page on new search
+    this.isLoading.set(true);
+    this.error.set(null);
+    this.currentPage.set(0); // Reset to first page on new search
 
     const { ticker, startDate, endDate } = this.searchForm.value;
     
     // Ensure we have valid date objects
     if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
-      this.error = 'Invalid date range selected';
-      this.isLoading = false;
+      this.error.set('Invalid date range selected');
+      this.isLoading.set(false);
       return;
     }
 
@@ -143,41 +145,42 @@ export class BenzingaPageComponent implements OnInit {
     }).subscribe({
       next: (response: any) => {
         console.log('API Response:', response);
-        this.originalEarnings = response.earnings || [];
+        this.originalEarnings.set(response.earnings || []);
         
         // Create duplicated data if needed
-        this.duplicatedEarnings = [];
+        const duplicatedItems: any[] = [];
         for (let i = 0; i < 10; i++) {
-          const duplicated = this.originalEarnings.map((item: any) => ({
+          const duplicated = this.originalEarnings().map((item: any) => ({
             ...item,
             id: `${item.id || ''}-${i}`,
             eps_act: item.eps_act ? item.eps_act + (Math.random() * 0.1 - 0.05) : item.eps_act,
             revenue_act: item.revenue_act ? item.revenue_act * (1 + (Math.random() * 0.1 - 0.05)) : item.revenue_act
           }));
-          this.duplicatedEarnings.push(...duplicated);
+          duplicatedItems.push(...duplicated);
         }
+        this.duplicatedEarnings.set(duplicatedItems);
         
         this.updateDisplayedData();
-        this.isLoading = false;
+        this.isLoading.set(false);
       },
       error: (err) => {
         console.error('Error loading earnings:', err);
-        this.error = 'Failed to load earnings data. Please try again.';
-        this.isLoading = false;
+        this.error.set('Failed to load earnings data. Please try again.');
+        this.isLoading.set(false);
       }
     });
   }
 
   onPageChange(event: any) {
-    this.currentPage = event.pageIndex;
-    this.itemsPerPage = event.pageSize;
+    this.currentPage.set(event.pageIndex);
+    this.itemsPerPage.set(event.pageSize);
     this.updateDisplayedEarnings();
   }
   
   private updateDisplayedEarnings() {
-    const startIndex = this.currentPage * this.itemsPerPage;
-    const endIndex = startIndex + this.itemsPerPage;
-    this.earnings = this.allEarnings.slice(startIndex, endIndex);
+    const startIndex = this.currentPage() * this.itemsPerPage();
+    const endIndex = startIndex + this.itemsPerPage();
+    this.earnings.set(this.allEarnings().slice(startIndex, endIndex));
   }
 
   onDateRangeChange(): void {
@@ -210,15 +213,15 @@ export class BenzingaPageComponent implements OnInit {
   }
 
   // Add this method to toggle data duplication
-  toggleDuplication() {
-    this.isDuplicationEnabled = !this.isDuplicationEnabled;
+  toggleDuplication(): void {
+    this.isDuplicationEnabled.update((v: boolean) => !v);
     this.updateDisplayedData();
   }
 
   // Update this method to handle both original and duplicated data
   private updateDisplayedData() {
-    this.allEarnings = this.isDuplicationEnabled ? this.duplicatedEarnings : this.originalEarnings;
-    this.totalItems = this.allEarnings.length;
+    this.allEarnings.set(this.isDuplicationEnabled() ? this.duplicatedEarnings() : this.originalEarnings());
+    this.totalItems.set(this.allEarnings().length);
     this.updateDisplayedEarnings();
   }
 }

@@ -40,8 +40,8 @@
               }
             </mat-form-field>
 
-            <button mat-raised-button color="primary" type="submit" [disabled]="isLoading || searchForm.invalid" class="search-button">
-              @if (!isLoading) {
+            <button mat-raised-button color="primary" type="submit" [disabled]="isLoading() || searchForm.invalid" class="search-button">
+              @if (!isLoading()) {
                 <mat-icon>search</mat-icon>
               } @else {
                 <mat-spinner diameter="20" class="spinner"></mat-spinner>
@@ -52,22 +52,22 @@
         </form>
       </div>
       
-      @if (isLoading) {
+      @if (isLoading()) {
         <div class="loading-shade">
           <mat-spinner diameter="50"></mat-spinner>
         </div>
       }
       
-      @if (error) {
+      @if (error()) {
         <div class="error-message">
           <mat-icon color="warn">error_outline</mat-icon>
-          {{ error }}
+          {{ error() }}
         </div>
       }
     </mat-card-content>
   </mat-card>
   
-  @if (earnings.length > 0) {
+  @if (earnings().length > 0) {
     <div class="results-container">
       <div class="results-header">
         <div class="header-left">
@@ -75,21 +75,23 @@
                   color="primary" 
                   (click)="toggleDuplication()"
                   class="duplication-toggle"
-                  [class.duplication-enabled]="isDuplicationEnabled"
+                  [class.duplication-enabled]="isDuplicationEnabled()"
                   matTooltip="Toggle between actual and test data">
-            <mat-icon>{{ isDuplicationEnabled ? 'toggle_on' : 'toggle_off' }}</mat-icon>
-            <span>{{ isDuplicationEnabled ? 'Show actual data' : 'Show test data' }}</span>
+            <mat-icon>{{ isDuplicationEnabled() ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+            <span>{{ isDuplicationEnabled() ? 'Show actual data' : 'Show test data' }}</span>
           </button>
         </div>
       </div>
       
       <div class="table-container" style="overflow-x: auto;">
-        <div class="company-header" *ngIf="earnings.length > 0">
-          <h2>{{ earnings[0].name }} ({{ earnings[0].ticker }})</h2>
-          <span class="results-count">{{ earnings.length }} results found ({{ totalItems }} total)</span>
-        </div>
+        @if(earnings().length > 0) {
+          <div class="company-header">
+            <h2>{{ earnings()[0].name }} ({{ earnings()[0].ticker }})</h2>
+            <span class="results-count">{{ earnings().length }} results found ({{ totalItems() }} total)</span>
+          </div>
+        }
         
-        <table mat-table [dataSource]="earnings" class="mat-elevation-z1" style="width: 100%;">
+        <table mat-table [dataSource]="earnings()" class="mat-elevation-z1" style="width: 100%;">
           <!-- Date Column -->
           <ng-container matColumnDef="date">
             <th mat-header-cell *matHeaderCellDef style="min-width: 120px;">Date</th>
@@ -239,9 +241,9 @@
         </table>
       </div>
       
-      @if (totalItems > 5) {
-        <mat-paginator [length]="totalItems"
-                     [pageSize]="itemsPerPage"
+      @if (totalItems() > 5) {
+        <mat-paginator [length]="totalItems()"
+                     [pageSize]="itemsPerPage()"
                      [pageSizeOptions]="[5, 10, 25, 50, 100]"
                      (page)="onPageChange($event)"
                      showFirstLastButtons
@@ -251,7 +253,7 @@
     </div>
   }
   
-  @if (!isLoading && earnings.length === 0 && searchForm.get('ticker')?.value) {
+  @if (!isLoading() && earnings().length === 0 && searchForm.get('ticker')?.value) {
     <div class="no-results">
       <mat-icon>info</mat-icon>
       <p>No earnings data found for {{ searchForm.get('ticker')?.value?.toUpperCase() }}</p>

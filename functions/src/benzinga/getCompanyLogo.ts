@@ -1,10 +1,10 @@
 import { onRequest } from 'firebase-functions/v2/https';
-import axios from 'axios';
 import { 
   authenticateRequest,
   handleApiError
 } from '../utils';
 import { BenzingaFunctionName } from '../common/common-fn';
+import { getLogoData, saveLogoData } from './benzinga-firestore-helpers';
 
 export const getCompanyLogo = onRequest(
   {
@@ -22,9 +22,17 @@ export const getCompanyLogo = onRequest(
       }
 
       // Step 2: Validate specific parameters for this function
-      const ticker = req.query.ticker as string;
+      const ticker = (req.query.ticker as string)?.toUpperCase();
       if (!ticker) {
         res.status(400).json({ error: 'Ticker is required' });
+        return;
+      }
+
+      // Step 3: Check for cached data
+      const cachedData = await getLogoData(ticker);
+      if (cachedData) {
+        res.set('X-Cache-Status', 'HIT');
+        res.status(200).json(cachedData);
         return;
       }
 
@@ -33,22 +41,28 @@ export const getCompanyLogo = onRequest(
         throw new Error('Benzinga API key not configured');
       }
 
-      const url = `https://api.benzinga.com/api/v2.1/company/logo`;
-      const params = {
-        ticker: ticker.toUpperCase(),
-        token: apiKey
-      };
+      const url = new URL(`https://api.benzinga.com/api/v2.1/company/logo`);
+      url.searchParams.append('ticker', ticker);
+      url.searchParams.append('token', apiKey);
 
-      // Use axios like other functions in the project
-      const response = await axios.get<{
-        logo: string;
-        ticker: string;
-        name: string;
-      }>(url, { params });
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
 
-      // Cache the response for 30 days since logos don't change often
-      res.set('Cache-Control', 'public, max-age=2592000');
-      res.json(response.data);
+      if (!response.ok) {
+        throw new Error(`Benzinga API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Step 4: Cache the new data (do not await)
+      saveLogoData(ticker, data).catch(err => {
+        console.error(`Failed to cache logo for ${ticker}:`, err);
+      });
+
+      res.set('X-Cache-Status', 'MISS');
+      res.status(200).json(data);
     } catch (error: unknown) {
       if (!handleApiError(error, res, BenzingaFunctionName.GET_COMPANY_LOGO)) {
         console.error(`Unhandled error in ${BenzingaFunctionName.GET_COMPANY_LOGO}:`, error);

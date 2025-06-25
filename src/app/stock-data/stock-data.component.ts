@@ -1,197 +1,94 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { MatDividerModule } from '@angular/material/divider';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
 import { JsonPipe, CommonModule } from '@angular/common';
+import { catchError, of, switchMap, tap } from 'rxjs';
 import { StockDataFunctions, StockDataFunction } from '../common/common-app';
 import { MaterialModule } from '../shared/material.module';
-import { Auth } from '@angular/fire/auth';
+import { AlphaVantageService } from '../services/alpha-vantage.service';
+import { AlphaVantageFunctionName } from '../common/common-fn';
 
 @Component({
-    selector: 'app-stock-data',
-    standalone: true,
-    imports: [
-        CommonModule,
-        FormsModule, 
-        ReactiveFormsModule, 
-        JsonPipe,
-        MatDividerModule,
-        MaterialModule
-    ],
-    templateUrl: './stock-data.component.html',
-    styleUrls: ['./stock-data.component.scss']
+  selector: 'app-stock-data',
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule, 
+    ReactiveFormsModule, 
+    JsonPipe,
+    MatDividerModule,
+    MaterialModule
+  ],
+  templateUrl: './stock-data.component.html',
+  styleUrls: ['./stock-data.component.scss']
 })
 export class StockDataComponent {
-  StockDataFunctions = StockDataFunctions;
+  readonly StockDataFunctions = StockDataFunctions;
+  private readonly alphaVantageService = inject(AlphaVantageService);
 
-  private http = inject(HttpClient);
-  private auth = inject(Auth);
-
-  // Component properties
-  stockData: any = null; // Or a more specific interface if you have one
-  errorMessage: string = '';
-  isLoading = false;
-
-  // Current function being used
-  currentFunction = signal<StockDataFunction>(StockDataFunctions.DAILY_STOCK_DATA)
+  // State as signals
+  isLoading = signal(false);
+  errorMessage = signal('');
+  currentFunction = signal<StockDataFunction>(StockDataFunctions.DAILY_STOCK_DATA);
+  searchAction = signal<{ ticker: string, fn: StockDataFunction } | null>(null);
 
   // Form
   stockForm = new FormGroup({
-    tickerSymbol: new FormControl({ value: '', disabled: false })
+    tickerSymbol: new FormControl('')
   });
 
-  // Toggle between available functions
-  toggleFunction() {
-    const currentFn = this.currentFunction();
-    let nextFn: StockDataFunction;
-    
-    switch (currentFn) {
-      case StockDataFunctions.DAILY_STOCK_DATA:
-        nextFn = StockDataFunctions.GLOBAL_QUOTE;
-        break;
-      case StockDataFunctions.GLOBAL_QUOTE:
-      default:
-        nextFn = StockDataFunctions.DAILY_STOCK_DATA;
-        break;
+  // Reactive data fetching
+  stockData = toSignal(
+    toObservable(this.searchAction).pipe(
+      switchMap(action => {
+        if (!action) return of(null);
+
+        this.isLoading.set(true);
+        this.errorMessage.set('');
+        this.stockForm.disable();
+
+        const { ticker, fn } = action;
+        const request$ = fn === StockDataFunctions.DAILY_STOCK_DATA
+          ? this.alphaVantageService.getDailyStockData({ symbol: ticker })
+          : this.alphaVantageService.getGlobalQuote({ symbol: ticker });
+
+        return request$.pipe(
+          catchError(error => {
+            const message = this.getErrorMessage(error);
+            this.errorMessage.set(message);
+            return of(null); // Return null data on error
+          })
+        );
+      }),
+      tap(() => {
+        this.isLoading.set(false);
+        this.stockForm.enable();
+      })
+    ),
+    { initialValue: null }
+  );
+
+  onSubmit(): void {
+    const ticker = this.stockForm.value.tickerSymbol?.toUpperCase();
+    if (this.stockForm.valid && ticker) {
+      this.searchAction.set({ ticker, fn: this.currentFunction() });
     }
-    
+  }
+
+  toggleFunction(): void {
+    const nextFn = this.currentFunction() === StockDataFunctions.DAILY_STOCK_DATA
+      ? StockDataFunctions.GLOBAL_QUOTE
+      : StockDataFunctions.DAILY_STOCK_DATA;
     this.currentFunction.set(nextFn);
   }
 
-  async onSubmit() {
-    if (this.isLoading) return;
-    
-    console.log('--- sD oS onSubmit: Starting request ---');
-    console.log('Using function:', this.currentFunction().displayName);
-    console.log('Form value:', this.stockForm.value);
-    
-    // Get current user and token
-    const user = this.auth.currentUser;
-    console.log('Current user:', user ? {
-      uid: user.uid,
-      email: user.email,
-      emailVerified: user.emailVerified
-    } : 'No user signed in');
-    
-    if (!user) {
-      this.errorMessage = 'You must be logged in to fetch stock data.';
-      return;
-    }
-    
-    let idToken: string;
-    try {
-      idToken = await user.getIdToken();
-      console.log('ID token retrieved, length:', idToken.length);
-      console.log('ID token first 10 chars:', `${idToken.substring(0, 10)}...`);
-    } catch (error) {
-      console.error('Error getting ID token:', error);
-      this.errorMessage = 'Authentication error. Please sign in again.';
-      return;
-    }
-    
-    // Prepare request
-    const symbol = this.stockForm.get('tickerSymbol')?.value?.trim().toUpperCase() || '';
-    if (!symbol) {
-      console.warn('No symbol provided');
-      this.errorMessage = 'Please enter a stock symbol';
-      return;
-    }
-    
-    const { url, buttonText } = this.currentFunction();
-    const params = { symbol };
-    const headers = new HttpHeaders({
-      'Authorization': `Bearer ${idToken}`,
-      'X-Debug-Request': 'true'
-    });
-    
-    console.log('Sending request:', { 
-      url, 
-      params, 
-      headers: Object.fromEntries(headers.keys().map(k => [k, k === 'Authorization' ? 'Bearer ***' : '***'])) 
-    });
-    
-    this.isLoading = true;
-    this.errorMessage = '';
-    this.stockData = null;
-    
-    const startTime = Date.now();
-    try {
-      console.log('Sending HTTP request...');
-      
-      const response = await this.http.get(url, { 
-        params,
-        headers,
-        observe: 'response'
-      }).toPromise();
-      
-      if (!response) {
-        throw new Error('No response received from server');
-      }
-      
-      const endTime = Date.now();
-      console.log(`Request completed in ${endTime - startTime}ms`);
-      console.log('Response status:', response.status, response.statusText);
-      console.log('Response headers:', 
-        Array.from(response.headers.keys())
-          .map(k => `${k}: ${response.headers.get(k)}`)
-          .join('\n  ')
-      );
-      // console.log('Response body:', response.body);
-      
-      this.stockData = response.body;
-      console.log('Stock data received:', this.stockData);
-      
-    } catch (error: any) {
-      const endTime = Date.now();
-      const duration = error ? `${endTime - startTime}ms` : 'unknown time';
-      console.error(`Request failed after ${duration}`, error);
-      
-      if (error?.error) {
-        console.error('Error response body:', error.error);
-        if (error.error instanceof Blob) {
-          // If the error is a Blob, read it as text
-          try {
-            const errorText = await error.error.text();
-            console.error('Error response body (as text):', errorText);
-          } catch (e) {
-            console.error('Could not read error blob:', e);
-          }
-        }
-      }
-      
-      // Extract the error message from the error object
-      const errorMessage = error?.error?.error || error?.message || 'An unexpected error occurred';
-      
-      // Log the full error for debugging
-      console.error('Error details:', { 
-        status: error?.status,
-        message: errorMessage,
-        error: error?.error 
-      });
-      
-      // Set appropriate error message based on status code and content
-      if (error?.status === 0) {
-        this.errorMessage = 'Network error. Please check your connection.';
-      } else if (error?.status === 401) {
-        this.errorMessage = 'Session expired. Please sign in again.';
-      } else if (error?.status === 403) {
-        this.errorMessage = 'Access denied. You do not have permission to access this resource.';
-      } else if (error?.status === 404) {
-        this.errorMessage = 'The requested resource was not found.';
-      } else if (error?.status === 429 || errorMessage?.toLowerCase().includes('rate limit')) {
-        this.errorMessage = 'API rate limit reached. Please try again later or upgrade your Alpha Vantage API plan.';
-      } else if (error?.status && error.status >= 500) {
-        this.errorMessage = 'Server error. Please try again later.';
-      } else {
-        // Show the extracted error message for other cases
-        this.errorMessage = errorMessage;
-      }
-      
-      console.error('Error details:', error);
-    } finally {
-      this.isLoading = false;
-      console.log('--- Request completed ---');
-    }  
-    this.stockForm.enable();
+  private getErrorMessage(error: any): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'string') return error;
+    if (error?.status === 401 || error?.status === 403) return 'Authentication failed. Please log in again.';
+    if (error?.status === 429) return 'API rate limit reached. Please try again later or upgrade your Alpha Vantage API plan.';
+    if (error?.status && error.status >= 500) return 'Server error. Please try again later.';
+    return 'An unexpected error occurred. Please try again.';
   }
 }

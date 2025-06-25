@@ -1,4 +1,4 @@
-import { Injectable, inject, NgZone } from '@angular/core';
+import { Injectable, inject, NgZone, effect } from '@angular/core';
 import { 
   Auth, 
   idToken, 
@@ -12,6 +12,7 @@ import {
   sendPasswordResetEmail,
   getIdToken
 } from '@angular/fire/auth';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Observable, from, of, throwError } from 'rxjs';
 import { map, switchMap, catchError, take } from 'rxjs/operators';
 import { Router } from '@angular/router';
@@ -30,19 +31,20 @@ export class AuthService {
   // Emits null if no user is signed in or token is unavailable
   readonly idToken$: Observable<string | null> = idToken(this.auth);
 
-  // Observable for the current authentication state (User object or null)
-  readonly authState$: Observable<User | null> = authState(this.auth);
-
   // Observable for the current user object (User or null)
   readonly user$: Observable<User | null> = authState(this.auth);
+
+  // Signal for the current user object (User or null)
+  readonly user = toSignal(this.user$);
 
   // Token refresh in progress flag to prevent multiple refresh attempts
   private refreshInProgress = false;
   private refreshPromise: Promise<string | null> | null = null;
 
   constructor() { 
-    // Log detailed auth state changes
-    this.authState$.subscribe(async user => {
+    // Effect to log auth state changes
+    effect(async () => {
+      const user = this.user();
       if (user) {
         console.log('AuthService: User is signed in', {
           uid: user.uid,
@@ -161,6 +163,19 @@ export class AuthService {
     }
   }
 
+  async signInWithGoogle(): Promise<User> {
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(this.auth, provider);
+      // Force token refresh on login to ensure we have a fresh token
+      await userCredential.user.getIdToken(true);
+      return userCredential.user;
+    } catch (error) {
+      console.error('Google Sign-in failed:', error);
+      throw error;
+    }
+  }
+
   async resetPassword(email: string): Promise<void> {
     try {
       await sendPasswordResetEmail(this.auth, email);
@@ -184,7 +199,7 @@ export class AuthService {
   }
 
   isAuthenticated(): Observable<boolean> {
-    return this.authState$.pipe(
+    return this.user$.pipe(
       map((user: User | null) => !!user)
     );
   }
