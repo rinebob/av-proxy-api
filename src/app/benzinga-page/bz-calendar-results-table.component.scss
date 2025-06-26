@@ -1,1 +1,137 @@
-// Styles for results table
+//* Earnings Calendar Table Styles */
+
+:host {
+  display: block;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  border-radius: 0.5rem;
+  padding: 1.5rem 0 0 0;
+  margin: 2rem 0;
+}
+
+
+.calendar-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0 1rem; // Align with table content
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  background: transparent;
+  border-radius: 0 0 0.5rem 0.5rem;
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  box-sizing: border-box;
+  margin: 0;
+
+  table {
+    width: 100%;
+    min-width: 1000px;
+    border-collapse: collapse;
+    
+    th {
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 500;
+      color: rgba(0, 0, 0, 0.87);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    }
+    
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+
+      .time {
+        font-size: 0.8em;
+        color: #666;
+      }
+      .estimate {
+        color: #666;
+        font-size: 0.9em;
+      }
+      .actual {
+        font-weight: 500;
+        margin-top: 4px;
+        &.beat {
+          color: #2e7d32;
+        }
+        &.miss {
+          color: #c62828;
+        }
+        .surprise {
+          font-size: 0.85em;
+          margin-left: 4px;
+        }
+      }
+      .positive {
+        color: #2e7d32;
+        font-weight: 500;
+      }
+      .negative {
+        color: #c62828;
+        font-weight: 500;
+      }
+      .surprise {
+        font-size: 0.9em;
+        margin-left: 4px;
+      }
+    }
+    tr:hover {
+      background-color: #f5f5f5;
+    }
+  }
+}
+
+.company-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: #2c3e50;
+  }
+}
+
+.results-count {
+  font-size: 0.9rem;
+  color: #6c757d;
+  font-weight: 400;
+  white-space: nowrap;
+  padding-right: 0.5rem;
+}
+
+::-webkit-scrollbar {
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+  &:hover {
+    background: #555;
+  }
+}

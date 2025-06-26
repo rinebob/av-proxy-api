@@ -1,1 +1,7 @@
-<!-- Row of endpoint selection buttons will go here -->
+<div class="endpoint-toggle-row">
+  <mat-button-toggle-group formControlName="calendarType" aria-label="Calendar Type">
+    @for (type of calendarTypes; track type) {
+      <mat-button-toggle [value]="type">{{ calendarTypeMetadataMap[type].displayName }}</mat-button-toggle>
+    }
+  </mat-button-toggle-group>
+</div>

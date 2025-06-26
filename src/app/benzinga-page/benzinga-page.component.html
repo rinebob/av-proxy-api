@@ -9,34 +9,40 @@
       <div class="search-container">
         <form [formGroup]="searchForm" (ngSubmit)="onSubmit()" class="search-form">
           <div class="form-row button-toggle-row">
-            <mat-button-toggle-group formControlName="calendarType" aria-label="Calendar Type">
-              @for (type of calendarTypes; track type) {
-                <mat-button-toggle [value]="type">{{ calendarTypeMetadataMap[type].displayName }}</mat-button-toggle>
-              }
-            </mat-button-toggle-group>
-          </div>
+  <mat-button-toggle-group formControlName="calendarType" aria-label="Calendar Type">
+    @for (type of calendarTypes; track type) {
+      <mat-button-toggle [value]="type">{{ calendarTypeMetadataMap[type].displayName }}</mat-button-toggle>
+    }
+  </mat-button-toggle-group>
+</div>
+<!-- New endpoint selector component (duplicate row) -->
+<bz-endpoint-selector />
+
 
           <!-- Always-visible first row of form fields -->
-          <div class="form-row input-row">
-            <mat-form-field appearance="outline" class="ticker-field">
-              <mat-label>Ticker Symbol</mat-label>
-              <input matInput formControlName="ticker" placeholder="e.g. NVDA">
-            </mat-form-field>
+<div class="form-row input-row">
+  <mat-form-field appearance="outline" class="ticker-field">
+    <mat-label>Ticker Symbol</mat-label>
+    <input matInput formControlName="ticker" placeholder="e.g. NVDA">
+  </mat-form-field>
 
-            <mat-form-field appearance="outline" class="date-field">
-              <mat-label>Start Date</mat-label>
-              <input matInput [matDatepicker]="startPicker" formControlName="startDate">
-              <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
-              <mat-datepicker #startPicker></mat-datepicker>
-            </mat-form-field>
+  <mat-form-field appearance="outline" class="date-field">
+    <mat-label>Start Date</mat-label>
+    <input matInput [matDatepicker]="startPicker" formControlName="startDate">
+    <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
+    <mat-datepicker #startPicker></mat-datepicker>
+  </mat-form-field>
 
-            <mat-form-field appearance="outline" class="date-field">
-              <mat-label>End Date</mat-label>
-              <input matInput [matDatepicker]="endPicker" formControlName="endDate" [min]="searchForm.get('startDate')?.value">
-              <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
-              <mat-datepicker #endPicker></mat-datepicker>
-            </mat-form-field>
-          </div>
+  <mat-form-field appearance="outline" class="date-field">
+    <mat-label>End Date</mat-label>
+    <input matInput [matDatepicker]="endPicker" formControlName="endDate" [min]="searchForm.get('startDate')?.value">
+    <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
+    <mat-datepicker #endPicker></mat-datepicker>
+  </mat-form-field>
+</div>
+<!-- New calendar form component (duplicate form) -->
+<bz-calendar-form />
+
 
           <!-- Placeholder for dynamic form content -->
           <div class="dynamic-content-placeholder">
@@ -263,7 +269,12 @@
       }
     </div>
   }
-  
+
+  <!-- New table below results-container -->
+  <div class="standalone-table-container">
+    <bz-calendar-results-table [earnings]="earnings()" [totalItems]="totalItems()" />
+  </div>
+
   @if (!isLoading() && earnings().length === 0 && searchForm.get('ticker')?.value) {
     <div class="no-results">
       <mat-icon>info</mat-icon>

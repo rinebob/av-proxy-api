@@ -18,6 +18,9 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { BenzingaService } from '../services/benzinga.service';
 import { BenzingaEndpoint, BenzingaEndpointMetadata, BENZINGA_ENDPOINTS_MAP, EarningsItem, BenzingaCalendarParams, EarningsResponse } from '../common/common-bz';
 import { AbbreviateCurrencyPipe } from '../shared/pipes/abbreviate-currency.pipe';
+import { BzEndpointSelectorComponent } from './bz-endpoint-selector.component';
+import { BzCalendarFormComponent } from './bz-calendar-form.component';
+import { BzCalendarResultsTableComponent } from './bz-calendar-results-table.component';
 
 @Component({
   selector: 'app-benzinga-page',
@@ -38,7 +41,11 @@ import { AbbreviateCurrencyPipe } from '../shared/pipes/abbreviate-currency.pipe
     MatSnackBarModule,
     MatTableModule,
     MatTabsModule,
-    AbbreviateCurrencyPipe
+    AbbreviateCurrencyPipe,
+    // New standalone components
+    BzEndpointSelectorComponent,
+    BzCalendarFormComponent,
+    BzCalendarResultsTableComponent
   ],
   templateUrl: './benzinga-page.component.html',
   styleUrls: ['./benzinga-page.component.scss'],
