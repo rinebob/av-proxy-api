@@ -105,6 +105,7 @@ export async function fetchStockData(
   params: { [key: string]: string }, 
   apiKey: string
 ): Promise<AlphaVantageResponse> {
+  console.info('----------- Utils fetchStockData ---------------');
     // Construct the query parameters for the Alpha Vantage API call
     const queryParams = new URLSearchParams({
         ...params,
@@ -112,7 +113,7 @@ export async function fetchStockData(
     });
 
     const url = `${ALPHAVANTAGE_BASE_URL}?${queryParams.toString()}`;
-    console.log(`Fetching data from URL: ${url}`);
+    console.log(`ut fSD Fetching data from URL: ${url}`);
 
     try {
         const response = await axios.get<AlphaVantageResponse>(url);
@@ -122,21 +123,21 @@ export async function fetchStockData(
         const responseData = response.data;
 
         if (responseData['Error Message']) {
-            console.error('Alpha Vantage API Error:', responseData['Error Message']);
+            console.error('ut fSD Alpha Vantage API Error:', responseData['Error Message']);
             // We will throw an error here so it can be caught by the handleApiError utility
             throw new Error(`API Error: ${responseData['Error Message']}`);
         }
 
         if (responseData['Note']) {
-            console.warn('Alpha Vantage API Rate Limit Note:', responseData['Note']);
+            console.warn('ut fSD Alpha Vantage API Rate Limit Note:', responseData['Note']);
             // Throw a specific error for rate limiting that can be handled downstream
-            throw new Error(`RATE_LIMIT: ${responseData['Note']}`);
+            throw new Error(`ut fSD RATE_LIMIT: ${responseData['Note']}`);
         }
 
         return responseData;
     } catch (error: any) {
         // Log the detailed error and re-throw it to be handled by the calling function's catch block
-        console.error(`Error in fetchStockData for symbol ${params.symbol}:`, error.message);
+        console.error(`ut fSD Error in fetchStockData for symbol ${params.symbol}:`, error.message);
         // Re-throw the original error to preserve stack trace and allow for specific handling
         throw error;
     }
@@ -172,7 +173,7 @@ export function handleApiError(error: any, res: any, context: string = ''): bool
     const rateLimitMessage = error.message.replace('RATE_LIMIT:', '').trim();
     console.warn(`${contextPrefix}Rate limit error:`, rateLimitMessage);
     res.status(429).json({
-      error: 'Rate Limit Exceeded',
+      error: 'ut hAE Rate Limit Exceeded',
       message: rateLimitMessage,
       code: 'RATE_LIMIT_EXCEEDED'
     });
@@ -185,26 +186,26 @@ export function handleApiError(error: any, res: any, context: string = ''): bool
   // If we have an error response from Alpha Vantage
   if (error.response?.data) {
     const errorData = error.response.data;
-    console.error(`${contextPrefix}Alpha Vantage error response:`, errorData);
+    console.error(`ut hAE ${contextPrefix}Alpha Vantage error response:`, errorData);
     
     if (errorData['Error Message']) {
       res.status(400).json({ 
-        error: 'Alpha Vantage API Error',
+        error: 'ut hAE Alpha Vantage API Error',
         message: errorData['Error Message']
       });
     } else if (errorData['Information']) {
       res.status(400).json({ 
-        error: 'API Error',
+        error: 'ut hAE API Error',
         message: errorData['Information']
       });
     } else if (errorData['Note']) {
       res.status(429).json({ 
-        error: 'Rate Limit Exceeded',
+        error: 'ut hAE Rate Limit Exceeded',
         message: errorData['Note']
       });
     } else {
       res.status(400).json({ 
-        error: 'API Error',
+        error: 'ut hAE API Error',
         message: 'Unknown error from Alpha Vantage API',
         details: errorData
       });
@@ -214,25 +215,25 @@ export function handleApiError(error: any, res: any, context: string = ''): bool
   // If we have an error from our transform function
   else if (error.message) {
     res.status(400).json({ 
-      error: 'Data Processing Error',
+      error: 'ut hAE Data Processing Error',
       message: error.message
     });
     return true;
   }
   // If we have a network error
   else if (error.request) {
-    console.error(`${contextPrefix}No response received from API:`, error.request);
+    console.error(`ut hAE ${contextPrefix}No response received from API:`, error.request);
     res.status(504).json({ 
-      error: 'Gateway Timeout',
+      error: 'ut hAE Gateway Timeout',
       message: 'No response received from AlphaVantage API' 
     });
     return true;
   }
   // For any other errors
   else {
-    console.error(`${contextPrefix}Unexpected error:`, error);
+    console.error(`ut hAE ${contextPrefix}Unexpected error:`, error);
     res.status(500).json({
-      error: 'Internal Server Error',
+      error: 'ut hAE Internal Server Error',
       message: error.message || 'An unexpected error occurred'
     });
     return true;

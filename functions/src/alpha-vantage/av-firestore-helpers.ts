@@ -79,10 +79,16 @@ export async function saveStockData(
   data: StoredStockData | GlobalQuoteData,
   functionName: AlphaVantageFunctionName
 ): Promise<void> {
+  console.info('----------- avFsHelpers saveStockData ---------------');
+  console.log(`aFH sSD Firestore project: ${process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT}`);
   if (!symbol) {
-    throw new Error('Symbol is required to save stock data.');
+    throw new Error('aFH sSD Symbol is required to save stock data.');
   }
+  const collectionRef = db.collection('stockData');
+  console.log(`aFH sSD colln ref: ${Object.keys(collectionRef)}`);
+  
   const docRef = db.collection('stockData').doc(symbol);
+  console.log(`aFH sSD doc ref: ${Object.keys(docRef)}`);
 
   let dataToSave;
   if (functionName === AlphaVantageFunctionName.GET_GLOBAL_QUOTE) {
@@ -93,8 +99,38 @@ export async function saveStockData(
     dataToSave = data;
   }
 
+  
+  const size = Buffer.byteLength(JSON.stringify(dataToSave));
+  console.log(`aFH sSD Size of dataToSave: ${size} bytes`);
+
+  console.log(`aFH sSD setting doc with data to save: ${JSON.stringify(dataToSave)}`);
+
+  // New: Try create/edit logic instead of set()
+  try {
+    console.log(`aFH sSD getting docSnap`);
+    const docSnap = await docRef.get();
+    console.log(`aFH sSD doc snap: ${JSON.stringify(docSnap)}`);
+    if (!docSnap.exists) {
+      // Document does not exist: create it
+      console.log(`aFH sSD [${symbol}] Creating new Firestore doc.`);
+      await docRef.create(dataToSave as { [x: string]: any });
+      console.log(`aFH sSD [${symbol}] Created new doc for ${functionName}.`);
+    } else {
+      // Document exists: update it
+      console.log(`aFH sSD [${symbol}] Updating existing Firestore doc.`);
+      await docRef.update(dataToSave as { [x: string]: any });
+      console.log(`aFH sSD [${symbol}] Updated existing doc for ${functionName}.`);
+    }
+    console.info('docSnap exists');
+    return;
+  } catch (err) {
+    // If create/update fails for any reason, fall back to set()
+    console.error(`aFH sSD [${symbol}] Firestore create/update failed, falling back to set():`, err);
+  }
+
+  // Fallback: set() as before
   await docRef.set(dataToSave, { merge: true });
-  console.log(`Successfully saved data for ${symbol} (${functionName}) to Firestore.`);
+  console.log(`aFH sSD Successfully saved data for ${symbol} (${functionName}) to Firestore.`);
 }
 
 /**
@@ -132,11 +168,11 @@ export async function getStockData(
   } catch (error: any) {
     // Firestore 'not found' (gRPC code 5) should be treated as a cache miss, not an error
     if (error && (error.code === 5 || error.code === 'NOT_FOUND')) {
-      console.warn(`[${symbol}] Firestore cache miss (NOT_FOUND):`, error);
+      console.warn(`aFH gSD [${symbol}] Firestore cache miss (NOT_FOUND):`, error);
       return null;
     }
     // Log and treat all other errors as cache miss (but log them for debugging)
-    console.error(`[${symbol}] Unexpected error during Firestore cache check:`, error);
+    console.error(`aFH gSD [${symbol}] Unexpected error during Firestore cache check:`, error);
     return null;
   }
 }

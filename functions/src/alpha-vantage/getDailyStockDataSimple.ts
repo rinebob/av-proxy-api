@@ -47,13 +47,13 @@ export const getDailyStockDataSimple = onRequest(
         // Check cache first
         const cachedData = await getStockData(symbol, AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE);
         if (cachedData) {
-          console.info(`[${symbol}] CACHE HIT`);
+          console.info(`gDSDS [${symbol}] CACHE HIT`);
           res.status(200).json(cachedData);
           return;
         }
 
         // Fetch from API
-        console.info(`[${symbol}] CACHE MISS - Fetching from Alpha Vantage`);
+        console.info(`gDSDS [${symbol}] CACHE MISS - Fetching from Alpha Vantage`);
         const response = await fetchStockData({
           function: AlphaVantageFunction.TIME_SERIES_DAILY,
           symbol: symbol,
@@ -70,7 +70,7 @@ export const getDailyStockDataSimple = onRequest(
 
         // Fallback: if the response is missing expected fields, treat as symbol not found or unsupported
         if (!('Meta Data' in response) || !('Time Series (Daily)' in response)) {
-          console.warn(`[${symbol}] Not found or unsupported by Alpha Vantage. Response:`, response);
+          console.warn(`gDSDS [${symbol}] Not found or unsupported by Alpha Vantage. Response:`, response);
           res.status(404).json({
             error: 'Symbol Not Found',
             message: `Symbol '${symbol}' not found or not supported by Alpha Vantage.`,
@@ -82,7 +82,7 @@ export const getDailyStockDataSimple = onRequest(
         // Check if the response contains any data (type-safe)
         const daily = response['Time Series (Daily)'];
         if (!daily || Object.keys(daily).length === 0) {
-          console.info(`[${symbol}] No data found for symbol.`);
+          console.info(`gDSDS [${symbol}] No data found for symbol.`);
           res.status(404).json({
             error: 'No Data Found',
             message: `No data found for symbol '${symbol}'.`,
@@ -94,10 +94,13 @@ export const getDailyStockDataSimple = onRequest(
         // Transform and save
         const transformedData = transformAlphaVantageResponse(response);
         try {
+          console.info(`gDSDS [${symbol}] Attempting to save data to Firestore...`);
           await saveStockData(symbol, transformedData, AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE);
+          console.info(`gDSDS [${symbol}] Data saved to Firestore successfully.`);
         } catch (error) {
           // Log cache save error but do NOT block the response to the user
-          console.error(`Error saving stock data for ${symbol}:`, error);
+          console.error(`gDSDS [Dude! oh no! Error saving stock data for ${symbol}:`, error);
+          console.error('Firestore set() error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
           res.set('X-Cache-Save-Error', 'true');
           res.status(200).json(transformedData);
           return;
@@ -106,10 +109,11 @@ export const getDailyStockDataSimple = onRequest(
         res.status(200).json(transformedData);
 
       } catch (error) {
-        handleApiError(error, res, `getDailyStockDataSimple for ${symbol}`);
+        handleApiError(error, res, `gDSDS getDailyStockDataSimple for ${symbol}`);
       }
     } catch (error) {
-      console.error('Error in getDailyStockDataSimple:', error);
+      console.info(`handle api error block`);
+      console.error('Error in gDSDS getDailyStockDataSimple:', error);
       handleApiError(error, res, AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE);
     }
   }
