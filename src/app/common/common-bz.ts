@@ -17,12 +17,43 @@ export enum BenzingaEndpoint {
   OFFERINGS = 'offerings'
 }
 
+// Map endpoint to correct API response type
+export type BenzingaEndpointResponseMap = {
+    [BenzingaEndpoint.EARNINGS]: EarningsResponse;
+    [BenzingaEndpoint.DIVIDENDS]: any; // TODO: Replace with DividendsResponse
+    [BenzingaEndpoint.ECONOMICS]: any;
+    [BenzingaEndpoint.IPOS]: any;
+    [BenzingaEndpoint.CONFERENCE_CALLS]: any;
+    [BenzingaEndpoint.FDA]: any;
+    [BenzingaEndpoint.MERGERS_ACQUISITIONS]: any;
+    [BenzingaEndpoint.RATINGS]: any;
+    [BenzingaEndpoint.GUIDANCE]: any;
+    [BenzingaEndpoint.SPLITS]: any;
+    [BenzingaEndpoint.OFFERINGS]: any;
+};
+
+// Map endpoint to correct item array type
+export type BenzingaEndpointItemMap = {
+    [BenzingaEndpoint.EARNINGS]: EarningsItem[];
+    [BenzingaEndpoint.DIVIDENDS]: any[]; // TODO: Replace any[] with DividendsItem[]
+    [BenzingaEndpoint.ECONOMICS]: any[];
+    [BenzingaEndpoint.IPOS]: any[];
+    [BenzingaEndpoint.CONFERENCE_CALLS]: any[];
+    [BenzingaEndpoint.FDA]: any[];
+    [BenzingaEndpoint.MERGERS_ACQUISITIONS]: any[];
+    [BenzingaEndpoint.RATINGS]: any[];
+    [BenzingaEndpoint.GUIDANCE]: any[];
+    [BenzingaEndpoint.SPLITS]: any[];
+    [BenzingaEndpoint.OFFERINGS]: any[];
+};
+
 // Metadata interface for each endpoint
 export interface BenzingaEndpointMetadata {
   name: BenzingaEndpoint;
   url: string; // Only the leaf, e.g. 'earnings'
   displayName: string;
   displayedColumns: string[];
+  title: string;
 }
 
 // Metadata objects for each endpoint
@@ -30,6 +61,7 @@ const earningsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.EARNINGS,
   url: 'earnings',
   displayName: 'Earnings',
+  title: 'Earnings Calendar',
   displayedColumns: [
     'date',
     'period',
@@ -52,6 +84,7 @@ const dividendsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.DIVIDENDS,
   url: 'dividends',
   displayName: 'Dividends',
+  title: 'Dividends Calendar',
   displayedColumns: []
 };
 
@@ -59,6 +92,7 @@ const economicsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.ECONOMICS,
   url: 'economics',
   displayName: 'Economics',
+  title: 'Economics Calendar',
   displayedColumns: []
 };
 
@@ -66,6 +100,7 @@ const iposMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.IPOS,
   url: 'ipos',
   displayName: 'IPOs',
+  title: 'IPO Calendar',
   displayedColumns: []
 };
 
@@ -73,6 +108,7 @@ const conferenceCallsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.CONFERENCE_CALLS,
   url: 'conference_calls',
   displayName: 'Con calls',
+  title: 'Conference Calls Calendar',
   displayedColumns: []
 };
 
@@ -80,6 +116,7 @@ const fdaMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.FDA,
   url: 'fda',
   displayName: 'FDA',
+  title: 'FDA Calendar',
   displayedColumns: []
 };
 
@@ -87,6 +124,7 @@ const mergersAcquisitionsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.MERGERS_ACQUISITIONS,
   url: 'ma',
   displayName: 'M&As',
+  title: 'Mergers & Acquisitions Calendar',
   displayedColumns: []
 };
 
@@ -94,6 +132,7 @@ const ratingsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.RATINGS,
   url: 'ratings',
   displayName: 'Ratings',
+  title: 'Ratings Calendar',
   displayedColumns: []
 };
 
@@ -101,6 +140,7 @@ const guidanceMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.GUIDANCE,
   url: 'guidance',
   displayName: 'Guidance',
+  title: 'Guidance Calendar',
   displayedColumns: []
 };
 
@@ -108,6 +148,7 @@ const splitsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.SPLITS,
   url: 'splits',
   displayName: 'Splits',
+  title: 'Splits Calendar',
   displayedColumns: []
 };
 
@@ -115,6 +156,7 @@ const offeringsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.OFFERINGS,
   url: 'offerings',
   displayName: 'Offerings',
+  title: 'Offerings Calendar',
   displayedColumns: []
 };
 

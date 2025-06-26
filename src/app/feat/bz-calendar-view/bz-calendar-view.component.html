@@ -7,240 +7,52 @@
 
         <mat-card-content>
             <div class="search-container">
-                <form [formGroup]="searchForm" (ngSubmit)="onSubmit()" class="search-form">
-                    <!-- New endpoint selector component -->
-                    <bz-endpoint-selector />
-
-
-                    <!-- Always-visible first row of form fields -->
-                    <div class="form-row input-row">
-                        <mat-form-field appearance="outline" class="ticker-field">
-                            <mat-label>Ticker Symbol</mat-label>
-                            <input matInput formControlName="ticker" placeholder="e.g. NVDA">
-                        </mat-form-field>
-
-                        <mat-form-field appearance="outline" class="date-field">
-                            <mat-label>Start Date</mat-label>
-                            <input matInput [matDatepicker]="startPicker" formControlName="startDate">
-                            <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
-                            <mat-datepicker #startPicker></mat-datepicker>
-                        </mat-form-field>
-
-                        <mat-form-field appearance="outline" class="date-field">
-                            <mat-label>End Date</mat-label>
-                            <input matInput [matDatepicker]="endPicker" formControlName="endDate"
-                                [min]="searchForm.get('startDate')?.value">
-                            <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
-                            <mat-datepicker #endPicker></mat-datepicker>
-                        </mat-form-field>
-                    </div>
-                    <!-- New calendar form component (duplicate form) -->
-                    <bz-calendar-form />
-                </form>
+                <!-- Endpoint selector and dynamic form -->
+                <bz-endpoint-selector />
+                <bz-calendar-form />
             </div>
 
-            @if (isLoading()) {
+            @if (bzCalendarStore.loading()) {
             <div class="loading-shade">
                 <mat-spinner diameter="50"></mat-spinner>
             </div>
             }
 
-            @if (error()) {
+            @if (bzCalendarStore.error()) {
             <div class="error-message">
                 <mat-icon color="warn">error_outline</mat-icon>
-                {{ error() }}
+                {{ bzCalendarStore.error() }}
             </div>
             }
         </mat-card-content>
     </mat-card>
 
-    @if (earnings().length > 0) {
-    <div class="results-container">
-        <div class="results-header">
-            <div class="header-left">
-                <h2>Earnings Calendar</h2>
-            </div>
-            <div class="header-right">
-                <button mat-stroked-button color="primary" (click)="toggleDuplication()" class="duplication-toggle"
-                    [class.duplication-enabled]="isDuplicationEnabled()"
-                    matTooltip="Toggle between actual and test data">
-                    <mat-icon>{{ isDuplicationEnabled() ? 'toggle_on' : 'toggle_off' }}</mat-icon>
-                    <span>{{ isDuplicationEnabled() ? 'Show actual data' : 'Show test data' }}</span>
-                </button>
-            </div>
-        </div>
-
-        <div class="table-container" style="overflow-x: auto;">
-            @if(earnings().length > 0) {
-            <div class="company-header">
-                <h2>{{ earnings()[0].name }} ({{ earnings()[0].ticker }})</h2>
-                <span class="results-count">{{ earnings().length }} results found ({{ totalItems() }} total)</span>
-            </div>
+    <!-- Endpoint-specific results table -->
+    @if (bzCalendarStore.pagedResults().length > 0) {
+        <div class="results-container standalone-table-container">
+            @switch(bzCalendarStore.selectedEndpoint()) {
+                @case(BenzingaEndpoint.EARNINGS) {
+                    <bz-earnings-table />
+                }
+                <!-- @case(BenzingaEndpoint.DIVIDENDS) { ...future table... } -->
             }
-
-            <table mat-table [dataSource]="earnings()" class="mat-elevation-z1" style="width: 100%;">
-                <!-- Date Column -->
-                <ng-container matColumnDef="date">
-                    <th mat-header-cell *matHeaderCellDef style="min-width: 120px;">Date</th>
-                    <td mat-cell *matCellDef="let element" style="white-space: nowrap;">
-                        {{ element.date | date:'MMM d, yy' }}
-                    </td>
-                </ng-container>
-
-                <!-- EPS Columns -->
-                <ng-container matColumnDef="eps">
-                    <th mat-header-cell *matHeaderCellDef>EPS</th>
-                    <td mat-cell *matCellDef="let element">
-                        {{ element.eps | currency:'USD':'symbol':'1.2-2' }}
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="eps_est">
-                    <th mat-header-cell *matHeaderCellDef>EPS Est.</th>
-                    <td mat-cell *matCellDef="let element">
-                        {{ element.eps_est | currency:'USD':'symbol':'1.2-2' }}
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="eps_prior">
-                    <th mat-header-cell *matHeaderCellDef>EPS Prior</th>
-                    <td mat-cell *matCellDef="let element">
-                        {{ element.eps_prior | currency:'USD':'symbol':'1.2-2' }}
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="eps_surprise">
-                    <th mat-header-cell *matHeaderCellDef>EPS Surprise</th>
-                    <td mat-cell *matCellDef="let element">
-                        @if (element.eps_surprise > 0) {
-                        <span class="positive">
-                            {{ element.eps_surprise | currency:'USD':'symbol':'1.2-2' }}
-                        </span>
-                        } @else if (element.eps_surprise < 0) { <span class="negative">
-                            {{ element.eps_surprise | currency:'USD':'symbol':'1.2-2' }}
-                            </span>
-                            } @else {
-                            {{ element.eps_surprise | currency:'USD':'symbol':'1.2-2' }}
-                            }
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="eps_surprise_percent">
-                    <th mat-header-cell *matHeaderCellDef>EPS Surprise %</th>
-                    <td mat-cell *matCellDef="let element">
-                        @if (element.eps_surprise_percent > 0) {
-                        <span class="positive">
-                            {{ element.eps_surprise_percent | percent:'1.2-2' }}
-                        </span>
-                        } @else if (element.eps_surprise_percent < 0) { <span class="negative">
-                            {{ element.eps_surprise_percent | percent:'1.2-2' }}
-                            </span>
-                            } @else {
-                            {{ element.eps_surprise_percent | percent:'1.2-2' }}
-                            }
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="eps_type">
-                    <th mat-header-cell *matHeaderCellDef>EPS Type</th>
-                    <td mat-cell *matCellDef="let element">{{ element.eps_type }}</td>
-                </ng-container>
-
-                <!-- Notes Column -->
-                <ng-container matColumnDef="notes">
-                    <th mat-header-cell *matHeaderCellDef>Notes</th>
-                    <td mat-cell *matCellDef="let element">{{ element.notes || '-' }}</td>
-                </ng-container>
-
-                <!-- Period Column -->
-                <ng-container matColumnDef="period">
-                    <th mat-header-cell *matHeaderCellDef>Period</th>
-                    <td mat-cell *matCellDef="let element" style="white-space: nowrap;">
-                        {{ element.period }} '{{ (element.period_year || '').toString().slice(-2) }}
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="period_year">
-                    <th mat-header-cell *matHeaderCellDef>Year</th>
-                    <td mat-cell *matCellDef="let element">{{ element.period_year }}</td>
-                </ng-container>
-
-                <!-- Revenue Columns -->
-                <ng-container matColumnDef="revenue">
-                    <th mat-header-cell *matHeaderCellDef>Revenue</th>
-                    <td mat-cell *matCellDef="let element">
-                        {{ element.revenue | abbreviateCurrency:0 }}
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="revenue_est">
-                    <th mat-header-cell *matHeaderCellDef>Revenue Est.</th>
-                    <td mat-cell *matCellDef="let element">
-                        {{ element.revenue_est | abbreviateCurrency:0 }}
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="revenue_prior">
-                    <th mat-header-cell *matHeaderCellDef>Revenue Prior</th>
-                    <td mat-cell *matCellDef="let element">
-                        {{ element.revenue_prior | abbreviateCurrency:0 }}
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="revenue_surprise">
-                    <th mat-header-cell *matHeaderCellDef>Revenue Surprise</th>
-                    <td mat-cell *matCellDef="let element">
-                        @if (element.revenue_surprise > 0) {
-                        <span class="positive">
-                            {{ element.revenue_surprise | abbreviateCurrency:0 }}
-                        </span>
-                        } @else if (element.revenue_surprise < 0) { <span class="negative">
-                            {{ element.revenue_surprise | abbreviateCurrency:0 }}
-                            </span>
-                            } @else {
-                            {{ element.revenue_surprise | abbreviateCurrency:0 }}
-                            }
-                    </td>
-                </ng-container>
-
-                <ng-container matColumnDef="revenue_surprise_percent">
-                    <th mat-header-cell *matHeaderCellDef>Revenue Surprise %</th>
-                    <td mat-cell *matCellDef="let element">
-                        @if (element.revenue_surprise_percent > 0) {
-                        <span class="positive">
-                            {{ element.revenue_surprise_percent | percent:'1.2-2' }}
-                        </span>
-                        } @else if (element.revenue_surprise_percent < 0) { <span class="negative">
-                            {{ element.revenue_surprise_percent | percent:'1.2-2' }}
-                            </span>
-                            } @else {
-                            {{ element.revenue_surprise_percent | percent:'1.2-2' }}
-                            }
-                    </td>
-                </ng-container>
-
-                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-            </table>
         </div>
+    }
 
-        @if (totalItems() > 5) {
-        <mat-paginator [length]="totalItems()" [pageSize]="itemsPerPage()" [pageSizeOptions]="[5, 10, 25, 50, 100]"
-            (page)="onPageChange($event)" showFirstLastButtons aria-label="Select page of earnings data">
+    @if (bzCalendarStore.totalItems() > bzCalendarStore.minPageSize()) {
+        <mat-paginator
+            [length]="bzCalendarStore.totalItems()"
+            [pageSize]="bzCalendarStore.currentPagination().pageSize"
+            [pageIndex]="bzCalendarStore.currentPagination().pageIndex"
+            [pageSizeOptions]="bzCalendarStore.pageSizeOptions()"
+            (page)="bzCalendarStore.setPage($event.pageIndex, $event.pageSize)"
+            showFirstLastButtons
+            aria-label="Select page of results">
         </mat-paginator>
-        }
-    </div>
     }
 
-    <!-- New table below results-container -->
-    <div class="standalone-table-container">
-        <bz-calendar-results-table [earnings]="earnings()" [totalItems]="totalItems()" />
-    </div>
-
-    @if (!isLoading() && earnings().length === 0 && searchForm.get('ticker')?.value) {
-    <div class="no-results">
-        <mat-icon>info</mat-icon>
-        <p>No earnings data found for {{ searchForm.get('ticker')?.value?.toUpperCase() }}</p>
-    </div>
+    @if (bzCalendarStore.noResultsCondition()) {
+        <bz-no-results [message]="bzCalendarStore.noResultsMessage()" />
     }
+
 </div>

@@ -1,4 +1,4 @@
-<form class="form-row input-row" [formGroup]="searchForm">
+<form class="form-row input-row" [formGroup]="searchForm" (ngSubmit)="onSubmit()">
   <div class="form-fields">
     <mat-form-field appearance="outline" class="ticker-field">
       <mat-label>Ticker Symbol</mat-label>
