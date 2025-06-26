@@ -27,11 +27,10 @@
   </div>
 </form>
 
-<!-- Placeholder for dynamic form content -->
 <div class="dynamic-content-placeholder">
-  @if (searchForm.get('calendarType')?.value; as value) {
+    @if (searchForm.get('calendarType')?.value; as value) {
     <span>Selected Calendar: <strong>{{ value | titlecase }}</strong></span>
-  } @else {
+    } @else {
     <span>Select a calendar type above</span>
-  }
+    }
 </div>

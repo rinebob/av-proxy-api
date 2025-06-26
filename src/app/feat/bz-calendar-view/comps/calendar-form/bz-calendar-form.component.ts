@@ -34,11 +34,18 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
   styleUrls: ['./bz-calendar-form.component.scss']
 })
 export class BzCalendarFormComponent {
+  private getDefaultStartDate(): Date {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() - 1); // 1 year ago
+    return date;
+  }
+
   searchForm = new FormGroup({
     calendarType: new FormControl(BenzingaEndpoint.EARNINGS, Validators.required),
     ticker: new FormControl('', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]),
-    startDate: new FormControl(null, Validators.required),
-    endDate: new FormControl(null, Validators.required)
+    startDate: new FormControl(this.getDefaultStartDate(), Validators.required),
+    endDate: new FormControl(new Date(), Validators.required)
   });
 }
+
 
