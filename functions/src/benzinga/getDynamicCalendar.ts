@@ -210,7 +210,21 @@ export const getDynamicCalendar = onRequest(
 
       console.log('Fetching fresh data from Benzinga API (cache bypassed)');
       const data = await fetchDynamicBenzingaCalendar(apiKey, params, calendarType, req.query);
-      
+
+      // Always log the full Benzinga API response for debugging
+      console.info(`[${tickers}] Benzinga API raw response:`, JSON.stringify(data));
+
+      // If Benzinga returns an error, missing/invalid structure, or no data, pass through the raw response with status 200
+      if (
+        !data ||
+        (Array.isArray(data) && data.length === 0) ||
+        (typeof data === 'object' && !Array.isArray(data) && data !== null && ('error' in data || 'message' in data))
+      ) {
+        console.warn(`[${tickers}] Passing through raw Benzinga response due to missing/invalid data.`);
+        res.status(200).json(data);
+        return;
+      }
+
       res.status(200).json(data);
     } catch (error: unknown) {
       if (!handleApiError(error, res, BenzingaFunctionName.GET_DYNAMIC_CALENDAR)) {

@@ -60,34 +60,22 @@ export const getDailyStockDataSimple = onRequest(
           outputsize: (outputsize as string) || OutputSize.COMPACT
         }, apiKey);
 
-        // Check for an API limit error or other informational message before transforming
-        if (response.Note || response.Information) {
-          // Throw a custom error that our handler will understand
-          const error = new Error('Alpha Vantage API Notice');
-          (error as any).response = { data: response };
-          throw error;
-        }
+        // Always log the full Alpha Vantage response for debugging
+        console.info(`gDSDS [${symbol}] Alpha Vantage API raw response:`, JSON.stringify(response));
 
-        // Fallback: if the response is missing expected fields, treat as symbol not found or unsupported
-        if (!('Meta Data' in response) || !('Time Series (Daily)' in response)) {
-          console.warn(`gDSDS [${symbol}] Not found or unsupported by Alpha Vantage. Response:`, response);
-          res.status(404).json({
-            error: 'Symbol Not Found',
-            message: `Symbol '${symbol}' not found or not supported by Alpha Vantage.`,
-            details: response
-          });
-          return;
-        }
-
-        // Check if the response contains any data (type-safe)
-        const daily = response['Time Series (Daily)'];
-        if (!daily || Object.keys(daily).length === 0) {
-          console.info(`gDSDS [${symbol}] No data found for symbol.`);
-          res.status(404).json({
-            error: 'No Data Found',
-            message: `No data found for symbol '${symbol}'.`,
-            details: response
-          });
+        // If AV returns an error, note, missing/invalid structure, or no data, pass through the raw response with status 200
+        if (
+          response["Error Message"] ||
+          response["Note"] ||
+          response["Information"] ||
+          !response ||
+          !('Meta Data' in response) ||
+          !('Time Series (Daily)' in response) ||
+          !response['Time Series (Daily)'] ||
+          Object.keys(response['Time Series (Daily)']).length === 0
+        ) {
+          console.warn(`gDSDS [${symbol}] Passing through raw AV response due to missing/invalid data.`);
+          res.status(200).json(response);
           return;
         }
 

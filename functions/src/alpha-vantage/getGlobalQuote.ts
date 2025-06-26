@@ -65,18 +65,20 @@ export const getGlobalQuote = onRequest(
       // Fetch from Alpha Vantage API
       const apiResponse = await fetchStockData(apiParams, apiKey) as AlphaVantageGlobalQuoteResponse;
 
-      // Error handling for API response
-      if (apiResponse["Error Message"] || apiResponse["Note"]) {
-        const errorMessage = apiResponse["Error Message"] || apiResponse["Note"];
-        console.error(`Alpha Vantage API Error for ${symbol}: ${errorMessage}`);
-        res.status(500).send({ message: `Failed to fetch data: ${errorMessage}` });
-        return;
-      }
+      // Always log the full Alpha Vantage response for debugging
+      console.info(`[${symbol}] Alpha Vantage API raw response:`, JSON.stringify(apiResponse));
 
-      // The API returns a single 'Global Quote' object. We need to check if it's empty.
-      if (!apiResponse || !apiResponse['Global Quote'] || Object.keys(apiResponse['Global Quote']).length === 0) {
-        console.error('Global Quote data is missing from the API response.');
-        res.status(500).send({ message: 'Global Quote data is missing from the API response.' });
+      // If AV returns an error or notice, or if Global Quote is missing/empty, pass through the raw response to the frontend
+      if (
+        apiResponse["Error Message"] ||
+        apiResponse["Note"] ||
+        !apiResponse ||
+        !apiResponse['Global Quote'] ||
+        Object.keys(apiResponse['Global Quote']).length === 0
+      ) {
+        // Log for backend visibility
+        console.warn(`[${symbol}] Passing through raw AV response due to missing/invalid data.`);
+        res.status(200).json(apiResponse);
         return;
       }
 

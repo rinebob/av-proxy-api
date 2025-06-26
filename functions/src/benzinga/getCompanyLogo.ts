@@ -50,11 +50,28 @@ export const getCompanyLogo = onRequest(
         headers: { 'Accept': 'application/json' },
       });
 
-      if (!response.ok) {
-        throw new Error(`Benzinga API error: ${response.status} ${response.statusText}`);
+      let data: any;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error(`[${ticker}] Failed to parse Benzinga response as JSON.`, e);
+        res.status(200).send(await response.text());
+        return;
       }
 
-      const data = await response.json();
+      // Always log the full Benzinga API response for debugging
+      console.info(`[${ticker}] Benzinga API raw response:`, JSON.stringify(data));
+
+      // If Benzinga returns an error, missing/invalid structure, or no data, pass through the raw response with status 200
+      if (
+        !data ||
+        (Array.isArray(data) && data.length === 0) ||
+        (typeof data === 'object' && !Array.isArray(data) && data !== null && ('error' in data || 'message' in data))
+      ) {
+        console.warn(`[${ticker}] Passing through raw Benzinga response due to missing/invalid data.`);
+        res.status(200).json(data);
+        return;
+      }
 
       // Step 4: Cache the new data (do not await)
       saveLogoData(ticker, data).catch(err => {
