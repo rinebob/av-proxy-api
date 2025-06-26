@@ -1,4 +1,4 @@
-<div class="form-row input-row">
+<form class="form-row input-row" [formGroup]="searchForm">
   <div class="form-fields">
     <mat-form-field appearance="outline" class="ticker-field">
       <mat-label>Ticker Symbol</mat-label>
@@ -25,7 +25,7 @@
       Search
     </button>
   </div>
-</div>
+</form>
 
 <!-- Placeholder for dynamic form content -->
 <div class="dynamic-content-placeholder">

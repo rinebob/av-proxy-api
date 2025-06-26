@@ -2,14 +2,14 @@ import { Routes } from '@angular/router';
 
 import { LoginComponent } from './login/login.component';
 import { StockDataComponent } from './stock-data/stock-data.component';
-import { BenzingaPageComponent } from './benzinga-page/benzinga-page.component';
+import { BzCalendarViewComponent } from './feat/bz-calendar-view/bz-calendar-view.component';
 import { CompanyLogoGalleryComponent } from './company-logo-gallery/company-logo-gallery.component';
 import { authGuard } from './auth/auth.guard';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'stock-data', component: StockDataComponent, canActivate: [authGuard] },
-  { path: 'benz', component: BenzingaPageComponent, canActivate: [authGuard] },
+  { path: 'benz', component: BzCalendarViewComponent, canActivate: [authGuard] },
   { path: 'logos', component: CompanyLogoGalleryComponent, canActivate: [authGuard] },
   // Redirect root path to login by default
   { path: '', redirectTo: '/login', pathMatch: 'full' },

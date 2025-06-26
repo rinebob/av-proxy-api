@@ -15,15 +15,15 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
-import { BenzingaService } from '../services/benzinga.service';
-import { BenzingaEndpoint, BenzingaEndpointMetadata, BENZINGA_ENDPOINTS_MAP, EarningsItem, BenzingaCalendarParams, EarningsResponse } from '../common/common-bz';
-import { AbbreviateCurrencyPipe } from '../shared/pipes/abbreviate-currency.pipe';
-import { BzEndpointSelectorComponent } from './bz-endpoint-selector.component';
-import { BzCalendarFormComponent } from './bz-calendar-form.component';
-import { BzCalendarResultsTableComponent } from './bz-calendar-results-table.component';
+import { BenzingaService } from '../../services/benzinga.service';
+import { BenzingaEndpoint, BenzingaEndpointMetadata, BENZINGA_ENDPOINTS_MAP, EarningsItem, BenzingaCalendarParams, EarningsResponse } from '../../common/common-bz';
+import { AbbreviateCurrencyPipe } from '../../shared/pipes/abbreviate-currency.pipe';
+import { BzEndpointSelectorComponent } from './comps/endpoint-selector/bz-endpoint-selector.component';
+import { BzCalendarFormComponent } from './comps/calendar-form/bz-calendar-form.component';
+import { BzCalendarResultsTableComponent } from './comps/calendar-results/bz-calendar-results-table.component';
 
 @Component({
-  selector: 'app-benzinga-page',
+  selector: 'bz-calendar-view',
   standalone: true,
   imports: [
     CommonModule,
@@ -47,11 +47,11 @@ import { BzCalendarResultsTableComponent } from './bz-calendar-results-table.com
     BzCalendarFormComponent,
     BzCalendarResultsTableComponent
   ],
-  templateUrl: './benzinga-page.component.html',
-  styleUrls: ['./benzinga-page.component.scss'],
+  templateUrl: './bz-calendar-view.component.html',
+  styleUrls: ['./bz-calendar-view.component.scss'],
   providers: [DatePipe]
 })
-export class BenzingaPageComponent implements OnInit {
+export class BzCalendarViewComponent implements OnInit {
   // Expose BenzingaEndpoint enum to template
   public BenzingaEndpoint = BenzingaEndpoint;
   calendarTypes = Object.values(BenzingaEndpoint);

@@ -5,8 +5,8 @@ import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatSortModule } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { AbbreviateCurrencyPipe } from '../shared/pipes/abbreviate-currency.pipe';
-import { EarningsItem, BENZINGA_ENDPOINTS_MAP, BenzingaEndpoint } from '../common/common-bz';
+import { AbbreviateCurrencyPipe } from '../../../../shared/pipes/abbreviate-currency.pipe';
+import { EarningsItem, BENZINGA_ENDPOINTS_MAP, BenzingaEndpoint } from '../../../../common/common-bz';
 
 /**
  * Results table for Benzinga calendar API responses.
