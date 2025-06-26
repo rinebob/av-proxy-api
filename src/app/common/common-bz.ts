@@ -22,73 +22,100 @@ export interface BenzingaEndpointMetadata {
   name: BenzingaEndpoint;
   url: string; // Only the leaf, e.g. 'earnings'
   displayName: string;
+  displayedColumns: string[];
 }
 
 // Metadata objects for each endpoint
 const earningsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.EARNINGS,
   url: 'earnings',
-  displayName: 'Earnings'
+  displayName: 'Earnings',
+  displayedColumns: [
+    'date',
+    'period',
+    'eps',
+    'eps_est',
+    'eps_prior',
+    'eps_surprise',
+    'eps_surprise_percent',
+    'revenue',
+    'revenue_est',
+    'revenue_prior',
+    'revenue_surprise',
+    'revenue_surprise_percent',
+    'eps_type',
+    'notes'
+  ]
 };
 
 const dividendsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.DIVIDENDS,
   url: 'dividends',
-  displayName: 'Dividends'
+  displayName: 'Dividends',
+  displayedColumns: []
 };
 
 const economicsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.ECONOMICS,
   url: 'economics',
-  displayName: 'Economics'
+  displayName: 'Economics',
+  displayedColumns: []
 };
 
 const iposMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.IPOS,
   url: 'ipos',
-  displayName: 'IPOs'
+  displayName: 'IPOs',
+  displayedColumns: []
 };
 
 const conferenceCallsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.CONFERENCE_CALLS,
   url: 'conference_calls',
-  displayName: 'Con calls'
+  displayName: 'Con calls',
+  displayedColumns: []
 };
 
 const fdaMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.FDA,
   url: 'fda',
-  displayName: 'FDA'
+  displayName: 'FDA',
+  displayedColumns: []
 };
 
 const mergersAcquisitionsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.MERGERS_ACQUISITIONS,
   url: 'ma',
-  displayName: 'M&As'
+  displayName: 'M&As',
+  displayedColumns: []
 };
 
 const ratingsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.RATINGS,
   url: 'ratings',
-  displayName: 'Ratings'
+  displayName: 'Ratings',
+  displayedColumns: []
 };
 
 const guidanceMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.GUIDANCE,
   url: 'guidance',
-  displayName: 'Guidance'
+  displayName: 'Guidance',
+  displayedColumns: []
 };
 
 const splitsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.SPLITS,
   url: 'splits',
-  displayName: 'Splits'
+  displayName: 'Splits',
+  displayedColumns: []
 };
 
 const offeringsMeta: BenzingaEndpointMetadata = {
   name: BenzingaEndpoint.OFFERINGS,
   url: 'offerings',
-  displayName: 'Offerings'
+  displayName: 'Offerings',
+  displayedColumns: []
 };
 
 // Canonical map: key = BenzingaEndpoint, value = metadata object
