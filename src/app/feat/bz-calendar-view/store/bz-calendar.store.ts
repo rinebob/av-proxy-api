@@ -26,6 +26,7 @@ export interface BenzingaCalendarState {
         pageSize: number;
         pageSizeOptions: number[];
     };
+    hasSearched: boolean;
 }
 
 const initialState: BenzingaCalendarState = {
@@ -50,7 +51,8 @@ const initialState: BenzingaCalendarState = {
         pageIndex: 0,
         pageSize: 2, // Default to 2 records per page
         pageSizeOptions: [2, 5, 10, 25, 50, 100]
-    }
+    },
+    hasSearched: false
 };
 
 /**
@@ -124,17 +126,14 @@ export const BenzingaCalendarStore = signalStore(
 
         // Helper for no results message
         noResultsMessage: computed(() => {
+            if (!store.hasSearched()) {
+                return 'Enter required fields and click search to get data.';
+            }
             const endpoint = store.selectedEndpoint();
             const ticker = store.formValues()['ticker']?.toUpperCase?.() || '';
             
             if (ticker) {
-                switch (endpoint) {
-                    case BenzingaEndpoint.EARNINGS:
-                        return `No earnings data found for ${ticker}`;
-                    case BenzingaEndpoint.DIVIDENDS:
-                        return `No dividends data found for ${ticker}`;
-                    // Add other endpoint-specific messages as needed
-                }
+                return `No ${endpoint?.toLowerCase() ?? 'results'} found for the selected criteria.`;
             }
             
             return endpoint 
@@ -145,6 +144,7 @@ export const BenzingaCalendarStore = signalStore(
         // Condition to show no results message
         noResultsCondition: computed(() => {
             if (store.loading()) return false;
+            if (!store.hasSearched()) return true;
             const endpoint = store.selectedEndpoint() ?? BenzingaEndpoint.EARNINGS;
             const responses = store.responses();
             const endpointData = responses[endpoint] ?? [];
@@ -156,13 +156,17 @@ export const BenzingaCalendarStore = signalStore(
         store,
         benzingaService = inject(BenzingaService)
     ) => ({
+        markSearched() {
+            patchState(store, { hasSearched: true });
+        },
 
         setSelectedEndpoint(endpoint: BenzingaEndpoint) {
             console.log('bCSto sE calendar endpoint: ', endpoint);
             patchState(store, {
                 selectedEndpoint: endpoint,
                 pagination: { ...store.pagination(), pageIndex: 0 },
-                error: null // Clear any previous error when endpoint changes
+                error: null, // Clear any previous error when endpoint changes
+                hasSearched: false // Reset search state on endpoint change
             });
         },
 
@@ -182,7 +186,8 @@ export const BenzingaCalendarStore = signalStore(
             patchState(store, {
                 loading: true,
                 error: null,
-                formValues: formValues
+                formValues: formValues,
+                hasSearched: true
             });
             // Generic param mapping using endpoint metadata for all endpoints
             let apiParams: BenzingaCalendarParams = formValues;

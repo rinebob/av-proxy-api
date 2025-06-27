@@ -6,7 +6,6 @@ import { MatSortModule } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { BzNoResultsComponent } from '../bz-no-results/bz-no-results.component';
 import { BzCalendarViewBaseComponent } from '../../bz-calendar-view-base.component';
 import { AbbreviateCurrencyPipe } from "../../../../shared/pipes/abbreviate-currency.pipe";
 import { TruncatePipe } from "../../../../shared/pipes/truncate.pipe";
@@ -22,7 +21,6 @@ import { TruncatePipe } from "../../../../shared/pipes/truncate.pipe";
     MatButtonModule,
     MatIconModule,
     MatTooltipModule,
-    BzNoResultsComponent,
     AbbreviateCurrencyPipe,
     TruncatePipe
 ],
