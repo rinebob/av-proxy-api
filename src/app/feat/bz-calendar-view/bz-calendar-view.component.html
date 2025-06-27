@@ -30,12 +30,14 @@
     <!-- Endpoint-specific results table -->
     @if (bzCalendarStore.pagedResults().length > 0) {
         <div class="results-container standalone-table-container">
-            @switch(bzCalendarStore.selectedEndpoint()) {
+
+            <dynamic-calendar-table />
+
+            <!-- @switch(bzCalendarStore.selectedEndpoint()) {
                 @case(BenzingaEndpoint.EARNINGS) {
                     <bz-earnings-table />
                 }
-                <!-- @case(BenzingaEndpoint.DIVIDENDS) { ...future table... } -->
-            }
+            } -->
         </div>
     }
 

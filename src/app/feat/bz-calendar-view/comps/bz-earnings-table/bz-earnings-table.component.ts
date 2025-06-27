@@ -40,9 +40,10 @@ export class BzEarningsTableComponent {
 
   isDuplicationEnabled = signal(false);
 
-  // Use static endpointMeta and displayedColumns for earnings
+  // Use static endpointMeta for earnings
   endpointMeta = BENZINGA_ENDPOINTS_MAP[BenzingaEndpoint.EARNINGS];
-  displayedColumns = BENZINGA_ENDPOINTS_MAP[BenzingaEndpoint.EARNINGS].displayedColumns;
+  // Array of column keys for table rendering (metadata-driven)
+  columns = this.endpointMeta.columns.map(c => c.key);
 
   toggleDuplication() {
     this.isDuplicationEnabled.update(v => !v);

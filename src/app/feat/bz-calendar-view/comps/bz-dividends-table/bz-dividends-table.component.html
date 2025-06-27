@@ -1,0 +1,96 @@
+<div class="calendar-header-row">
+  <h1 class="calendar-title calendar-title-margin">{{ endpointMeta.title }}</h1>
+</div>
+
+@if (bzCalendarStore.noResultsCondition()) {
+  <bz-no-results [message]="bzCalendarStore.noResultsMessage()" />
+}
+@if (dividends().length > 0) {
+  <div class="table-container" style="overflow-x: auto;">
+    <div class="company-header">
+      <h2 class="company-title-inline">
+        {{ dividends()[0].name }} ({{ dividends()[0].ticker }})
+      </h2>
+      <span class="results-count">{{ dividends().length }} results found ({{ totalItems() }} total)</span>
+    </div>
+    <table mat-table [dataSource]="dividends()" class="mat-elevation-z1" style="width: 100%;">
+      <!-- Date Column -->
+      <ng-container matColumnDef="date">
+        <th mat-header-cell *matHeaderCellDef>Date</th>
+        <td mat-cell *matCellDef="let element">{{ element.date | date:'MMM d, y' }}</td>
+      </ng-container>
+      <!-- Ticker Column -->
+      <ng-container matColumnDef="ticker">
+        <th mat-header-cell *matHeaderCellDef>Ticker</th>
+        <td mat-cell *matCellDef="let element">{{ element.ticker }}</td>
+      </ng-container>
+      <!-- Name Column -->
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Name</th>
+        <td mat-cell *matCellDef="let element">{{ element.name }}</td>
+      </ng-container>
+      <!-- Dividend Column -->
+      <ng-container matColumnDef="dividend">
+        <th mat-header-cell *matHeaderCellDef>Dividend</th>
+        <td mat-cell *matCellDef="let element">{{ element.dividend }}</td>
+      </ng-container>
+      <!-- Dividend Prior Column -->
+      <ng-container matColumnDef="dividend_prior">
+        <th mat-header-cell *matHeaderCellDef>Prior</th>
+        <td mat-cell *matCellDef="let element">{{ element.dividend_prior }}</td>
+      </ng-container>
+      <!-- Dividend Type Column -->
+      <ng-container matColumnDef="dividend_type">
+        <th mat-header-cell *matHeaderCellDef>Type</th>
+        <td mat-cell *matCellDef="let element">{{ element.dividend_type }}</td>
+      </ng-container>
+      <!-- Dividend Yield Column -->
+      <ng-container matColumnDef="dividend_yield">
+        <th mat-header-cell *matHeaderCellDef>Yield</th>
+        <td mat-cell *matCellDef="let element">{{ element.dividend_yield | percent:'1.2-2' }}</td>
+      </ng-container>
+      <!-- Ex-Dividend Date Column -->
+      <ng-container matColumnDef="ex_dividend_date">
+        <th mat-header-cell *matHeaderCellDef>Ex-Date</th>
+        <td mat-cell *matCellDef="let element">{{ element.ex_dividend_date | date:'MMM d, y' }}</td>
+      </ng-container>
+      <!-- Record Date Column -->
+      <ng-container matColumnDef="record_date">
+        <th mat-header-cell *matHeaderCellDef>Record</th>
+        <td mat-cell *matCellDef="let element">{{ element.record_date | date:'MMM d, y' }}</td>
+      </ng-container>
+      <!-- Payable Date Column -->
+      <ng-container matColumnDef="payable_date">
+        <th mat-header-cell *matHeaderCellDef>Payable</th>
+        <td mat-cell *matCellDef="let element">{{ element.payable_date | date:'MMM d, y' }}</td>
+      </ng-container>
+      <!-- Frequency Column -->
+      <ng-container matColumnDef="frequency">
+        <th mat-header-cell *matHeaderCellDef>Freq</th>
+        <td mat-cell *matCellDef="let element">{{ element.frequency }}</td>
+      </ng-container>
+      <!-- Currency Column -->
+      <ng-container matColumnDef="currency">
+        <th mat-header-cell *matHeaderCellDef>Currency</th>
+        <td mat-cell *matCellDef="let element">{{ element.currency }}</td>
+      </ng-container>
+      <!-- Importance Column -->
+      <ng-container matColumnDef="importance">
+        <th mat-header-cell *matHeaderCellDef>Imp</th>
+        <td mat-cell *matCellDef="let element">{{ element.importance }}</td>
+      </ng-container>
+      <!-- Exchange Column -->
+      <ng-container matColumnDef="exchange">
+        <th mat-header-cell *matHeaderCellDef>Exchange</th>
+        <td mat-cell *matCellDef="let element">{{ element.exchange }}</td>
+      </ng-container>
+      <!-- Notes Column -->
+      <ng-container matColumnDef="notes">
+        <th mat-header-cell *matHeaderCellDef>Notes</th>
+        <td mat-cell *matCellDef="let element">{{ element.notes || '-' }}</td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns;"></tr>
+    </table>
+  </div>
+}
