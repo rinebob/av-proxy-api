@@ -18,33 +18,55 @@ $form-action-width: auto;
 
 .form-row {
   display: flex;
-  align-items: stretch; // Make all children same height
-  justify-content: center;
-  gap: $form-row-gap;
+  flex-direction: row;
+  align-items: flex-start; // Align items to the top
+  justify-content: space-between;
   width: 100%;
+  gap: 1.5rem;
+
+  .fields-group {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 1.5rem;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .form-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start; // Align button to the top
+    justify-content: flex-end;
+    flex: 0 0 auto;
+    min-width: 8rem;
+
+    .search-btn {
+      margin-left: 2rem;
+      min-width: 8rem;
+      min-height: 56px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+  }
 }
-
-
-
-.form-fields {
-  display: flex;
-  gap: $form-row-gap;
-  flex: 1 1 0;
-}
-
-.dynamic-fields {
-  display: flex;
-  gap: $form-row-gap;
-  flex-wrap: wrap;
-  margin-top: 0.5rem;
-}
-
 
 .form-fields .mat-form-field {
   min-width: $form-field-min-width;
   vertical-align: top;
 }
 
+.dynamic-fields {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  width: 100%;
+}
 
 .form-actions {
   display: flex;

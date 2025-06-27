@@ -2,7 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, FormControl, Validators } from '@angular/forms';
 import { BenzingaCalendarStore } from '../../store/bz-calendar.store';
-import { BenzingaEndpoint } from '../../../../common/common-bz';
+import { BenzingaEndpoint, BENZINGA_FORM_FIELD_META_MAP, BenzingaEndpointFormFieldMetadata, BenzingaCalendarParamFormFields } from '../../../../common/common-bz';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -39,7 +39,9 @@ import { BzCalendarViewBaseComponent } from '../../bz-calendar-view-base.compone
   styleUrls: ['./bz-calendar-form.component.scss']
 })
 export class BzCalendarFormComponent extends BzCalendarViewBaseComponent implements OnInit {
+  public readonly BENZINGA_FORM_FIELD_META_MAP = BENZINGA_FORM_FIELD_META_MAP;
   public readonly BenzingaEndpoint = BenzingaEndpoint;
+  public readonly BenzingaCalendarParamFormFields = BenzingaCalendarParamFormFields;
 
   private getDefaultStartDate(): Date {
     const date = new Date();
@@ -54,7 +56,7 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
     endDate: new FormControl(new Date(), Validators.required),
     // Dividend-specific fields (conditionally enabled)
     dividendYieldGt: new FormControl(''),
-    dateSort: new FormControl('desc')
+    sort: new FormControl('desc')
   });
 
   ngOnInit() {
@@ -91,7 +93,7 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
       this.searchForm.markAllAsTouched();
       return;
     }
-    const { calendarType, ticker, startDate, endDate, dividendYieldGt, dateSort } = this.searchForm.value;
+    const { calendarType, ticker, startDate, endDate, dividendYieldGt, sort } = this.searchForm.value;
     // Defensive: ensure dates are Date objects
     if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
       // Optionally, show error
@@ -103,19 +105,23 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
       return;
     }
     // Prepare params for API
+    const endpointMeta = this.bzCalendarStore.selectedEndpointMeta();
     const params: any = {
       calendarType: calendarType as BenzingaEndpoint,
-      ticker: ticker?.toUpperCase(), // for store signals and UI logic
-      tickers: ticker?.toUpperCase(), // for API
       date_from: startDate.toISOString().slice(0, 10),
       date_to: endDate.toISOString().slice(0, 10),
       page: 0, // default page
       pagesize: 20 // default page size (could be made configurable)
     };
+    // Only include ticker/tickers if endpoint metadata params includes ticker
+    if (endpointMeta?.params.some(p => p.formKey === 'ticker')) {
+      params.ticker = ticker?.toUpperCase(); // for store signals and UI logic
+      params.tickers = ticker?.toUpperCase(); // for API
+    }
     // If dividends, include dividend-specific params if filled
     if (calendarType === BenzingaEndpoint.DIVIDENDS) {
       if (dividendYieldGt) params.dividendYieldGt = dividendYieldGt;
-      if (dateSort) params.dateSort = `date:${dateSort}`;
+      if (sort) params.sort = `date:${sort}`;
     }
     this.bzCalendarStore.searchCalendar(params);
   }

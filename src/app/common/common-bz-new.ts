@@ -40,10 +40,6 @@ export interface BenzingaEndpointMetadata {
   title: string;
   columns: CalendarColumnConfig[];
   params: BenzingaEndpointParamMeta[];
-  /**
-   * Ordered list of form fields (from BenzingaCalendarParamFormFields) to render in the UI for this endpoint.
-   */
-  formFields: BenzingaCalendarParamFormFields[];
 }
 
 export interface BenzingaCalendarParamsBase {
@@ -219,7 +215,7 @@ export interface DividendItem {
 export interface DividendsCalendarParams extends BenzingaCalendarParamsBase {
   calendarType: BenzingaEndpoint.DIVIDENDS;
   dividendYieldGt?: string;
-  sort?: string;
+  dateSort?: string;
 }
 
 export interface DividendsApiResponse {
@@ -296,69 +292,10 @@ export const bzDividendsCalendarColumns: CalendarColumnConfig[] = [
   { key: 'notes', displayName: 'Notes', format: 'text' }
 ];
 
-// === Form Field Enum and Metadata ===
-
-export enum BenzingaCalendarParamFormFields {
-  StartDate = 'startDate',
-  EndDate = 'endDate',
-  Ticker = 'ticker',
-  DividendYieldGt = 'dividendYieldGt',
-  Sort = 'sort'
-}
-
-export interface BenzingaEndpointFormFieldMetadata {
-  type: 'text' | 'number' | 'date' | 'select';
-  label: string;
-  placeholder?: string;
-  min?: number;
-  max?: number;
-  options?: Array<{ value: string | number, label: string }>;
-}
-
-export const START_DATE_FIELD_META: BenzingaEndpointFormFieldMetadata = {
-  type: 'date',
-  label: 'Start Date'
-};
-
-export const END_DATE_FIELD_META: BenzingaEndpointFormFieldMetadata = {
-  type: 'date',
-  label: 'End Date'
-};
-
-export const TICKER_FIELD_META: BenzingaEndpointFormFieldMetadata = {
-  type: 'text',
-  label: 'Ticker Symbol',
-  placeholder: 'e.g. NVDA'
-};
-
-export const DIVIDEND_YIELD_GT_FIELD_META: BenzingaEndpointFormFieldMetadata = {
-  type: 'number',
-  label: 'Dividend Yield Greater Than',
-  min: 0,
-  placeholder: 'e.g. 2'
-};
-
-export const DATE_SORT_FIELD_META: BenzingaEndpointFormFieldMetadata = {
-  type: 'select',
-  label: 'Date Sort',
-  options: [
-    { value: 'desc', label: 'Descending' },
-    { value: 'asc', label: 'Ascending' }
-  ]
-};
-
-export const BENZINGA_FORM_FIELD_META_MAP: Record<BenzingaCalendarParamFormFields, BenzingaEndpointFormFieldMetadata> = {
-  [BenzingaCalendarParamFormFields.StartDate]: START_DATE_FIELD_META,
-  [BenzingaCalendarParamFormFields.EndDate]: END_DATE_FIELD_META,
-  [BenzingaCalendarParamFormFields.Ticker]: TICKER_FIELD_META,
-  [BenzingaCalendarParamFormFields.DividendYieldGt]: DIVIDEND_YIELD_GT_FIELD_META,
-  [BenzingaCalendarParamFormFields.Sort]: DATE_SORT_FIELD_META
-};
-
 // === Endpoint Metadata Objects ===
 
 const baseParams: BenzingaEndpointParamMeta[] = [
-  // { formKey: 'ticker', apiKey: 'ticker' },
+  { formKey: 'ticker', apiKey: 'ticker' },
   { formKey: 'startDate', apiKey: 'start_date' },
   { formKey: 'endDate', apiKey: 'end_date' }
 ];
@@ -369,11 +306,7 @@ const iposMeta: BenzingaEndpointMetadata = {
   displayName: 'IPOs',
   title: 'IPO Calendar',
   columns: bzIpoCalendarColumns,
-  params: baseParams,
-  formFields: [
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 const splitsMeta: BenzingaEndpointMetadata = {
@@ -382,11 +315,7 @@ const splitsMeta: BenzingaEndpointMetadata = {
   displayName: 'Splits',
   title: 'Splits Calendar',
   columns: bzSplitsCalendarColumns,
-  params: baseParams,
-  formFields: [
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 const guidanceMeta: BenzingaEndpointMetadata = {
@@ -395,11 +324,7 @@ const guidanceMeta: BenzingaEndpointMetadata = {
   displayName: 'Guidance',
   title: 'Guidance Calendar',
   columns: bzGuidanceCalendarColumns,
-  params: baseParams,
-  formFields: [
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 const earningsMeta: BenzingaEndpointMetadata = {
@@ -408,12 +333,7 @@ const earningsMeta: BenzingaEndpointMetadata = {
   displayName: 'Earnings',
   title: 'Earnings Calendar',
   columns: bzEarningsCalendarColumns,
-  params: [...baseParams, { formKey: 'ticker', apiKey: 'ticker' }],
-  formFields: [
-    BenzingaCalendarParamFormFields.Ticker,
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 const dividendsMeta: BenzingaEndpointMetadata = {
@@ -422,14 +342,7 @@ const dividendsMeta: BenzingaEndpointMetadata = {
   displayName: 'Dividends',
   title: 'Dividends Calendar',
   columns: bzDividendsCalendarColumns,
-  params: [...baseParams, { formKey: 'ticker', apiKey: 'ticker' }, { formKey: 'dividendYieldGt', apiKey: 'dividend_yield_gt' }, { formKey: 'sort', apiKey: 'sort' }],
-  formFields: [
-    BenzingaCalendarParamFormFields.Ticker,
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate,
-    BenzingaCalendarParamFormFields.DividendYieldGt,
-    BenzingaCalendarParamFormFields.Sort
-  ]
+  params: [...baseParams]
 };
 
 const economicsMeta: BenzingaEndpointMetadata = {
@@ -438,11 +351,7 @@ const economicsMeta: BenzingaEndpointMetadata = {
   displayName: 'Economics',
   title: 'Economics Calendar',
   columns: [],
-  params: [...baseParams],
-  formFields: [
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 const conferenceCallsMeta: BenzingaEndpointMetadata = {
@@ -451,11 +360,7 @@ const conferenceCallsMeta: BenzingaEndpointMetadata = {
   displayName: 'Conference Calls',
   title: 'Conference Calls Calendar',
   columns: [],
-  params: [...baseParams],
-  formFields: [
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 const fdaMeta: BenzingaEndpointMetadata = {
@@ -464,11 +369,7 @@ const fdaMeta: BenzingaEndpointMetadata = {
   displayName: 'FDA',
   title: 'FDA Calendar',
   columns: [],
-  params: [...baseParams],
-  formFields: [
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 const mergersAcquisitionsMeta: BenzingaEndpointMetadata = {
@@ -477,11 +378,7 @@ const mergersAcquisitionsMeta: BenzingaEndpointMetadata = {
   displayName: 'M&As',
   title: 'Mergers & Acquisitions Calendar',
   columns: [],
-  params: [...baseParams],
-  formFields: [
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 const ratingsMeta: BenzingaEndpointMetadata = {
@@ -490,11 +387,7 @@ const ratingsMeta: BenzingaEndpointMetadata = {
   displayName: 'Ratings',
   title: 'Ratings Calendar',
   columns: [],
-  params: [...baseParams],
-  formFields: [
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 const offeringsMeta: BenzingaEndpointMetadata = {
@@ -503,11 +396,7 @@ const offeringsMeta: BenzingaEndpointMetadata = {
   displayName: 'Offerings',
   title: 'Offerings Calendar',
   columns: [],
-  params: [...baseParams],
-  formFields: [
-    BenzingaCalendarParamFormFields.StartDate,
-    BenzingaCalendarParamFormFields.EndDate
-  ]
+  params: [...baseParams]
 };
 
 // === Master Endpoint Maps ===
