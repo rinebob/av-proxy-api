@@ -41,8 +41,8 @@ function getBenzingaApiKey(): string {
   
   const apiKey = process.env.BENZINGA_CALENDAR_API_KEY;
   if (!apiKey) {
-    console.error("FATAL: BENZINGA_CALENDAR_API_KEY secret not found or loaded.");
-    throw new Error("Server configuration error: Missing Benzinga Calendar API key.");
+    console.error("fn gDC FATAL: BENZINGA_CALENDAR_API_KEY secret not found or loaded.");
+    throw new Error("fn gDC FATAL: Server configuration error: Missing Benzinga Calendar API key.");
   }
   return apiKey;
 }
@@ -96,7 +96,7 @@ async function fetchDynamicBenzingaCalendar(
     });
 
     const debugUrl = url.toString().replace(/(token=)[^&]+/, 'token=REDACTED');
-    console.log('Final API URL:', debugUrl);
+    console.log('fn gDC Final API URL:', debugUrl);
 
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -109,24 +109,24 @@ async function fetchDynamicBenzingaCalendar(
     
     // Check if response is XML (error)
     if (responseText.trim().startsWith('<?xml')) {
-      throw new Error(`Benzinga API returned XML error: ${responseText}`);
+      throw new Error(`fn gDC Benzinga API returned XML error: ${responseText}`);
     }
 
     if (!response.ok) {
-      throw new Error(`Benzinga API error: ${response.status} ${response.statusText}\n${responseText}`);
+      throw new Error(`fn gDC Benzinga API error: ${response.status} ${response.statusText}\n${responseText}`);
     }
 
     let data;
     try {
       data = JSON.parse(responseText);
     } catch (e) {
-      console.error('Failed to parse API response:', responseText);
+      console.error('fn gDC Failed to parse API response:', responseText);
       throw new Error('Invalid JSON response from Benzinga API');
     }
 
     return data;
   } catch (error) {
-    console.error('Error in fetchDynamicBenzingaCalendar:', error);
+    console.error('fn gDC Error in fetchDynamicBenzingaCalendar:', error);
     throw error;
   }
 }
@@ -192,7 +192,7 @@ export const getDynamicCalendar = onRequest(
       if (requiresTicker && (!tickers || typeof tickers !== 'string' || !tickers.trim())) {
         res.status(400).json({
           error: 'Ticker is required',
-          message: 'Please provide a valid ticker symbol for this endpoint.'
+          message: 'fn gDC Please provide a valid ticker symbol for this endpoint.'
         });
         return;
       }
@@ -216,11 +216,11 @@ export const getDynamicCalendar = onRequest(
       };
 
 
-      console.log('Fetching fresh data from Benzinga API (cache bypassed)');
+      console.log('fn gDC Fetching fresh data from Benzinga API (cache bypassed)');
       const data = await fetchDynamicBenzingaCalendar(apiKey, params, calendarType, req.query);
 
       // Always log the full Benzinga API response for debugging
-      console.info(`[${tickers}] Benzinga API raw response:`, JSON.stringify(data));
+      console.info(`fn gDC [${tickers}] Benzinga API raw response:`, JSON.stringify(data));
 
       // If Benzinga returns an error, missing/invalid structure, or no data, pass through the raw response with status 200
       if (
@@ -228,7 +228,7 @@ export const getDynamicCalendar = onRequest(
         (Array.isArray(data) && data.length === 0) ||
         (typeof data === 'object' && !Array.isArray(data) && data !== null && ('error' in data || 'message' in data))
       ) {
-        console.warn(`[${tickers}] Passing through raw Benzinga response due to missing/invalid data.`);
+        console.warn(`fn gDC [${tickers}] Passing through raw Benzinga response due to missing/invalid data.`);
         res.status(200).json(data);
         return;
       }
@@ -236,9 +236,9 @@ export const getDynamicCalendar = onRequest(
       res.status(200).json(data);
     } catch (error: unknown) {
       if (!handleApiError(error, res, BenzingaFunctionName.GET_DYNAMIC_CALENDAR)) {
-        console.error('Unhandled error in getDynamicCalendar:', error);
+        console.error('fn gDC Unhandled error in getDynamicCalendar:', error);
         res.status(500).json({ 
-          error: 'Internal Server Error',
+          error: 'fn gDC Internal Server Error',
           details: error instanceof Error ? error.message : String(error)
         });
       }
