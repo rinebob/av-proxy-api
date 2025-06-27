@@ -48,8 +48,8 @@ const initialState: BenzingaCalendarState = {
     },
     pagination: {
         pageIndex: 0,
-        pageSize: 10,
-        pageSizeOptions: [5, 10, 25, 50, 100]
+        pageSize: 2, // Default to 2 records per page
+        pageSizeOptions: [2, 5, 10, 25, 50, 100]
     }
 };
 
@@ -62,10 +62,10 @@ export const BenzingaCalendarStore = signalStore(
     withState(initialState),
     withComputed((store) => ({
         earnings: computed(() => store.responses()[BenzingaEndpoint.EARNINGS] ?? []),
-        currentPagination: computed(() => store.pagination),
+        currentPagination: computed(() => store.pagination()),
         pageSizeOptions: computed(() => store.pagination().pageSizeOptions),
         minPageSize: computed(() => Math.min(...store.pagination().pageSizeOptions)),
-
+        
         /**
          * Returns the endpoint metadata for the currently selected endpoint.
          */
@@ -74,45 +74,81 @@ export const BenzingaCalendarStore = signalStore(
             return endpoint ? BENZINGA_ENDPOINTS_MAP[endpoint] : undefined;
         }),
 
+        // Total items for the current endpoint
+        totalItems: computed(() => {
+            const endpoint = store.selectedEndpoint() ?? BenzingaEndpoint.EARNINGS;
+            const allResponses = store.responses();
+            return (allResponses[endpoint] ?? []).length;
+        }),
+
+        // Paginated results for the current endpoint
         pagedResults: computed(() => {
             const endpoint = store.selectedEndpoint() ?? BenzingaEndpoint.EARNINGS;
-            const all = store.responses()[endpoint] ?? [];
+            const allResponses = store.responses();
+            console.log('bCSto pagedResults - all responses:', allResponses);
+            
+            const all = allResponses[endpoint] ?? [];
+            console.log(`bCSto pagedResults - data for ${endpoint}:`, all);
+            
             const { pageIndex, pageSize } = store.pagination();
             const start = pageIndex * pageSize;
+
+            const results = all.slice(start, start + pageSize);
+            console.log('bCSto pagedResults computed:', {
+                endpoint,
+                allResponsesKeys: Object.keys(allResponses),
+                hasEndpointData: endpoint in allResponses,
+                totalItems: all.length,
+                pageIndex,
+                pageSize,
+                start,
+                resultsCount: results.length,
+                hasResults: results.length > 0,
+                sampleResult: results[0],
+                allColumnKeys: results[0] ? Object.keys(results[0]) : 'no results'
+            });
             return all.slice(start, start + pageSize);
         }),
 
-        totalItems: computed(() => {
-            const endpoint = store.selectedEndpoint() ?? BenzingaEndpoint.EARNINGS;
-            return store.responses()[endpoint]?.length ?? 0;
+        // Pagination display properties
+        currentPageStart: computed(() => {
+            const { pageIndex, pageSize } = store.pagination();
+            return (pageIndex * pageSize) + 1;
         }),
 
+        currentPageEnd: computed(() => {
+            const { pageIndex, pageSize } = store.pagination();
+            const total = (store as any).totalItems();
+            return Math.min((pageIndex + 1) * pageSize, total);
+        }),
+
+        // Helper for no results message
         noResultsMessage: computed(() => {
             const endpoint = store.selectedEndpoint();
             const ticker = store.formValues()['ticker']?.toUpperCase?.() || '';
-            if (!ticker) return '';
-            switch (endpoint) {
-                case BenzingaEndpoint.EARNINGS:
-                    return `No earnings data found for ${ticker}`;
-                case BenzingaEndpoint.DIVIDENDS:
-                    return `No dividends data found for ${ticker}`;
-                default:
-                    return '';
+            
+            if (ticker) {
+                switch (endpoint) {
+                    case BenzingaEndpoint.EARNINGS:
+                        return `No earnings data found for ${ticker}`;
+                    case BenzingaEndpoint.DIVIDENDS:
+                        return `No dividends data found for ${ticker}`;
+                    // Add other endpoint-specific messages as needed
+                }
             }
+            
+            return endpoint 
+                ? `No ${endpoint.toLowerCase()} found for the selected criteria.` 
+                : 'No data available.';
         }),
 
+        // Condition to show no results message
         noResultsCondition: computed(() => {
-            const endpoint = store.selectedEndpoint();
             if (store.loading()) return false;
-            if (!store.formValues()['ticker']) return false;
-            switch (endpoint) {
-                case BenzingaEndpoint.EARNINGS:
-                    return (store.responses()[BenzingaEndpoint.EARNINGS]?.length ?? 0) === 0;
-                case BenzingaEndpoint.DIVIDENDS:
-                    return (store.responses()[BenzingaEndpoint.DIVIDENDS]?.length ?? 0) === 0;
-                default:
-                    return false;
-            }
+            const endpoint = store.selectedEndpoint() ?? BenzingaEndpoint.EARNINGS;
+            const responses = store.responses();
+            const endpointData = responses[endpoint] ?? [];
+            return endpointData.length === 0;
         })
     })),
 
@@ -125,7 +161,8 @@ export const BenzingaCalendarStore = signalStore(
             console.log('bCSto sE calendar endpoint: ', endpoint);
             patchState(store, {
                 selectedEndpoint: endpoint,
-                pagination: { ...store.pagination(), pageIndex: 0 }
+                pagination: { ...store.pagination(), pageIndex: 0 },
+                error: null // Clear any previous error when endpoint changes
             });
         },
 
@@ -165,18 +202,44 @@ export const BenzingaCalendarStore = signalStore(
                 apiParams = mapped as BenzingaCalendarParams;
                 console.log('bCSto sC calendar endpoint/params: ', endpoint, apiParams);
             }
+            console.log('bCSto sC calendar making API call with params:', apiParams);
             benzingaService.getDynamicCalendar(apiParams).subscribe({
                 next: (response: any) => {
+                    console.log('bCSto sC calendar raw API response:', response);
                     const { items } = extractCalendarItems(endpoint, response);
+                    console.log('bCSto sC calendar extracted items:', { 
+                        endpoint, 
+                        itemCount: items.length, 
+                        items,
+                        sampleItem: items[0],
+                        responseKeys: items[0] ? Object.keys(items[0]) : 'no items'
+                    });
+                    
+                    const currentResponses = store.responses();
+                    const updatedResponses = {
+                        ...currentResponses,
+                        [endpoint]: items
+                    };
+                    
+                    console.log('bCSto sC calendar updating store with responses:', {
+                        currentResponseKeys: Object.keys(currentResponses),
+                        newResponseKeys: Object.keys(updatedResponses),
+                        newEndpointData: items
+                    });
+                    
                     patchState(store, {
                         loading: false,
                         error: null,
-                        responses: {
-                            ...store.responses(),
-                            [endpoint]: items
-                        }
+                        responses: updatedResponses
                     });
-                    console.log('bCSto sC calendar response: ', response);
+                    
+                    console.log('bCSto sC calendar updated store state:', { 
+                        allResponseKeys: Object.keys(store.responses()),
+                        currentEndpointData: store.responses()[endpoint],
+                        pagedResults: store.pagedResults(),
+                        pagedResultsLength: store.pagedResults().length,
+                        hasPagedResults: store.pagedResults().length > 0
+                    });
                 },
                 error: (err) => {
                     patchState(store, {
@@ -208,20 +271,28 @@ export const BenzingaCalendarStore = signalStore(
 );
 
 /**
- * Helper to extract the correct items array from any Benzinga endpoint response.
- * Extend this switch as more endpoints are implemented.
+ * Helper to extract the items array from any Benzinga endpoint response.
+ * Uses the responseKey from endpoint metadata if defined, otherwise falls back to the endpoint name.
  */
 function extractCalendarItems<E extends BenzingaEndpoint>(
   endpoint: E,
   response: BenzingaEndpointResponseMap[E]
 ): { items: any[] } {
-  switch (endpoint) {
-    case BenzingaEndpoint.EARNINGS:
-      return { items: response.earnings ?? [] };
-    case BenzingaEndpoint.DIVIDENDS:
-      return { items: response.dividends ?? [] };
-    // ...add more endpoints as you implement them
-    default:
-      return { items: [] };
-  }
+  // Get the endpoint metadata to check for a custom responseKey
+  const endpointMeta = BENZINGA_ENDPOINTS_MAP[endpoint];
+  
+  // Use the responseKey from metadata if defined, otherwise use the endpoint name
+  const responseKey = endpointMeta?.responseKey || endpoint.toLowerCase();
+  
+  // Get the items using the determined response key
+  const items = (response as any)[responseKey];
+  
+  console.log('bCSto sC calendar extractCalendarItems:', {
+    endpoint,
+    responseKey,
+    hasResponseKey: !!endpointMeta?.responseKey,
+    items: Array.isArray(items) ? items.length : items
+  });
+  
+  return { items: Array.isArray(items) ? items : [] };
 }

@@ -2,17 +2,15 @@
   <h1 class="calendar-title calendar-title-margin">{{ bzCalendarStore.selectedEndpointMeta()?.title }}</h1>
 </div>
 
-@if (!bzCalendarStore.pagedResults().length) {
+@if (bzCalendarStore.pagedResults().length === 0) {
   <bz-no-results [message]="'No results found.'" />
 }
 
 @if (bzCalendarStore.pagedResults().length > 0) {
   <div class="table-container" style="overflow-x: auto;">
-    <div class="company-header">
-      <h2 class="company-title-inline">
-        {{ bzCalendarStore.pagedResults()[0]?.name }} ({{ bzCalendarStore.pagedResults()[0]?.ticker }})
-      </h2>
-      <span class="results-count">{{ bzCalendarStore.pagedResults().length }} results found ({{ bzCalendarStore.totalItems() || bzCalendarStore.pagedResults().length }} total)</span>
+    <div class="results-count">
+      {{ bzCalendarStore.pagedResults().length }} results found 
+      ({{ bzCalendarStore.totalItems() || bzCalendarStore.pagedResults().length }} total)
     </div>
     <table mat-table [dataSource]="bzCalendarStore.pagedResults()" class="mat-elevation-z1" style="width: 100%;">
       @for (col of (bzCalendarStore.selectedEndpointMeta()?.columns ?? []); track col.key) {
@@ -25,13 +23,34 @@
               @case ('abbreviateCurrency') { {{ (element[col.key] ? +element[col.key] : '') | abbreviateCurrency:col.digitsInfo }} }
               @case ('number')   { {{ element[col.key] | number:col.digitsInfo }} }
               @case ('date')     { {{ element[col.key] | date }} }
-              @default           { {{ element[col.key] }} }
+              @default           { 
+                @if (col.key === 'description' && element[col.key]?.length > 100) {
+                  <span [matTooltip]="element[col.key]" matTooltipClass="description-tooltip">
+                    {{ element[col.key] | truncate:100 }}
+                  </span>
+                } @else {
+                  {{ element[col.key] }}
+                }
+              }
             }
           </td>
         </ng-container>
       }
       <tr mat-header-row *matHeaderRowDef="columnKeys()"></tr>
-      <tr mat-row *matRowDef="let row; columns: columnKeys()"></tr>
+      <tr mat-row *matRowDef="let row; columns: columnKeys()" 
+          [class.row-with-company]="row.name || row.ticker">
+        @if (row.name || row.ticker) {
+          <div class="company-header">
+            <h2 class="company-title-inline">
+              {{ row.name }}
+              @if (row.ticker) {
+                ({{ row.ticker }})
+              }
+            </h2>
+          </div>
+        }
+      </tr>
     </table>
+
   </div>
 }
