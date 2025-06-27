@@ -4,8 +4,10 @@
   (change)="onEndpointChange($event.value)"
   aria-label="Calendar Type"
 >
-  @for (type of calendarTypes; track type) {
-    <mat-button-toggle [value]="type">{{ calendarTypeMetadataMap[type].displayName }}</mat-button-toggle>
+  @for (endpoint of bzCalendarEndpoints; track endpoint) {
+    @if (!excludedEndpoints.includes(endpoint)) {
+      <mat-button-toggle [value]="endpoint">{{ calendarTypeMetadataMap[endpoint].displayName }}</mat-button-toggle>
+    }
   }
 </mat-button-toggle-group>
 </div>

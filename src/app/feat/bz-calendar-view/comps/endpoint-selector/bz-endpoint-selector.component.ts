@@ -23,7 +23,15 @@ import { BenzingaCalendarStore } from '../../store/bz-calendar.store';
  * Binds to selectedEndpoint in the NgRx Signal Store.
  */
 export class BzEndpointSelectorComponent {
-  calendarTypes = Object.values(BenzingaEndpoint);
+  /**
+   * Endpoints to exclude from selector
+   */
+  excludedEndpoints: BenzingaEndpoint[] = [
+    BenzingaEndpoint.FDA,
+    BenzingaEndpoint.MERGERS_ACQUISITIONS,
+    BenzingaEndpoint.OFFERINGS
+  ];
+  bzCalendarEndpoints = Object.values(BenzingaEndpoint);
   calendarTypeMetadataMap = BENZINGA_ENDPOINTS_MAP;
 
   /**
