@@ -9,7 +9,7 @@ import { authGuard } from './auth/auth.guard';
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'stock-data', component: StockDataComponent, canActivate: [authGuard] },
-  { path: 'benz', component: BzCalendarViewComponent, canActivate: [authGuard] },
+  { path: 'calendars', component: BzCalendarViewComponent, canActivate: [authGuard] },
   { path: 'logos', component: CompanyLogoGalleryComponent, canActivate: [authGuard] },
   // Redirect root path to login by default
   { path: '', redirectTo: '/login', pathMatch: 'full' },
