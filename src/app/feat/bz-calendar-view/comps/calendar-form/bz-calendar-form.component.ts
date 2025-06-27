@@ -1,8 +1,7 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, FormControl, Validators } from '@angular/forms';
-import { BenzingaCalendarStore } from '../../store/bz-calendar.store';
-import { BenzingaEndpoint, BENZINGA_FORM_FIELD_META_MAP, BenzingaEndpointFormFieldMetadata, BenzingaCalendarParamFormFields } from '../../../../common/common-bz';
+import { BenzingaEndpoint, BENZINGA_FORM_FIELD_META_MAP, BenzingaCalendarParamFormFields } from '../../../../common/fe-common-bz';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';

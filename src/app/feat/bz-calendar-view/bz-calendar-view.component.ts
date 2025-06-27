@@ -16,11 +16,10 @@ import { MatTabsModule } from '@angular/material/tabs';
 
 import { BzEndpointSelectorComponent } from './comps/endpoint-selector/bz-endpoint-selector.component';
 import { BzCalendarFormComponent } from './comps/calendar-form/bz-calendar-form.component';
-import { BzEarningsTableComponent } from './comps/bz-earnings-table/bz-earnings-table.component';
 import { BzNoResultsComponent } from './comps/bz-no-results/bz-no-results.component';
-import { DynamicCalendarTableComponent } from './comps/dynamic-calendar-table/dynamic-calendar-table.component';
+import { BzDynamicCalendarTableComponent } from './comps/dynamic-calendar-table/bz-dynamic-calendar-table.component';
 import { BenzingaCalendarStore } from './store/bz-calendar.store';
-import { BenzingaEndpoint } from '../../common/common-bz';
+import { BenzingaEndpoint } from '../../common/fe-common-bz';
 
 @Component({
   selector: 'bz-calendar-view',
@@ -41,13 +40,11 @@ import { BenzingaEndpoint } from '../../common/common-bz';
     MatSnackBarModule,
     MatTableModule,
     MatTabsModule,
-
     // New standalone components
     BzEndpointSelectorComponent,
     BzCalendarFormComponent,
-    // BzEarningsTableComponent,
     BzNoResultsComponent,
-    DynamicCalendarTableComponent
+    BzDynamicCalendarTableComponent
 ],
   templateUrl: './bz-calendar-view.component.html',
   styleUrls: ['./bz-calendar-view.component.scss'],

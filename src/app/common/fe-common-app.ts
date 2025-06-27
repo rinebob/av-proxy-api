@@ -1,5 +1,5 @@
 import { environment } from '../../environments/environment';
-import { AlphaVantageFunctionName, BenzingaFunctionName } from '../../../functions/src/common/common-fn';
+import { AlphaVantageFunctionName, BenzingaFunctionName } from './fe-common-fn';
 
 // Define the production URLs for each 2nd Gen Cloud Function
 const PROD_URLS = {

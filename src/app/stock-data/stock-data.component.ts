@@ -1,13 +1,12 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { MatDividerModule } from '@angular/material/divider';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
 import { JsonPipe, CommonModule } from '@angular/common';
 import { catchError, of, switchMap, tap } from 'rxjs';
-import { StockDataFunctions, StockDataFunction } from '../common/common-app';
+import { StockDataFunctions, StockDataFunction } from '../common/fe-common-app';
 import { MaterialModule } from '../shared/material.module';
 import { AlphaVantageService } from '../services/alpha-vantage.service';
-import { AlphaVantageFunctionName } from '../common/common-fn';
 
 @Component({
   selector: 'app-stock-data',

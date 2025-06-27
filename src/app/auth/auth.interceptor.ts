@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { Observable, from, throwError } from 'rxjs';
 import { catchError, switchMap, take } from 'rxjs/operators';
 import { AuthService } from './auth.service';
-import { StockDataUrl } from '../common/common-app';
+import { StockDataUrl } from '../common/fe-common-app';
 
 export const authInterceptor: HttpInterceptorFn = (
   req: HttpRequest<unknown>,

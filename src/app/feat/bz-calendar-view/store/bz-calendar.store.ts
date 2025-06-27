@@ -1,10 +1,10 @@
 import { signalStore, withState, withMethods, patchState, withProps, withComputed } from '@ngrx/signals';
 import { computed, inject } from '@angular/core';
-
-import { BenzingaEndpoint, BenzingaCalendarParams, BENZINGA_ENDPOINTS_MAP } from '../../../common/common-bz';
-import { BenzingaService } from '../../../services/benzinga.service';
-import type { BenzingaEndpointItemMap, BenzingaEndpointParamMeta, BenzingaEndpointResponseMap } from '../../../common/common-bz';
 import { toObservable } from '@angular/core/rxjs-interop';
+
+import { BenzingaEndpoint, BenzingaCalendarParams, BENZINGA_ENDPOINTS_MAP } from '../../../common/fe-common-bz';
+import type { BenzingaEndpointItemMap, BenzingaEndpointParamMeta, BenzingaEndpointResponseMap } from '../../../common/fe-common-bz';
+import { BenzingaService } from '../../../services/benzinga.service';
 
 /**
  * State for Benzinga calendar UI.

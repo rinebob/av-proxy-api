@@ -11,9 +11,5 @@ export enum AlphaVantageFunctionName {
 export enum BenzingaFunctionName {
   GET_CALENDAR = 'getBenzingaCalendar',
   GET_COMPANY_LOGO = 'getCompanyLogo',
+  GET_DYNAMIC_CALENDAR = 'getDynamicCalendar',
 }
-
-export const ALL_FUNCTION_NAMES = [
-  ...Object.values(AlphaVantageFunctionName),
-  ...Object.values(BenzingaFunctionName),
-] as const;

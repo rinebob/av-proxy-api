@@ -1,7 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { CommonModule } from '@angular/common';
-import { BENZINGA_ENDPOINTS_MAP, BenzingaEndpoint } from '../../../../common/common-bz';
+
+import { BENZINGA_ENDPOINTS_MAP, BenzingaEndpoint } from '../../../../common/fe-common-bz';
 import { BenzingaCalendarStore } from '../../store/bz-calendar.store';
 
 /**

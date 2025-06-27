@@ -1,10 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, switchMap, map } from 'rxjs/operators';
-import { DailyStockParams, GlobalQuoteParams } from '../common/common-av';
+import { DailyStockParams, GlobalQuoteParams } from '../common/fe-common-av';
 import { AuthService } from '../auth/auth.service';
-import { StockDataUrl } from '../common/common-app';
+import { StockDataUrl } from '../common/fe-common-app';
 
 @Injectable({
   providedIn: 'root'
