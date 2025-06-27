@@ -10,15 +10,16 @@ const LOGO_CACHE_DURATION_DAYS = 30;
 /**
  * Generate a cache key for the given calendar parameters
  */
-function generateCacheKey(params: BenzingaCalendarParams): string {
+function generateCacheKey(params: BenzingaCalendarParams & { calendarType?: string }): string {
+  // Accept an optional calendarType for uniqueness if needed
   const keyParts = [
-    params.type,
+    params.calendarType || '', // Optionally pass in endpoint type if needed
     ...(params.tickers ? params.tickers.sort() : []),
-    params.dateFrom || '',
-    params.dateTo || '',
+    params.date_from || '',
+    params.date_to || '',
     params.page?.toString() || '',
-    params.pageSize?.toString() || '',
-    params.updatedSince || ''
+    params.pagesize?.toString() || '',
+    params.updated || ''
   ];
   return keyParts.join('_');
 }

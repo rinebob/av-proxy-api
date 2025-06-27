@@ -3,7 +3,8 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import { 
   BenzingaCalendarParams, 
   BenzingaCalendarType,
-  BenzingaCalendarResponse
+  BenzingaCalendarResponse,
+  BENZINGA_ENDPOINTS_REQUIRE_TICKER
 } from '../common/common-benz';
 import { BenzingaFunctionName } from '../common/common-fn';
 import { 
@@ -62,8 +63,8 @@ async function fetchDynamicBenzingaCalendar(
     url.searchParams.append('token', apiKey);
     
     // Add pagesize as a top-level parameter
-    if (params.pageSize) {
-      url.searchParams.append('pagesize', params.pageSize.toString());
+    if (params.pagesize) {
+      url.searchParams.append('pagesize', params.pagesize.toString());
     }
     
     // Add parameters under parameters[] namespace
@@ -74,28 +75,21 @@ async function fetchDynamicBenzingaCalendar(
       const tickers = Array.isArray(params.tickers) ? params.tickers : [params.tickers];
       parameters['tickers'] = tickers.join(',').toUpperCase();
     }
-    
-    // Add date range if provided
-    if (params.dateFrom) parameters['date_from'] = params.dateFrom;
-    if (params.dateTo) parameters['date_to'] = params.dateTo;
-    
-    // Add endpoint-specific parameters
-    switch (endpoint) {
-      case BenzingaCalendarType.DIVIDENDS:
-        parameters['date_sort'] = queryParams.date_sort || 'announced'; // Default to 'announced'
-        if (queryParams.dividend_yield_gt) {
-          parameters['dividend_yield_gt'] = queryParams.dividend_yield_gt;
-        }
-        break;
-      case BenzingaCalendarType.EARNINGS:
-        parameters['date_sort'] = 'date';
-        break;
-      // Add other cases for ratings, IPOs, etc. here
-      default:
-        parameters['date_sort'] = 'date'; // Default sort for other endpoints
-        break;
+    if (params.securities) {
+      parameters['securities'] = params.securities.join(',').toUpperCase();
     }
-    
+    if (params.date_from) parameters['date_from'] = params.date_from;
+    if (params.date_to) parameters['date_to'] = params.date_to;
+    if (params.date) parameters['date'] = params.date;
+    if (params.updated) parameters['updated'] = params.updated;
+    if (params.importance) parameters['importance'] = params.importance;
+    if (params.dividend_yield_gt) parameters['dividend_yield_gt'] = params.dividend_yield_gt;
+    if (params.country) parameters['country'] = params.country;
+    if (params.category) parameters['category'] = params.category;
+    if (params.fuzzy) parameters['fuzzy'] = params.fuzzy;
+    if (params.sort) parameters['sort'] = params.sort;
+    // Add more mappings if new params are added to BenzingaCalendarParams
+
     // Add all parameters under 'parameters[]' namespace
     Object.entries(parameters).forEach(([key, value]) => {
       url.searchParams.append(`parameters[${key}]`, value);
@@ -169,7 +163,12 @@ export const getDynamicCalendar = onRequest(
         _nocache = 'true',  // Force bypass cache
         // Endpoint-specific params
         date_sort,
-        dividend_yield_gt
+        dividend_yield_gt,
+        importance,
+        country,
+        category,
+        fuzzy,
+        sort
       } = req.query;
 
       const calendarType = type as BenzingaCalendarType;
@@ -188,25 +187,34 @@ export const getDynamicCalendar = onRequest(
         dividend_yield_gt
       });
 
-      // Validate required parameters
-      if (!tickers || typeof tickers !== 'string') {
+      // Validate required parameters using backend metadata
+      const requiresTicker = BENZINGA_ENDPOINTS_REQUIRE_TICKER[calendarType];
+      if (requiresTicker && (!tickers || typeof tickers !== 'string' || !tickers.trim())) {
         res.status(400).json({
           error: 'Ticker is required',
-          message: 'Please provide a valid ticker symbol'
+          message: 'Please provide a valid ticker symbol for this endpoint.'
         });
         return;
       }
 
-      // Build params object
+      // Build backend params object (map incoming query to backend keys)
       const params: BenzingaCalendarParams = {
-        type: calendarType,
-        tickers: tickers.split(',').map(t => t.trim().toUpperCase()),
-        ...(date_from && { dateFrom: date_from as string }),
-        ...(date_to && { dateTo: date_to as string }),
+        ...(requiresTicker && tickers && typeof tickers === 'string' && tickers.trim() && {
+          tickers: tickers.split(',').map((t: string) => t.trim().toUpperCase())
+        }),
+        ...(date_from && { date_from: date_from as string }),
+        ...(date_to && { date_to: date_to as string }),
+        ...(updated_since && { updated: updated_since as string }),
+        ...(importance && { importance: importance as string }),
+        ...(dividend_yield_gt && { dividend_yield_gt: dividend_yield_gt as string }),
+        ...(country && { country: country as string }),
+        ...(category && { category: category as string }),
+        ...(fuzzy && { fuzzy: fuzzy as string }),
+        ...(sort && { sort: sort as string }),
         page: parseInt(page as string, 10) || 1,
-        pageSize: parseInt(pagesize as string, 10) || 10,
-        ...(updated_since && { updatedSince: updated_since as string })
+        pagesize: parseInt(pagesize as string, 10) || 10
       };
+
 
       console.log('Fetching fresh data from Benzinga API (cache bypassed)');
       const data = await fetchDynamicBenzingaCalendar(apiKey, params, calendarType, req.query);

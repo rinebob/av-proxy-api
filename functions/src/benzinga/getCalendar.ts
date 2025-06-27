@@ -3,7 +3,6 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 // import { getCachedCalendarData, cacheCalendarData } from './benzinga-firestore-helpers';
 import { 
   BenzingaCalendarParams, 
-  BenzingaCalendarType,
   BenzingaCalendarResponse
 } from '../common/common-benz';
 import { BenzingaFunctionName } from '../common/common-fn';
@@ -61,8 +60,8 @@ async function fetchBenzingaCalendar(
     url.searchParams.append('token', apiKey);
     
     // Add pagesize as a top-level parameter
-    if (params.pageSize) {
-      url.searchParams.append('pagesize', params.pageSize.toString());
+    if (params.pagesize) {
+      url.searchParams.append('pagesize', params.pagesize.toString());
     }
     
     // Add parameters under parameters[] namespace
@@ -75,8 +74,8 @@ async function fetchBenzingaCalendar(
     }
     
     // Add date range if provided
-    if (params.dateFrom) parameters['date_from'] = params.dateFrom;
-    if (params.dateTo) parameters['date_to'] = params.dateTo;
+    if (params.date_from) parameters['date_from'] = params.date_from;
+    if (params.date_to) parameters['date_to'] = params.date_to;
     
     // Add sort parameter
     parameters['date_sort'] = 'date';
@@ -177,13 +176,12 @@ export const getBenzingaCalendar = onRequest(
 
       // Build params object
       const params: BenzingaCalendarParams = {
-        type: (type as BenzingaCalendarType) || BenzingaCalendarType.EARNINGS,
         tickers: tickers.split(',').map(t => t.trim().toUpperCase()),
-        ...(date_from && { dateFrom: date_from as string }),
-        ...(date_to && { dateTo: date_to as string }),
+        ...(date_from && { date_from: date_from as string }),
+        ...(date_to && { date_to: date_to as string }),
         page: parseInt(page as string, 10) || 1,
-        pageSize: parseInt(pagesize as string, 10) || 10,
-        ...(updated_since && { updatedSince: updated_since as string })
+        pagesize: parseInt(pagesize as string, 10) || 10,
+        ...(updated_since && { updated: updated_since as string })
       };
 
       console.log('Fetching fresh data from Benzinga API (cache bypassed)');
