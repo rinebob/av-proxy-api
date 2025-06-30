@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { CommonModule } from '@angular/common';
 
-import { BENZINGA_ENDPOINTS_MAP, BenzingaEndpoint } from '../../../../common/fe-common-bz';
+import { BENZINGA_ENDPOINTS_META_MAP, BenzingaEndpoint } from '../../../../common/fe-common-bz';
 import { BenzingaCalendarStore } from '../../store/bz-calendar.store';
 
 /**
@@ -33,7 +33,7 @@ export class BzEndpointSelectorComponent {
     BenzingaEndpoint.OFFERINGS
   ];
   bzCalendarEndpoints = Object.values(BenzingaEndpoint);
-  calendarTypeMetadataMap = BENZINGA_ENDPOINTS_MAP;
+  calendarTypeMetadataMap = BENZINGA_ENDPOINTS_META_MAP;
 
   /**
    * Inject the BenzingaCalendarStore as bzCalendarStore

@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, FormControl, Validators } from '@angular/forms';
-import { BenzingaEndpoint, BENZINGA_FORM_FIELD_META_MAP, BenzingaCalendarParamFormFields } from '../../../../common/fe-common-bz';
+import { BenzingaEndpoint, BENZINGA_PARAM_META_MAP, BenzingaCalendarParam, BenzingaCalendarParamFormField } from '../../../../common/fe-common-bz';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -38,9 +38,10 @@ import { BzCalendarViewBaseComponent } from '../../bz-calendar-view-base.compone
   styleUrls: ['./bz-calendar-form.component.scss']
 })
 export class BzCalendarFormComponent extends BzCalendarViewBaseComponent implements OnInit {
-  public readonly BENZINGA_FORM_FIELD_META_MAP = BENZINGA_FORM_FIELD_META_MAP;
+  public readonly BENZINGA_PARAM_META_MAP = BENZINGA_PARAM_META_MAP;
   public readonly BenzingaEndpoint = BenzingaEndpoint;
-  public readonly BenzingaCalendarParamFormFields = BenzingaCalendarParamFormFields;
+  public readonly BenzingaCalendarParam = BenzingaCalendarParam;
+  public readonly BenzingaCalendarParamFormField = BenzingaCalendarParamFormField;
 
   private getDefaultStartDate(): Date {
     const date = new Date();
@@ -48,18 +49,41 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
     return date;
   }
 
-  searchForm = new FormGroup({
-    calendarType: new FormControl(this.bzCalendarStore.selectedEndpoint(), Validators.required),
-    ticker: new FormControl('', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]),
-    startDate: new FormControl(this.getDefaultStartDate(), Validators.required),
-    endDate: new FormControl(new Date(), Validators.required),
-    // Dividend-specific fields (conditionally enabled)
-    dividendYieldGt: new FormControl(''),
-    sort: new FormControl('desc')
-  });
+  /**
+ * Form group for Benzinga calendar search.
+ * - parameters[dividend_yield_operation]: enum (gt, gte, eq, lte, lt)
+ * - parameters[dividend_yield]: number
+ */
+searchForm = new FormGroup({
+  calendarType: new FormControl(this.bzCalendarStore.selectedEndpoint(), Validators.required),
+  ticker: new FormControl('', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]),
+  startDate: new FormControl(this.getDefaultStartDate(), Validators.required),
+  endDate: new FormControl(new Date(), Validators.required),
+  // Dividend-specific fields (conditionally enabled)
+  sort: new FormControl('desc'),
+  // --- Dynamic Benzinga params ---
+  pagesize: new FormControl(20, [Validators.min(1), Validators.max(1000)]),
+  importance: new FormControl(null, [Validators.min(0), Validators.max(5)]),
+  updated: new FormControl(null),
+  /**
+   * Dividend yield operation (gt, gte, eq, lte, lt)
+   * Only used for DIVIDENDS endpoint
+   */
+  dividendYieldOperation: new FormControl('eq'),
+  /**
+   * Dividend yield value (number)
+   * Only used for DIVIDENDS endpoint
+   */
+  dividendYield: new FormControl(null, [Validators.min(0)]),
+  /**
+   * Dividend dateSort (announced, ex, payable, record)
+   * Only used for DIVIDENDS endpoint
+   */
+  dateSort: new FormControl('')
+});
 
   ngOnInit() {
-    // Sync calendarType with store and adjust fields on endpoint change
+    // Sync endpoint with store and adjust fields on endpoint change
     this.bzCalendarStore.selectedEndpointMeta$
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe(endpointMeta => {
@@ -77,7 +101,7 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
     // Enable/disable fields based on endpoint metadata
     Object.keys(this.searchForm.controls).forEach(key => {
       if (key === 'calendarType') return;
-      const found = paramMetas.some(pm => pm.formKey === key);
+      const found = paramMetas.some(pm => pm === key);
       if (found) {
         this.searchForm.get(key)?.enable({ emitEvent: false });
       } else {
@@ -88,11 +112,10 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
 
   onSubmit() {
     if (this.searchForm.invalid) {
-      // Optionally, show validation errors here
       this.searchForm.markAllAsTouched();
       return;
     }
-    const { calendarType, ticker, startDate, endDate, dividendYieldGt, sort } = this.searchForm.value;
+    const { calendarType, ticker, startDate, endDate, sort, pagesize, importance, updated, dividendYieldOperation, dividendYield, dateSort } = this.searchForm.value;
     // Defensive: ensure dates are Date objects
     if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
       // Optionally, show error
@@ -109,18 +132,26 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
       calendarType: calendarType as BenzingaEndpoint,
       date_from: startDate.toISOString().slice(0, 10),
       date_to: endDate.toISOString().slice(0, 10),
-      page: 0, // default page
-      pagesize: 20 // default page size (could be made configurable)
+      page: 0
     };
+    // Dynamic params
+    if (pagesize) params.pagesize = pagesize;
+    if (importance !== null && importance !== undefined) params['parameters[importance]'] = importance;
+    if (updated) {
+      // Accepts either a Date or a number (timestamp)
+      params['parameters[updated]'] = typeof updated === 'number' ? updated : Math.floor(new Date(updated).getTime() / 1000);
+    }
     // Only include ticker/tickers if endpoint metadata params includes ticker
-    if (endpointMeta?.params.some(p => p.formKey === 'ticker')) {
-      params.ticker = ticker?.toUpperCase(); // for store signals and UI logic
-      params.tickers = ticker?.toUpperCase(); // for API
+    if (endpointMeta?.params.some(p => p === BenzingaCalendarParam.TICKER)) {
+      params.ticker = ticker?.toUpperCase();
+      params.tickers = ticker?.toUpperCase();
     }
     // If dividends, include dividend-specific params if filled
     if (calendarType === BenzingaEndpoint.DIVIDENDS) {
-      if (dividendYieldGt) params.dividendYieldGt = dividendYieldGt;
       if (sort) params.sort = `date:${sort}`;
+      if (dividendYieldOperation) params['parameters[dividend_yield_operation]'] = dividendYieldOperation;
+      if (dividendYield !== null && dividendYield !== undefined && dividendYield !== '') params['parameters[dividend_yield]'] = dividendYield;
+      if (dateSort) params['parameters[date_sort]'] = dateSort;
     }
     this.bzCalendarStore.searchCalendar(params);
   }

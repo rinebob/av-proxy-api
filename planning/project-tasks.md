@@ -50,7 +50,7 @@ This document tracks the completion status of tasks outlined in the `project-pla
   - [x] Update UI to select new calendar endpoints.
   - [ ] Create dynamic forms for each new endpoint.
   - [ ] Update `benzinga.service.ts` to call the new cloud functions.
-  - [x] Refactor all frontend usages of BenzingaCalendarType/BENZINGA_CALENDAR_TYPE_LABELS to use BenzingaEndpoint and BENZINGA_ENDPOINTS_MAP; fix all related compiler errors
+  - [x] Refactor all frontend usages of BenzingaCalendarType/BENZINGA_CALENDAR_TYPE_LABELS to use BenzingaEndpoint and BENZINGA_ENDPOINTS_META_MAP; fix all related compiler errors
 
 ---
 

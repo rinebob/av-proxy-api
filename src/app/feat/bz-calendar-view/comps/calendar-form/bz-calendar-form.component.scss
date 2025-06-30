@@ -1,15 +1,15 @@
 // Styles for calendar form
 
 .dynamic-content-placeholder {
-  width: 100%;
-  height: 1in;
-  border: 1px solid #e0e0e0; // Light grey border
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #616161; // Grey text
-  font-size: 1rem;
+    width: 100%;
+    height: 1in;
+    border: 1px solid #e0e0e0; // Light grey border
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #616161; // Grey text
+    font-size: 1rem;
 }
 
 $form-row-gap: 1.5rem;
@@ -17,76 +17,86 @@ $form-field-min-width: 14rem;
 $form-action-width: auto;
 
 .form-row {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start; // Align items to the top
-  justify-content: space-between;
-  width: 100%;
-  gap: 1.5rem;
-
-  .fields-group {
     display: flex;
     flex-direction: row;
     align-items: flex-end;
-    gap: 1.5rem;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .form-actions {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start; // Align button to the top
     justify-content: flex-end;
-    flex: 0 0 auto;
-    min-width: 8rem;
+    width: 100%;
+    gap: 1.5rem;
+
+    .fields-group {
+        flex: 1 1 auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .dividend-fields-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .narrow-field {
+        min-width: 7rem;
+        max-width: 9rem;
+        flex: 1 1 7rem;
+    }
+
+    .form-actions {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-end;
+        justify-content: flex-end;
+        flex: 0 0 auto;
+        margin-left: 1rem;
+    }
 
     .search-btn {
-      margin-left: 2rem;
-      min-width: 8rem;
-      min-height: 56px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1rem;
+        margin-left: auto;
+        min-width: 8rem;
+        min-height: 56px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
     }
-  }
 }
 
+
 .form-fields .mat-form-field {
-  min-width: $form-field-min-width;
-  vertical-align: top;
+    min-width: $form-field-min-width;
+    vertical-align: top;
 }
 
 .dynamic-fields {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  margin-top: 2rem;
-  width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-top: 2rem;
+    width: 100%;
 }
 
 .form-actions {
-  display: flex;
-  align-items: stretch; // Match form field height
-  justify-content: center;
-  flex: 0 0 8rem; // Button width
-  min-width: 8rem;
-  margin-left: 0;
+    display: flex;
+    align-items: stretch; // Match form field height
+    justify-content: center;
+    flex: 0 0 8rem; // Button width
+    min-width: 8rem;
+    margin-left: 0;
 }
 
 
 button[type="submit"] {
-  min-width: 8rem;
-  min-height: 56px; // Match Angular Material form field height
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  box-sizing: border-box;
-  margin: 0;
+    min-width: 8rem;
+    min-height: 56px; // Match Angular Material form field height
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    box-sizing: border-box;
+    margin: 0;
 }
-

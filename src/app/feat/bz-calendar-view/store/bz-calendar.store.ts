@@ -2,7 +2,7 @@ import { signalStore, withState, withMethods, patchState, withProps, withCompute
 import { computed, inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 
-import { BenzingaEndpoint, BenzingaCalendarParams, BENZINGA_ENDPOINTS_MAP } from '../../../common/fe-common-bz';
+import { BenzingaEndpoint, BenzingaCalendarParams, BENZINGA_ENDPOINTS_META_MAP, BenzingaCalendarParam, BENZINGA_PARAM_META_MAP } from '../../../common/fe-common-bz';
 import type { BenzingaEndpointItemMap, BenzingaEndpointParamMeta, BenzingaEndpointResponseMap } from '../../../common/fe-common-bz';
 import { BenzingaService } from '../../../services/benzinga.service';
 
@@ -73,7 +73,7 @@ export const BenzingaCalendarStore = signalStore(
          */
         selectedEndpointMeta: computed(() => {
             const endpoint = store.selectedEndpoint();
-            return endpoint ? BENZINGA_ENDPOINTS_MAP[endpoint] : undefined;
+            return endpoint ? BENZINGA_ENDPOINTS_META_MAP[endpoint] : undefined;
         }),
 
         // Total items for the current endpoint
@@ -191,17 +191,19 @@ export const BenzingaCalendarStore = signalStore(
             });
             // Generic param mapping using endpoint metadata for all endpoints
             let apiParams: BenzingaCalendarParams = formValues;
-            const endpointMeta = BENZINGA_ENDPOINTS_MAP[endpoint];
+            const endpointMeta = BENZINGA_ENDPOINTS_META_MAP[endpoint];
             console.log('bCSto sC calendar endpointMeta: ', endpointMeta);
             if (endpointMeta?.params) {
                 // Copy to avoid mutating formValues
                 const mapped: Record<string, any> = { ...formValues };
-                endpointMeta.params.forEach((meta: BenzingaEndpointParamMeta) => {
-                    const formKey = meta.formKey;
+                endpointMeta.params.forEach((param: BenzingaCalendarParam) => {
+                    const meta = BENZINGA_PARAM_META_MAP[param];
+                    if (!meta) return;
+                    const formControlName = meta.formControlName;
                     const apiKey = meta.apiKey;
-                    if (formKey in mapped) {
-                        mapped[apiKey] = mapped[formKey];
-                        delete mapped[formKey];
+                    if (formControlName in mapped) {
+                        mapped[apiKey] = mapped[formControlName];
+                        if (formControlName as string !== apiKey as string) delete mapped[formControlName];
                     }
                 });
                 apiParams = mapped as BenzingaCalendarParams;
@@ -284,7 +286,7 @@ function extractCalendarItems<E extends BenzingaEndpoint>(
   response: BenzingaEndpointResponseMap[E]
 ): { items: any[] } {
   // Get the endpoint metadata to check for a custom responseKey
-  const endpointMeta = BENZINGA_ENDPOINTS_MAP[endpoint];
+  const endpointMeta = BENZINGA_ENDPOINTS_META_MAP[endpoint];
   
   // Use the responseKey from metadata if defined, otherwise use the endpoint name
   const responseKey = endpointMeta?.responseKey || endpoint.toLowerCase();
