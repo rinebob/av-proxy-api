@@ -28,6 +28,8 @@ export const getGlobalQuote = onRequest(
     console.info('----------- getGlobalQuote ---------------');
 
     try {
+      // DEBUG: Log the query params received
+      console.info('gGQ req.query:', req.query);
       // Step 1: Authenticate the request
       const decodedToken = await authenticateRequest(req, res);
       if (!decodedToken) {
@@ -84,10 +86,16 @@ export const getGlobalQuote = onRequest(
 
       const globalQuote = apiResponse["Global Quote"];
 
-      // Save to Firestore and send response
-      await saveStockData(symbol, globalQuote, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
+      // Save to Firestore, but do not block response on failure
+      try {
+        await saveStockData(symbol, globalQuote, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
+      } catch (firestoreError) {
+        console.error(`Firestore write failed for ${symbol}:`, firestoreError);
+        // Do not throw, just log
+      }
       res.status(200).send(globalQuote);
     } catch (error) {
+      // Only handle true validation or API/AlphaVantage errors here
       console.error(`Error in ${AlphaVantageFunctionName.GET_GLOBAL_QUOTE}:`, error);
       handleApiError(error, res, AlphaVantageFunctionName.GET_GLOBAL_QUOTE);
     }
