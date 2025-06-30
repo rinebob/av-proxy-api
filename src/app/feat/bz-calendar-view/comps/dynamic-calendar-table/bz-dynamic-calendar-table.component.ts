@@ -27,10 +27,17 @@ import { TruncatePipe } from "../../../../shared/pipes/truncate.pipe";
   templateUrl: './bz-dynamic-calendar-table.component.html',
   styleUrls: ['./bz-dynamic-calendar-table.component.scss']
 })
+/**
+ * Dynamic calendar table for Benzinga endpoints.
+ * Expects each row to have 'ticker' and 'name' fields (if present in the endpoint).
+ * Uses column metadata from endpoint config to render headers and data.
+ */
 export class BzDynamicCalendarTableComponent extends BzCalendarViewBaseComponent {
   // Computes the array of column keys for the current endpoint
-  readonly columnKeys = computed(() =>
-    this.bzCalendarStore.selectedEndpointMeta()?.columns.map(c => c.key) ?? []
-  );
+  readonly columnKeys = computed(() => {
+    // Defensive: fallback to [] if columns are missing
+    const meta = this.bzCalendarStore.selectedEndpointMeta();
+    return meta?.columns?.map(c => c.key) ?? [];
+  });
 }
 

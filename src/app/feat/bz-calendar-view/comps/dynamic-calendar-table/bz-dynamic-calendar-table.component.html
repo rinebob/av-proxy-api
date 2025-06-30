@@ -1,5 +1,17 @@
 <div class="calendar-header-row">
   <h1 class="calendar-title calendar-title-margin">{{ bzCalendarStore.selectedEndpointMeta()?.title }}</h1>
+  @if (bzCalendarStore.pagedResults().length > 0 && (bzCalendarStore.pagedResults()[0].name || bzCalendarStore.pagedResults()[0].ticker)) {
+    <div class="company-header">
+      <h2 class="company-title-inline">
+        @if (bzCalendarStore.pagedResults()[0].name) {
+          {{ bzCalendarStore.pagedResults()[0].name }}
+        }
+        @if (bzCalendarStore.pagedResults()[0].ticker) {
+          ({{ bzCalendarStore.pagedResults()[0].ticker }})
+        }
+      </h2>
+    </div>
+  }
 </div>
 
 
@@ -34,20 +46,9 @@
           </td>
         </ng-container>
       }
+
       <tr mat-header-row *matHeaderRowDef="columnKeys()"></tr>
-      <tr mat-row *matRowDef="let row; columns: columnKeys()" 
-          [class.row-with-company]="row.name || row.ticker">
-        @if (row.name || row.ticker) {
-          <div class="company-header">
-            <h2 class="company-title-inline">
-              {{ row.name }}
-              @if (row.ticker) {
-                ({{ row.ticker }})
-              }
-            </h2>
-          </div>
-        }
-      </tr>
+      <tr mat-row *matRowDef="let row; columns: columnKeys()"></tr>
     </table>
 
   </div>

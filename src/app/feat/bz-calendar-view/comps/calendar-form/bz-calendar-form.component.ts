@@ -56,7 +56,7 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
  */
 searchForm = new FormGroup({
   calendarType: new FormControl(this.bzCalendarStore.selectedEndpoint(), Validators.required),
-  ticker: new FormControl('', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]),
+  tickers: new FormControl('', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]),
   startDate: new FormControl(this.getDefaultStartDate(), Validators.required),
   endDate: new FormControl(new Date(), Validators.required),
   // Dividend-specific fields (conditionally enabled)
@@ -115,7 +115,7 @@ searchForm = new FormGroup({
       this.searchForm.markAllAsTouched();
       return;
     }
-    const { calendarType, ticker, startDate, endDate, sort, pagesize, importance, updated, dividendYieldOperation, dividendYield, dateSort } = this.searchForm.value;
+    const { calendarType, tickers, startDate, endDate, sort, pagesize, importance, updated, dividendYieldOperation, dividendYield, dateSort } = this.searchForm.value;
     // Defensive: ensure dates are Date objects
     if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
       // Optionally, show error
@@ -142,9 +142,8 @@ searchForm = new FormGroup({
       params['parameters[updated]'] = typeof updated === 'number' ? updated : Math.floor(new Date(updated).getTime() / 1000);
     }
     // Only include ticker/tickers if endpoint metadata params includes ticker
-    if (endpointMeta?.params.some(p => p === BenzingaCalendarParam.TICKER)) {
-      params.ticker = ticker?.toUpperCase();
-      params.tickers = ticker?.toUpperCase();
+    if (endpointMeta?.params.some(p => p === BenzingaCalendarParam.TICKERS)) {
+      params.tickers = tickers?.toUpperCase();
     }
     // If dividends, include dividend-specific params if filled
     if (calendarType === BenzingaEndpoint.DIVIDENDS) {

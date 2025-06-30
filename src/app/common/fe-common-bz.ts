@@ -441,7 +441,7 @@ export enum BenzingaCalendarParam {
     RATINGS_ACTION = 'ratingsAction',
     START_DATE = 'startDate',
     END_DATE = 'endDate',
-    TICKER = 'ticker',
+    TICKERS = 'tickers',
     PAGESIZE = 'pagesize',
     IMPORTANCE = 'importance',
     UPDATED = 'updated',
@@ -455,7 +455,7 @@ export enum BenzingaCalendarParamApiKey {
     RATINGS_ACTION = 'ratings_action',
     START_DATE = 'start_date',
     END_DATE = 'end_date',
-    TICKER = 'ticker',
+    TICKERS = 'tickers',
     PAGESIZE = 'pagesize',
     IMPORTANCE = 'importance',
     UPDATED = 'updated',
@@ -469,7 +469,7 @@ export enum BenzingaCalendarParamFormField {
     RATINGS_ACTION = 'ratingsAction',
     START_DATE = 'startDate',
     END_DATE = 'endDate',
-    TICKER = 'ticker',
+    TICKERS = 'tickers',
     PAGESIZE = 'pagesize',
     IMPORTANCE = 'importance',
     UPDATED = 'updated',
@@ -510,9 +510,9 @@ export const END_DATE_PARAM_META: BenzingaCalendarParamMetadata = {
     label: 'End Date'
 };
 
-export const TICKER_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.TICKER,
-    formControlName: BenzingaCalendarParamFormField.TICKER,
+export const TICKERS_PARAM_META: BenzingaCalendarParamMetadata = {
+    apiKey: BenzingaCalendarParamApiKey.TICKERS,
+    formControlName: BenzingaCalendarParamFormField.TICKERS,
     type: 'text',
     label: 'Ticker Symbol',
     placeholder: 'e.g. NVDA'
@@ -606,7 +606,7 @@ export const BENZINGA_PARAM_META_MAP: Record<BenzingaCalendarParam, BenzingaCale
     [BenzingaCalendarParam.RATINGS_ACTION]: RATINGS_ACTION_PARAM_META,
     [BenzingaCalendarParam.START_DATE]: START_DATE_PARAM_META,
     [BenzingaCalendarParam.END_DATE]: END_DATE_PARAM_META,
-    [BenzingaCalendarParam.TICKER]: TICKER_PARAM_META,
+    [BenzingaCalendarParam.TICKERS]: TICKERS_PARAM_META,
     [BenzingaCalendarParam.PAGESIZE]: PAGESIZE_PARAM_META,
     [BenzingaCalendarParam.IMPORTANCE]: IMPORTANCE_PARAM_META,
     [BenzingaCalendarParam.UPDATED]: UPDATED_PARAM_META,
@@ -636,7 +636,7 @@ const earningsMeta: BenzingaEndpointMetadata = {
     columns: bzEarningsCalendarColumns,
     params: [
         ...baseParams,
-        BenzingaCalendarParam.TICKER,
+        BenzingaCalendarParam.TICKERS,
     ],
     responseKey: 'earnings'  // Actual response key from API
 };
@@ -649,7 +649,7 @@ const dividendsMeta: BenzingaEndpointMetadata = {
     columns: bzDividendsCalendarColumns,
     params: [
         ...baseParams,
-        BenzingaCalendarParam.TICKER,
+        BenzingaCalendarParam.TICKERS,
         BenzingaCalendarParam.DIVIDEND_YIELD_OPERATION,
         BenzingaCalendarParam.DIVIDEND_YIELD,
         BenzingaCalendarParam.DATE_SORT,

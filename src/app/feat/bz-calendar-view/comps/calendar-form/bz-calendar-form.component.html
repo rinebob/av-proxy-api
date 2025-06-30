@@ -4,7 +4,7 @@
       @let endpointParams = bzCalendarStore.selectedEndpointMeta()?.params ?? [];
       @let benzingaCalendarParam = BenzingaCalendarParam;
       @let benzingaCalendarParamFormField = BenzingaCalendarParamFormField;
-      @let hasTicker = endpointParams.includes(benzingaCalendarParam.TICKER);
+      @let hasTicker = endpointParams.includes(BenzingaCalendarParam.TICKERS);
       @let hasStartDate = endpointParams.includes(benzingaCalendarParam.START_DATE);
       @let hasEndDate = endpointParams.includes(benzingaCalendarParam.END_DATE);
       
@@ -29,10 +29,10 @@
       }
       
       @if (hasTicker) {
-        @let meta = BENZINGA_PARAM_META_MAP[benzingaCalendarParam.TICKER];
+        @let meta = BENZINGA_PARAM_META_MAP[BenzingaCalendarParam.TICKERS];
         <mat-form-field appearance="outline">
           <mat-label>{{ meta.label }}</mat-label>
-          <input matInput [formControlName]="benzingaCalendarParamFormField.TICKER" [placeholder]="meta.placeholder ?? ''">
+          <input matInput [formControlName]="benzingaCalendarParamFormField.TICKERS" [placeholder]="meta.placeholder ?? ''">
         </mat-form-field>
       }
       
