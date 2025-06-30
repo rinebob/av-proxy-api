@@ -4,7 +4,5 @@ service cloud.firestore {
     match /stockData/{symbol} {
       allow read, create, update, delete: if request.auth != null;
     }
-
-    // Add other rules for other collections as needed
   }
 }
