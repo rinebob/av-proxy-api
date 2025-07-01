@@ -1,0 +1,27 @@
+.endpoint-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  row-gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.endpoint-btn {
+  background: #e3e6f0;
+  color: #222;
+  border: none;
+  border-radius: 0.3rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+
+  &.selected {
+    background: #1976d2;
+    color: #fff;
+  }
+  &:hover:not(.selected) {
+    background: #c5cae9;
+  }
+}

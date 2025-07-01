@@ -1,0 +1,12 @@
+<div class="endpoint-row">
+  @for (endpoint of endpoints; track endpoint.key) {
+    <button 
+      type="button"
+      class="endpoint-btn"
+      [class.selected]="selected() === endpoint.key"
+      [disabled]="endpoint.disabled"
+      (click)="selectEndpoint(endpoint.key)">
+      {{ endpoint.label }}
+    </button>
+  }
+</div>
