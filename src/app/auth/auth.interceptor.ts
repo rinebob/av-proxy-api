@@ -5,6 +5,7 @@ import { Observable, from, throwError } from 'rxjs';
 import { catchError, switchMap, take } from 'rxjs/operators';
 import { AuthService } from './auth.service';
 import { StockDataUrl } from '../common/fe-common-app';
+import { DataMaintainerBackendUrls } from '../feat/data-maintainer-view/common/fe-common-dm-api';
 
 export const authInterceptor: HttpInterceptorFn = (
   req: HttpRequest<unknown>,
@@ -12,7 +13,10 @@ export const authInterceptor: HttpInterceptorFn = (
 ) => {
   const authService = inject(AuthService);
   const router = inject(Router);
-  const backendUrls = Object.values(StockDataUrl);
+  const backendUrls = [
+    ...Object.values(StockDataUrl),
+    ...DataMaintainerBackendUrls
+  ];
 
   // Skip for non-backend requests
   if (!backendUrls.some(url => req.url.startsWith(url as string))) {
@@ -26,7 +30,7 @@ export const authInterceptor: HttpInterceptorFn = (
         router.navigate(['/login'], { 
           queryParams: { returnUrl: router.routerState.snapshot.url } 
         });
-        return throwError(() => new Error('No authentication token available'));
+        return throwError(() => new Error('authSvc aI No authentication token available'));
       }
 
       // Clone the request and add the authorization header
