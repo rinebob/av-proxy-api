@@ -1,8 +1,26 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Stock data collection (existing)
     match /stockData/{symbol} {
       allow read, create, update, delete: if request.auth != null;
+    }
+    
+    // Market data collection (new)
+    match /market_data/{symbol} {
+      // Allow reads for any authenticated user
+      allow read: if request.auth != null;
+      
+      // Only allow writes from backend (Cloud Functions)
+      allow write: if request.auth != null 
+        && request.auth.token.firebase.sign_in_provider == 'function';
+      
+      // Data points subcollection
+      match /data_points/{endpoint} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null 
+          && request.auth.token.firebase.sign_in_provider == 'function';
+      }
     }
   }
 }
