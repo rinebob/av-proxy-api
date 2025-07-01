@@ -24,6 +24,13 @@ export class DataMaintainerViewComponent {
   fetchCompanyOverview() {
     this.dataMaintainerStore.fetchCompanyOverview();
   }
+
+  toggleMockData() {
+    console.log('DMV tMD toggling mock data:', !this.dataMaintainerStore.useMock());
+    this.dataMaintainerStore.toggleUseMock();
+    // Refresh data with the new mock setting
+    this.dataMaintainerStore.fetchCompanyOverview();
+  }
 }
 
 

@@ -14,6 +14,7 @@ export interface DataMaintainerState {
     error: string | null;
     results: DataMaintainerResultsMap;
     endpoint: DataMaintainerEndpoint;
+    useMock: boolean;
 }
 
 const initialState: DataMaintainerState = {
@@ -25,6 +26,7 @@ const initialState: DataMaintainerState = {
         // Add initial values for other endpoints as needed
     },
     endpoint: DataMaintainerEndpoint.COMPANY_OVERVIEW,
+    useMock: true, // Default to using mock data
 };
 
 export const DataMaintainerStore = signalStore(
@@ -33,6 +35,7 @@ export const DataMaintainerStore = signalStore(
     withProps((store) => ({
         endpoint$: toObservable(store.endpoint),
         results$: toObservable(store.results),
+        useMock$: toObservable(store.useMock),
     })),
     withMethods((
         store,
@@ -47,32 +50,35 @@ export const DataMaintainerStore = signalStore(
             patchState(store, { endpoint });
         },
 
+        toggleUseMock() {
+            patchState(store, { useMock: !store.useMock() });
+        },
+
         fetchCompanyOverview() {
             patchState(store, {
                 loading: true,
                 error: null,
-                results: {
-                    ...store.results(),
-                    [DataMaintainerEndpoint.COMPANY_OVERVIEW]: null
-                }
             });
 
-            dataService.fetchCompanyOverview(store.symbol()).subscribe({
-                next: (data: AvCompanyOverviewResponse) => {
-                    patchState(store, {
-                        results: {
-                            ...store.results(),
-                            [DataMaintainerEndpoint.COMPANY_OVERVIEW]: data
-                        }
-                    });
-                },
-                error: (err: any) => {
-                    patchState(store, { error: err?.message || 'Request failed' });
-                },
-                complete: () => {
-                    patchState(store, { loading: false });
-                },
-            });
+            dataService
+                .fetchCompanyOverview(store.symbol(), store.useMock())
+                .subscribe({
+                    next: (response) => {
+                        patchState(store, {
+                            results: {
+                                ...store.results(),
+                                [DataMaintainerEndpoint.COMPANY_OVERVIEW]: response,
+                            },
+                            loading: false,
+                        });
+                    },
+                    error: (error) => {
+                        patchState(store, {
+                            error: error.message,
+                            loading: false,
+                        });
+                    },
+                });
         },
     })),
 

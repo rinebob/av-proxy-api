@@ -4,6 +4,17 @@
   <div class="test-controls">
     <span>Symbol: <strong>{{ dataMaintainerStore.symbol() }}</strong></span>
     <button (click)="fetchCompanyOverview()" [disabled]="dataMaintainerStore.loading()">Fetch</button>
+    
+    <div class="mock-toggle">
+      <label class="switch">
+        <input 
+          type="checkbox" 
+          [checked]="dataMaintainerStore.useMock()" 
+          (change)="toggleMockData()">
+        <span class="slider round"></span>
+      </label>
+      <span class="mock-label">Use Mock Data</span>
+    </div>
   </div>
   @defer (when dataMaintainerStore.results()[DataMaintainerEndpoint.COMPANY_OVERVIEW]) {
     <pre>{{ dataMaintainerStore.results()[DataMaintainerEndpoint.COMPANY_OVERVIEW] | json }}</pre>
