@@ -166,7 +166,7 @@ export enum AlphaVantageFunction {
     GLOBAL_QUOTE = 'GLOBAL_QUOTE', // This is the one you're using now
 
     // Fundamental Data
-    OVERVIEW = 'OVERVIEW',
+    COMPANY_OVERVIEW = 'OVERVIEW',
     INCOME_STATEMENT = 'INCOME_STATEMENT',
     BALANCE_SHEET = 'BALANCE_SHEET',
     CASH_FLOW = 'CASH_FLOW',
