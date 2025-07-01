@@ -15,6 +15,8 @@ export interface DataMaintainerState {
     results: DataMaintainerResultsMap;
     endpoint: DataMaintainerEndpoint;
     useMock: boolean;
+    mockDataAvailable: boolean;
+    awaitingUserDecision: boolean;
 }
 
 const initialState: DataMaintainerState = {
@@ -27,6 +29,8 @@ const initialState: DataMaintainerState = {
     },
     endpoint: DataMaintainerEndpoint.COMPANY_OVERVIEW,
     useMock: true, // Default to using mock data
+    mockDataAvailable: true, // Will be updated based on symbol
+    awaitingUserDecision: false, // True when waiting for user to confirm real API call
 };
 
 export const DataMaintainerStore = signalStore(
@@ -36,6 +40,7 @@ export const DataMaintainerStore = signalStore(
         endpoint$: toObservable(store.endpoint),
         results$: toObservable(store.results),
         useMock$: toObservable(store.useMock),
+        awaitingUserDecision$: toObservable(store.awaitingUserDecision),
     })),
     withMethods((
         store,
@@ -43,7 +48,14 @@ export const DataMaintainerStore = signalStore(
     ) => ({
 
         setSymbol(symbol: string) {
-            patchState(store, { symbol });
+            // Check if we have mock data for this symbol
+            const mockDataAvailable = symbol === 'NVDA'; // For now, only NVDA has mock data
+            patchState(store, { 
+                symbol,
+                mockDataAvailable,
+                // Reset user decision state when symbol changes
+                awaitingUserDecision: false 
+            });
         },
 
         setEndpoint(endpoint: DataMaintainerEndpoint) {
@@ -54,14 +66,23 @@ export const DataMaintainerStore = signalStore(
             patchState(store, { useMock: !store.useMock() });
         },
 
-        fetchCompanyOverview() {
+        async fetchCompanyOverview() {
+            const { symbol, useMock, mockDataAvailable } = store;
+            
+            // If using mock data but it's not available, set awaiting decision and return
+            if (useMock() && !mockDataAvailable()) {
+                patchState(store, { awaitingUserDecision: true });
+                return;
+            }
+
+            // Proceed with the fetch
             patchState(store, {
                 loading: true,
                 error: null,
             });
 
             dataService
-                .fetchCompanyOverview(store.symbol(), store.useMock())
+                .fetchCompanyOverview(symbol(), useMock())
                 .subscribe({
                     next: (response) => {
                         patchState(store, {
@@ -70,19 +91,40 @@ export const DataMaintainerStore = signalStore(
                                 [DataMaintainerEndpoint.COMPANY_OVERVIEW]: response,
                             },
                             loading: false,
+                            // Reset decision state after successful fetch
+                            awaitingUserDecision: false
                         });
                     },
                     error: (error) => {
                         patchState(store, {
                             error: error.message,
                             loading: false,
+                            // Reset decision state on error
+                            awaitingUserDecision: false
                         });
                     },
                 });
+        },
+        
+        // Call this when user approves using real API
+        confirmUseRealData() {
+            patchState(store, {
+                useMock: false,
+                awaitingUserDecision: false
+            });
+            // Retry the fetch with real data
+            this.fetchCompanyOverview();
+        },
+        
+        // Call this when user cancels the operation
+        cancelRealDataRequest() {
+            patchState(store, {
+                awaitingUserDecision: false,
+                loading: false
+            });
         },
     })),
 
 
 );
-
 

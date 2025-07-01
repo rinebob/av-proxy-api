@@ -19,6 +19,44 @@
     padding: 1rem 1.5rem;
     border-radius: 0.5rem;
     box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    flex-wrap: wrap;
+    
+    .symbol-input {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      
+      label {
+        font-weight: 500;
+        color: #333;
+        white-space: nowrap;
+      }
+      
+      .symbol-textbox {
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.3rem;
+        font-size: 1rem;
+        min-width: 150px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        
+        &:focus {
+          outline: none;
+          border-color: #1976d2;
+          box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.25);
+        }
+        
+        &:disabled {
+          background-color: #e9ecef;
+          cursor: not-allowed;
+        }
+        
+        &::placeholder {
+          color: #6c757d;
+          opacity: 0.6;
+        }
+      }
+    }
   }
 
   button {

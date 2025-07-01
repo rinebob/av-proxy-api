@@ -2,15 +2,33 @@
   <h1>Test Data Maintainer Endpoints</h1>
   <app-endpoint-selector-row />
   <div class="test-controls">
-    <span>Symbol: <strong>{{ dataMaintainerStore.symbol() }}</strong></span>
-    <button (click)="fetchCompanyOverview()" [disabled]="dataMaintainerStore.loading()">Fetch</button>
+    <div class="symbol-input">
+      <label for="symbol">Symbol:</label>
+      <input 
+        id="symbol"
+        type="text" 
+        [value]="dataMaintainerStore.symbol()"
+        (input)="onSymbolChange($event)"
+        [disabled]="dataMaintainerStore.loading()"
+        placeholder="Enter stock symbol (e.g., NVDA)"
+        class="symbol-textbox"
+      >
+    </div>
+    
+    <button 
+      (click)="fetchCompanyOverview()" 
+      [disabled]="dataMaintainerStore.loading() || !dataMaintainerStore.symbol()"
+      class="fetch-button"
+    >
+      Fetch
+    </button>
     
     <div class="mock-toggle">
       <label class="switch">
         <input 
           type="checkbox" 
           [checked]="dataMaintainerStore.useMock()" 
-          (change)="toggleMockData()">
+          (change)="toggleMockData($event)">
         <span class="slider round"></span>
       </label>
       <span class="mock-label">Use Mock Data</span>
