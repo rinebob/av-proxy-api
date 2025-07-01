@@ -1,4 +1,20 @@
 <section class="data-maintainer-view">
-  <h1>Data Maintainer</h1>
-  <p>This is the Data Maintainer dashboard. Future UI for managing backend data maintenance will go here.</p>
+  <h1>Test Data Maintainer Endpoints</h1>
+  <app-endpoint-selector-row />
+  <div class="test-controls">
+    <span>Symbol: <strong>{{ dataMaintainerStore.symbol() }}</strong></span>
+    <button (click)="fetchCompanyOverview()" [disabled]="dataMaintainerStore.loading()">Fetch</button>
+  </div>
+  @defer (when dataMaintainerStore.results()[DataMaintainerEndpoint.COMPANY_OVERVIEW]) {
+    <pre>{{ dataMaintainerStore.results()[DataMaintainerEndpoint.COMPANY_OVERVIEW] | json }}</pre>
+  }
+  @loading {
+    <div>Loading...</div>
+  }
+  @error {
+    <div class="error">{{ dataMaintainerStore.error() }}</div>
+  }
+  @placeholder {
+    <div>Click Fetch to load data.</div>
+  }
 </section>

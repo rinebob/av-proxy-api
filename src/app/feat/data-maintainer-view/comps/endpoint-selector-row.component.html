@@ -3,7 +3,7 @@
     <button 
       type="button"
       class="endpoint-btn"
-      [class.selected]="selected() === endpoint.key"
+      [class.selected]="dataMaintainerStore.endpoint() === endpoint.key"
       [disabled]="endpoint.disabled"
       (click)="selectEndpoint(endpoint.key)">
       {{ endpoint.label }}
