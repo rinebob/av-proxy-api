@@ -1,0 +1,11 @@
+<h2 mat-dialog-title>Mock Data Not Available</h2>
+<mat-dialog-content>
+  <p>Mock data is not available for <strong>{{ data.symbol }}</strong>.</p>
+  <p>Would you like to use real Alpha Vantage API data instead? This will consume an API credit.</p>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button (click)="onNoClick()">Cancel</button>
+  <button mat-button color="primary" (click)="onConfirm()" cdkFocusInitial>
+    Use Real Data
+  </button>
+</mat-dialog-actions>

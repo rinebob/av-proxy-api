@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatDialogModule } from '@angular/material/dialog';
 
 @NgModule({
   imports: [
@@ -19,7 +20,8 @@ import { MatDividerModule } from '@angular/material/divider';
     MatInputModule,
     MatProgressSpinnerModule,
     MatTabsModule,
-    MatDividerModule
+    MatDividerModule,
+    MatDialogModule
   ],
   exports: [
     MatButtonModule,
@@ -29,7 +31,8 @@ import { MatDividerModule } from '@angular/material/divider';
     MatInputModule,
     MatProgressSpinnerModule,
     MatTabsModule,
-    MatDividerModule
+    MatDividerModule,
+    MatDialogModule
   ]
 })
 export class MaterialModule { }
