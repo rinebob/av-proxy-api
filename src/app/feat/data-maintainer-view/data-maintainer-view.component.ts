@@ -3,9 +3,11 @@ import { CommonModule } from '@angular/common';
 import { JsonPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { EndpointSelectorRowComponent } from './comps/endpoint-selector-row.component';
-import { DataMaintainerEndpoint } from './common/fe-common-dm';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged, takeUntil } from 'rxjs/operators';
 import { DataMaintainerStore } from './data-maintainer.store';
+import { DataMaintainerEndpoint } from './common/fe-common-dm';
+import { EndpointSelectorRowComponent } from './comps/endpoint-selector-row.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -25,21 +27,21 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 export class DataMaintainerViewComponent {
   public readonly DataMaintainerEndpoint = DataMaintainerEndpoint;
   public dataMaintainerStore = inject(DataMaintainerStore);
-  private dialog = inject(MatDialog);
   private destroyRef = inject(DestroyRef);
-
-  onSymbolChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const symbol = input.value.trim().toUpperCase();
-    this.dataMaintainerStore.setSymbol(symbol);
-  }
-
-  setSymbol(symbol: string) {
-    this.dataMaintainerStore.setSymbol(symbol);
-  }
+  private dialog = inject(MatDialog);
+  
+  private symbolInput$ = new Subject<string>();
 
   ngOnInit() {
-    // Subscribe to store state changes with auto-cleanup
+    // Set up debounced symbol input
+    this.symbolInput$.pipe(
+      debounceTime(300),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(symbol => {
+      this.dataMaintainerStore.setSymbol(symbol);
+    });
+
+    // Subscribe to store state changes
     this.dataMaintainerStore.awaitingUserDecision$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((awaitingDecision: boolean) => {
@@ -47,6 +49,12 @@ export class DataMaintainerViewComponent {
           this.showConfirmationDialog();
         }
       });
+  }
+
+  onSymbolChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const symbol = input.value.trim().toUpperCase();
+    this.symbolInput$.next(symbol);
   }
 
   fetchCompanyOverview() {
