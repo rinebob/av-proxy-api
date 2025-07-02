@@ -1,4 +1,5 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { DataMaintainerEndpoint } from './common-dm';
 
 /////////// ENUMS ///////////////////////
 
@@ -285,4 +286,20 @@ export interface AvCompanyOverviewResponse {
   symbol: string;
   endpoint: string;
   data: AvCompanyOverview;
+  dataSource: 'mock' | 'alpha_vantage';
+  timestamp: string;
+}
+
+export interface CheckMockDataRequest {
+  symbol: string;
+  endpoint: DataMaintainerEndpoint;
+}
+
+export interface CheckMockDataResponse {
+  hasMockData: boolean;
+  endpoint: DataMaintainerEndpoint;
+  symbol: string;
+  availableEndpoints?: string[];
+  availableSymbols?: string[];
+  error?: string;
 }

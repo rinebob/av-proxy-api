@@ -7,18 +7,24 @@ console.log('\n\n\n=== dude - fetchAndStoreData.ts LOADED - VERSION 1.0.2 ===\n\
 // Version identifier - increment with each deployment
 const VERSION = '1.0.2';
 
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest } from 'firebase-functions/v2/https';
+import { authenticateRequest } from '../utils';
+import { MARKET_DATA } from "../common/firestore-collections";
+import { AvCompanyOverviewHandler } from './api-handlers/av-company-overview';
+import { DataMaintainerEndpoint } from '../common/common-dm';
+import { mockDataService, registerAllMockData } from './mock-data';
 import { db } from "../firebase-admin-init";
+
+// Initialize mock data on module load
+console.log('Initializing mock data...');
+registerAllMockData();
+console.log('Mock data initialization complete');
 
 interface RequestBody {
   symbol?: string;
   endpoint?: string;
   useMock?: boolean;
 }
-import { MARKET_DATA } from "../common/firestore-collections";
-import { AvCompanyOverviewHandler } from './api-handlers/av-company-overview';
-import { authenticateRequest } from '../utils';
-import { getMockCompanyOverview } from './mock-data/company-overview.mock';
 /**
  * fetchAndStoreData Cloud Function
  *
@@ -27,10 +33,9 @@ import { getMockCompanyOverview } from './mock-data/company-overview.mock';
  * - Will set lastUpdated, nextRefreshAt, ttlSeconds, status, data, errorDetails
  * - For now, this is just a stub for review
  */
-export const fetchAndStoreData = onRequest({
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-  cors: true
-}, async (req, res) => {
+export const fetchAndStoreData = onRequest(
+  { secrets: ['ALPHAVANTAGE_API_KEY'], cors: true },
+  async (req, res) => {
   console.log('--------- fn fASD fetchAndStoreData ----------------------.')
   console.log(`fn fASD fetchAndStoreData v${VERSION} triggered.`);
   try {
@@ -68,27 +73,48 @@ export const fetchAndStoreData = onRequest({
       res.status(400).json({ error: 'Only company-overview endpoint is supported in this version.' });
       return;
     }
-    // Use the mock data flag from the request
-    const useMockData = Boolean(useMock);
-    console.log(`fn fASD Will use mock data: ${useMockData} (after Boolean conversion)`);
+    let data: any = null;
     
-    let data: any;
-    
-    if (useMockData) {
-      console.log(`fn fASD Using MOCK data for symbol=${symbol}`);
-      const mockData = getMockCompanyOverview(symbol);
-      if (!mockData) {
-        throw new Error(`No mock data available for symbol: ${symbol}`);
+    // Check for mock data first if useMock is true
+    if (useMock) {
+      console.log(`fn fASD Checking for mock data for symbol=${symbol}, endpoint=${endpoint}`);
+      
+      if (!mockDataService.has(endpoint as DataMaintainerEndpoint, symbol)) {
+        const errorMsg = `No mock data available for symbol=${symbol}, endpoint=${endpoint}. ` +
+                        `Use useMock=false to fetch real data.`;
+        console.error(`fn fASD ${errorMsg}`);
+        res.status(404).json({ 
+          error: errorMsg,
+          availableEndpoints: Array.from(mockDataService.getEndpoints()),
+          availableSymbols: mockDataService.getSymbols(endpoint as DataMaintainerEndpoint)
+        });
+        return;
       }
-      data = mockData;
+      
+      const mockData = mockDataService.get(endpoint as DataMaintainerEndpoint, symbol);
+      if (mockData) {
+        console.log(`fn fASD Using MOCK data for symbol=${symbol}, endpoint=${endpoint}`);
+        data = mockData;
+      } else {
+        const errorMsg = `Failed to load mock data for symbol=${symbol}, endpoint=${endpoint}`;
+        console.error(`fn fASD ${errorMsg}`);
+        res.status(500).json({ error: errorMsg });
+        return;
+      }
     } else {
       // Fetch real data from Alpha Vantage
-      console.log(`fn fASD Fetching REAL data for symbol=${symbol}`);
-      const handler = new AvCompanyOverviewHandler();
-      data = await handler.fetchAndTransform(symbol);
+      console.log(`fn fASD Fetching REAL data for symbol=${symbol}, endpoint=${endpoint}`);
+      
+      // Use the appropriate handler based on the endpoint
+      if (endpoint === DataMaintainerEndpoint.COMPANY_OVERVIEW) {
+        const handler = new AvCompanyOverviewHandler();
+        data = await handler.fetchAndTransform(symbol);
+      } else {
+        throw new Error(`Unsupported endpoint: ${endpoint}`);
+      }
     }
     
-    console.log(`fn fASD Data ${useMockData ? 'mock ' : ''}fetched for symbol=${symbol}:`, data);
+    console.log(`fn fASD Data ${useMock ? 'mock ' : ''}fetched for symbol=${symbol}:`, data);
     // Save to Firestore
     const docRef = db.collection(MARKET_DATA)
       .doc(symbol)
@@ -108,7 +134,14 @@ export const fetchAndStoreData = onRequest({
     console.log(`fn fASD Saving to Firestore:`, { symbol, endpoint });
     await docRef.set(updateData, { merge: true });
     console.log(`fn fASD Successfully saved to Firestore for ${symbol}/${endpoint}`);
-    res.status(200).json({ ok: true, symbol, endpoint, data });
+    res.status(200).json({ 
+      ok: true, 
+      symbol, 
+      endpoint, 
+      data,
+      dataSource: useMock ? 'mock' : 'alpha_vantage',
+      timestamp: new Date().toISOString()
+    });
     console.log(`fn fASD Response sent for symbol=${symbol}, endpoint=${endpoint}`);
   } catch (error: any) {
     console.error(`fn fASD ERROR:`, error);

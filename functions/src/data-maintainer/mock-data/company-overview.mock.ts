@@ -1,10 +1,10 @@
-import { AvCompanyOverview, AvCompanyOverviewResponse } from '../../common/common-av';
+import { AvCompanyOverview } from '../../common/common-av';
 
 /**
  * Mock company overview data for development/testing
  * Matches the structure of Alpha Vantage's COMPANY_OVERVIEW response
  */
-const MOCK_COMPANY_OVERVIEW_DATA: Record<string, AvCompanyOverview> = {
+export const MOCK_COMPANY_OVERVIEW_DATA: Record<string, AvCompanyOverview> = {
   'NVDA': {
     Symbol: 'NVDA',
     AssetType: 'Common Stock',
@@ -178,20 +178,7 @@ const MOCK_COMPANY_OVERVIEW_DATA: Record<string, AvCompanyOverview> = {
   }
 } as const;
 
-/**
- * Get mock company overview data for a symbol
- * @param symbol Stock symbol (e.g., 'NVDA', 'AAPL')
- * @returns Mock company overview data or undefined if not found
- */
-export function getMockCompanyOverview(symbol: string): AvCompanyOverviewResponse | undefined {
-  const symbolUpper = symbol.toUpperCase();
-  const overview = MOCK_COMPANY_OVERVIEW_DATA[symbolUpper as keyof typeof MOCK_COMPANY_OVERVIEW_DATA];
-  if (!overview) return undefined;
-  
-  return {
-    ok: true,
-    symbol: symbolUpper,
-    endpoint: 'company-overview',
-    data: overview
-  };
-}
+// This file should be imported and registered in a central location
+// Example usage in an index.ts file:
+// import { MOCK_COMPANY_OVERVIEW_DATA } from './company-overview.mock';
+// mockDataService.registerBulk(DataMaintainerEndpoint.COMPANY_OVERVIEW, MOCK_COMPANY_OVERVIEW_DATA);
