@@ -2,8 +2,16 @@ import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { AvCompanyOverviewResponse, DataMaintainerFunctionName, getDataMaintainerFunctionUrl } from './common/fe-common-dm-api';
+import { ApiResponse, AvCompanyOverviewResponse, DataMaintainerFunctionName, getDataMaintainerFunctionUrl } from './common/fe-common-dm-api';
 import { DataMaintainerEndpoint } from './common/fe-common-dm';
+
+export type CompanyOverviewData = ApiResponse<AvCompanyOverviewResponse['data']>;
+
+export interface CheckMockDataResponse {
+  hasMockData: boolean;
+  endpoint: DataMaintainerEndpoint;
+  symbol: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class DataMaintainerDataService {
@@ -27,8 +35,37 @@ export class DataMaintainerDataService {
       requestData
     ).pipe(
       tap({
-        next: (response) => console.log('DMV fCO Received response:', response ? 'Response received' : 'Empty response'),
+        next: (response) => {
+          console.log('DMV fCO Received response:', response ? {
+            ok: response.ok,
+            symbol: response.symbol,
+            endpoint: response.endpoint,
+            data: response.data ? '[data exists]' : 'no data'
+          } : 'Empty response');
+        },
         error: (error) => console.error('DMV fCO Error:', error)
+      })
+    );
+  }
+
+  /**
+   * Checks if mock data is available for a given symbol and endpoint
+   * @param symbol The stock symbol to check
+   * @param endpoint The endpoint to check
+   * @returns Observable with the check result
+   */
+  checkMockData(symbol: string, endpoint: DataMaintainerEndpoint): Observable<CheckMockDataResponse> {
+    const requestData = { symbol, endpoint };
+    
+    console.log('DMV cMD Checking mock data for:', JSON.stringify(requestData, null, 2));
+    
+    // Get the URL for the checkMockData function
+    const url = getDataMaintainerFunctionUrl(DataMaintainerFunctionName.CHECK_MOCK_DATA);
+    
+    return this.http.post<CheckMockDataResponse>(url, requestData).pipe(
+      tap({
+        next: (response) => console.log('DMV cMD Mock data check result:', response),
+        error: (error) => console.error('DMV cMD Error checking mock data:', error)
       })
     );
   }

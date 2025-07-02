@@ -7,11 +7,13 @@ import { environment } from '../../../../environments/environment';
 
 export enum DataMaintainerFunctionName {
   FETCH_AND_STORE_DATA = 'fetchAndStoreData',
+  CHECK_MOCK_DATA = 'checkMockData',
 }
 
 // Production URLs for each Data Maintainer Cloud Function
 const DM_PROD_URLS = {
   [DataMaintainerFunctionName.FETCH_AND_STORE_DATA]: 'https://fetchandstoredata-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.CHECK_MOCK_DATA]: 'https://checkmockdata-lsluydmucq-uc.a.run.app',
 } as const;
 
 // Development URL base
@@ -22,7 +24,9 @@ const DM_DEV_URL_BASE = 'http://localhost:5001/alpha-vantage-proxy-api/us-centra
  */
 export const DataMaintainerBackendUrls = [
   DM_PROD_URLS[DataMaintainerFunctionName.FETCH_AND_STORE_DATA],
-  `${DM_DEV_URL_BASE}/${DataMaintainerFunctionName.FETCH_AND_STORE_DATA}`
+  DM_PROD_URLS[DataMaintainerFunctionName.CHECK_MOCK_DATA],
+  `${DM_DEV_URL_BASE}/${DataMaintainerFunctionName.FETCH_AND_STORE_DATA}`,
+  `${DM_DEV_URL_BASE}/${DataMaintainerFunctionName.CHECK_MOCK_DATA}`
 ];
 
 /**
@@ -100,11 +104,22 @@ export interface AvCompanyOverview {
   ExDividendDate: string;
 }
 
+export interface ApiResponse<T> {
+  ok: boolean;
+  symbol: string;
+  endpoint: string;
+  data: T;
+  dataSource: 'mock' | 'alpha_vantage';
+  timestamp: string;
+}
+
 export interface AvCompanyOverviewResponse {
   ok: boolean;
   symbol: string;
   endpoint: string;
   data: AvCompanyOverview;
+  dataSource: 'mock' | 'alpha_vantage';
+  timestamp: string;
 }
 
 ///////////////////////////////////////////////////////////////////

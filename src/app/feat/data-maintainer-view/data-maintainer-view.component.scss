@@ -84,6 +84,51 @@
     margin-top: 1rem;
   }
 
+  .data-source-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1rem 0 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.5rem;
+    background-color: #e8f5e9; // Light green by default for real data
+    border-left: 4px solid #4caf50; // Green border for real data
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #2e7d32;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    width: 100%;
+    box-sizing: border-box;
+
+    &.mock {
+      background-color: #fff3e0; // Light orange for mock data
+      border-left-color: #ff9800; // Orange border for mock data
+      color: #e65100;
+    }
+
+    .data-source-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 1rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background-color: #4caf50; // Green for real data
+      color: white;
+      
+      .mock & {
+        background-color: #ff9800; // Orange for mock data
+      }
+    }
+
+    .data-source-timestamp {
+      font-size: 0.8rem;
+      opacity: 0.9;
+    }
+  }
+
   .mock-toggle {
     display: flex;
     align-items: center;

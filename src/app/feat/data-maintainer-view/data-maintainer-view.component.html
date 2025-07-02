@@ -35,6 +35,14 @@
     </div>
   </div>
   @defer (when dataMaintainerStore.results()[DataMaintainerEndpoint.COMPANY_OVERVIEW]) {
+    <div class="data-source-info" [class.mock]="dataMaintainerStore.dataSourceInfo()[DataMaintainerEndpoint.COMPANY_OVERVIEW]?.type === 'mock'">
+      <span class="data-source-badge">
+        {{ dataMaintainerStore.dataSourceInfo()[DataMaintainerEndpoint.COMPANY_OVERVIEW]?.type === 'mock' ? 'Mock Data' : 'Real Data' }}
+      </span>
+      <span class="data-source-timestamp" *ngIf="dataMaintainerStore.dataSourceInfo()[DataMaintainerEndpoint.COMPANY_OVERVIEW]?.timestamp">
+        ({{ dataMaintainerStore.dataSourceInfo()[DataMaintainerEndpoint.COMPANY_OVERVIEW]?.timestamp | date:'medium' }})
+      </span>
+    </div>
     <pre>{{ dataMaintainerStore.results()[DataMaintainerEndpoint.COMPANY_OVERVIEW] | json }}</pre>
   }
   @loading {
