@@ -8,12 +8,13 @@ console.log('\n\n\n=== dude - fetchAndStoreData.ts LOADED - VERSION 1.0.2 ===\n\
 const VERSION = '1.0.2';
 
 import { onRequest } from 'firebase-functions/v2/https';
-import { authenticateRequest } from '../utils';
-import { MARKET_DATA } from "../common/firestore-collections";
-import { AvCompanyOverviewHandler } from './api-handlers/av-company-overview';
 import { DataMaintainerEndpoint } from '../common/common-dm';
+import { AvCompanyOverviewHandler } from './api-handlers/av-company-overview';
+import { Timestamp } from 'firebase-admin/firestore';
+import { db } from '../firebase-admin-init';
+import { MARKET_DATA, DATA_POINTS } from '../common/firestore-collections';
 import { mockDataService, registerAllMockData } from './mock-data';
-import { db } from "../firebase-admin-init";
+import { authenticateRequest } from '../utils';
 
 // Initialize mock data on module load
 console.log('Initializing mock data...');
@@ -118,18 +119,27 @@ export const fetchAndStoreData = onRequest(
     // Save to Firestore
     const docRef = db.collection(MARKET_DATA)
       .doc(symbol)
-      .collection('data_points')
+      .collection(DATA_POINTS)
       .doc(endpoint);
     
+    // Create a clean data object by spreading the data properties directly
+    // This avoids circular reference issues with the raw API response
     const updateData = {
-      data,
-      lastUpdated: new Date(),
+      ...data,  // Spread the data properties at the root level
+      lastUpdated: Timestamp.now(),
       status: 'success',
       symbol,
       endpoint,
-      nextRefreshAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+      nextRefreshAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
       ttlSeconds: 24 * 60 * 60 // 24 hours in seconds
     };
+    
+    // Remove any undefined or null values that might cause Firestore issues
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined || updateData[key] === null) {
+        delete updateData[key];
+      }
+    });
     
     console.log(`fn fASD Saving to Firestore:`, { symbol, endpoint });
     await docRef.set(updateData, { merge: true });
