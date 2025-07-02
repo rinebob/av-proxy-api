@@ -58,8 +58,10 @@ export const fetchAndStoreData = onRequest(
       requestBody = req.body || {};
     }
 
-    // Get useMock flag from request, default to true if not provided
-    const useMock = requestBody?.useMock ?? req.query?.useMock ?? true;
+    // Only allow mock data in emulator environment
+    const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
+    // Default to false in production, true in emulator if not specified
+    const useMock = isEmulator ? (requestBody?.useMock ?? req.query?.useMock ?? true) : false;
     
     console.log('fn fASD Raw request body:', req.body);
     console.log('fn fASD Parsed request body:', requestBody);

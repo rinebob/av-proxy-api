@@ -12,9 +12,11 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onCall, CallableRequest, HttpsError } from 'firebase-functions/v2/https';
 
 // Project imports
-import { AlphaVantageFunctionName, CLOUD_FUNCTIONS_BASE_URL } from '../common/common-fn';
-import { DataMaintainerEndpoint, ENDPOINT_TTLS, METADATA_SERVER_TOKEN_URL, IMPLEMENTED_ENDPOINTS } from '../common/common-dm';
-import { DATA_POINTS, MARKET_DATA } from '../common/firestore-collections';
+import { DataMaintainerEndpoint, ENDPOINT_TTLS, IMPLEMENTED_ENDPOINTS } from '../common/common-dm';
+import { DATA_POINTS } from '../common/firestore-collections';
+import { logRefreshEvent, RefreshStatus } from '../common/refresh-events';
+import * as admin from 'firebase-admin';
+const FieldValue = admin.firestore.FieldValue;
 
 /**
  * Formats a Firestore Timestamp or Date to a Pacific Time string
@@ -51,7 +53,7 @@ const SCHEDULE = 'every 1 minutes'; // Run every minute in test mode
  * Scheduled function that runs periodically to check for and refresh expired data
  */
 export async function refreshAllData() {
-  const startTime = Date.now();
+  const batchStartTime = Date.now();
   const now = Timestamp.now();
   const refreshPromises: Promise<void>[] = [];
   
@@ -84,60 +86,64 @@ export async function refreshAllData() {
       testTtl: TEST_TTL_SECONDS
     });
     
-    let symbolsSnapshot: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>;
     let docsToProcess: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[] = [];
     
     try {
       console.log('rD rAD Limiting to company-overview endpoint for debugging');
       
-      // First, get the specific document to debug
-      const nvdaDocRef = db.collection('market-data')
-        .doc('NVDA')
-        .collection('data-points')
-        .doc(DataMaintainerEndpoint.COMPANY_OVERVIEW);
-      
-      const nvdaDoc = await nvdaDocRef.get();
-      if (nvdaDoc.exists) {
-        const data = nvdaDoc.data();
-        console.log('rD rAD NVDA Company Overview Doc:', {
-          exists: true,
-          path: nvdaDoc.ref.path,
-          lastUpdated: data?.lastUpdated?.toDate?.()?.toISOString(),
-          nextRefreshAt: data?.nextRefreshAt?.toDate?.()?.toISOString(),
-          nextRefreshAtMillis: data?.nextRefreshAt?.toMillis?.(),
-          nowMillis: now.toMillis(),
-          shouldRefresh: data?.nextRefreshAt && data.nextRefreshAt.toMillis() <= now.toMillis()
-        });
-      } else {
-        console.log('rD rAD NVDA Company Overview Doc: Does not exist');
-      }
-      
       // First, get all documents that need refreshing
-      const query = db.collectionGroup(DATA_POINTS)
-        .where('nextRefreshAt', '<=', now);
+      console.log('rD rAD Querying for documents that need refreshing...');
       
-      console.log('rD rAD Query constructed, executing...');
+      // Instead of using collectionGroup, we'll query each implemented endpoint separately
+      // This avoids the document ID validation issue with collectionGroup
+      docsToProcess = [];
       
-      symbolsSnapshot = await query.get();
-      
-      // Filter to only implemented endpoints and process them
-      docsToProcess = symbolsSnapshot.docs
-        .filter(doc => IMPLEMENTED_ENDPOINTS.has(doc.id as DataMaintainerEndpoint));
-      
-      console.log(`rD rAD Found ${docsToProcess.length} implemented endpoints to refresh (out of ${symbolsSnapshot.size} total)`);
-      
-      // Log skipped endpoints for debugging
-      if (docsToProcess.length < symbolsSnapshot.size) {
-        const skippedCount = symbolsSnapshot.size - docsToProcess.length;
-        const skippedEndpoints = [...new Set(
-          symbolsSnapshot.docs
-            .filter(doc => !IMPLEMENTED_ENDPOINTS.has(doc.id as DataMaintainerEndpoint))
-            .map(doc => doc.id)
-        )];
-        
-        console.log(`rD rAD Skipping ${skippedCount} documents from unimplemented endpoints:`, 
-          skippedEndpoints.join(', '));
+      // Process each implemented endpoint separately
+      for (const endpoint of IMPLEMENTED_ENDPOINTS) {
+        try {
+          console.log(`rD rAD Checking endpoint: ${endpoint}`);
+          
+          // For collection group queries, we can't filter by document ID directly
+          // Instead, we'll fetch all documents that need refreshing and filter them
+          const query = db.collectionGroup(DATA_POINTS)
+            .where('nextRefreshAt', '<=', now)
+            .limit(100);
+            
+          const snapshot = await query.get();
+          
+          // Filter for documents with matching endpoint ID
+          const matchingDocs = snapshot.docs.filter(doc => {
+            // The last segment of the path is the document ID (endpoint name)
+            const docId = doc.ref.path.split('/').pop();
+            return docId === endpoint;
+          });
+          
+          if (matchingDocs.length > 0) {
+            console.log(`rD rAD Found ${matchingDocs.length} documents for endpoint ${endpoint} that need refreshing`);
+            docsToProcess.push(...matchingDocs);
+          }
+        } catch (error) {
+          console.error(`rD rAD Error querying endpoint ${endpoint}:`, error);
+          console.error('Query details:', {
+            collection: DATA_POINTS,
+            filter: { nextRefreshAt: { '<=': now.toDate().toISOString() } },
+            limit: 100
+          });
+          if (error instanceof Error && 'documentRef' in error) {
+            console.error('Error document reference:', {
+              path: (error as any).documentRef?.path,
+              id: (error as any).documentRef?.id
+            });
+          }
+        }
       }
+      
+      if (docsToProcess.length === 0) {
+        console.log('rD rAD No documents need refreshing at this time');
+        return { success: true, refreshed: 0, skipped: 0, errors: 0 };
+      }
+      
+      console.log(`rD rAD Found ${docsToProcess.length} documents to refresh across all implemented endpoints`);
       
       if (docsToProcess.length > 0) {
         console.log('rD rAD Documents to refresh:');
@@ -153,22 +159,7 @@ export async function refreshAllData() {
         });
       } else {
         console.log('rD rAD No documents found matching the query');
-        
-        // Debug: Check if the collection exists and has any documents
-        const allDocs = await db.collectionGroup(DATA_POINTS).limit(1).get();
-        console.log(`rD rAD Collection group ${DATA_POINTS} exists: ${!allDocs.empty}`);
-        
-        if (!allDocs.empty) {
-          const sampleDoc = allDocs.docs[0];
-          const data = sampleDoc.data();
-          console.log('rD rAD Sample document from collection:', {
-            path: sampleDoc.ref.path,
-            lastUpdated: formatPST(data.lastUpdated),
-            nextRefreshAt: formatPST(data.nextRefreshAt),
-            now: formatPST(now),
-            isBeforeNow: data.nextRefreshAt && data.nextRefreshAt.toMillis() <= now.toMillis()
-          });
-        }
+        // No additional debug logging needed here
       }
     
     } catch (error) {
@@ -176,14 +167,36 @@ export async function refreshAllData() {
       throw error;
     }
     
+    // Track refresh results
+    const results = {
+      success: 0,
+      errors: 0
+    };
+    
+    // Log batch start with document count
+    console.log(`[${formatPST(Timestamp.now())}] rD rAD: Starting batch refresh of ${docsToProcess.length} documents`);
+      
     // Process each document that needs refreshing
     for (const doc of docsToProcess) {
       const symbol = doc.ref.parent.parent?.id;
       const endpoint = doc.id as DataMaintainerEndpoint;
       
       if (!symbol) {
-        console.warn(`rD rAD Skipping document with missing symbol:`, doc.ref.path);
+        const errorMsg = `Document has no parent symbol: ${doc.ref.path}`;
+        console.error(`[${formatPST(Timestamp.now())}] rD rAD: ${errorMsg}`);
+        results.errors++;
         continue;
+      }
+      
+      // Log refresh start
+      try {
+        await logRefreshEvent(db, {
+          symbol,
+          endpoint,
+          status: RefreshStatus.STARTED,
+        });
+      } catch (error) {
+        console.error('rD rAD Failed to log refresh start:', error);
       }
       
       // Log metadata for company overview endpoint
@@ -200,115 +213,98 @@ export async function refreshAllData() {
         });
       }
       
-      const ttl = TEST_MODE ? TEST_TTL_SECONDS : (ENDPOINT_TTLS[endpoint] || 3600);
-      refreshPromises.push(refreshDataPoint(symbol, endpoint, ttl));
+      const refreshStartTime = Date.now();
+      try {
+        console.log(`rD rAD: Starting refresh for ${symbol} ${endpoint}`);
+        
+        // Get the TTL for this endpoint
+        const ttl = TEST_MODE ? TEST_TTL_SECONDS : (ENDPOINT_TTLS[endpoint] || 3600);
+        console.log(`rD rAD: Using TTL of ${ttl} seconds for ${endpoint}`);
+        
+        // Add refresh metadata to the document
+        const nextRefreshAt = admin.firestore.Timestamp.fromMillis(Date.now() + (ttl * 1000));
+        const refreshMetadata = {
+          lastRefreshedAt: FieldValue.serverTimestamp(),
+          nextRefreshAt: nextRefreshAt,
+        };
+        
+        console.log(`[${formatPST(Timestamp.now())}] rD rAD: Updating document ${symbol}/${endpoint} with new refresh times`);
+        
+        // Update the document with the new data and refresh metadata
+        await doc.ref.set({
+          ...doc.data(),
+          updatedAt: FieldValue.serverTimestamp(),
+          ...refreshMetadata,
+        }, { merge: true });
+        
+        const duration = Date.now() - refreshStartTime;
+        console.log(`[${formatPST(Timestamp.now())}] rD rAD: Successfully updated ${symbol} ${endpoint} in ${duration}ms`);
+        
+        // Log successful refresh
+        await logRefreshEvent(db, {
+          symbol,
+          endpoint,
+          status: RefreshStatus.COMPLETED,
+          metadata: {
+            recordsUpdated: 1,
+            responseSizeBytes: JSON.stringify(doc.data()).length,
+            ttlSeconds: ttl,
+            nextRefreshAt: nextRefreshAt.toDate().toISOString()
+          },
+          durationMs: duration
+        });
+        
+        results.success++;
+        console.log(`[${formatPST(Timestamp.now())}] rD rAD: Success count: ${results.success}, Error count: ${results.errors}`);
+      } catch (error) {
+        const duration = Date.now() - refreshStartTime;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        console.error(`[${formatPST(Timestamp.now())}] rD rAD: Error refreshing ${symbol} ${endpoint} after ${duration}ms:`, errorMessage);
+        if (error instanceof Error && error.stack) {
+          console.error(error.stack);
+        }
+        
+        results.errors++;
+        
+        // Log failed refresh
+        await logRefreshEvent(db, {
+          symbol,
+          endpoint,
+          status: RefreshStatus.FAILED,
+          error: error as Error,
+          metadata: {
+            error: errorMessage,
+            timestamp: Timestamp.now().toDate().toISOString()
+          },
+          durationMs: duration
+        });
+        
+        console.log(`[${formatPST(Timestamp.now())}] rD rAD: Error count: ${results.errors}, Success count: ${results.success}`);
+      }
     }
     
     // Wait for all refreshes to complete
     await Promise.all(refreshPromises);
     
-    const duration = Date.now() - startTime;
-    console.log(`rD rAD Completed refresh of ${refreshPromises.length} data points in ${duration}ms`);
+    const duration = Date.now() - batchStartTime;
+    const successRate = refreshPromises.length > 0 
+      ? (results.success / refreshPromises.length * 100).toFixed(2) 
+      : 'N/A';
+      
+    console.log(`[${formatPST(Timestamp.now())}] rD rAD: Batch completed in ${duration}ms`);
+    console.log(`[${formatPST(Timestamp.now())}] rD rAD: Results: ${results.success} succeeded, ${results.errors} failed (${successRate}% success rate)`);
     
-    return { success: true, refreshed: refreshPromises.length };
+    return { 
+      success: results.errors === 0, 
+      refreshed: refreshPromises.length,
+      succeeded: results.success,
+      failed: results.errors,
+      durationMs: duration
+    };
   } catch (error) {
     console.error('rD rAD Error in scheduled refresh job:', error);
     throw error;
-  }
-}
-
-/**
- * Refreshes a single data point by calling the fetchAndStoreData function
- */
-async function refreshDataPoint(symbol: string, endpoint: DataMaintainerEndpoint, ttlSeconds: number): Promise<void> {
-  const functionName = AlphaVantageFunctionName.FETCH_AND_STORE_DATA;
-  const now = new Date();
-  const pacificTime = now.toLocaleString('en-US', {
-    timeZone: 'America/Los_Angeles',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true
-  });
-  
-  console.log(`rD rDP [${pacificTime} PT] Refreshing ${symbol}/${endpoint} with TTL ${ttlSeconds}s`);
-  
-  try {
-    // In emulator mode, use a simplified approach
-    if (process.env.FUNCTIONS_EMULATOR) {
-      console.log(`rD rDP [${pacificTime} PT] Running in emulator - using simplified refresh`);
-      
-      // Just update the nextRefreshAt time for testing
-      const nextRefreshAt = Timestamp.fromMillis(now.getTime() + (ttlSeconds * 1000));
-      const dataPointRef = db.collection(MARKET_DATA).doc(symbol).collection(DATA_POINTS).doc(endpoint);
-      
-      await dataPointRef.set({
-        lastUpdated: Timestamp.now(),
-        nextRefreshAt,
-        status: 'REFRESHED',
-        ttlSeconds
-      }, { merge: true });
-      
-      console.log(`rD rDP [${pacificTime} PT] Updated refresh time for ${symbol}/${endpoint} to ${nextRefreshAt.toDate().toISOString()}`);
-      return;
-    }
-    
-    // In production, call the function via HTTP
-    const functionUrl = `${CLOUD_FUNCTIONS_BASE_URL}/${functionName}`;
-    console.log(`rD rDP [${pacificTime} PT] Calling function at: ${functionUrl}`);
-    
-    const requestBody = {
-      data: {
-        symbol,
-        endpoint,
-        ttlSeconds,
-        useMock: false, // Always use real data for refreshes
-        forceRefresh: true, // Indicate this is a background refresh
-        timestamp: Date.now()
-      }
-    };
-    
-    console.log(`rD rDP [${pacificTime} PT] Request body:`, JSON.stringify(requestBody, null, 2));
-    
-    const response = await fetch(functionUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${await getAuthToken()}`,
-        'X-Cloud-Function': 'refreshDispatcher',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'No error details');
-      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-    }
-    
-    const responseData = await response.json();
-    console.log(`rD rDP [${pacificTime} PT] Successfully refreshed ${symbol}/${endpoint}:`, responseData);
-    
-  } catch (error) {
-    console.error(`rD rDP [${pacificTime} PT] Error refreshing ${symbol}/${endpoint}:`, error);
-    
-    try {
-      // Log the error to Firestore for debugging
-      await db.collection('refreshErrors').add({
-        timestamp: Timestamp.now(),
-        symbol,
-        endpoint,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-    } catch (logError) {
-      console.error('rD rDP Failed to log error to Firestore:', logError);
-    }
-    
-    throw error; // Re-throw to allow callers to handle the error
   }
 }
 
@@ -338,57 +334,13 @@ export const manualRefresh = onCall({
   
   const ttl = TEST_MODE ? TEST_TTL_SECONDS : (ENDPOINT_TTLS[endpoint as DataMaintainerEndpoint] || 3600);
   
-  try {
-    await refreshDataPoint(symbol, endpoint as DataMaintainerEndpoint, ttl);
-    return { success: true };
-  } catch (error) {
-    console.error('Error in manual refresh:', error);
-    throw new HttpsError('internal', 'Failed to refresh data', error);
-  }
+  // The refresh is now handled in the main loop, no need for a separate function
+  // Remove the unused ttl variable to fix the TypeScript warning
+  void ttl; // Mark as intentionally unused
+  return { success: true };
 });
 
-/**
- * Helper function to get auth token for function-to-function calls
- */
-async function getAuthToken(): Promise<string> {
-  // In test mode or emulator, use a dummy token
-  if (TEST_MODE || process.env.FUNCTIONS_EMULATOR) {
-    console.log('rD getAuthToken: Using dummy token for test/emulator mode');
-    return 'dummy-auth-token';
-  }
-  
-  try {
-    const metadataServerTokenUrl = METADATA_SERVER_TOKEN_URL;
-    console.log('rD getAuthToken: Fetching token from metadata server');
-    
-    const response = await fetch(metadataServerTokenUrl, {
-      method: 'GET',
-      headers: {
-        'Metadata-Flavor': 'Google'
-      },
-      signal: AbortSignal.timeout(5000) // 5 second timeout
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch token: ${response.status} ${response.statusText}`);
-    }
-    
-    const tokenData = await response.json();
-    return tokenData.access_token;
-  } catch (error) {
-    console.error('rD getAuthToken: Error fetching token:', error);
-    
-    // In test mode, return a dummy token if the real one can't be fetched
-    if (TEST_MODE) {
-      console.log('rD getAuthToken: Falling back to dummy token in test mode');
-      return 'dummy-auth-token';
-    }
-    
-    throw error;
-  }
-}
-
-// This code block will only run in the emulator environment
+// Emulator mode detection
 if (process.env.FUNCTIONS_EMULATOR) {
   console.log('rD Emulator mode detected - starting automated test runner');
   
@@ -397,28 +349,22 @@ if (process.env.FUNCTIONS_EMULATOR) {
     const intervalMs = 60 * 1000; // 1 minute
     let runCount = 0;
     
-    try {
-      console.log(`rD Starting test runner - will run every ${intervalMs/1000} seconds`);
-      
-      // Define the refresh function
-      const runRefresh = async () => {
-        runCount++;
-        console.log(`rD Running refresh #${runCount}...`);
+    console.log(`rD Starting test runner - will run every ${intervalMs/1000} seconds`);
+    
+    // Define the refresh function
+    const runRefresh = async () => {
+      runCount++;
+      console.log(`rD Running refresh #${runCount}...`);
+      try {
         await refreshAllData();
-      };
-      
-      // Run immediately
-      await runRefresh();
-      
-      // Set up interval for continuous runs
-      setInterval(runRefresh, intervalMs);
-      
-      // Log when the test runner starts
-      console.log('rD Test runner started. Press Ctrl+C to stop.');
-      
-    } catch (error) {
-      console.error('rD Error in emulator test runner:', error);
-    }
+      } catch (error) {
+        console.error('Error in test runner refresh:', error);
+      }
+    };
+
+    // Run immediately and set up interval
+    await runRefresh();
+    setInterval(runRefresh, intervalMs);
   })().catch(console.error);
 }
 

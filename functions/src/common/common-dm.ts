@@ -75,7 +75,7 @@ export const ENDPOINT_TTLS: Record<DataMaintainerEndpoint, number> = {
   // Alpha Vantage Endpoints (alphabetical order)
   [DataMaintainerEndpoint.BALANCE_SHEET]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
   [DataMaintainerEndpoint.CASH_FLOW]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
-  [DataMaintainerEndpoint.COMPANY_OVERVIEW]: 7 * 24 * 60 * 60, // 7 days (static data)
+  [DataMaintainerEndpoint.COMPANY_OVERVIEW]: 8 * 60 * 60, // 8 hours (temporary for production testing)
   [DataMaintainerEndpoint.ECONOMIC_INDICATORS]: 24 * 60 * 60, // 24 hours (most recent), Indefinite handled in code
   [DataMaintainerEndpoint.EARNINGS_CALENDAR]: 7 * 24 * 60 * 60, // 7 days
   [DataMaintainerEndpoint.GLOBAL_QUOTE]: 30, // 30 seconds
