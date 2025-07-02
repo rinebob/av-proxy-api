@@ -13,7 +13,7 @@ import { onCall, CallableRequest, HttpsError } from 'firebase-functions/v2/https
 
 // Project imports
 import { AlphaVantageFunctionName, CLOUD_FUNCTIONS_BASE_URL } from '../common/common-fn';
-import { DataMaintainerEndpoint, ENDPOINT_TTLS, METADATA_SERVER_TOKEN_URL } from '../common/common-dm';
+import { DataMaintainerEndpoint, ENDPOINT_TTLS, METADATA_SERVER_TOKEN_URL, IMPLEMENTED_ENDPOINTS } from '../common/common-dm';
 import { DATA_POINTS, MARKET_DATA } from '../common/firestore-collections';
 
 /**
@@ -85,7 +85,7 @@ export async function refreshAllData() {
     });
     
     let symbolsSnapshot: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>;
-    let companyOverviews: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[] = [];
+    let docsToProcess: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[] = [];
     
     try {
       console.log('rD rAD Limiting to company-overview endpoint for debugging');
@@ -120,16 +120,28 @@ export async function refreshAllData() {
       
       symbolsSnapshot = await query.get();
       
-      // Filter to only company-overview documents
-      companyOverviews = symbolsSnapshot.docs.filter(doc => 
-        doc.id === DataMaintainerEndpoint.COMPANY_OVERVIEW
-      );
+      // Filter to only implemented endpoints and process them
+      docsToProcess = symbolsSnapshot.docs
+        .filter(doc => IMPLEMENTED_ENDPOINTS.has(doc.id as DataMaintainerEndpoint));
       
-      console.log(`rD rAD Found ${companyOverviews.length} company overviews to refresh (out of ${symbolsSnapshot.size} total)`);
+      console.log(`rD rAD Found ${docsToProcess.length} implemented endpoints to refresh (out of ${symbolsSnapshot.size} total)`);
       
-      if (companyOverviews.length > 0) {
-        console.log('rD rAD Company overview documents to refresh:');
-        companyOverviews.forEach((doc, i) => {
+      // Log skipped endpoints for debugging
+      if (docsToProcess.length < symbolsSnapshot.size) {
+        const skippedCount = symbolsSnapshot.size - docsToProcess.length;
+        const skippedEndpoints = [...new Set(
+          symbolsSnapshot.docs
+            .filter(doc => !IMPLEMENTED_ENDPOINTS.has(doc.id as DataMaintainerEndpoint))
+            .map(doc => doc.id)
+        )];
+        
+        console.log(`rD rAD Skipping ${skippedCount} documents from unimplemented endpoints:`, 
+          skippedEndpoints.join(', '));
+      }
+      
+      if (docsToProcess.length > 0) {
+        console.log('rD rAD Documents to refresh:');
+        docsToProcess.forEach((doc, i) => {
           const data = doc.data();
           console.log(`  [${i}] ${doc.ref.path}`, {
             id: doc.id,
@@ -164,8 +176,8 @@ export async function refreshAllData() {
       throw error;
     }
     
-    // Process each company overview that needs refreshing
-    for (const doc of companyOverviews || []) {
+    // Process each document that needs refreshing
+    for (const doc of docsToProcess) {
       const symbol = doc.ref.parent.parent?.id;
       const endpoint = doc.id as DataMaintainerEndpoint;
       
@@ -319,6 +331,11 @@ export const manualRefresh = onCall({
     throw new HttpsError('invalid-argument', 'Symbol and endpoint are required');
   }
   
+  // Verify the endpoint is implemented
+  if (!IMPLEMENTED_ENDPOINTS.has(endpoint as DataMaintainerEndpoint)) {
+    throw new HttpsError('failed-precondition', `Endpoint ${endpoint} is not implemented yet`);
+  }
+  
   const ttl = TEST_MODE ? TEST_TTL_SECONDS : (ENDPOINT_TTLS[endpoint as DataMaintainerEndpoint] || 3600);
   
   try {
@@ -379,34 +396,25 @@ if (process.env.FUNCTIONS_EMULATOR) {
   (async () => {
     const intervalMs = 60 * 1000; // 1 minute
     let runCount = 0;
-    const maxRuns = 3;
     
     try {
-      console.log(`rD Starting test runner - will run ${maxRuns} times with ${intervalMs/1000}s intervals`);
+      console.log(`rD Starting test runner - will run every ${intervalMs/1000} seconds`);
       
-      // Define the refresh function with run counting
+      // Define the refresh function
       const runRefresh = async () => {
         runCount++;
-        console.log(`rD Running refresh ${runCount} of ${maxRuns}...`);
+        console.log(`rD Running refresh #${runCount}...`);
         await refreshAllData();
-        
-        if (runCount >= maxRuns) {
-          console.log(`rD Test run complete. Ran ${maxRuns} times.`);
-          clearInterval(intervalId);
-        }
       };
       
       // Run immediately
       await runRefresh();
       
-      // Set up interval for remaining runs
-      const intervalId = setInterval(runRefresh, intervalMs);
+      // Set up interval for continuous runs
+      setInterval(runRefresh, intervalMs);
       
-      // Auto-clear after max runs (plus a small buffer)
-      setTimeout(() => {
-        clearInterval(intervalId);
-        console.log('rD Test runner stopped.');
-      }, (maxRuns * intervalMs) + 5000);
+      // Log when the test runner starts
+      console.log('rD Test runner started. Press Ctrl+C to stop.');
       
     } catch (error) {
       console.error('rD Error in emulator test runner:', error);

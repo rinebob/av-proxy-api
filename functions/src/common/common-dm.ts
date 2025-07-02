@@ -14,37 +14,105 @@ export const METADATA_SERVER_TOKEN_URL = 'http://metadata.google.internal/comput
  * Keep this in sync with the frontend version in fe-common-dm.ts
  */
 export enum DataMaintainerEndpoint {
-  COMPANY_OVERVIEW = 'company-overview',
+  // Benzinga Endpoints (alphabetical order)
+  ANALYST_INSIGHTS = 'analyst-insights',
+  ANALYST_RATINGS = 'analyst-ratings',
+  DIVIDENDS = 'dividends',
+  ECONOMIC_CALENDAR = 'economic-calendar',
+  FUTURE_EARNINGS = 'future-earnings',
+  INSIDER_TRADES = 'insider-trades',
+  MERGERS_ACQUISITIONS = 'mergers-acquisitions',
+  TRENDING_TICKERS = 'trending-tickers',
+  UNUSUAL_OPTIONS = 'unusual-options',
+  
+  // Alpha Vantage Endpoints (alphabetical order)
   BALANCE_SHEET = 'balance-sheet',
-  INCOME_STATEMENT = 'income-statement',
   CASH_FLOW = 'cash-flow',
+  COMPANY_OVERVIEW = 'company-overview',
+  ECONOMIC_INDICATORS = 'economic-indicators',
+  EARNINGS_CALENDAR = 'earnings-calendar',
+  GLOBAL_QUOTE = 'global-quote',
+  HISTORICAL_EPS = 'historical-eps',
+  HISTORICAL_OPTIONS = 'historical-options',
+  INCOME_STATEMENT = 'income-statement',
+  INSIDER_TRANSACTIONS = 'insider-transactions',
+  IPO_CALENDAR = 'ipo-calendar',
+  NEWS_SENTIMENT = 'news-sentiment',
+  OPTIONS_CHAIN = 'options-chain',
+  SECTOR = 'sector',
+  SYMBOL_SEARCH = 'symbol-search',
+  TECHNICAL_INDICATORS = 'technical-indicators',
+  TIME_SERIES_DAILY_ADJUSTED = 'time-series-daily-adjusted',
+  TIME_SERIES_INTRADAY = 'time-series-intraday',
+  TOP_GAINERS_LOSERS = 'top-gainers-losers',
+  TREASURY_YIELD = 'treasury-yield',
+  
+  // Legacy/Deprecated (alphabetical order, keep for backward compatibility)
   EARNINGS = 'earnings',
   LISTING_STATUS = 'listing-status',
-  IPO_CALENDAR = 'ipo-calendar',
-  SECTOR_PERFORMANCE = 'sector-performance',
   OVERVIEW = 'overview',
-  SYMBOL_SEARCH = 'symbol-search',
-  TIME_SERIES = 'time-series',
   QUOTE_ENDPOINT = 'quote-endpoint',
+  SECTOR_PERFORMANCE = 'sector-performance',
+  TIME_SERIES = 'time-series',
 }
 
 /**
  * TTL configuration in seconds for each endpoint
+ * These values should match the TTLs specified in data-maintainer.md
  */
 export const ENDPOINT_TTLS: Record<DataMaintainerEndpoint, number> = {
-  [DataMaintainerEndpoint.COMPANY_OVERVIEW]: 7 * 24 * 60 * 60, // 7 days in seconds
-  [DataMaintainerEndpoint.BALANCE_SHEET]: 30 * 24 * 60 * 60, // 30 days
-  [DataMaintainerEndpoint.INCOME_STATEMENT]: 30 * 24 * 60 * 60, // 30 days
-  [DataMaintainerEndpoint.CASH_FLOW]: 30 * 24 * 60 * 60, // 30 days
+  // Benzinga Endpoints (alphabetical order)
+  [DataMaintainerEndpoint.ANALYST_INSIGHTS]: 72 * 60 * 60, // 72 hours
+  [DataMaintainerEndpoint.ANALYST_RATINGS]: 72 * 60 * 60, // 72 hours
+  [DataMaintainerEndpoint.DIVIDENDS]: 24 * 60 * 60, // 24 hours (recent), Indefinite handled in code
+  [DataMaintainerEndpoint.ECONOMIC_CALENDAR]: 24 * 60 * 60, // 24 hours (future), Indefinite handled in code
+  [DataMaintainerEndpoint.FUTURE_EARNINGS]: 4 * 60 * 60, // 4 hours (pre-release), Indefinite handled in code
+  [DataMaintainerEndpoint.INSIDER_TRADES]: 24 * 60 * 60, // 24 hours (recent), 7 days handled in code
+  [DataMaintainerEndpoint.MERGERS_ACQUISITIONS]: 24 * 60 * 60, // 24 hours (minimum, up to 7 days)
+  [DataMaintainerEndpoint.TRENDING_TICKERS]: 15 * 60, // 15 minutes (trading hours)
+  [DataMaintainerEndpoint.UNUSUAL_OPTIONS]: 5 * 60, // 5 minutes (trading hours)
+  
+  // Alpha Vantage Endpoints (alphabetical order)
+  [DataMaintainerEndpoint.BALANCE_SHEET]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
+  [DataMaintainerEndpoint.CASH_FLOW]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
+  [DataMaintainerEndpoint.COMPANY_OVERVIEW]: 7 * 24 * 60 * 60, // 7 days (static data)
+  [DataMaintainerEndpoint.ECONOMIC_INDICATORS]: 24 * 60 * 60, // 24 hours (most recent), Indefinite handled in code
+  [DataMaintainerEndpoint.EARNINGS_CALENDAR]: 7 * 24 * 60 * 60, // 7 days
+  [DataMaintainerEndpoint.GLOBAL_QUOTE]: 30, // 30 seconds
+  [DataMaintainerEndpoint.HISTORICAL_EPS]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
+  [DataMaintainerEndpoint.HISTORICAL_OPTIONS]: 30 * 24 * 60 * 60, // 30 days (indefinite in doc, using 30 days as default)
+  [DataMaintainerEndpoint.INCOME_STATEMENT]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
+  [DataMaintainerEndpoint.INSIDER_TRANSACTIONS]: 24 * 60 * 60, // 24 hours (recent), 7 days handled in code
+  [DataMaintainerEndpoint.IPO_CALENDAR]: 24 * 60 * 60, // 24 hours
+  [DataMaintainerEndpoint.NEWS_SENTIMENT]: 15 * 60, // 15 minutes (recent), Indefinite handled in code
+  [DataMaintainerEndpoint.OPTIONS_CHAIN]: 30, // 30 seconds
+  [DataMaintainerEndpoint.SECTOR]: 15 * 60, // 15 minutes (trading hours)
+  [DataMaintainerEndpoint.SYMBOL_SEARCH]: 30 * 24 * 60 * 60, // 30 days (indefinite in doc, using 30 days as default)
+  [DataMaintainerEndpoint.TECHNICAL_INDICATORS]: 5 * 60, // 5 minutes (intraday), 24h handled in code
+  [DataMaintainerEndpoint.TIME_SERIES_DAILY_ADJUSTED]: 24 * 60 * 60, // 24 hours
+  [DataMaintainerEndpoint.TIME_SERIES_INTRADAY]: 5 * 60, // 5 minutes (current day), Indefinite handled in code
+  [DataMaintainerEndpoint.TOP_GAINERS_LOSERS]: 15 * 60, // 15 minutes (trading hours)
+  [DataMaintainerEndpoint.TREASURY_YIELD]: 24 * 60 * 60, // 24 hours
+  
+  // Legacy/Deprecated - keeping these for backward compatibility (alphabetical order)
   [DataMaintainerEndpoint.EARNINGS]: 24 * 60 * 60, // 24 hours
   [DataMaintainerEndpoint.LISTING_STATUS]: 7 * 24 * 60 * 60, // 7 days
-  [DataMaintainerEndpoint.IPO_CALENDAR]: 6 * 60 * 60, // 6 hours
-  [DataMaintainerEndpoint.SECTOR_PERFORMANCE]: 1 * 60 * 60, // 1 hour
   [DataMaintainerEndpoint.OVERVIEW]: 24 * 60 * 60, // 24 hours
-  [DataMaintainerEndpoint.SYMBOL_SEARCH]: 7 * 24 * 60 * 60, // 7 days
-  [DataMaintainerEndpoint.TIME_SERIES]: 1 * 60 * 60, // 1 hour
   [DataMaintainerEndpoint.QUOTE_ENDPOINT]: 5 * 60, // 5 minutes
+  [DataMaintainerEndpoint.SECTOR_PERFORMANCE]: 60 * 60, // 1 hour
+  [DataMaintainerEndpoint.TIME_SERIES]: 60 * 60, // 1 hour
 };
+
+/**
+ * Set of endpoints that have been implemented and are ready for automatic refresh.
+ * Add endpoints to this set as they are implemented.
+ */
+export const IMPLEMENTED_ENDPOINTS: Set<DataMaintainerEndpoint> = new Set([
+  DataMaintainerEndpoint.COMPANY_OVERVIEW,
+  // Add other endpoints here as they are implemented
+  // Example:
+  // DataMaintainerEndpoint.GLOBAL_QUOTE,
+]);
 
 /**
  * Interface for mock data registry
