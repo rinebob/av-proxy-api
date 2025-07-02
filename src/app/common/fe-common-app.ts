@@ -1,5 +1,6 @@
 import { environment } from '../../environments/environment';
 import { AlphaVantageFunctionName, BenzingaFunctionName } from './fe-common-fn';
+import { DataMaintainerFunctionName } from '../feat/data-maintainer-view/common/fe-common-dm-api';
 
 // Define the production URLs for each 2nd Gen Cloud Function
 const PROD_URLS = {
@@ -7,14 +8,16 @@ const PROD_URLS = {
   [AlphaVantageFunctionName.GET_GLOBAL_QUOTE]: 'https://getglobalquote-lsluydmucq-uc.a.run.app',
   [BenzingaFunctionName.GET_CALENDAR]: 'https://getbenzingacalendar-lsluydmucq-uc.a.run.app',
   [BenzingaFunctionName.GET_COMPANY_LOGO]: 'https://getcompanylogo-lsluydmucq-uc.a.run.app',
-  [BenzingaFunctionName.GET_DYNAMIC_CALENDAR]: 'https://getdynamiccalendar-lsluydmucq-uc.a.run.app'
+  [BenzingaFunctionName.GET_DYNAMIC_CALENDAR]: 'https://getdynamiccalendar-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.FETCH_AND_STORE_DATA]: 'https://fetchandstoredata-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.CHECK_MOCK_DATA]: 'https://checkmockdata-lsluydmucq-uc.a.run.app'
 } as const;
 
 // Development URL base
 const DEV_URL_BASE = 'http://localhost:5001/alpha-vantage-proxy-api/us-central1';
 
 // Function to get the correct URL based on environment and function name
-const getFunctionUrl = (functionName: AlphaVantageFunctionName | BenzingaFunctionName) => {
+const getFunctionUrl = (functionName: AlphaVantageFunctionName | BenzingaFunctionName | DataMaintainerFunctionName) => {
   if (environment.production) {
     return PROD_URLS[functionName];
   }
