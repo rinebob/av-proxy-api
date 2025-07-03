@@ -11,5 +11,12 @@ export { getDynamicCalendar } from './benzinga/getDynamicCalendar.js';
 export { fetchAndStoreData } from './data-maintainer/fetchAndStoreData.js';
 export { checkMockData } from './data-maintainer/checkMockData.js';
 
+// Symbol Management
+export { listSymbols } from './data-maintainer/symbols/listSymbols.js';
+export { syncSymbols } from './data-maintainer/symbols/syncSymbols.js';
+export { getSymbolDetails } from './data-maintainer/symbols/getSymbolDetails.js';
+export { cleanupInactiveSymbols } from './data-maintainer/symbols/cleanupInactive.js';
+export { cleanupOldSyncRequests } from './data-maintainer/symbols/cleanupOldRequests.js';
+
 // Data Refresh Scheduler
 export { scheduledRefresh, manualRefresh } from './data-maintainer/refreshDispatcher.js';

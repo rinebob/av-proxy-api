@@ -2,6 +2,28 @@
  * Shared types and constants for Data Maintainer functionality between frontend and backend
  */
 
+import * as admin from 'firebase-admin';
+
+/**
+ * Result of a refresh operation
+ */
+export interface RefreshResult {
+  success: boolean;
+  refreshed: number;
+  skipped: number;
+  errors: number;
+  durationMs: number;
+}
+
+/**
+ * Represents a document to be processed during refresh
+ */
+export interface DocumentToProcess {
+  symbol: string;
+  endpoint: DataMaintainerEndpoint;
+  ttl: number;
+}
+
 // Metadata server URL for fetching identity tokens in Google Cloud
 // This is used for service-to-service authentication
 // https://cloud.google.com/compute/docs/access/authenticate-workloads#applications
@@ -51,9 +73,109 @@ export enum DataMaintainerEndpoint {
   EARNINGS = 'earnings',
   LISTING_STATUS = 'listing-status',
   OVERVIEW = 'overview',
-  QUOTE_ENDPOINT = 'quote-endpoint',
+  QUOTE_ENDPOINT = 'quote',
   SECTOR_PERFORMANCE = 'sector-performance',
   TIME_SERIES = 'time-series',
+}
+
+// Symbol Management Types
+// Note: These types are now defined below with more complete definitions
+
+export interface ListSymbolsResponse {
+  symbols: TrackedSymbol[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// Symbol Management Types
+export interface ClientSource {
+  clientId: string;
+  firstSeen: admin.firestore.Timestamp;
+  lastSeen: admin.firestore.Timestamp;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Represents a tracked symbol in the system
+ */
+export interface TrackedSymbol {
+  symbol: string;
+  displayName?: string;
+  isActive: boolean;
+  lastUpdated: admin.firestore.Timestamp | Date;
+  createdAt: admin.firestore.Timestamp | Date;
+  sources: ClientSource[];
+
+  metadata?: Record<string, any>;
+  deactivatedAt?: admin.firestore.Timestamp | Date;
+}
+
+/**
+ * Represents a client site that tracks symbols
+ */
+export interface ClientSite {
+  id: string;
+  name: string;
+  apiKey: string;
+  lastActive: admin.firestore.Timestamp | Date;
+  symbolCount: number;
+  metadata?: Record<string, any>;
+  createdAt: admin.firestore.Timestamp | Date;
+  updatedAt: admin.firestore.Timestamp | Date;
+  lastSync?: admin.firestore.Timestamp | Date; // For backward compatibility
+  isActive?: boolean; // For backward compatibility
+}
+
+/**
+ * Request to sync symbols from a client site
+ */
+export interface SymbolSyncRequest {
+  clientId: string;
+  clientName?: string;
+  siteId?: string;
+  symbols: string[];
+  timestamp: admin.firestore.Timestamp | Date;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Response from a symbol sync operation
+ */
+export interface SymbolSyncResponse {
+  success: boolean;
+  message?: string;
+  added: number;
+  removed: number;
+  totalActive: number;
+  timestamp: admin.firestore.Timestamp | Date;
+  // For backward compatibility
+  addedCount?: number;
+  removedCount?: number;
+  totalTracked?: number;
+}
+
+/**
+ * Options for listing symbols
+ */
+export interface ListSymbolsOptions {
+  activeOnly?: boolean;
+  includeInactive?: boolean; // For backward compatibility
+  limit?: number;
+  offset?: number;
+  sortBy?: 'symbol' | 'lastUpdated';
+  sortDirection?: 'asc' | 'desc';
+
+}
+
+/**
+ * Response from listing symbols
+ */
+export interface ListSymbolsResponse {
+  symbols: TrackedSymbol[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 /**
@@ -110,8 +232,6 @@ export const ENDPOINT_TTLS: Record<DataMaintainerEndpoint, number> = {
 export const IMPLEMENTED_ENDPOINTS: Set<DataMaintainerEndpoint> = new Set([
   DataMaintainerEndpoint.COMPANY_OVERVIEW,
   // Add other endpoints here as they are implemented
-  // Example:
-  // DataMaintainerEndpoint.GLOBAL_QUOTE,
 ]);
 
 /**

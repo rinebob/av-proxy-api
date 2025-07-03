@@ -240,4 +240,30 @@ export function handleApiError(error: any, res: any, context: string = ''): bool
   }
 }
 
+/**
+ * Formats a Firestore Timestamp or Date to a Pacific Time string
+ * @param date The date to format (can be Firestore Timestamp, Date, or null/undefined)
+ * @returns Formatted date string in Pacific Time or 'N/A' if invalid
+ */
+export function formatPST(date: any): string {
+  if (!date) return 'N/A';
+  try {
+    const d = date.toDate ? date.toDate() : new Date(date);
+    if (isNaN(d.getTime())) return 'Invalid Date';
+    return d.toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }) + ' PT';
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Invalid Date';
+  }
+}
+
 // Force redeploy to apply IAM changes.
