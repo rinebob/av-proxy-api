@@ -8,12 +8,18 @@ import { environment } from '../../../../environments/environment';
 export enum DataMaintainerFunctionName {
   FETCH_AND_STORE_DATA = 'fetchAndStoreData',
   CHECK_MOCK_DATA = 'checkMockData',
+  LIST_SYMBOLS = 'listSymbols',
+  GET_SYMBOL_DETAILS = 'getSymbolDetails',
+  SYNC_SYMBOLS = 'syncSymbols',
 }
 
 // Production URLs for each Data Maintainer Cloud Function
 const DM_PROD_URLS = {
   [DataMaintainerFunctionName.FETCH_AND_STORE_DATA]: 'https://fetchandstoredata-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.CHECK_MOCK_DATA]: 'https://checkmockdata-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.LIST_SYMBOLS]: 'https://listsymbols-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.GET_SYMBOL_DETAILS]: 'https://getsymboldetails-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.SYNC_SYMBOLS]: 'https://syncsymbols-lsluydmucq-uc.a.run.app',
 } as const;
 
 // Development URL base
@@ -23,10 +29,8 @@ const DM_DEV_URL_BASE = 'http://localhost:5001/alpha-vantage-proxy-api/us-centra
  * All possible backend URLs for Data Maintainer functions (for use in interceptors).
  */
 export const DataMaintainerBackendUrls = [
-  DM_PROD_URLS[DataMaintainerFunctionName.FETCH_AND_STORE_DATA],
-  DM_PROD_URLS[DataMaintainerFunctionName.CHECK_MOCK_DATA],
-  `${DM_DEV_URL_BASE}/${DataMaintainerFunctionName.FETCH_AND_STORE_DATA}`,
-  `${DM_DEV_URL_BASE}/${DataMaintainerFunctionName.CHECK_MOCK_DATA}`
+  ...Object.values(DM_PROD_URLS),
+  ...Object.values(DataMaintainerFunctionName).map(name => `${DM_DEV_URL_BASE}/${name}`)
 ];
 
 /**
@@ -42,6 +46,20 @@ export function getDataMaintainerFunctionUrl(functionName: DataMaintainerFunctio
 
 /////////////////////////////// INTERFACES /////////////////////////
 
+/**
+ * Represents a symbol search result from Alpha Vantage SYMBOL_SEARCH endpoint
+ */
+export interface AvSymbolSearchResult {
+  symbol: string;
+  name: string;
+  type: string;
+  region: string;
+  marketOpen: string;
+  marketClose: string;
+  timezone: string;
+  currency: string;
+  matchScore: string;
+}
 
 /**
  * Interface for the Alpha Vantage company overview data payload.
@@ -120,6 +138,62 @@ export interface AvCompanyOverviewResponse {
   data: AvCompanyOverview;
   dataSource: 'mock' | 'alpha_vantage';
   timestamp: string;
+}
+
+export interface ClientSource {
+  clientId: string;
+  firstSeen: string | Date;
+  lastSeen: string | Date;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Represents a tracked symbol in the system
+ * Matches the backend TrackedSymbol interface
+ */
+export interface TrackedSymbol {
+  // AV SYMBOL_SEARCH fields
+  symbol: string;
+  name: string;
+  type: string;
+  region: string;
+  marketOpen: string;
+  marketClose: string;
+  timezone: string;
+  currency: string;
+  matchScore: string;
+  
+  // System fields
+  isActive: boolean;
+  createdAt: string | Date;
+  clientId?: string;
+}
+
+export interface ListSymbolsResponse {
+  ok: boolean;
+  symbols: TrackedSymbol[];
+  error?: string;
+}
+
+export interface SymbolDetailsResponse {
+  ok: boolean;
+  data: TrackedSymbol | null;
+  error?: string;
+}
+
+export interface SyncSymbolsRequest {
+  clientId: string;
+  clientName: string;
+  symbols: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface SyncSymbolsResponse {
+  ok: boolean;
+  added: number;
+  removed: number;
+  totalActive: number;
+  error?: string;
 }
 
 ///////////////////////////////////////////////////////////////////

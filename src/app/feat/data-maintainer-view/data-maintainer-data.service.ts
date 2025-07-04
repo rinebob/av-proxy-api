@@ -1,9 +1,26 @@
-import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
-import { ApiResponse, AvCompanyOverviewResponse, DataMaintainerFunctionName, getDataMaintainerFunctionUrl } from './common/fe-common-dm-api';
+import { Injectable, inject } from '@angular/core';
+import { Observable, of, tap } from 'rxjs';
+import { Auth } from '@angular/fire/auth';
 import { DataMaintainerEndpoint } from './common/fe-common-dm';
+import { 
+  ApiResponse, 
+  AvCompanyOverviewResponse, 
+  DataMaintainerFunctionName,
+  getDataMaintainerFunctionUrl
+} from './common/fe-common-dm-api';
+
+// Define the expected response shape from the syncSymbols endpoint
+interface SymbolSyncResponse {
+  success: boolean;
+  message?: string;
+  added: number;
+  removed: number;
+  totalActive: number;
+  addedCount?: number;
+  removedCount?: number;
+  totalTracked?: number;
+}
 
 export type CompanyOverviewData = ApiResponse<AvCompanyOverviewResponse['data']>;
 
@@ -13,9 +30,12 @@ export interface CheckMockDataResponse {
   symbol: string;
 }
 
-@Injectable({ providedIn: 'root' })
+@Injectable({
+  providedIn: 'root'
+})
 export class DataMaintainerDataService {
-  private http = inject(HttpClient);
+  private readonly http = inject(HttpClient);
+  private readonly auth = inject(Auth);
 
   /**
    * Fetches Alpha Vantage company overview data for the given symbol.
@@ -35,7 +55,7 @@ export class DataMaintainerDataService {
       requestData
     ).pipe(
       tap({
-        next: (response) => {
+        next: (response: any) => {
           console.log('DMV fCO Received response:', response ? {
             ok: response.ok,
             symbol: response.symbol,
@@ -64,9 +84,11 @@ export class DataMaintainerDataService {
     
     return this.http.post<CheckMockDataResponse>(url, requestData).pipe(
       tap({
-        next: (response) => console.log('DMV cMD Mock data check result:', response),
+        next: (response: any) => console.log('DMV cMD Mock data check result:', response),
         error: (error) => console.error('DMV cMD Error checking mock data:', error)
       })
     );
   }
+
+
 }

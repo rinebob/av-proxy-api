@@ -4,13 +4,21 @@ import { DataMaintainerFunctionName } from '../feat/data-maintainer-view/common/
 
 // Define the production URLs for each 2nd Gen Cloud Function
 const PROD_URLS = {
+  // Alpha Vantage
   [AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE]: 'https://getdailystockdatasimple-lsluydmucq-uc.a.run.app',
   [AlphaVantageFunctionName.GET_GLOBAL_QUOTE]: 'https://getglobalquote-lsluydmucq-uc.a.run.app',
+  
+  // Benzinga
   [BenzingaFunctionName.GET_CALENDAR]: 'https://getbenzingacalendar-lsluydmucq-uc.a.run.app',
   [BenzingaFunctionName.GET_COMPANY_LOGO]: 'https://getcompanylogo-lsluydmucq-uc.a.run.app',
   [BenzingaFunctionName.GET_DYNAMIC_CALENDAR]: 'https://getdynamiccalendar-lsluydmucq-uc.a.run.app',
+  
+  // Data Maintainer
   [DataMaintainerFunctionName.FETCH_AND_STORE_DATA]: 'https://fetchandstoredata-lsluydmucq-uc.a.run.app',
-  [DataMaintainerFunctionName.CHECK_MOCK_DATA]: 'https://checkmockdata-lsluydmucq-uc.a.run.app'
+  [DataMaintainerFunctionName.CHECK_MOCK_DATA]: 'https://checkmockdata-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.LIST_SYMBOLS]: 'https://listsymbols-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.GET_SYMBOL_DETAILS]: 'https://getsymboldetails-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.SYNC_SYMBOLS]: 'https://syncsymbols-lsluydmucq-uc.a.run.app'
 } as const;
 
 // Development URL base
