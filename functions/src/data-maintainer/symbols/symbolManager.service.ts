@@ -1,5 +1,5 @@
-import * as admin from 'firebase-admin';
 import { db } from '../../firebase-admin-init';
+import { Timestamp, FieldValue, DocumentData, Query } from 'firebase-admin/firestore';
 import { 
   TRACKED_SYMBOLS, 
   CLIENT_SITES, 
@@ -24,15 +24,24 @@ export class SymbolManagerService {
   /**
    * Ensures a value is a Firestore Timestamp
    */
-  private ensureTimestamp(value: admin.firestore.Timestamp | Date | string | number): admin.firestore.Timestamp {
-    if (value instanceof admin.firestore.Timestamp) {
-      return value;
-    } else if (value instanceof Date) {
-      return admin.firestore.Timestamp.fromDate(value);
-    } else if (typeof value === 'string' || typeof value === 'number') {
-      return admin.firestore.Timestamp.fromMillis(new Date(value).getTime());
+  private ensureTimestamp(value: Timestamp | Date | string | number | undefined): Timestamp {
+    try {
+      if (value instanceof Timestamp) {
+        return value;
+      } else if (value instanceof Date) {
+        return Timestamp.fromDate(value);
+      } else if (value === undefined) {
+        // If no timestamp provided, create a new one
+        return Timestamp.now();
+      } else if (typeof value === 'string' || typeof value === 'number') {
+        return Timestamp.fromMillis(new Date(value).getTime());
+      }
+      throw new Error('Invalid timestamp value');
+    } catch (error) {
+      console.error('Error ensuring timestamp:', error);
+      // Fallback to current time if there's any error
+      return Timestamp.now();
     }
-    throw new Error('Invalid timestamp value');
   }
 
   /**
@@ -51,20 +60,25 @@ export class SymbolManagerService {
    */
   private createClientSource(
     clientId: string, 
-    timestamp: admin.firestore.Timestamp | Date | string | number,
+    timestamp: Timestamp | Date | string | number,
     metadata: Record<string, unknown> = {}
   ): ClientSource {
-    const now = admin.firestore.Timestamp.now();
-    const ts = this.ensureTimestamp(timestamp);
+    const now = Timestamp.now();
     
     return {
       clientId,
-      firstSeen: ts,
+      firstSeen: this.ensureTimestamp(timestamp),
       lastSeen: now,
       metadata
     };
   }
 
+  /**
+   * Syncs symbols from a client site with the central tracking system
+   * @param request - The sync request containing client and symbol information
+   * @returns A promise that resolves to the sync response
+   * @throws {Error} If the request is invalid or an error occurs during processing
+   */
   /**
    * Syncs symbols from a client site with the central tracking system
    * @param request - The sync request containing client and symbol information
@@ -90,8 +104,8 @@ export class SymbolManagerService {
     }
 
     const batch = db.batch();
-    const now = admin.firestore.Timestamp.now();
-    const clientSource = this.createClientSource(clientId, timestamp, metadata);
+    const now = this.ensureTimestamp(timestamp);
+    const clientSource = this.createClientSource(clientId, now, metadata);
     const clientRef = db.collection(CLIENT_SITES).doc(clientId);
     
     // Update client site document
@@ -127,7 +141,7 @@ export class SymbolManagerService {
         symbolRef,
         {
           ...symbolData,
-          sources: admin.firestore.FieldValue.arrayUnion(clientSource)
+          sources: FieldValue.arrayUnion(clientSource)
         },
         { merge: true }
       );
@@ -180,8 +194,8 @@ export class SymbolManagerService {
     } = options;
 
     try {
-      const collectionRef = db.collection(TRACKED_SYMBOLS) as admin.firestore.CollectionReference<admin.firestore.DocumentData>;
-      let query: admin.firestore.Query<admin.firestore.DocumentData> = collectionRef;
+      const collectionRef = db.collection(TRACKED_SYMBOLS);
+      let query: Query<DocumentData> = collectionRef;
       
       if (activeOnly) {
         query = query.where('isActive', '==', true);
@@ -233,11 +247,11 @@ export class SymbolManagerService {
       const doc = await db.collection(TRACKED_SYMBOLS)
         .doc(symbol.trim().toUpperCase())
         .get();
-      
+
       if (!doc.exists) {
         return null;
       }
-      
+
       const data = doc.data() as Omit<TrackedSymbol, 'id'>;
       return {
         ...data,
@@ -250,50 +264,58 @@ export class SymbolManagerService {
   }
 
   /**
-   * Deactivates symbols that haven't been seen in the specified number of days
+   * Counts the number of active symbols
+   * @returns A promise that resolves to the count of active symbols
    */
-  async cleanupInactiveSymbols(daysInactive = 30): Promise<{ deactivated: number }> {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysInactive);
-    
-    const cutoffTimestamp = admin.firestore.Timestamp.fromDate(cutoffDate);
-    
+  private async countActiveSymbols(): Promise<number> {
     try {
       const snapshot = await db.collection(TRACKED_SYMBOLS)
         .where('isActive', '==', true)
-        .where('lastUpdated', '<', cutoffTimestamp)
         .get();
-      
-      const batch = db.batch();
-      const now = admin.firestore.Timestamp.now();
-      
-      snapshot.docs.forEach(doc => {
-        batch.update(doc.ref, {
-          isActive: false,
-          deactivatedAt: now,
-          updatedAt: now
-        });
-      });
-      
-      await batch.commit();
-      
-      return { deactivated: snapshot.size };
+
+      return snapshot.docs.length;
     } catch (error) {
-      console.error('Error cleaning up inactive symbols:', error);
-      throw new Error('Failed to clean up inactive symbols');
+      console.error('Error counting active symbols:', error);
+      throw new Error('Failed to count active symbols');
     }
   }
 
   /**
-   * Counts the number of active symbols
+   * Cleans up inactive symbols that haven't been seen in the specified number of days
+   * @param daysInactive - Number of days of inactivity before a symbol is considered inactive (default: 30)
+   * @returns A promise that resolves to an object containing the number of deactivated symbols
    */
-  private async countActiveSymbols(): Promise<number> {
-    const snapshot = await db.collection(TRACKED_SYMBOLS)
-      .where('isActive', '==', true)
-      .count()
-      .get();
+  public async cleanupInactiveSymbols(daysInactive = 30): Promise<{ deactivated: number }> {
+    const now = Timestamp.now();
+    const cutoffDate = new Date(now.toDate().getTime() - daysInactive * 24 * 60 * 60 * 1000);
+    const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
     
-    return snapshot.data().count;
+    try {
+      const snapshot = await db.collection(TRACKED_SYMBOLS)
+        .where('isActive', '==', true)
+        .where('lastSeen', '<', cutoffTimestamp)
+        .get();
+
+      const batch = db.batch();
+      let count = 0;
+
+      snapshot.docs.forEach(doc => {
+        batch.update(doc.ref, { 
+          isActive: false,
+          deactivatedAt: FieldValue.serverTimestamp()
+        });
+        count++;
+      });
+
+      if (count > 0) {
+        await batch.commit();
+      }
+
+      return { deactivated: count };
+    } catch (error) {
+      console.error('Error cleaning up inactive symbols:', error);
+      throw new Error('Failed to clean up inactive symbols');
+    }
   }
 }
 

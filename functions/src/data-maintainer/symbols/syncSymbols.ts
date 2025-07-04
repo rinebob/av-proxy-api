@@ -1,5 +1,5 @@
 import { onRequest } from "firebase-functions/v2/https";
-import * as admin from 'firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
 import { symbolManagerService } from "./symbolManager.service";
 
 /**
@@ -24,12 +24,13 @@ export const syncSymbols = onRequest({ cors: true }, async (req, res) => {
       return;
     }
 
+    // Call the service with the current timestamp
     const result = await symbolManagerService.syncSymbols({
       clientId,
       clientName,
       symbols,
       metadata,
-      timestamp: admin.firestore.Timestamp.now()
+      timestamp: Timestamp.now()
     });
 
     res.status(200).json(result);
