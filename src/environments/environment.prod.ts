@@ -6,4 +6,8 @@ export const environment = {
   firebaseConfig: {
     ...FIREBASE_CONFIG
   },
+  adminEmails: [
+    'rinebob111185@gmail.com',
+    // Add other admin emails as needed
+  ]
 };
