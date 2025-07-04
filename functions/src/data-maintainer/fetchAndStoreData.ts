@@ -14,7 +14,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { db } from '../firebase-admin-init';
 import { MARKET_DATA, DATA_POINTS } from '../common/firestore-collections';
 import { mockDataService, registerAllMockData } from './mock-data';
-import { authenticateRequest } from '../utils';
+import { authenticateRequest } from '../utils/utils';
 
 // Initialize mock data on module load
 console.log('Initializing mock data...');

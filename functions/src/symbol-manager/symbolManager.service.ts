@@ -1,16 +1,16 @@
 import * as admin from 'firebase-admin';
-import { db } from '../../firebase-admin-init';
+import { db } from '../firebase-admin-init';
 import { Timestamp, DocumentData, Query } from 'firebase-admin/firestore';
 import { 
   TRACKED_SYMBOLS 
-} from '../../common/firestore-collections';
+} from '../common/firestore-collections';
 import {
   TrackedSymbol,
   SymbolSyncRequest,
   SymbolSyncResponse,
   ListSymbolsOptions,
   ListSymbolsResponse
-} from '../../common/common-dm';
+} from '../common/common-dm';
 
 /**
  * Service for managing symbols in the system
@@ -244,43 +244,76 @@ export class SymbolManagerService {
     clientId?: string,
     timestamp?: admin.firestore.Timestamp
   ): Promise<{ success: boolean; message: string }> {
-  try {
-    const now = timestamp || admin.firestore.Timestamp.now();
-    const symbolRef = db.collection(TRACKED_SYMBOLS).doc(symbol);
-    
-    return await db.runTransaction(async (transaction) => {
-      const symbolDoc = await transaction.get(symbolRef);
+    try {
+      const now = timestamp || admin.firestore.Timestamp.now();
+      const symbolRef = db.collection(TRACKED_SYMBOLS).doc(symbol);
       
-      if (!symbolDoc.exists) {
-        return { success: false, message: `Symbol ${symbol} not found` };
-      }
-      
-      // We don't need the symbol data, just checking if it exists
-      // The type assertion is safe here because we've already checked doc.exists
-      const symbolData = symbolDoc.data() as TrackedSymbol | undefined;
-      if (!symbolData) {
-        return { success: false, message: `Symbol ${symbol} has no data` };
-      }
-      
-      if (clientId) {
-        // If clientId is provided, just mark the symbol as inactive
-        transaction.update(symbolRef, {
-          isActive: false,
-          lastUpdated: now,
-          clientId
-        });
-        return { success: true, message: `Symbol ${symbol} marked as inactive` };
-      } else {
-        // If no clientId, delete the symbol entirely
-        transaction.delete(symbolRef);
-        return { success: true, message: `Symbol ${symbol} removed` };
-      }
-    });
-  } catch (error) {
-    console.error(`Error removing symbol ${symbol}:`, error);
-    return {
-      success: false,
-      message: `Failed to remove symbol: ${error instanceof Error ? error.message : 'Unknown error'}`
-    };
+      return await db.runTransaction(async (transaction) => {
+        const symbolDoc = await transaction.get(symbolRef);
+        
+        if (!symbolDoc.exists) {
+          return { success: false, message: `Symbol ${symbol} not found` };
+        }
+        
+        // We don't need the symbol data, just checking if it exists
+        // The type assertion is safe here because we've already checked doc.exists
+        const symbolData = symbolDoc.data() as TrackedSymbol | undefined;
+        if (!symbolData) {
+          return { success: false, message: `Symbol ${symbol} has no data` };
+        }
+        
+        if (clientId) {
+          // If clientId is provided, just mark the symbol as inactive
+          transaction.update(symbolRef, {
+            isActive: false,
+            lastUpdated: now,
+            clientId
+          });
+          return { success: true, message: `Symbol ${symbol} marked as inactive` };
+        } else {
+          // If no clientId, delete the symbol entirely
+          transaction.delete(symbolRef);
+          return { success: true, message: `Symbol ${symbol} removed` };
+        }
+      });
+    } catch (error) {
+      console.error(`Error removing symbol ${symbol}:`, error);
+      return {
+        success: false,
+        message: `Failed to remove symbol: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  /**
+   * Cleans up inactive symbols older than the specified number of days
+   * @param daysInactive - Number of days of inactivity before a symbol is removed
+   * @returns Object containing the number of deactivated symbols
+   */
+  async cleanupInactiveSymbols(daysInactive: number): Promise<{ deactivated: number }> {
+    try {
+      const cutoffDate = admin.firestore.Timestamp.fromMillis(
+        Date.now() - daysInactive * 24 * 60 * 60 * 1000
+      );
+
+      const inactiveSymbols = await db.collection(TRACKED_SYMBOLS)
+        .where('isActive', '==', false)
+        .where('lastUpdated', '<', cutoffDate)
+        .get();
+
+      const batch = db.batch();
+      inactiveSymbols.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      return { deactivated: inactiveSymbols.size };
+    } catch (error) {
+      console.error('Error cleaning up inactive symbols:', error);
+      throw new Error('Failed to clean up inactive symbols');
+    }
   }
 }
+
+// Create an instance of the service
+export const symbolManagerService = new SymbolManagerService();

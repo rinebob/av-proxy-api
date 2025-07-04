@@ -1,9 +1,8 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { ListSymbolsOptions } from "../../common/common-dm";
-import { SymbolManagerService } from "./symbolManager.service";
+import { ListSymbolsOptions } from "../common/common-dm";
+import { symbolManagerService } from "./symbolManager.service";
 
-// Create an instance of the service
-const symbolManagerService = new SymbolManagerService();
+
 
 /**
  * HTTP endpoint for listing tracked symbols

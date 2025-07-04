@@ -1,6 +1,6 @@
 import { onSchedule, ScheduleOptions } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
-import { SYMBOL_REQUESTS } from '../../common/firestore-collections';
+import { SYMBOL_REQUESTS } from '../common/firestore-collections';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {

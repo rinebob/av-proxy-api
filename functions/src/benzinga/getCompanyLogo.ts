@@ -2,7 +2,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { 
   authenticateRequest,
   handleApiError
-} from '../utils';
+} from '../utils/utils';
 import { BenzingaFunctionName } from '../common/common-fn';
 import { getLogoData, saveLogoData } from './benzinga-firestore-helpers';
 

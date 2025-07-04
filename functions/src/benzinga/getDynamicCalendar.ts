@@ -10,7 +10,7 @@ import { BenzingaFunctionName } from '../common/common-fn';
 import { 
   authenticateRequest,
   handleApiError
-} from '../utils';
+} from '../utils/utils';
 
 // Define the Benzinga API key as a secret
 export const benzingaCalendarApiKeyParam = defineSecret('BENZINGA_CALENDAR_API_KEY');

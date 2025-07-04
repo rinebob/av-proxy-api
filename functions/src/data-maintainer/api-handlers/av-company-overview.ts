@@ -1,5 +1,5 @@
 // Handler for AV COMPANY_OVERVIEW endpoint
-import { getAlphaVantageApiKey, fetchStockData } from '../../utils';
+import { getAlphaVantageApiKey, fetchStockData } from '../../utils/utils';
 import { AlphaVantageFunction } from '../../common/common-av';
 
 export class AvCompanyOverviewHandler {

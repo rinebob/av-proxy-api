@@ -5,9 +5,9 @@ import {
     ALPHAVANTAGE_BASE_URL,
     AlphaVantageDailyTimeSeriesResponse,
     AlphaVantageGlobalQuoteResponse,
-} from './common/common-av';
-import { db } from './firebase-admin-init';
-import { authenticateFirebaseUser } from './utils/auth';
+} from '../common/common-av';
+import { db } from '../firebase-admin-init';
+import { authenticateFirebaseUser } from './auth';
 
 // Create a union type for all possible Alpha Vantage API responses
 export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVantageGlobalQuoteResponse;

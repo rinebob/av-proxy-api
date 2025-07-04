@@ -13,10 +13,15 @@ import { onCall, CallableRequest, HttpsError } from 'firebase-functions/v2/https
 
 // Project imports
 import { DataMaintainerEndpoint, ENDPOINT_TTLS, IMPLEMENTED_ENDPOINTS, RefreshResult, DocumentToProcess } from '../common/common-dm';
-import { DATA_POINTS, TRACKED_SYMBOLS } from '../common/firestore-collections';
+import { AvCompanyOverviewHandler } from './api-handlers/av-company-overview';
 import { logRefreshEvent, RefreshStatus } from '../common/refresh-events';
+import { formatPST } from '../utils/utils';
 import { fetchAndStoreData } from './fetchAndStoreData';
-import { formatPST } from '../utils';
+
+// Constants for Firestore collections
+const MARKET_DATA = 'market_data';
+const DATA_POINTS = 'data_points';
+const TRACKED_SYMBOLS = 'tracked_symbols';
 
 // Test configuration
 const TEST_MODE = true; // Set to false to use production settings
@@ -310,29 +315,43 @@ export const manualRefresh = onCall({
   try {
     // Refresh the data for the specified symbol and endpoint
     const refreshStartTime = Date.now();
+    
     try {
-      // Create a proper request/response for fetchAndStoreData
-      const req = {
-        method: 'POST',
-        body: JSON.stringify({ 
-          symbol, 
-          endpoint: endpoint as DataMaintainerEndpoint 
-        }),
-        headers: { 'content-type': 'application/json' }
-      } as any;
+      // Get the appropriate handler for the endpoint
+      let handler: any;
+      if (endpoint === DataMaintainerEndpoint.COMPANY_OVERVIEW) {
+        handler = new AvCompanyOverviewHandler();
+      } else {
+        throw new Error(`Unsupported endpoint: ${endpoint}`);
+      }
       
-      const res = {
-        status: (code: number) => ({
-          json: (data: any) => {
-            if (code >= 400) {
-              throw new Error(data?.error || 'Failed to fetch data');
-            }
-            return data;
-          }
-        })
-      } as any;
+      // Fetch and transform the data
+      const data = await handler.fetchAndTransform(symbol);
       
-      await fetchAndStoreData(req, res);
+      // Save to Firestore
+      const docRef = db.collection(MARKET_DATA)
+        .doc(symbol)
+        .collection(DATA_POINTS)
+        .doc(endpoint);
+      
+      const updateData = {
+        ...data,
+        lastUpdated: Timestamp.now(),
+        status: 'success',
+        symbol,
+        endpoint,
+        nextRefreshAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+        ttlSeconds: 24 * 60 * 60 // 24 hours in seconds
+      };
+      
+      // Remove any undefined or null values
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined || updateData[key] === null) {
+          delete updateData[key];
+        }
+      });
+      
+      await docRef.set(updateData, { merge: true });
       
       // Log the successful refresh
       await logRefreshEvent(db, {

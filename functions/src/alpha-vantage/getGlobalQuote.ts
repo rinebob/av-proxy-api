@@ -5,7 +5,7 @@ import {
   fetchStockData, 
   handleApiError,
   authenticateRequest
-} from '../utils';
+} from '../utils/utils';
 import { 
   AlphaVantageFunctionName
 } from '../common/common-fn';

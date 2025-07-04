@@ -3,9 +3,9 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { symbolManagerService } from "./symbolManager.service";
 
 /**
- * HTTP endpoint for syncing symbols from client sites
+ * HTTP endpoint for syncing symbols
  * POST /syncSymbols
- * Body: { clientId: string, clientName?: string, symbols: string[], metadata?: any }
+ * Body: { symbols: string[] }
  */
 export const syncSymbols = onRequest({ cors: true }, async (req, res) => {
   try {
@@ -14,22 +14,19 @@ export const syncSymbols = onRequest({ cors: true }, async (req, res) => {
       return;
     }
 
-    const { clientId, clientName, symbols, metadata } = req.body;
+    const { symbols } = req.body;
     
-    if (!clientId || !Array.isArray(symbols)) {
+    if (!Array.isArray(symbols)) {
       res.status(400).json({ 
-        error: 'Missing required fields', 
-        required: ['clientId', 'symbols'] 
+        error: 'Missing required field', 
+        required: ['symbols'] 
       });
       return;
     }
 
     // Call the service with the current timestamp
     const result = await symbolManagerService.syncSymbols({
-      clientId,
-      clientName,
       symbols,
-      metadata,
       timestamp: Timestamp.now()
     });
 
