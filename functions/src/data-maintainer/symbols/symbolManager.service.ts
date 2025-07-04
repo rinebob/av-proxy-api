@@ -1,26 +1,28 @@
+import * as admin from 'firebase-admin';
 import { db } from '../../firebase-admin-init';
-import { Timestamp, FieldValue, DocumentData, Query } from 'firebase-admin/firestore';
+import { Timestamp, DocumentData, Query } from 'firebase-admin/firestore';
 import { 
-  TRACKED_SYMBOLS, 
-  CLIENT_SITES, 
-  SYMBOL_REQUESTS 
+  TRACKED_SYMBOLS 
 } from '../../common/firestore-collections';
 import {
   TrackedSymbol,
-  ClientSite,
   SymbolSyncRequest,
   SymbolSyncResponse,
   ListSymbolsOptions,
-  ListSymbolsResponse,
-  ClientSource
+  ListSymbolsResponse
 } from '../../common/common-dm';
-
-// Using direct FieldValue access where needed instead of a constant
 
 /**
  * Service for managing symbols in the system
  */
 export class SymbolManagerService {
+  /**
+   * Creates a new instance of SymbolManagerService
+   */
+  constructor() {}
+
+  // Batch size for Firestore operations (for future use)
+  // private static readonly BATCH_SIZE = 500;
   /**
    * Ensures a value is a Firestore Timestamp
    */
@@ -52,44 +54,16 @@ export class SymbolManagerService {
   }
 
   /**
-   * Creates a client source object with proper typing
-   * @param clientId - The unique identifier for the client
-   * @param timestamp - The timestamp for the client source (can be Date, Timestamp, string, or number)
-   * @param metadata - Optional metadata to include with the client source
-   * @returns A properly typed ClientSource object
-   */
-  private createClientSource(
-    clientId: string, 
-    timestamp: Timestamp | Date | string | number,
-    metadata: Record<string, unknown> = {}
-  ): ClientSource {
-    const now = Timestamp.now();
-    
-    return {
-      clientId,
-      firstSeen: this.ensureTimestamp(timestamp),
-      lastSeen: now,
-      metadata
-    };
-  }
-
-  /**
-   * Syncs symbols from a client site with the central tracking system
-   * @param request - The sync request containing client and symbol information
-   * @returns A promise that resolves to the sync response
-   * @throws {Error} If the request is invalid or an error occurs during processing
-   */
-  /**
    * Syncs symbols from a client site with the central tracking system
    * @param request - The sync request containing client and symbol information
    * @returns A promise that resolves to the sync response
    * @throws {Error} If the request is invalid or an error occurs during processing
    */
   async syncSymbols(request: SymbolSyncRequest): Promise<SymbolSyncResponse> {
-    const { clientId, clientName, symbols, timestamp, metadata } = request;
+    const { symbols, timestamp } = request;
     
-    if (!clientId || !Array.isArray(symbols)) {
-      throw new Error('Invalid request: clientId and symbols array are required');
+    if (!Array.isArray(symbols)) {
+      throw new Error('Invalid request: symbols array is required');
     }
 
     const normalizedSymbols = this.normalizeSymbols(symbols);
@@ -105,59 +79,28 @@ export class SymbolManagerService {
 
     const batch = db.batch();
     const now = this.ensureTimestamp(timestamp);
-    const clientSource = this.createClientSource(clientId, now, metadata);
-    const clientRef = db.collection(CLIENT_SITES).doc(clientId);
-    
-    // Update client site document
-    const clientUpdate: Partial<ClientSite> = {
-      id: clientId,
-      name: clientName || clientId,
-      lastActive: now,
-      symbolCount: normalizedSymbols.length,
-      updatedAt: now,
-      isActive: true
-    };
-
-    if (!clientName) {
-      clientUpdate.createdAt = now;
-    }
-
-    batch.set(clientRef, clientUpdate, { merge: true });
 
     // Track added symbols
     const addedSymbols: string[] = [];
-    
-    for (const symbol of normalizedSymbols) {
+
+    // Process each symbol
+    const symbolPromises = normalizedSymbols.map(async (symbol) => {
       const symbolRef = db.collection(TRACKED_SYMBOLS).doc(symbol);
       
       const symbolData: Partial<TrackedSymbol> = {
         symbol,
         isActive: true,
         lastUpdated: now,
-        createdAt: now
+        createdAt: now,
       };
 
-      batch.set(
-        symbolRef,
-        {
-          ...symbolData,
-          sources: FieldValue.arrayUnion(clientSource)
-        },
-        { merge: true }
-      );
+      batch.set(symbolRef, symbolData, { merge: true });
       
-      addedSymbols.push(symbol);
-    }
-
-    // Create a record of this sync request
-    const syncRequestRef = db.collection(SYMBOL_REQUESTS).doc();
-    batch.set(syncRequestRef, {
-      clientId,
-      timestamp: now,
-      symbolCount: normalizedSymbols.length,
-      symbols: normalizedSymbols,
-      metadata
+      return symbol;
     });
+
+    await Promise.all(symbolPromises);
+    addedSymbols.push(...normalizedSymbols);
 
     try {
       await batch.commit();
@@ -214,9 +157,13 @@ export class SymbolManagerService {
       const snapshot = await paginatedQuery.get();
       const symbols = snapshot.docs.map(doc => {
         const data = doc.data() as Omit<TrackedSymbol, 'id'>;
+        // Convert Firestore Timestamp to JavaScript Date if needed
+        const lastUpdated = data.lastUpdated ? (data.lastUpdated as any).toDate ? (data.lastUpdated as any).toDate() : new Date(data.lastUpdated as any) : null;
+        
         return {
           ...data,
-          id: doc.id
+          id: doc.id,
+          lastUpdated: lastUpdated
         } as TrackedSymbol;
       });
       
@@ -245,7 +192,7 @@ export class SymbolManagerService {
 
     try {
       const doc = await db.collection(TRACKED_SYMBOLS)
-        .doc(symbol.trim().toUpperCase())
+        .doc(symbol.toUpperCase())
         .get();
 
       if (!doc.exists) {
@@ -253,9 +200,15 @@ export class SymbolManagerService {
       }
 
       const data = doc.data() as Omit<TrackedSymbol, 'id'>;
+      // Convert Firestore Timestamp to JavaScript Date if needed
+      const lastUpdated = data.lastUpdated ? (data.lastUpdated as any).toDate ? (data.lastUpdated as any).toDate() : new Date(data.lastUpdated as any) : null;
+      const createdAt = data.createdAt ? (data.createdAt as any).toDate ? (data.createdAt as any).toDate() : new Date(data.createdAt as any) : null;
+
       return {
         ...data,
-        id: doc.id
+        id: doc.id,
+        lastUpdated,
+        createdAt
       } as TrackedSymbol;
     } catch (error) {
       console.error(`Error getting symbol ${symbol}:`, error);
@@ -281,42 +234,53 @@ export class SymbolManagerService {
   }
 
   /**
-   * Cleans up inactive symbols that haven't been seen in the specified number of days
-   * @param daysInactive - Number of days of inactivity before a symbol is considered inactive (default: 30)
-   * @returns A promise that resolves to an object containing the number of deactivated symbols
+   * Removes a symbol from the system
+   * @param symbol - The symbol to remove
+   * @param clientId - Optional client ID to track which client removed the symbol
+   * @param timestamp - Optional timestamp for the removal
    */
-  public async cleanupInactiveSymbols(daysInactive = 30): Promise<{ deactivated: number }> {
-    const now = Timestamp.now();
-    const cutoffDate = new Date(now.toDate().getTime() - daysInactive * 24 * 60 * 60 * 1000);
-    const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
+  async removeSymbol(
+    symbol: string,
+    clientId?: string,
+    timestamp?: admin.firestore.Timestamp
+  ): Promise<{ success: boolean; message: string }> {
+  try {
+    const now = timestamp || admin.firestore.Timestamp.now();
+    const symbolRef = db.collection(TRACKED_SYMBOLS).doc(symbol);
     
-    try {
-      const snapshot = await db.collection(TRACKED_SYMBOLS)
-        .where('isActive', '==', true)
-        .where('lastSeen', '<', cutoffTimestamp)
-        .get();
-
-      const batch = db.batch();
-      let count = 0;
-
-      snapshot.docs.forEach(doc => {
-        batch.update(doc.ref, { 
-          isActive: false,
-          deactivatedAt: FieldValue.serverTimestamp()
-        });
-        count++;
-      });
-
-      if (count > 0) {
-        await batch.commit();
+    return await db.runTransaction(async (transaction) => {
+      const symbolDoc = await transaction.get(symbolRef);
+      
+      if (!symbolDoc.exists) {
+        return { success: false, message: `Symbol ${symbol} not found` };
       }
-
-      return { deactivated: count };
-    } catch (error) {
-      console.error('Error cleaning up inactive symbols:', error);
-      throw new Error('Failed to clean up inactive symbols');
-    }
+      
+      // We don't need the symbol data, just checking if it exists
+      // The type assertion is safe here because we've already checked doc.exists
+      const symbolData = symbolDoc.data() as TrackedSymbol | undefined;
+      if (!symbolData) {
+        return { success: false, message: `Symbol ${symbol} has no data` };
+      }
+      
+      if (clientId) {
+        // If clientId is provided, just mark the symbol as inactive
+        transaction.update(symbolRef, {
+          isActive: false,
+          lastUpdated: now,
+          clientId
+        });
+        return { success: true, message: `Symbol ${symbol} marked as inactive` };
+      } else {
+        // If no clientId, delete the symbol entirely
+        transaction.delete(symbolRef);
+        return { success: true, message: `Symbol ${symbol} removed` };
+      }
+    });
+  } catch (error) {
+    console.error(`Error removing symbol ${symbol}:`, error);
+    return {
+      success: false,
+      message: `Failed to remove symbol: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
   }
 }
-
-export const symbolManagerService = new SymbolManagerService();

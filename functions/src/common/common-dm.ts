@@ -97,18 +97,25 @@ export interface ClientSource {
 }
 
 /**
- * Represents a tracked symbol in the system
+ * Represents a symbol from Alpha Vantage SYMBOL_SEARCH endpoint
+ * This is the canonical shape for all symbol data in the system
  */
 export interface TrackedSymbol {
+  // AV SYMBOL_SEARCH fields
   symbol: string;
-  displayName?: string;
+  name: string;
+  type: string;
+  region: string;
+  marketOpen: string;
+  marketClose: string;
+  timezone: string;
+  currency: string;
+  matchScore: string;
+  
+  // System fields
   isActive: boolean;
   lastUpdated: admin.firestore.Timestamp | Date;
   createdAt: admin.firestore.Timestamp | Date;
-  sources: ClientSource[];
-
-  metadata?: Record<string, any>;
-  deactivatedAt?: admin.firestore.Timestamp | Date;
 }
 
 /**
@@ -131,12 +138,8 @@ export interface ClientSite {
  * Request to sync symbols from a client site
  */
 export interface SymbolSyncRequest {
-  clientId: string;
-  clientName?: string;
-  siteId?: string;
   symbols: string[];
   timestamp: admin.firestore.Timestamp | Date;
-  metadata?: Record<string, any>;
 }
 
 /**

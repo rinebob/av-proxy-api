@@ -1,6 +1,9 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { ListSymbolsOptions } from "../../common/common-dm";
-import { symbolManagerService } from "./symbolManager.service";
+import { SymbolManagerService } from "./symbolManager.service";
+
+// Create an instance of the service
+const symbolManagerService = new SymbolManagerService();
 
 /**
  * HTTP endpoint for listing tracked symbols
@@ -21,13 +24,23 @@ export const listSymbols = onRequest({ cors: true }, async (req, res) => {
       sortDirection: (req.query.sortDirection as 'asc' | 'desc') || 'asc'
     };
 
+    console.log('Calling symbolManagerService.listSymbols with options:', options);
     const result = await symbolManagerService.listSymbols(options);
+    console.log('Successfully retrieved symbols:', { count: result.symbols?.length, total: result.total });
     res.status(200).json(result);
   } catch (error: any) {
-    console.error('Error in listSymbols:', error);
+    console.error('Error in listSymbols:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      statusCode: error.statusCode,
+      details: error.details
+    });
     res.status(500).json({ 
       error: 'Internal server error',
-      details: error.message 
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
