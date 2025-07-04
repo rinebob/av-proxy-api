@@ -34,6 +34,14 @@
         <mat-icon>image</mat-icon>
         <span>Company Logos</span>
       </a>
+      @if (isAdmin()) {
+        <a mat-button 
+           routerLink="/fs-debug" 
+           routerLinkActive="active">
+          <mat-icon>bug_report</mat-icon>
+          <span>Debug</span>
+        </a>
+      }
     </nav>
     
     <span class="spacer"></span>

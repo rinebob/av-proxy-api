@@ -196,4 +196,60 @@ export interface SyncSymbolsResponse {
   error?: string;
 }
 
+/**
+ * Represents a document in the data_points subcollection
+ * Each document is keyed by endpoint name (e.g., 'company-overview')
+ */
+export interface EndpointData<T = any> {
+  /** The endpoint identifier (e.g., 'company-overview') */
+  endpoint: string;
+  /** The stock/financial symbol this data is for */
+  symbol: string;
+  /** When this data was last updated */
+  lastUpdated: string | Date;
+  /** When this data should be refreshed */
+  nextRefreshAt: string | Date;
+  /** Time-to-live in seconds for this data point */
+  ttlSeconds: number;
+  /** Status of the last fetch attempt */
+  status: 'success' | 'error' | 'pending';
+  /** The actual API response data */
+  data: T;
+  /** Error details if status is 'error' */
+  errorDetails?: {
+    message: string;
+    code?: string;
+    stack?: string;
+  };
+}
+
+/**
+ * Represents a refresh event document in the refresh_events subcollection
+ * Each document is keyed by endpoint name (e.g., 'company-overview')
+ */
+export interface RefreshEvent {
+  /** The endpoint that was refreshed */
+  endpoint: string;
+  /** The symbol that was refreshed */
+  symbol: string;
+  /** When the refresh was completed */
+  completedAt: string | Date;
+  /** Duration in milliseconds */
+  durationMs: number;
+  /** Status of the refresh */
+  status: 'success' | 'error' | 'pending';
+  /** Error details if the refresh failed */
+  error?: {
+    message: string;
+    code?: string;
+    stack?: string;
+  };
+  /** Additional metadata about the refresh */
+  metadata?: Record<string, any>;
+}
+
+// Specific endpoint data types
+export type CompanyOverviewData = EndpointData<AvCompanyOverview>;
+// Add other endpoint-specific types as needed
+
 ///////////////////////////////////////////////////////////////////
