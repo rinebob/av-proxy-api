@@ -33,7 +33,7 @@ export const appConfig: ApplicationConfig = {
       const firebaseApp = injector.get(FirebaseApp); // Get FirebaseApp from DI
       return zone.run(() => {
         const auth = getAuth(firebaseApp); // Use DI-provided firebaseApp
-        if (!environment.production) {
+        if (!environment.production && environment.useEmulator) {
           connectAuthEmulator(auth, 'http://127.0.0.1:9099');
           console.log('Auth emulator connected in app.config (within zone.run using DI FirebaseApp)');
         }
@@ -46,7 +46,7 @@ export const appConfig: ApplicationConfig = {
       const firebaseApp = injector.get(FirebaseApp); // Get FirebaseApp from DI
       return zone.run(() => {
         const firestore = getFirestore(firebaseApp); // Use DI-provided firebaseApp
-        if (!environment.production) {
+        if (!environment.production && environment.useEmulator) {
           connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
           console.log('Firestore emulator connected in app.config (within zone.run using DI FirebaseApp)');
         }
@@ -59,7 +59,7 @@ export const appConfig: ApplicationConfig = {
       const firebaseApp = injector.get(FirebaseApp); // Get FirebaseApp from DI
       return zone.run(() => {
         const functions = getFunctions(firebaseApp); // Use DI-provided firebaseApp
-        if (!environment.production) {
+        if (!environment.production && environment.useEmulator) {
           connectFunctionsEmulator(functions, '127.0.0.1', 5001);
           console.log('Functions emulator connected in app.config (within zone.run using DI FirebaseApp)');
         }
