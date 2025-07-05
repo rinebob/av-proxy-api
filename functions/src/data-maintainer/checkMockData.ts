@@ -6,10 +6,10 @@ import { CheckMockDataRequest, CheckMockDataResponse } from '../common/common-av
 registerAllMockData();
 
 // Log available mock data on startup
-console.log('Available mock endpoints:', Array.from(mockDataService.getEndpoints()));
-mockDataService.getEndpoints().forEach(endpoint => {
-  console.log(`fn gE: Available symbols for ${endpoint}:`, mockDataService.getSymbols(endpoint));
-});
+// console.log('Available mock endpoints:', Array.from(mockDataService.getEndpoints()));
+// mockDataService.getEndpoints().forEach(endpoint => {
+//   console.log(`fn gE: Available symbols for ${endpoint}:`, mockDataService.getSymbols(endpoint));
+// });
 
 /**
  * Cloud Function to check if mock data is available for a given symbol and endpoint

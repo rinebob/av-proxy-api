@@ -28,6 +28,9 @@ const TEST_MODE = true; // Set to false to use production settings
 const TEST_TTL_SECONDS = 300; // 5 minutes TTL for testing
 const SCHEDULE = 'every 15 minutes'; // Run every 15 minutes in test mode
 
+// turn off console logs
+const pr = false;
+
 /**
  * Scheduled function that runs periodically to check for and refresh expired data
  */
@@ -48,26 +51,26 @@ export async function refreshAllData(): Promise<RefreshResult> {
       hour12: true
     });
     
-    console.log(`rD rAD Starting scheduled refresh at ${pacificTime} PT`);
-    console.log(`rD rAD Test mode: ${TEST_MODE}, TTL: ${TEST_TTL_SECONDS}s`);
+    if (pr) console.log(`rD rAD Starting scheduled refresh at ${pacificTime} PT`);
+    if (pr) console.log(`rD rAD Test mode: ${TEST_MODE}, TTL: ${TEST_TTL_SECONDS}s`);
     
     // Get all active tracked symbols
-    console.log('rD rAD Fetching active tracked symbols...');
+    if (pr) console.log('rD rAD Fetching active tracked symbols...');
     const activeSymbols = await db.collection(TRACKED_SYMBOLS)
       .where('isActive', '==', true)
       .select('symbol')
       .get();
       
-    console.log(`rD rAD Found ${activeSymbols.size} active symbols to process`);
+    if (pr) console.log(`rD rAD Found ${activeSymbols.size} active symbols to process`);
     
     // Log current time and test settings
-    console.log('rD rAD Current time:', formatPST(now));
+    if (pr) console.log('rD rAD Current time:', formatPST(now));
     
     // Process each symbol for each implemented endpoint
     const symbols = activeSymbols.docs.map(doc => doc.id);
     const endpoints = Array.from(IMPLEMENTED_ENDPOINTS);
     
-    console.log(`rD rAD Processing ${symbols.length} symbols across ${endpoints.length} endpoints`);
+    if (pr) console.log(`rD rAD Processing ${symbols.length} symbols across ${endpoints.length} endpoints`);
     
     // Build the list of documents to process
     const docsToProcess: DocumentToProcess[] = [];
@@ -90,7 +93,7 @@ export async function refreshAllData(): Promise<RefreshResult> {
       }
     }
     
-    console.log(`rD rAD Found ${docsToProcess.length} documents to process`);
+    if (pr) console.log(`rD rAD Found ${docsToProcess.length} documents to process`);
     
     // Initialize results tracking
     const results = {
@@ -105,20 +108,20 @@ export async function refreshAllData(): Promise<RefreshResult> {
 
     for (let i = 0; i < docsToProcess.length; i += BATCH_SIZE) {
       const batch = docsToProcess.slice(i, Math.min(i + BATCH_SIZE, docsToProcess.length));
-      console.log(`rD rAD Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(docsToProcess.length / BATCH_SIZE)}`);
+      if (pr) console.log(`rD rAD Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(docsToProcess.length / BATCH_SIZE)}`);
       
       // Process symbols sequentially with delay between them
       for (const { symbol, endpoint, ttl } of batch) {
         batchPromises.push((async () => {
           try {
-          console.log(`rD rAD Processing ${symbol} for endpoint ${endpoint}`);
+          if (pr) console.log(`rD rAD Processing ${symbol} for endpoint ${endpoint}`);
           
           // Check if this document needs refreshing
           const docRef = db.collection(DATA_POINTS).doc(`${symbol}_${endpoint}`);
           const doc = await docRef.get();
           
           if (!doc.exists) {
-            console.log(`rD rAD Adding ${symbol}_${endpoint} to refresh queue (new document)`);
+            if (pr) console.log(`rD rAD Adding ${symbol}_${endpoint} to refresh queue (new document)`);
             const startTime = Date.now();
             
             try {
@@ -153,7 +156,7 @@ export async function refreshAllData(): Promise<RefreshResult> {
               });
             } catch (error) {
               const errorMessage = error instanceof Error ? error.message : String(error);
-              console.error(`rD rAD Error refreshing ${symbol}_${endpoint}:`, errorMessage);
+              if (pr) console.error(`rD rAD Error refreshing ${symbol}_${endpoint}:`, errorMessage);
               results.errors++;
               
               // Log the error to Firestore
@@ -178,7 +181,7 @@ export async function refreshAllData(): Promise<RefreshResult> {
               (Date.now() - lastRefreshTime) > (ttl * 1000);
               
             if (needsRefresh) {
-              console.log(`rD rAD Refreshing ${symbol}_${endpoint} (data is stale)`);
+              if (pr) console.log(`rD rAD Refreshing ${symbol}_${endpoint} (data is stale)`);
               const refreshStartTime = Date.now();
               try {
                 // Create a mock request object for the fetchAndStoreData HTTP function
@@ -213,7 +216,7 @@ export async function refreshAllData(): Promise<RefreshResult> {
                 });
               } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                console.error(`rD rAD Error refreshing ${symbol}_${endpoint}:`, errorMessage);
+                if (pr) console.error(`rD rAD Error refreshing ${symbol}_${endpoint}:`, errorMessage);
                 results.errors++;
                 
                 // Log the error to Firestore
@@ -227,13 +230,13 @@ export async function refreshAllData(): Promise<RefreshResult> {
                 });
               }
             } else {
-              console.log(`rD rAD Skipping ${symbol}_${endpoint} (data is fresh)`);
+              if (pr) console.log(`rD rAD Skipping ${symbol}_${endpoint} (data is fresh)`);
               results.skipped++;
             }
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error(`rD rAD Error processing ${symbol}_${endpoint}:`, errorMessage);
+          if (pr) console.error(`rD rAD Error processing ${symbol}_${endpoint}:`, errorMessage);
           results.errors++;
           
           // Log the error to Firestore
@@ -248,18 +251,18 @@ export async function refreshAllData(): Promise<RefreshResult> {
         batchPromises.length = 0; // Clear the array for the next batch
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('Error in batch processing:', errorMessage);
+        if (pr) console.error('Error in batch processing:', errorMessage);
         results.errors++;
       }
     }
     
     // Log final results
     const durationMs = Date.now() - batchStartTime;
-    console.log(`rD rAD Refresh completed in ${durationMs}ms`);
-    console.log(`rD rAD Results: ${results.success} successful, ${results.skipped} skipped, ${results.errors} failed`);
+    if (pr) console.log(`rD rAD Refresh completed in ${durationMs}ms`);
+    if (pr) console.log(`rD rAD Results: ${results.success} successful, ${results.skipped} skipped, ${results.errors} failed`);
     
     if (results.errors > 0) {
-      console.error(`rD rAD ${results.errors} errors occurred during refresh`);
+      if (pr) console.error(`rD rAD ${results.errors} errors occurred during refresh`);
     }
     
     return {
@@ -271,7 +274,7 @@ export async function refreshAllData(): Promise<RefreshResult> {
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('rD rAD Error in refreshAllData:', errorMessage);
+    if (pr) console.error('rD rAD Error in refreshAllData:', errorMessage);
     
     // Log the error to Firestore
     // Use a valid endpoint from DataMaintainerEndpoint for system operations
@@ -398,33 +401,36 @@ export const manualRefresh = onCall({
 
 // Emulator mode detection
 if (process.env.FUNCTIONS_EMULATOR) {
-  console.log('rD Emulator mode detected - starting automated test runner');
+  if (pr) console.log(`==================== DUDE START TEST RUNNER ====================`)
+  if (pr) console.log('rD Emulator mode detected - starting automated test runner');
   
   // Wrap in an async IIFE to handle top-level await
   (async () => {
     const intervalMs = 5 * 60 * 1000; // 5 minutes between full refreshes
     let runCount = 0;
     
-    console.log(`rD Starting test runner - will run every ${intervalMs/1000} seconds`);
+    if (pr) console.log(`rD Starting test runner - will run every ${intervalMs/1000} seconds`);
     
     // Define the refresh function
     const runRefresh = async () => {
       runCount++;
       const startTime = Date.now();
-      console.log(`rD [Run #${runCount}] Starting refresh at ${new Date().toISOString()}`);
+      if (pr) console.log(`==================== DUDE START rD [Run #${runCount}] ====================`)
+      if (pr) console.log(`rD [Run #${runCount}] Starting refresh at ${formatPST(new Date())}`);
       
       try {
         const result = await refreshAllData();
         const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.log(`rD [Run #${runCount}] Completed in ${duration}s -`, result);
+        if (pr) console.log(`rD [Run #${runCount}] Completed in ${duration}s -`, result);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`rD [Run #${runCount}] Error:`, errorMessage);
       }
+      if (pr) console.log(`==================== END rD [Run #${runCount}] ====================`)
     };
 
     // Don't run immediately on startup to avoid conflicts
-    console.log('rD Initial delay before first run...');
+    if (pr) console.log('rD Initial delay before first run...');
     setTimeout(() => {
       // Run first refresh
       runRefresh().catch(console.error);
@@ -435,6 +441,7 @@ if (process.env.FUNCTIONS_EMULATOR) {
       }, intervalMs);
     }, 10000); // 10 second initial delay
   })();
+  if (pr) console.log(`==================== END TEST RUNNER ====================`)
 }
 
 // Scheduled function for production
@@ -444,7 +451,7 @@ export const scheduledRefresh = onSchedule({
   memory: '256MiB',
   timeoutSeconds: 540 // 9 minutes
 }, async (event) => {
-  console.log('rD Starting scheduled refresh at', new Date().toISOString());
+  if (pr) console.log('rD Starting scheduled refresh at', new Date().toISOString());
   await refreshAllData();
 });
 

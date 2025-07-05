@@ -41,6 +41,9 @@ export interface RefreshEvent {
 // Maximum number of historical refresh events to keep per endpoint
 const MAX_HISTORY_ENTRIES = 30;
 
+// turn off console logs
+const pr = false;
+
 export async function logRefreshEvent(
   db: FirebaseFirestore.Firestore,
   params: {
@@ -112,7 +115,7 @@ export async function logRefreshEvent(
     toDelete.forEach(doc => {
       batch.delete(doc.ref);
     });
-    console.log(`Cleaned up ${toDelete.length} old history entries for ${params.symbol}/${params.endpoint}`);
+    if (pr) console.log(`Cleaned up ${toDelete.length} old history entries for ${params.symbol}/${params.endpoint}`);
   }
   
   return batch.commit();
