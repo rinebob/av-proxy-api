@@ -8,7 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { BenzingaLogoService, CompanyLogoResponse } from '../services/benzinga-logo.service';
+import { BenzingaLogoService, CompanyLogoResponse } from '../../services/benzinga-logo.service';
 import { toSignal, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, of, switchMap, tap } from 'rxjs';
 

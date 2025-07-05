@@ -4,9 +4,9 @@ import { MatDividerModule } from '@angular/material/divider';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl } from '@angular/forms';
 import { JsonPipe, CommonModule } from '@angular/common';
 import { catchError, of, switchMap, tap } from 'rxjs';
-import { StockDataFunctions, StockDataFunction } from '../common/fe-common-app';
-import { MaterialModule } from '../shared/material.module';
-import { AlphaVantageService } from '../services/alpha-vantage.service';
+import { StockDataFunctions, StockDataFunction } from '../../common/fe-common-app';
+import { MaterialModule } from '../../shared/material.module';
+import { AlphaVantageService } from '../../services/alpha-vantage.service';
 
 @Component({
   selector: 'app-stock-data',

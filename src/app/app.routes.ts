@@ -1,11 +1,11 @@
 import { Routes } from '@angular/router';
 
-import { LoginComponent } from './login/login.component';
-import { StockDataComponent } from './stock-data/stock-data.component';
+import { LoginComponent } from './core/login/login.component';
+import { StockDataComponent } from './feat/stock-data/stock-data.component';
 import { BzCalendarViewComponent } from './feat/bz-calendar-view/bz-calendar-view.component';
-import { CompanyLogoGalleryComponent } from './company-logo-gallery/company-logo-gallery.component';
+import { CompanyLogoGalleryComponent } from './feat/company-logo-gallery/company-logo-gallery.component';
 import { DataMaintainerViewComponent } from './feat/data-maintainer-view/data-maintainer-view.component';
-import { authGuard } from './auth/auth.guard';
+import { authGuard } from './core/auth/auth.guard';
 import { SymbolManagerComponent } from './feat/symbol-manager-view/components/symbol-manager/symbol-manager.component';
 import { FirestoreDebugComponent } from './feat/debug-view/components/firestore-debug/firestore-debug.component';
 

@@ -6,7 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
-import { AuthService } from './auth/auth.service';
+import { AuthService } from './core/auth/auth.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { User } from 'firebase/auth';
 import { environment } from '../environments/environment';

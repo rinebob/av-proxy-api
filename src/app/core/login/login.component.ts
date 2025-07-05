@@ -3,7 +3,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { CommonModule } from '@angular/common';
-import { MaterialModule } from '../shared/material.module';
+import { MaterialModule } from '../../shared/material.module';
 
 @Component({
   selector: 'app-login',

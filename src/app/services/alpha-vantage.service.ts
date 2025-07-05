@@ -3,7 +3,7 @@ import { HttpClient, HttpHeaders, HttpParams, HttpErrorResponse } from '@angular
 import { Observable, throwError } from 'rxjs';
 import { catchError, switchMap, map } from 'rxjs/operators';
 import { DailyStockParams, GlobalQuoteParams } from '../common/fe-common-av';
-import { AuthService } from '../auth/auth.service';
+import { AuthService } from '../core/auth/auth.service';
 import { StockDataUrl } from '../common/fe-common-app';
 
 @Injectable({

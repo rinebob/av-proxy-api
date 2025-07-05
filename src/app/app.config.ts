@@ -2,7 +2,7 @@ import { ApplicationConfig, provideZoneChangeDetection, NgZone, Injector, provid
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
-import { authInterceptor } from './auth/auth.interceptor';
+import { authInterceptor } from './core/auth/auth.interceptor';
 
 // Import FirebaseApp and service types for return type annotations
 import { initializeApp, provideFirebaseApp, FirebaseApp } from '@angular/fire/app';
