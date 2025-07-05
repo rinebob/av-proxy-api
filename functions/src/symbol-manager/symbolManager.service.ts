@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { db } from '../firebase-admin-init';
-import { Timestamp, DocumentData, Query } from 'firebase-admin/firestore';
+import { Timestamp, DocumentData, Query, FieldValue } from 'firebase-admin/firestore';
+import { AvSymbolSearchHandler } from '../data-maintainer/api-handlers/av-symbol-search';
 import { 
   TRACKED_SYMBOLS 
 } from '../common/firestore-collections';
@@ -16,10 +17,14 @@ import {
  * Service for managing symbols in the system
  */
 export class SymbolManagerService {
+  private symbolSearchHandler: AvSymbolSearchHandler;
+  
   /**
    * Creates a new instance of SymbolManagerService
    */
-  constructor() {}
+  constructor() {
+    this.symbolSearchHandler = new AvSymbolSearchHandler();
+  }
 
   // Batch size for Firestore operations (for future use)
   // private static readonly BATCH_SIZE = 500;
@@ -60,7 +65,7 @@ export class SymbolManagerService {
    * @throws {Error} If the request is invalid or an error occurs during processing
    */
   async syncSymbols(request: SymbolSyncRequest): Promise<SymbolSyncResponse> {
-    const { symbols, timestamp } = request;
+    const { symbols, timestamp, remove = false } = request;
     
     if (!Array.isArray(symbols)) {
       throw new Error('Invalid request: symbols array is required');
@@ -80,27 +85,113 @@ export class SymbolManagerService {
     const batch = db.batch();
     const now = this.ensureTimestamp(timestamp);
 
-    // Track added symbols
-    const addedSymbols: string[] = [];
+    // Track added/removed symbols
+    const processedSymbols: string[] = [];
+    let removedCount = 0;
 
     // Process each symbol
     const symbolPromises = normalizedSymbols.map(async (symbol) => {
       const symbolRef = db.collection(TRACKED_SYMBOLS).doc(symbol);
       
-      const symbolData: Partial<TrackedSymbol> = {
-        symbol,
-        isActive: true,
-        lastUpdated: now,
-        createdAt: now,
-      };
+      if (remove) {
+        // For removal, mark as inactive
+        batch.update(symbolRef, {
+          isActive: false,
+          lastUpdated: now
+        });
+        removedCount++;
+      } else {
+        // For addition, first try to get symbol metadata
+        let symbolData: Partial<TrackedSymbol> = {
+          symbol,
+          isActive: true,
+          lastUpdated: now,
+          createdAt: now,
+        };
 
-      batch.set(symbolRef, symbolData, { merge: true });
+        try {
+          // Fetch symbol metadata
+          console.log(`sMSvc sS [SymbolManager] Fetching metadata for symbol: ${symbol}`);
+          const { matches } = await this.symbolSearchHandler.fetchAndTransform(symbol);
+          const exactMatch = matches.find(m => m.symbol === symbol);
+          
+          if (exactMatch) {
+            // Log successful metadata fetch with full match details
+            console.log(`sMSvc sS [SymbolManager] Found metadata for ${symbol}:`, {
+              match: exactMatch,  // Log the full match object
+              selectedFields: {   // And also log a summary of important fields
+                name: exactMatch.name,
+                type: exactMatch.type,
+                region: exactMatch.region,
+                marketOpen: exactMatch.marketOpen,
+                marketClose: exactMatch.marketClose,
+                timezone: exactMatch.timezone,
+                currency: exactMatch.currency,
+                matchScore: exactMatch.matchScore
+              }
+            });
+            
+            // Merge metadata with basic data
+            symbolData = {
+              ...symbolData,
+              name: exactMatch.name,
+              type: exactMatch.type,
+              region: exactMatch.region,
+              marketOpen: exactMatch.marketOpen,
+              marketClose: exactMatch.marketClose,
+              timezone: exactMatch.timezone,
+              currency: exactMatch.currency,
+              matchScore: exactMatch.matchScore
+            };
+          } else if (matches.length > 0) {
+            console.log(`sMSvc sS [SymbolManager] No exact match found for ${symbol}, but found ${matches.length} similar symbols`);
+          } else {
+            console.log(`sMSvc sS [SymbolManager] No metadata found for symbol: ${symbol}`);
+          }
+        } catch (error) {
+          console.warn(`sMSvc sS [SymbolManager] Failed to fetch metadata for ${symbol}:`, error);
+          // Continue with basic data if metadata fetch fails
+        }
+        
+        // Prepare the symbol data with all fields from the API response
+        // Start with the basic symbol data from the API
+        const symbolDataToSave: Record<string, any> = {
+          ...symbolData,  // Spread all properties from the API response first
+          // Ensure required fields have values
+          symbol: symbol,  // Use the normalized symbol
+          isActive: true,
+          lastUpdated: FieldValue.serverTimestamp(),
+          // Only set createdAt if it doesn't exist
+          ...(symbolData.createdAt ? {} : { createdAt: FieldValue.serverTimestamp() })
+        };
+        
+        // Log the data being saved for debugging
+        console.log('Symbol data prepared for Firestore:', JSON.stringify(symbolDataToSave, null, 2));
+        
+        // Log the data being saved
+        console.log('Symbol data being saved to Firestore:');
+        console.log(JSON.stringify(symbolDataToSave, null, 2));
+        
+        // Save to Firestore
+        batch.set(symbolRef, symbolDataToSave, { merge: true });
+        processedSymbols.push(symbol);
+      }
       
       return symbol;
     });
-
+    
+    // Wait for all symbol processing to complete
     await Promise.all(symbolPromises);
-    addedSymbols.push(...normalizedSymbols);
+    
+    // Get the first processed symbol's data to include in the response
+    let symbolData: any = null;
+    if (processedSymbols.length > 0) {
+      const firstSymbol = processedSymbols[0];
+      const symbolDoc = await db.collection('tracked_symbols').doc(firstSymbol).get();
+      if (symbolDoc.exists) {
+        symbolData = symbolDoc.data();
+      }
+    }
 
     try {
       await batch.commit();
@@ -110,13 +201,14 @@ export class SymbolManagerService {
       
       return {
         success: true,
-        added: addedSymbols.length,
-        removed: 0,
+        added: processedSymbols.length,
+        removed: removedCount,
         totalActive,
-        timestamp: now
+        timestamp: now,
+        symbolData: symbolData || undefined
       };
     } catch (error) {
-      console.error('Error syncing symbols:', error);
+      console.error('sMSvc sS [SymbolManager] Error syncing symbols:', error);
       throw new Error('Failed to sync symbols');
     }
   }
@@ -174,7 +266,7 @@ export class SymbolManagerService {
         offset
       };
     } catch (error) {
-      console.error('Error listing symbols:', error);
+      console.error('sMSvc lS [SymbolManager] Error listing symbols:', error);
       throw new Error('Failed to list symbols');
     }
   }
@@ -211,7 +303,7 @@ export class SymbolManagerService {
         createdAt
       } as TrackedSymbol;
     } catch (error) {
-      console.error(`Error getting symbol ${symbol}:`, error);
+      console.error(`sMSvc gS [SymbolManager] Error getting symbol ${symbol}:`, error);
       throw new Error('Failed to retrieve symbol');
     }
   }
@@ -228,7 +320,7 @@ export class SymbolManagerService {
 
       return snapshot.docs.length;
     } catch (error) {
-      console.error('Error counting active symbols:', error);
+      console.error('sMSvc cAS [SymbolManager] Error counting active symbols:', error);
       throw new Error('Failed to count active symbols');
     }
   }
@@ -277,7 +369,7 @@ export class SymbolManagerService {
         }
       });
     } catch (error) {
-      console.error(`Error removing symbol ${symbol}:`, error);
+      console.error(`sMSvc rS [SymbolManager] Error removing symbol ${symbol}:`, error);
       return {
         success: false,
         message: `Failed to remove symbol: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -309,7 +401,7 @@ export class SymbolManagerService {
       await batch.commit();
       return { deactivated: inactiveSymbols.size };
     } catch (error) {
-      console.error('Error cleaning up inactive symbols:', error);
+      console.error('sMSvc cIS [SymbolManager] Error cleaning up inactive symbols:', error);
       throw new Error('Failed to clean up inactive symbols');
     }
   }

@@ -41,8 +41,17 @@ export const SymbolManagerStore = signalStore(
   withState(initialState),
   withProps(store => ({
     symbols$: toObservable(store.symbols),
+    syncResults$: toObservable(store.syncResults),
   })),
   withMethods((store, symbolService = inject(SymbolManagerService), snackBar = inject(MatSnackBar)) => ({
+    // Clear sync results and reset related state
+    clearSyncResults() {
+      patchState(store, { 
+        syncResults: null,
+        error: null,
+        loading: false
+      });
+    },
     // Update methods
     updateNewSymbol(value: string) {
       patchState(store, { newSymbol: value });
@@ -108,36 +117,53 @@ export const SymbolManagerStore = signalStore(
     ),
 
     // Add one or more symbols
-    addSymbols(symbols: string[], clientId: string, clientName: string): Observable<void> {
+    addSymbols(symbols: string[]): Observable<void> {
+      console.log('sMSto aS addSymbols called with symbols:', symbols);
+      
       if (!symbols || symbols.length === 0) {
+        console.warn('sMSto aS No symbols provided to addSymbols');
+        patchState(store, {
+          error: 'No symbols provided',
+          loading: false
+        });
         return of(undefined);
       }
       
-      patchState(store, { loading: true, error: null });
+      console.log('sMSto aS Setting loading state and clearing errors');
+      patchState(store, { 
+        loading: true, 
+        error: null,
+        syncResults: null
+      });
       
-      return symbolService.syncSymbols({
-        clientId,
-        clientName,
-        symbols: symbols
-      }).pipe(
+      console.log('sMSto aS Calling symbolService.addSymbols');
+      return symbolService.addSymbols(symbols).pipe(
         tap({
           next: (response: SyncSymbolsResponse) => {
+            console.log('sMSto aS Received response from symbolService.addSymbols:', response);
+            
             patchState(store, { 
               loading: false,
-              syncResults: response
+              syncResults: response,
+              error: response.success ? null : (response.error || response.message || 'Failed to add symbols')
             });
             
-            if (response.ok) {
-              const successMessage = symbols.length > 1 
-                ? `Successfully added ${symbols.length} symbols`
-                : `Successfully added ${symbols[0]}`;
+            if (response.success) {
+              const successMessage = response.message || (symbols.length > 1 
+                ? `Successfully added ${response.added || symbols.length} symbols`
+                : `Successfully added ${symbols[0]}`);
                 
+              console.log('sMSto aS Showing success message:', successMessage);
               snackBar.open(successMessage, 'Close', { duration: 3000 });
+              
+              console.log('sMSto aS Refreshing symbols list');
               this.listSymbols();
             } else {
               const errorMessage = response.error && typeof response.error === 'string' 
                 ? response.error 
-                : 'Failed to add symbols';
+                : response.message || 'Failed to add symbols';
+                
+              console.error('sMSto aS Error in response:', errorMessage);
               snackBar.open(errorMessage, 'Close', { 
                 duration: 5000, 
                 panelClass: 'error-snackbar' 
@@ -145,24 +171,26 @@ export const SymbolManagerStore = signalStore(
             }
           },
           error: (error) => {
-            console.error('Error adding symbols:', error);
+            console.error('sMSto aS Error in addSymbols:', error);
+            const errorMessage = error.message || 'Failed to add symbols';
             patchState(store, { 
               loading: false,
-              error: error.message || 'Failed to add symbols'
+              error: errorMessage
             });
-            
-            snackBar.open(
-              error.message || 'Failed to add symbols',
-              'Close',
-              { duration: 5000, panelClass: 'error-snackbar' }
-            );
-          }
+            snackBar.open(errorMessage, 'Close', { duration: 5000 });
+          },
+          complete: () => console.log('sMSto aS addSymbols observable completed')
         }),
-        map(() => undefined)
+        // Map to void since we're handling everything in tap
+        map(() => {})
       );
     },
     
-    // Remove a symbol
+    /**
+     * Remove a symbol from tracking
+     * @param symbol The symbol to remove
+     * @returns Observable that completes when the operation is done
+     */
     removeSymbol(symbol: string): Observable<void> {
       if (!symbol) {
         return of(undefined);
@@ -170,16 +198,13 @@ export const SymbolManagerStore = signalStore(
       
       patchState(store, { loading: true, error: null });
       
-      // Access the current values from the signals
-      const clientId = store.clientId();
-      const clientName = store.clientName();
       const currentSymbols = store.symbols();
       const currentSymbolDetails = store.symbolDetails();
       
-      return symbolService.removeSymbol(symbol, clientId, clientName).pipe(
+      return symbolService.removeSymbol(symbol).pipe(
         tap({
           next: (response) => {
-            if (response.ok) {
+            if (response.success) {
               // Update the UI state
               patchState(store, { 
                 loading: false,

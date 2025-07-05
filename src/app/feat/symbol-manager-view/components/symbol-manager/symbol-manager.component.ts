@@ -62,7 +62,8 @@ export class SymbolManagerComponent implements OnInit {
     'region', 
     'marketHours', 
     'currency', 
-    'lastUpdated'
+    'lastUpdated',
+    'actions'
   ];
   pageSize = 10;
   pageIndex = 0;
@@ -74,8 +75,6 @@ export class SymbolManagerComponent implements OnInit {
 
   // Form controls
   readonly symbolsToAdd = signal('');
-  readonly clientId = signal('');
-  readonly clientName = signal('');
 
   constructor() {}
 
@@ -96,13 +95,14 @@ export class SymbolManagerComponent implements OnInit {
       maxWidth: '90vw',
       maxHeight: '90vh',
       data: {
-        clientId: this.store.clientId(),
-        clientName: this.store.clientName(),
         store: this.store
       }
     });
 
     dialogRef.afterClosed().subscribe((result) => {
+      // Always clear sync results when dialog is closed
+      this.store.clearSyncResults();
+      
       if (result) {
         // Refresh the symbols list if symbols were added
         this.store.listSymbols();
@@ -125,15 +125,7 @@ export class SymbolManagerComponent implements OnInit {
     
     if (symbols.length === 0) return;
     
-    const clientId = this.clientId();
-    const clientName = this.clientName();
-    
-    if (!clientId) {
-      this.showError('Client ID is required');
-      return;
-    }
-    
-    this.store.addSymbols(symbols, clientId, clientName).subscribe({
+    this.store.addSymbols(symbols).subscribe({
       next: () => {
         this.showResult(`Successfully added ${symbols.length} symbol(s)`);
         this.symbolsToAdd.set('');
@@ -171,7 +163,6 @@ export class SymbolManagerComponent implements OnInit {
       this.store.removeSymbol(symbol).subscribe({
         next: () => {
           this.showResult(`Successfully removed symbol: ${symbol}`);
-          this.store.listSymbols();
         },
         error: (error) => this.showError(`Failed to remove symbol: ${error.message}`)
       });

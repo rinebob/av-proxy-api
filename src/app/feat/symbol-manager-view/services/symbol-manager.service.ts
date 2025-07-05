@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, catchError, from, map, of } from 'rxjs';
+import { Observable, catchError, from, map, of, tap } from 'rxjs';
+import { processTimestamps } from '../../../shared/utils/date-utils';
 import { 
   DataMaintainerFunctionName, 
   ListSymbolsResponse, 
@@ -53,7 +54,7 @@ export class SymbolManagerService {
         
         // Process timestamps in the response
         const processedSymbols = (response.symbols || []).map(symbol => 
-          this.processTimestamps(symbol) as TrackedSymbol
+          processTimestamps(symbol) as TrackedSymbol
         );
         
         return {
@@ -84,7 +85,7 @@ export class SymbolManagerService {
         
         if (exists && data) {
           // Process timestamps in the response
-          const processedData = this.processTimestamps(data);
+          const processedData = processTimestamps(data);
           return { 
             ok: true, 
             data: processedData as TrackedSymbol
@@ -111,170 +112,219 @@ export class SymbolManagerService {
   /**
    * Removes a symbol from tracking
    * @param symbol The symbol to remove
-   * @param clientId The client ID making the request
-   * @param clientName The name of the client making the request
    * @returns Observable with the sync results
    */
-  removeSymbol(symbol: string, clientId: string, clientName: string): Observable<SyncSymbolsResponse> {
+  /**
+   * Creates a standardized error response object
+   * @param message Error message
+   * @returns Formatted SyncSymbolsResponse with error state
+   */
+  private createErrorResponse(message: string): SyncSymbolsResponse {
+    return {
+      success: false,
+      message,
+      error: message,
+      added: 0,
+      removed: 0,
+      totalActive: 0,
+      timestamp: new Date(),
+      addedCount: 0,
+      removedCount: 0,
+      totalTracked: 0
+    };
+  }
+
+  removeSymbol(symbol: string): Observable<SyncSymbolsResponse> {
     if (!symbol) {
-      return of({
-        ok: false,
-        error: 'No symbol provided',
-        added: 0,
-        removed: 0,
-        totalActive: 0,
-        addedCount: 0,
-        removedCount: 0,
-        totalTracked: 0
-      });
+      const errorMsg = 'FE sMS rS [SymbolManager] No symbol provided for removal';
+      console.warn(errorMsg);
+      return of(this.createErrorResponse(errorMsg));
     }
 
-    // To remove a symbol, we need to include it in the symbols array
-    // with an empty array for the symbol, which will remove it from tracking
-    return this.syncSymbols({
-      clientId,
-      clientName,
-      symbols: [symbol]
-    }).pipe(
+    // Create request object with remove flag set to true
+    const request: SyncSymbolsRequest = { 
+      symbols: [symbol],
+      timestamp: new Date(),
+      remove: true // This will trigger removal in the backend
+    };
+    const url = getDataMaintainerFunctionUrl(DataMaintainerFunctionName.SYNC_SYMBOLS);
+
+    console.log('FE sMS rS [SymbolManager] removeSymbol called', {
+      symbol,
+      url,
+      request,
+      timestamp: new Date().toISOString()
+    });
+    
+    return this.http.post<SyncSymbolsResponse>(url, request).pipe(
+      tap(response => {
+        console.log('FE sMS rS [SymbolManager] HTTP Response received:', {
+          status: 'success',
+          timestamp: new Date().toISOString(),
+          url,
+          response: JSON.parse(JSON.stringify(response)) // Create a clean copy
+        });
+        console.log('Raw response from server:', response);
+      }),
+      map(response => {
+        if (!response) {
+          const errorMsg = 'FE sMS rS [SymbolManager] Empty response from server';
+          console.error(errorMsg);
+          throw new Error(errorMsg);
+        }
+        
+        // Process any timestamps in the response
+        const processedResponse = processTimestamps(response) as SyncSymbolsResponse;
+        console.log('Processed response:', processedResponse);
+        
+        console.log('FE sMS rS [SymbolManager] Processed response:', {
+          timestamp: new Date().toISOString(),
+          processedResponse: JSON.parse(JSON.stringify(processedResponse)),
+          originalResponse: JSON.parse(JSON.stringify(response))
+        });
+        
+        // Convert to the expected format
+        const normalized = this.normalizeResponse(processedResponse);
+        console.log('FE sMS rS [SymbolManager] Normalized response:', normalized);
+        
+        return normalized;
+      }),
       catchError(error => {
         console.error('Error removing symbol:', error);
         return of({
-          ok: false,
+          success: false,
+          message: error.message || 'Failed to remove symbol',
           error: error.message || 'Failed to remove symbol',
           added: 0,
           removed: 0,
           totalActive: 0,
+          timestamp: new Date(),
           addedCount: 0,
           removedCount: 0,
-          totalTracked: 0
-        });
-      })
-    );
-  }
-
-  syncSymbols(request: SyncSymbolsRequest): Observable<SyncSymbolsResponse> {
-    const formattedRequest: SyncSymbolsRequest = {
-      clientId: request.clientId,
-      clientName: request.clientName || `Client ${request.clientId}`,
-      symbols: request.symbols,
-      metadata: request.metadata || { source: 'web-ui' }
-    };
-
-    const url = getDataMaintainerFunctionUrl(DataMaintainerFunctionName.SYNC_SYMBOLS);
-    return this.http.post<SyncSymbolsResponse>(url, formattedRequest).pipe(
-      map(response => {
-        if (!response) {
-          throw new Error('No response from server');
-        }
-        
-        // Process any timestamps in the response
-        return this.processTimestamps(response) as SyncSymbolsResponse;
-      }),
-      catchError(error => {
-        console.error('Error syncing symbols:', error);
-        return of({
-          ok: false,
-          error: error.message || 'Failed to sync symbols',
-          added: 0,
-          removed: 0,
-          totalActive: 0,
-          addedCount: 0,
-          removedCount: 0,
-          totalTracked: 0
+          totalTracked: 0,
+          // Legacy property for backward compatibility
+          ok: false
         });
       })
     );
   }
 
   /**
-   * Converts Firestore Timestamps to Date objects in the response
-   * Handles all possible Firestore timestamp formats:
-   * 1. Firestore Timestamp objects (with toDate() method)
-   * 2. { seconds, nanoseconds } objects
-   * 3. ISO date strings
-   * 4. Unix timestamps (milliseconds or seconds)
-   * @param obj The object to process
-   * @private
+   * Normalizes a SyncSymbolsResponse to ensure it has all required fields
+   * @param response The response to normalize
+   * @returns A properly formatted SyncSymbolsResponse
    */
-  private processTimestamps(obj: any): any {
-    if (obj === null || obj === undefined) {
-      return obj;
+  private normalizeResponse(response: Partial<SyncSymbolsResponse>): SyncSymbolsResponse {
+    return {
+      success: response.success || false,
+      message: response.message || (response.success ? 'Operation completed successfully' : 'Operation failed'),
+      error: response.error || (response.success ? undefined : 'Unknown error'),
+      added: response.added || 0,
+      removed: response.removed || 0,
+      totalActive: response.totalActive || 0,
+      timestamp: response.timestamp || new Date(),
+      addedCount: response.addedCount || response.added || 0,
+      removedCount: response.removedCount || response.removed || 0,
+      totalTracked: response.totalTracked || response.totalActive || 0
+    };
+  }
+
+  /**
+   * Adds new symbols to be tracked
+   * @param symbols Array of symbols to add
+   * @returns Observable with the sync results
+   */
+  addSymbols(symbols: string[]): Observable<SyncSymbolsResponse> {
+    const requestId = Math.random().toString(36).substring(2, 8);
+    console.log(`FE sMS aS [${requestId}] addSymbols called with symbols:`, symbols);
+    
+    if (!symbols || symbols.length === 0) {
+      const errorMsg = 'No symbols provided';
+      console.warn(`FE sMS aS [${requestId}]`, errorMsg);
+      return of(this.createErrorResponse(errorMsg));
     }
 
-    // Check if it's a Firestore Timestamp object (has toDate method)
-    if (obj && typeof obj === 'object' && 'toDate' in obj && typeof obj.toDate === 'function') {
-      return obj.toDate();
-    }
-
-    // Handle case where timestamp is in { seconds, nanoseconds } format
-    if (typeof obj === 'object' && 'seconds' in obj && 'nanoseconds' in obj) {
-      return new Date(obj.seconds * 1000 + Math.floor(obj.nanoseconds / 1000000));
-    }
-
-    // Handle ISO date strings
-    if (typeof obj === 'string' && !isNaN(Date.parse(obj))) {
-      return new Date(obj);
-    }
-
-    // Handle Unix timestamp (in seconds or milliseconds)
-    if (typeof obj === 'number') {
-      return obj > 1e10 ? new Date(obj) : new Date(obj * 1000);
-    }
-
-    // Process arrays
-    if (Array.isArray(obj)) {
-      return obj.map(item => this.processTimestamps(item));
-    }
-
-    // Process plain objects (including nested ones)
-    if (typeof obj === 'object' && obj !== null) {
-      const result: Record<string, any> = {};
-      
-      // Known date fields that should always be processed
-      const dateFields = [
-        'createdAt', 'updatedAt', 'lastRefreshed', 
-        'lastSeen', 'firstSeen', 'deactivatedAt',
-        'date', 'timestamp', 'time', 'modifiedAt'
-      ];
-      
-      // Special handling for Firestore document metadata
-      const isFirestoreDoc = '_document' in obj || '_firestore' in obj;
-      
-      for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-          const value = obj[key];
+    // Create typed request object with timestamp
+    const request: SyncSymbolsRequest = { 
+      symbols: symbols.map(s => s.toUpperCase().trim()),
+      timestamp: new Date()
+    };
+    
+    const url = getDataMaintainerFunctionUrl(DataMaintainerFunctionName.SYNC_SYMBOLS);
+    
+    console.log(`FE sMS aS [${requestId}] Sending request:`, {
+      url,
+      request,
+      timestamp: new Date().toISOString()
+    });
+    
+    return this.http.post<SyncSymbolsResponse>(url, request, { observe: 'response' }).pipe(
+      tap({
+        next: (httpResponse) => {
+          // Log the full HTTP response including headers
+          console.log(`FE sMS aS [${requestId}] Full HTTP response:`, httpResponse);
           
-          // Always process known date fields
-          if (dateFields.includes(key) || key.endsWith('At') || key.endsWith('Date')) {
-            result[key] = this.processTimestamps(value);
-          } 
-          // For Firestore documents, process all fields
-          else if (isFirestoreDoc) {
-            result[key] = this.processTimestamps(value);
-          }
-          // For other objects, only process if it's not a plain object (to avoid excessive processing)
-          else if (value && typeof value === 'object' && !Array.isArray(value)) {
-            // Only process if it looks like a date object
-            if ('seconds' in value && 'nanoseconds' in value) {
-              result[key] = this.processTimestamps(value);
-            } else {
-              result[key] = value;
+          // Log the response body (the actual data)
+          const response = httpResponse.body;
+          if (response) {
+            console.log(`FE sMS aS [${requestId}] Response body:`, response);
+            
+            // If we have the symbol data in the response, log it in the requested format
+            if (response['symbolData']) {
+              const symbolData = response['symbolData'];
+              console.log('SYMBOL_SEARCH data received:');
+              console.log('{');
+              console.log(`  symbol: "${symbolData.symbol || ''}",`);
+              console.log(`  name: "${symbolData.name || ''}",`);
+              console.log(`  type: "${symbolData.type || ''}",`);
+              console.log(`  region: "${symbolData.region || ''}",`);
+              console.log(`  marketOpen: "${symbolData.marketOpen || ''}",`);
+              console.log(`  marketClose: "${symbolData.marketClose || ''}",`);
+              console.log(`  timezone: "${symbolData.timezone || ''}",`);
+              console.log(`  currency: "${symbolData.currency || ''}",`);
+              console.log(`  matchScore: "${symbolData.matchScore || ''}"`);
+              console.log('}');
             }
-          } else {
-            result[key] = value;
           }
+        },
+        error: (error) => {
+          console.error(`FE sMS aS [${requestId}] HTTP error:`, {
+            status: 'error',
+            timestamp: new Date().toISOString(),
+            error: error instanceof Error ? error.message : 'Unknown error',
+            errorDetails: error
+          });
         }
-      }
-      
-      // Preserve special properties like __proto__
-      if (Object.getPrototypeOf(obj) !== Object.prototype) {
-        Object.setPrototypeOf(result, Object.getPrototypeOf(obj));
-      }
-      
-      return result;
-    }
-
-    // Return as-is if not a date or object
-    return obj;
+      }),
+      map(httpResponse => {
+        const response = httpResponse.body;
+        if (!response) {
+          const errorMsg = 'Empty response from server';
+          console.error(`FE sMS aS [${requestId}] ${errorMsg}`);
+          throw new Error(errorMsg);
+        }
+        
+        console.log(`FE sMS aS [${requestId}] Processing response...`);
+        const processedResponse = processTimestamps(response) as SyncSymbolsResponse;
+        const normalized = this.normalizeResponse(processedResponse);
+        
+        return normalized;
+      }),
+      catchError(error => {
+        console.error(`FE sMS aS [${requestId}] Error adding symbols:`, error);
+        return of({
+          success: false,
+          message: error.message || 'Failed to add symbols',
+          error: error.message || 'Failed to add symbols',
+          added: 0,
+          removed: 0,
+          totalActive: 0,
+          timestamp: new Date(),
+          addedCount: 0,
+          removedCount: 0,
+          totalTracked: 0
+        });
+      })
+    );
   }
 }

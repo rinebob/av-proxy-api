@@ -165,6 +165,7 @@ export enum AlphaVantageFunction {
 
     // Quotes
     GLOBAL_QUOTE = 'GLOBAL_QUOTE', // This is the one you're using now
+    SYMBOL_SEARCH = 'SYMBOL_SEARCH', // Symbol search functionality
 
     // Fundamental Data
     COMPANY_OVERVIEW = 'OVERVIEW',
@@ -191,6 +192,29 @@ export enum AlphaVantageFunction {
     CPI = 'CPI', // Consumer Price Index (requires interval)
     INFLATION = 'INFLATION', // Inflation (requires interval)
     // ... add other Economic Indicators you might use
+}
+
+// Add other response types as needed
+/**
+ * Represents a single symbol match from Alpha Vantage SYMBOL_SEARCH endpoint
+ */
+export interface AlphaVantageSymbolMatch {
+    '1. symbol': string;
+    '2. name': string;
+    '3. type': string;
+    '4. region': string;
+    '5. marketOpen': string;
+    '6. marketClose': string;
+    '7. timezone': string;
+    '8. currency': string;
+    '9. matchScore': string;
+}
+
+/**
+ * Response format for Alpha Vantage SYMBOL_SEARCH endpoint
+ */
+export interface AlphaVantageSymbolSearchResponse {
+    bestMatches: AlphaVantageSymbolMatch[];
 }
 
 export const ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query';

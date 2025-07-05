@@ -140,6 +140,11 @@ export interface ClientSite {
 export interface SymbolSyncRequest {
   symbols: string[];
   timestamp: admin.firestore.Timestamp | Date;
+  /**
+   * If true, the symbols should be removed (marked as inactive) instead of added/updated
+   * @default false
+   */
+  remove?: boolean;
 }
 
 /**
@@ -152,6 +157,8 @@ export interface SymbolSyncResponse {
   removed: number;
   totalActive: number;
   timestamp: admin.firestore.Timestamp | Date;
+  // Symbol data from SYMBOL_SEARCH for the first symbol
+  symbolData?: TrackedSymbol;
   // For backward compatibility
   addedCount?: number;
   removedCount?: number;

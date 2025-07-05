@@ -181,18 +181,36 @@ export interface SymbolDetailsResponse {
   error?: string;
 }
 
+/**
+ * Request payload for syncing (adding/removing) symbols
+ */
 export interface SyncSymbolsRequest {
-  clientId: string;
-  clientName: string;
+  /** Array of symbols to be added or removed */
   symbols: string[];
+  
+  /** Timestamp of the operation */
+  timestamp: Date;
+  
+  /** If true, the symbols should be removed (marked as inactive) instead of added/updated */
+  remove?: boolean;
+  
+  /** Optional metadata for the operation */
   metadata?: Record<string, any>;
 }
 
 export interface SyncSymbolsResponse {
-  ok: boolean;
+  success: boolean;
+  message?: string;
   added: number;
   removed: number;
   totalActive: number;
+  timestamp: Date | string;
+  // Symbol data from SYMBOL_SEARCH
+  symbolData?: TrackedSymbol;
+  // For backward compatibility
+  addedCount?: number;
+  removedCount?: number;
+  totalTracked?: number;
   error?: string;
 }
 
