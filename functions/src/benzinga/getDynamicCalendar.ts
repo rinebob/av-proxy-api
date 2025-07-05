@@ -142,6 +142,8 @@ export const getDynamicCalendar = onRequest(
   },
   async (req, res) => {
     try {
+      console.log('==================== START getDynamicCalendar ====================');
+      console.log(`Request: ${req.method} ${req.url}`);
       // Step 1: Authenticate the request
       const decodedToken = await authenticateRequest(req, res);
       if (!decodedToken) {
@@ -216,11 +218,15 @@ export const getDynamicCalendar = onRequest(
       };
 
 
+      console.log('------------- fetch -------------------');
       console.log('fn gDC Fetching fresh data from Benzinga API (cache bypassed)');
+      console.log(`Endpoint: ${calendarType}, Tickers: ${tickers || 'N/A'}`);
+      
       const data = await fetchDynamicBenzingaCalendar(apiKey, params, calendarType, req.query);
 
-      // Always log the full Benzinga API response for debugging
-      console.info(`fn gDC [${tickers}] Benzinga API raw response:`, JSON.stringify(data));
+      console.log('------------- response -------------------');
+      console.info(`fn gDC [${tickers}] Benzinga API response received`);
+      console.info(`Response type: ${Array.isArray(data) ? 'Array' : typeof data}, length: ${Array.isArray(data) ? data.length : 'N/A'}`);
 
       // If Benzinga returns an error, missing/invalid structure, or no data, pass through the raw response with status 200
       if (
