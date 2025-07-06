@@ -49,3 +49,22 @@ Thumbs.db
 .idx/integrations.json
 functions/.env.alpha-vantage-proxy-api
 .env.*
+
+# Compiled JavaScript files
+*.js
+*.js.map
+!**/dist/**/*.js
+!**/dist/**/*.js.map
+
+# TypeScript compiled output
+**/*.d.ts
+**/*.js
+**/*.js.map
+!**/node_modules/**/*.js
+!**/node_modules/**/*.js.map
+!**/dist/**/*.js
+!**/dist/**/*.js.map
+
+# Ignore compiled files in src/app/common
+src/app/common/*.js
+src/app/common/*.js.map
