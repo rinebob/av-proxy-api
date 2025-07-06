@@ -12,7 +12,9 @@
     "target": "es2020",
     "typeRoots": [
       "node_modules/@types"
-    ]
+    ],
+    "baseUrl": ".",
+    "types": ["node"]
   },
   "compileOnSave": true,
   "include": ["src/**/*"],
