@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase-admin/firestore';
 import { DataMaintainerEndpoint } from './common-dm';
-import { MARKET_DATA, REFRESH_EVENTS, REFRESH_HISTORY } from './firestore-collections';
+import { FirestoreCollection } from './firestore-collections';
 
 /**
  * Status of a refresh event
@@ -73,20 +73,20 @@ export async function logRefreshEvent(
   
   // Reference to the refresh event document and history
   const eventRef = db
-    .collection(MARKET_DATA)
+    .collection(FirestoreCollection.MARKET_DATA)
     .doc(params.symbol)
-    .collection(REFRESH_EVENTS)
+    .collection(FirestoreCollection.REFRESH_EVENTS)
     .doc(params.endpoint);
     
   // Create a history entry with timestamp as document ID
   const now = new Date();
   // Use ISO string for better sorting and querying
   const timestampString = now.toISOString();
-  const historyRef = eventRef.collection(REFRESH_HISTORY).doc(timestampString);
+  const historyRef = eventRef.collection(FirestoreCollection.REFRESH_HISTORY).doc(timestampString);
     
   // Get current history count for cleanup
   // First get all history entries (we'll need to sort them in memory)
-  const historySnapshot = await eventRef.collection(REFRESH_HISTORY)
+  const historySnapshot = await eventRef.collection(FirestoreCollection.REFRESH_HISTORY)
     .select()
     .get();
     
@@ -130,9 +130,9 @@ export async function getRefreshStatus(
   endpoint: DataMaintainerEndpoint
 ): Promise<RefreshEvent | null> {
   const doc = await db
-    .collection('market_data')
+    .collection(FirestoreCollection.MARKET_DATA)
     .doc(symbol)
-    .collection('refresh_events')
+    .collection(FirestoreCollection.REFRESH_EVENTS)
     .doc(endpoint)
     .get();
     
@@ -150,9 +150,9 @@ export async function getRefreshHistory(
   limit = 1
 ): Promise<RefreshEvent[]> {
   const doc = await db
-    .collection('market_data')
+    .collection(FirestoreCollection.MARKET_DATA)
     .doc(symbol)
-    .collection('refresh_events')
+    .collection(FirestoreCollection.REFRESH_EVENTS)
     .doc(endpoint)
     .get();
     

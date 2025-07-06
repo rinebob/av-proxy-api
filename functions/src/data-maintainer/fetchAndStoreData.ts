@@ -12,7 +12,7 @@ import { DataMaintainerEndpoint } from '../common/common-dm';
 import { AvCompanyOverviewHandler } from './api-handlers/av-company-overview';
 import { Timestamp } from 'firebase-admin/firestore';
 import { db } from '../firebase-admin-init';
-import { MARKET_DATA, DATA_POINTS } from '../common/firestore-collections';
+import { FirestoreCollection } from '../common/firestore-collections';
 import { mockDataService, registerAllMockData } from './mock-data';
 import { authenticateRequest } from '../utils/utils';
 
@@ -119,9 +119,9 @@ export const fetchAndStoreData = onRequest(
     
     console.log(`fn fASD Data ${useMock ? 'mock ' : ''}fetched for symbol=${symbol}:`, data);
     // Save to Firestore
-    const docRef = db.collection(MARKET_DATA)
+    const docRef = db.collection(FirestoreCollection.MARKET_DATA)
       .doc(symbol)
-      .collection(DATA_POINTS)
+      .collection(FirestoreCollection.DATA_POINTS)
       .doc(endpoint);
     
     // Create a clean data object by spreading the data properties directly

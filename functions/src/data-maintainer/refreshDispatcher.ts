@@ -17,11 +17,7 @@ import { AvCompanyOverviewHandler } from './api-handlers/av-company-overview';
 import { logRefreshEvent, RefreshStatus } from '../common/refresh-events';
 import { formatPST } from '../utils/utils';
 import { fetchAndStoreData } from './fetchAndStoreData';
-
-// Constants for Firestore collections
-const MARKET_DATA = 'market_data';
-const DATA_POINTS = 'data_points';
-const TRACKED_SYMBOLS = 'tracked_symbols';
+import { FirestoreCollection } from '../common/firestore-collections';
 
 // Test configuration
 const TEST_MODE = true; // Set to false to use production settings
@@ -56,7 +52,7 @@ export async function refreshAllData(): Promise<RefreshResult> {
     
     // Get all active tracked symbols
     if (pr) console.log('rD rAD Fetching active tracked symbols...');
-    const activeSymbols = await db.collection(TRACKED_SYMBOLS)
+    const activeSymbols = await db.collection(FirestoreCollection.TRACKED_SYMBOLS)
       .where('isActive', '==', true)
       .select('symbol')
       .get();
@@ -117,7 +113,7 @@ export async function refreshAllData(): Promise<RefreshResult> {
           if (pr) console.log(`rD rAD Processing ${symbol} for endpoint ${endpoint}`);
           
           // Check if this document needs refreshing
-          const docRef = db.collection(DATA_POINTS).doc(`${symbol}_${endpoint}`);
+          const docRef = db.collection(FirestoreCollection.DATA_POINTS).doc(`${symbol}_${endpoint}`);
           const doc = await docRef.get();
           
           if (!doc.exists) {
@@ -332,9 +328,9 @@ export const manualRefresh = onCall({
       const data = await handler.fetchAndTransform(symbol);
       
       // Save to Firestore
-      const docRef = db.collection(MARKET_DATA)
+      const docRef = db.collection(FirestoreCollection.MARKET_DATA)
         .doc(symbol)
-        .collection(DATA_POINTS)
+        .collection(FirestoreCollection.DATA_POINTS)
         .doc(endpoint);
       
       const updateData = {
@@ -454,4 +450,3 @@ export const scheduledRefresh = onSchedule({
   if (pr) console.log('rD Starting scheduled refresh at', new Date().toISOString());
   await refreshAllData();
 });
-

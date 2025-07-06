@@ -2,9 +2,7 @@ import * as admin from 'firebase-admin';
 import { db } from '../firebase-admin-init';
 import { Timestamp, DocumentData, Query, FieldValue } from 'firebase-admin/firestore';
 import { AvSymbolSearchHandler } from '../data-maintainer/api-handlers/av-symbol-search';
-import { 
-  TRACKED_SYMBOLS 
-} from '../common/firestore-collections';
+import { FirestoreCollection } from '../common/firestore-collections';
 import {
   TrackedSymbol,
   SymbolSyncRequest,
@@ -91,7 +89,7 @@ export class SymbolManagerService {
 
     // Process each symbol
     const symbolPromises = normalizedSymbols.map(async (symbol) => {
-      const symbolRef = db.collection(TRACKED_SYMBOLS).doc(symbol);
+      const symbolRef = db.collection(FirestoreCollection.TRACKED_SYMBOLS).doc(symbol);
       
       if (remove) {
         // For removal, mark as inactive
@@ -187,7 +185,7 @@ export class SymbolManagerService {
     let symbolData: any = null;
     if (processedSymbols.length > 0) {
       const firstSymbol = processedSymbols[0];
-      const symbolDoc = await db.collection('tracked_symbols').doc(firstSymbol).get();
+      const symbolDoc = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).doc(firstSymbol).get();
       if (symbolDoc.exists) {
         symbolData = symbolDoc.data();
       }
@@ -229,7 +227,7 @@ export class SymbolManagerService {
     } = options;
 
     try {
-      const collectionRef = db.collection(TRACKED_SYMBOLS);
+      const collectionRef = db.collection(FirestoreCollection.TRACKED_SYMBOLS);
       let query: Query<DocumentData> = collectionRef;
       
       if (activeOnly) {
@@ -283,7 +281,7 @@ export class SymbolManagerService {
     }
 
     try {
-      const doc = await db.collection(TRACKED_SYMBOLS)
+      const doc = await db.collection(FirestoreCollection.TRACKED_SYMBOLS)
         .doc(symbol.toUpperCase())
         .get();
 
@@ -314,7 +312,7 @@ export class SymbolManagerService {
    */
   private async countActiveSymbols(): Promise<number> {
     try {
-      const snapshot = await db.collection(TRACKED_SYMBOLS)
+      const snapshot = await db.collection(FirestoreCollection.TRACKED_SYMBOLS)
         .where('isActive', '==', true)
         .get();
 
@@ -338,7 +336,7 @@ export class SymbolManagerService {
   ): Promise<{ success: boolean; message: string }> {
     try {
       const now = timestamp || admin.firestore.Timestamp.now();
-      const symbolRef = db.collection(TRACKED_SYMBOLS).doc(symbol);
+      const symbolRef = db.collection(FirestoreCollection.TRACKED_SYMBOLS).doc(symbol);
       
       return await db.runTransaction(async (transaction) => {
         const symbolDoc = await transaction.get(symbolRef);
@@ -388,7 +386,7 @@ export class SymbolManagerService {
         Date.now() - daysInactive * 24 * 60 * 60 * 1000
       );
 
-      const inactiveSymbols = await db.collection(TRACKED_SYMBOLS)
+      const inactiveSymbols = await db.collection(FirestoreCollection.TRACKED_SYMBOLS)
         .where('isActive', '==', false)
         .where('lastUpdated', '<', cutoffDate)
         .get();
