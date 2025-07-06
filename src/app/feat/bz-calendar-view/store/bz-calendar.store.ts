@@ -213,13 +213,33 @@ export const BenzingaCalendarStore = signalStore(
             benzingaService.getDynamicCalendar(apiParams).subscribe({
                 next: (response: any) => {
                     console.log('bCSto sC calendar raw API response:', response);
-                    const { items } = extractCalendarItems(endpoint, response);
+                    
+                    // Handle both direct array responses and object responses with a nested array
+                    let items: any[] = [];
+                    const endpointMeta = BENZINGA_ENDPOINTS_META_MAP[endpoint];
+                    
+                    if (Array.isArray(response)) {
+                        // Direct array response (like in the logs)
+                        items = response;
+                    } else if (endpointMeta?.responseKey && response[endpointMeta.responseKey]) {
+                        // Response with a nested array under a specific key
+                        items = Array.isArray(response[endpointMeta.responseKey]) 
+                            ? response[endpointMeta.responseKey] 
+                            : [];
+                    } else {
+                        // Default fallback - try to find the first array in the response
+                        const possibleArrayKeys = Object.keys(response).filter(key => Array.isArray(response[key]));
+                        items = possibleArrayKeys.length > 0 ? response[possibleArrayKeys[0]] : [];
+                    }
+
                     console.log('bCSto sC calendar extracted items:', { 
                         endpoint, 
+                        responseKey: endpointMeta?.responseKey,
                         itemCount: items.length, 
                         items,
                         sampleItem: items[0],
-                        responseKeys: items[0] ? Object.keys(items[0]) : 'no items'
+                        responseKeys: items[0] ? Object.keys(items[0]) : 'no items',
+                        isArrayResponse: Array.isArray(response)
                     });
                     
                     const currentResponses = store.responses();
