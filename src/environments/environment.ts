@@ -9,6 +9,7 @@ export const environment = {
   },
   adminEmails: [
     'rinebob111185@gmail.com',
+    'test@user.com'
     // Add other admin emails as needed
   ]
 };
