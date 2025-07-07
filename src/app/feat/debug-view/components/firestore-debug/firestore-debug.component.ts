@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, JsonPipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,12 +8,16 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
+import { FirestoreCollections } from '../../../../shared/constants/firestore-collections';
 import { FirestoreDebugService } from '../../services/firestore-debug.service';
 import { 
   TrackedSymbol, 
   EndpointData, 
   RefreshEvent 
 } from '../../../data-maintainer-view/common/fe-common-dm-api';
+
+ // for turning on/off console logs
+ const pr = true;
 
 @Component({
   selector: 'app-firestore-debug',
@@ -35,6 +39,9 @@ import {
 })
 export class FirestoreDebugComponent implements OnInit {
   private debugService = inject(FirestoreDebugService);
+  private cdr = inject(ChangeDetectorRef);
+  
+  FirestoreCollections = FirestoreCollections;
   
   loading = true;
   trackedSymbols: TrackedSymbol[] = [];
@@ -47,6 +54,8 @@ export class FirestoreDebugComponent implements OnInit {
   selectedTabIndex = 0;
   testingWrite = false;
   marketDataStructure: any = null;
+  debugInfo: any = null;
+  isCheckingFirestore = false;
 
   ngOnInit() {
     this.loadTrackedSymbols();
@@ -62,29 +71,29 @@ export class FirestoreDebugComponent implements OnInit {
         this.loading = false;
       },
       error: (error: Error) => {
-        console.error('Error loading tracked symbols:', error);
+        if (pr) console.error('Error loading tracked symbols:', error);
         this.loading = false;
       }
     });
   }
 
   loadAllMarketData() {
-    console.log('Loading all market data...');
+    if (pr) console.log('Loading all market data...');
     this.loading = true;
     this.debugService.getAllMarketData().subscribe({
       next: (symbols: string[]) => {
-        console.log('Received market data symbols:', symbols);
+        if (pr) console.log('Received market data symbols:', symbols);
         this.allSymbols = symbols;
         
         if (symbols.length === 0) {
-          console.warn('No market data symbols found in the database');
+          if (pr) console.warn('No market data symbols found in the database');
           this.loading = false;
           return;
         }
         
         // Load data points and refresh events for each symbol
         symbols.forEach(symbol => {
-          console.log(`Loading data for symbol: ${symbol}`);
+          if (pr) console.log(`Loading data for symbol: ${symbol}`);
           this.loadDataPoints(symbol);
           this.loadRefreshEvents(symbol);
         });
@@ -92,78 +101,78 @@ export class FirestoreDebugComponent implements OnInit {
         this.loading = false;
       },
       error: (error: Error) => {
-        console.error('Error loading market data:', error);
+        if (pr) console.error('Error loading market data:', error);
         this.loading = false;
       }
     });
   }
 
   loadDataPoints(symbol: string) {
-    console.log(`Loading data points for symbol: ${symbol}`);
+    if (pr) console.log(`Loading data points for symbol: ${symbol}`);
     this.debugService.getDataPoints(symbol).subscribe({
       next: (endpoints: string[]) => {
-        console.log(`Found ${endpoints.length} data point endpoints for ${symbol}:`, endpoints);
+        if (pr) console.log(`Found ${endpoints.length} data point endpoints for ${symbol}:`, endpoints);
         if (!this.dataPoints[symbol]) this.dataPoints[symbol] = {};
         
         if (endpoints.length === 0) {
-          console.warn(`No data point endpoints found for symbol: ${symbol}`);
+          if (pr) console.warn(`No data point endpoints found for symbol: ${symbol}`);
           return;
         }
         
         endpoints.forEach(endpoint => {
-          console.log(`Loading data point for ${symbol} - ${endpoint}`);
+          if (pr) console.log(`Loading data point for ${symbol} - ${endpoint}`);
           this.debugService.getDataPoint(symbol, endpoint).subscribe({
             next: (data) => {
               if (data) {
-                console.log(`Successfully loaded data point for ${symbol} - ${endpoint}`);
+                if (pr) console.log(`Successfully loaded data point for ${symbol} - ${endpoint}`);
                 this.dataPoints[symbol][endpoint] = data;
               } else {
-                console.warn(`No data returned for ${symbol} - ${endpoint}`);
+                if (pr) console.warn(`No data returned for ${symbol} - ${endpoint}`);
               }
             },
             error: (err) => {
-              console.error(`Error loading data point for ${symbol} - ${endpoint}:`, err);
+              if (pr) console.error(`Error loading data point for ${symbol} - ${endpoint}:`, err);
             }
           });
         });
       },
       error: (error: Error) => {
-        console.error(`Error loading data points for ${symbol}:`, error);
+        if (pr) console.error(`Error loading data points for ${symbol}:`, error);
       }
     });
   }
 
   loadRefreshEvents(symbol: string) {
-    console.log(`Loading refresh events for symbol: ${symbol}`);
+    if (pr) console.log(`Loading refresh events for symbol: ${symbol}`);
     this.debugService.getRefreshEventEndpoints(symbol).subscribe({
       next: (endpoints: string[]) => {
-        console.log(`Found ${endpoints.length} refresh event endpoints for ${symbol}:`, endpoints);
+        if (pr) console.log(`Found ${endpoints.length} refresh event endpoints for ${symbol}:`, endpoints);
         if (!this.refreshEvents[symbol]) this.refreshEvents[symbol] = {};
         
         if (endpoints.length === 0) {
-          console.warn(`No refresh event endpoints found for symbol: ${symbol}`);
+          if (pr) console.warn(`No refresh event endpoints found for symbol: ${symbol}`);
           return;
         }
         
         endpoints.forEach(endpoint => {
-          console.log(`Loading refresh event for ${symbol} - ${endpoint}`);
+          if (pr) console.log(`Loading refresh event for ${symbol} - ${endpoint}`);
           this.debugService.getRefreshEvent(symbol, endpoint).subscribe({
             next: (event) => {
               if (event) {
-                console.log(`Successfully loaded refresh event for ${symbol} - ${endpoint}`);
+                if (pr) console.log(`Successfully loaded refresh event for ${symbol} - ${endpoint}`);
                 this.refreshEvents[symbol][endpoint] = event;
               } else {
-                console.warn(`No refresh event data returned for ${symbol} - ${endpoint}`);
+                if (pr) console.warn(`No refresh event data returned for ${symbol} - ${endpoint}`);
               }
             },
             error: (err) => {
-              console.error(`Error loading refresh event for ${symbol} - ${endpoint}:`, err);
+              if (pr) console.error(`Error loading refresh event for ${symbol} - ${endpoint}:`, err);
             }
           });
         });
       },
       error: (error: Error) => {
-        console.error(`Error loading refresh event endpoints for ${symbol}:`, error);
+        if (pr) console.error(`Error loading refresh event endpoints for ${symbol}:`, error);
       }
     });
   }
@@ -226,13 +235,13 @@ export class FirestoreDebugComponent implements OnInit {
     this.testingWrite = true;
     this.debugService.testWriteAccess().subscribe({
       next: (result) => {
-        console.log('Write test result:', result);
+        if (pr) console.log('Write test result:', result);
         // You might want to show a snackbar or toast notification here
         alert(`Write test ${result.success ? 'succeeded' : 'failed'}: ${result.message}`);
         this.testingWrite = false;
       },
       error: (error) => {
-        console.error('Error testing write access:', error);
+        if (pr) console.error('Error testing write access:', error);
         alert(`Error testing write access: ${error.message}`);
         this.testingWrite = false;
       }
@@ -240,17 +249,40 @@ export class FirestoreDebugComponent implements OnInit {
   }
 
   loadMarketDataStructure() {
-    console.log('Loading market data structure...');
+    if (pr) console.log('Loading market data structure...');
     this.loading = true;
     this.debugService.getMarketDataStructure().subscribe({
       next: (result) => {
-        console.log('Market data structure:', result);
+        if (pr) console.log('Market data structure:', result);
         this.marketDataStructure = result;
         this.loading = false;
       },
       error: (error) => {
-        console.error('Error loading market data structure:', error);
+        if (pr) console.error('Error loading market data structure:', error);
         this.loading = false;
+      }
+    });
+  }
+
+  checkFirestoreData(): void {
+    console.log('[FirestoreDebug] Checking Firestore data...');
+    this.isCheckingFirestore = true;
+    
+    this.debugService.debugCheckFirestoreData().subscribe({
+      next: (debugInfo) => {
+        console.log('[FirestoreDebug] Firestore debug info:', debugInfo);
+        this.debugInfo = debugInfo;
+        this.isCheckingFirestore = false;
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        console.error('[FirestoreDebug] Error checking Firestore data:', error);
+        this.debugInfo = { 
+          error: error.message,
+          stack: error.stack 
+        };
+        this.isCheckingFirestore = false;
+        this.cdr.detectChanges();
       }
     });
   }

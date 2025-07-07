@@ -13,7 +13,9 @@
           <mat-icon>edit</mat-icon>
           Test Write Access
         </button>
-        <mat-spinner *ngIf="testingWrite" diameter="24" class="test-write-spinner"></mat-spinner>
+        @if (testingWrite) {
+          <mat-spinner diameter="24" class="test-write-spinner"></mat-spinner>
+        }
       </div>
       <button mat-raised-button color="primary" (click)="refreshData()" [disabled]="loading">
         <mat-icon>refresh</mat-icon>
@@ -32,51 +34,61 @@
       <!-- Market Data Structure Section -->
       <div class="section">
         <h3>Firestore Structure</h3>
-        <div *ngIf="loading" class="loading-spinner">
-          <mat-spinner diameter="24"></mat-spinner>
-          <span>Loading Firestore structure...</span>
-        </div>
+        @if (loading) {
+          <div class="loading-spinner">
+            <mat-spinner diameter="24"></mat-spinner>
+            <span>Loading Firestore structure...</span>
+          </div>
+        }
         
-        <div *ngIf="marketDataStructure" class="firestore-structure">
-          <div class="structure-item">
-            <h4>market_data Collection</h4>
-            <div class="structure-details">
-              <div class="structure-count">
-                <mat-icon>folder</mat-icon>
-                <span>Total Symbols: {{ marketDataStructure.marketDataCount }}</span>
-              </div>
-              
-              <div *ngIf="marketDataStructure.symbols.length > 0" class="symbols-list">
-                <div *ngFor="let symbol of marketDataStructure.symbols" class="symbol-item">
-                  <div class="symbol-header">
-                    <mat-icon>label</mat-icon>
-                    <strong>{{ symbol.symbol }}</strong>
-                  </div>
-                  <div class="subcollections">
-                    <div class="subcollection">
-                      <mat-icon>timeline</mat-icon>
-                      <span>data_points: {{ symbol.dataPointsCount }}</span>
-                    </div>
-                    <div class="subcollection">
-                      <mat-icon>business</mat-icon>
-                      <span>company-overview: {{ symbol.companyOverviewCount }}</span>
-                    </div>
-                  </div>
+        @if (marketDataStructure) {
+          <div class="firestore-structure">
+            <div class="structure-item">
+              <h4>{{ FirestoreCollections.MARKET_DATA | titlecase }} Collection</h4>
+              <div class="structure-details">
+                <div class="structure-count">
+                  <mat-icon>folder</mat-icon>
+                  <span>Total Symbols: {{ marketDataStructure.marketDataCount }}</span>
                 </div>
-              </div>
-              
-              <div *ngIf="marketDataStructure.symbols.length === 0" class="no-data">
-                <mat-icon>info</mat-icon>
-                <span>No symbols found in market_data collection</span>
+                
+                @if (marketDataStructure.symbols.length > 0) {
+                  <div class="symbols-list">
+                    @for (symbol of marketDataStructure.symbols; track symbol) {
+                      <div class="symbol-item">
+                        <div class="symbol-header">
+                          <mat-icon>label</mat-icon>
+                          <strong>{{ symbol.symbol }}</strong>
+                        </div>
+                        <div class="subcollections">
+                          <div class="subcollection">
+                            <mat-icon>timeline</mat-icon>
+                            <span>data_points: {{ symbol.dataPointsCount }}</span>
+                          </div>
+                          <div class="subcollection">
+                            <mat-icon>business</mat-icon>
+                            <span>company-overview: {{ symbol.companyOverviewCount }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="no-data">
+                    <mat-icon>info</mat-icon>
+                    <span>No symbols found in {{ FirestoreCollections.MARKET_DATA }} collection</span>
+                  </div>
+                }
               </div>
             </div>
           </div>
-        </div>
+        }
         
-        <div *ngIf="marketDataStructure?.error" class="error-message">
-          <mat-icon>error</mat-icon>
-          <span>Error loading Firestore structure: {{ marketDataStructure.error }}</span>
-        </div>
+        @if (marketDataStructure?.error) {
+          <div class="error-message">
+            <mat-icon>error</mat-icon>
+            <span>Error loading Firestore structure: {{ marketDataStructure.error }}</span>
+          </div>
+        }
       </div>
 
       <mat-divider></mat-divider>
@@ -89,27 +101,31 @@
               <mat-panel-title>Tracked Symbols ({{trackedSymbols.length}})</mat-panel-title>
             </mat-expansion-panel-header>
             
-            <div class="symbols-grid">
-              @for (symbol of trackedSymbols; track symbol.symbol) {
-                <mat-card 
-                  class="symbol-card" 
-                  [class.selected]="selectedSymbol?.symbol === symbol.symbol"
-                  (click)="onSelectSymbol(symbol)">
-                  <mat-card-header>
-                    <mat-card-title>{{ symbol.symbol }}</mat-card-title>
-                  </mat-card-header>
-                  <mat-card-content>
-                    <p>{{ symbol.name }}</p>
-                    @if (symbol.createdAt) {
-                      <p>Added: {{ symbol.createdAt | date:'medium' }}</p>
-                    }
-                    @if (symbol.region) {
-                      <p>Region: {{ symbol.region }}</p>
-                    }
-                  </mat-card-content>
-                </mat-card>
-              }
-            </div>
+            @if (trackedSymbols.length > 0) {
+              <div class="symbols-grid">
+                @for (symbol of trackedSymbols; track symbol.symbol) {
+                  <mat-card 
+                    class="symbol-card" 
+                    [class.selected]="selectedSymbol?.symbol === symbol.symbol"
+                    (click)="onSelectSymbol(symbol)">
+                    <mat-card-header>
+                      <mat-card-title>{{ symbol.symbol }}</mat-card-title>
+                    </mat-card-header>
+                    <mat-card-content>
+                      <p>{{ symbol.name }}</p>
+                      @if (symbol.createdAt) {
+                        <p>Added: {{ symbol.createdAt | date:'medium' }}</p>
+                      }
+                      @if (symbol.region) {
+                        <p>Region: {{ symbol.region }}</p>
+                      }
+                    </mat-card-content>
+                  </mat-card>
+                }
+              </div>
+            } @else {
+              <p>No tracked symbols found</p>
+            }
           </mat-expansion-panel>
         </mat-accordion>
 
@@ -121,7 +137,7 @@
                 <mat-panel-title>Data Points for {{selectedSymbol.symbol}}</mat-panel-title>
               </mat-expansion-panel-header>
               
-              @if (selectedSymbol && dataPoints[selectedSymbol.symbol]) {
+              @if (dataPoints[selectedSymbol.symbol]) {
                 @if (getEndpoints(selectedSymbol.symbol).length > 0) {
                   <mat-tab-group>
                     @for (endpoint of getEndpoints(selectedSymbol.symbol); track endpoint) {
@@ -141,12 +157,10 @@
                             <h4>Refresh Status:</h4>
                             <p>{{ getRefreshStatus(selectedSymbol.symbol, endpoint) }}</p>
                             
-                            @if (refreshEvents[selectedSymbol.symbol] && 
-                                 refreshEvents[selectedSymbol.symbol][endpoint] && 
-                                 refreshEvents[selectedSymbol.symbol][endpoint].error) {
+                            @if (refreshEvents[selectedSymbol.symbol][endpoint].error) {
                               <div class="error-details">
                                 <h4>Error Details:</h4>
-                                <pre>{{ refreshEvents[selectedSymbol.symbol][endpoint].error | json }}</pre>
+                                <pre class="text-xs mt-2 overflow-auto">{{ refreshEvents[selectedSymbol.symbol][endpoint].error | json }}</pre>
                               </div>
                             }
                           </div>
@@ -171,29 +185,100 @@
               <mat-panel-title>All Market Data ({{allSymbols.length}} symbols)</mat-panel-title>
             </mat-expansion-panel-header>
             
-            <div class="symbols-list">
-              @for (symbol of allSymbols; track symbol) {
-                <mat-card class="symbol-card" (click)="selectedTabIndex = 0">
-                  <mat-card-header>
-                    <mat-card-title>{{ symbol }}</mat-card-title>
-                  </mat-card-header>
-                  <mat-card-content>
-                    <p>Endpoints: {{ getEndpoints(symbol).length }}</p>
-                    <p>Last Updated: 
-                      @if (getEndpoints(symbol).length > 0) {
-                        {{ getLatestUpdate(symbol) | date:'medium' }}
-                      } @else {
-                        Never
-                      }
-                    </p>
-                  </mat-card-content>
-                </mat-card>
-              } @empty {
-                <p>No market data available</p>
-              }
-            </div>
+            @if (allSymbols.length > 0) {
+              <div class="symbols-list">
+                @for (symbol of allSymbols; track symbol) {
+                  <mat-card class="symbol-card" (click)="selectedTabIndex = 0">
+                    <mat-card-header>
+                      <mat-card-title>{{ symbol }}</mat-card-title>
+                    </mat-card-header>
+                    <mat-card-content>
+                      <p>Endpoints: {{ getEndpoints(symbol).length }}</p>
+                      <p>Last Updated: 
+                        @if (getEndpoints(symbol).length > 0) {
+                          {{ getLatestUpdate(symbol) | date:'medium' }}
+                        } @else {
+                          Never
+                        }
+                      </p>
+                    </mat-card-content>
+                  </mat-card>
+                }
+              </div>
+            } @else {
+              <p>No market data available</p>
+            }
           </mat-expansion-panel>
         </mat-accordion>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Debug Section -->
+  <mat-card class="mt-4">
+    <mat-card-header>
+      <mat-card-title>Firestore Debug Information</mat-card-title>
+      <mat-card-subtitle>Internal debugging information</mat-card-subtitle>
+    </mat-card-header>
+    
+    <mat-card-content>
+      <div class="flex flex-col gap-4">
+        <button 
+          mat-raised-button 
+          color="primary" 
+          (click)="checkFirestoreData()"
+          [disabled]="isCheckingFirestore"
+        >
+          @if (isCheckingFirestore) {
+            <mat-spinner diameter="20" class="mr-2"></mat-spinner>
+            Checking Firestore...
+          } @else {
+            Check Firestore Data
+          }
+        </button>
+
+        @if (debugInfo) {
+          <div class="debug-info-container">
+            <h3 class="text-lg font-medium mb-2">Firestore Status</h3>
+            
+            @if (debugInfo.error) {
+              <div class="error-message p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+                <h4 class="font-bold">Error:</h4>
+                <p>{{ debugInfo.error }}</p>
+                @if (debugInfo.stack) {
+                  <pre class="text-xs mt-2 overflow-auto">{{ debugInfo.stack }}</pre>
+                }
+              </div>
+            }
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div class="bg-gray-50 p-4 rounded border">
+                <h4 class="font-medium">Tracked Symbols</h4>
+                <p class="text-2xl font-bold">{{ debugInfo.trackedSymbolsCount >= 0 ? debugInfo.trackedSymbolsCount : 'Error' }}</p>
+                <p class="text-sm text-gray-500">in {{ FirestoreCollections.TRACKED_SYMBOLS }} collection</p>
+              </div>
+
+              <div class="bg-gray-50 p-4 rounded border">
+                <h4 class="font-medium">Market Data Entries</h4>
+                <p class="text-2xl font-bold">{{ debugInfo.marketDataCount >= 0 ? debugInfo.marketDataCount : 'Error' }}</p>
+                <p class="text-sm text-gray-500">in {{ FirestoreCollections.MARKET_DATA }} collection</p>
+              </div>
+            </div>
+
+            @if (debugInfo.collections?.length) {
+              <div class="mt-4">
+                <h4 class="font-medium mb-2">Available Collections</h4>
+                <div class="bg-gray-50 p-4 rounded border overflow-x-auto">
+                  <ul class="list-disc list-inside">
+                    @for (collection of debugInfo.collections; track collection) {
+                      <li class="font-mono text-sm">{{ collection }}</li>
+                    }
+                  </ul>
+                </div>
+              </div>
+            }
+          </div>
+        }
       </div>
     </mat-card-content>
   </mat-card>

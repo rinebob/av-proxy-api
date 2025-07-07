@@ -16,13 +16,17 @@ import {
   getCountFromServer,
   collectionGroup
 } from '@angular/fire/firestore';
-import { Observable, from, map, of, catchError, switchMap, combineLatest, forkJoin } from 'rxjs';
+
+type FirebaseTimestamp = ReturnType<typeof Timestamp.fromDate>;
+import { Observable, from, map, of, catchError, switchMap, combineLatest, forkJoin, concatMap, filter, take } from 'rxjs';
+import { getAuth } from '@angular/fire/auth';
 import { 
   TrackedSymbol, 
   EndpointData, 
   RefreshEvent 
 } from '../../data-maintainer-view/common/fe-common-dm-api';
 import { safeDate } from '../../../shared/utils/date-utils';
+import { FirestoreCollections } from '../../../shared/constants/firestore-collections';
 
 @Injectable({
   providedIn: 'root'
@@ -44,7 +48,7 @@ export class FirestoreDebugService {
    */
   testWriteAccess(): Observable<{ success: boolean; message: string }> {
     return this.ngZone.run(() => {
-      const testDocRef = doc(collection(this.firestore, 'test_collection'));
+      const testDocRef = doc(collection(this.firestore, FirestoreCollections.SETTINGS), 'test_document');
       const testData = {
         timestamp: new Date().toISOString(),
         message: 'Test write from debug service',
@@ -120,7 +124,8 @@ export class FirestoreDebugService {
   }
 
   /**
-   * Get the structure of the market_data collection
+   * Get the structure of the market_data collection with detailed symbol information
+   * @returns Observable with market data structure including symbol counts and subcollection info
    */
   getMarketDataStructure(): Observable<{
     marketDataCount: number;
@@ -128,45 +133,96 @@ export class FirestoreDebugService {
       symbol: string;
       dataPointsCount: number;
       companyOverviewCount: number;
+      lastUpdated?: Date;
+      error?: string;
     }>;
+    error?: string;
   }> {
     return this.ngZone.run(() => {
-      console.log('Getting market data structure...');
+      console.log(`Getting structure of ${FirestoreCollections.MARKET_DATA} collection...`);
       
-      // Get the market_data collection
-      const marketDataRef = collection(this.firestore, 'market_data');
+      // Get all documents from the market-data collection
+      const marketDataRef = collection(this.firestore, FirestoreCollections.MARKET_DATA);
       
       return from(getDocs(marketDataRef)).pipe(
         switchMap((querySnapshot) => {
-          const symbols = querySnapshot.docs.map(doc => doc.id);
-          console.log(`Found ${symbols.length} symbols in market_data`);
+          // Define interface for symbol document data
+          interface SymbolDocData {
+            lastUpdated?: FirebaseTimestamp | string | Date;
+            [key: string]: any;
+          }
+          
+          const symbols = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            data: doc.data() as SymbolDocData
+          }));
+          
+          console.log(`Found ${symbols.length} symbols in ${FirestoreCollections.MARKET_DATA} collection`);
           
           if (symbols.length === 0) {
+            console.warn(`No symbols found in ${FirestoreCollections.MARKET_DATA} collection`);
             return of({
               marketDataCount: 0,
               symbols: []
             });
           }
           
-          // Get counts for each symbol's subcollections
-          const symbolObservables = symbols.map(symbol => 
-            combineLatest([
-              this.getSubcollectionCount('market_data', symbol, 'data_points'),
-              this.getSubcollectionCount('market_data', symbol, 'company-overview')
-            ]).pipe(
-              map(([dataPointsCount, companyOverviewCount]) => ({
-                symbol,
-                dataPointsCount,
-                companyOverviewCount
-              }))
+          // Process each symbol to get subcollection counts and metadata
+          const symbolObservables = symbols.map(({ id: symbol, data }) => 
+            forkJoin({
+              dataPointsCount: this.getSubcollectionCount(FirestoreCollections.MARKET_DATA, symbol, 'data_points'),
+              companyOverviewCount: this.getSubcollectionCount(FirestoreCollections.MARKET_DATA, symbol, 'company-overview')
+            }).pipe(
+              map(({ dataPointsCount, companyOverviewCount }) => {
+                // Extract lastUpdated from the document data if available
+                let lastUpdated: Date | undefined;
+                const lastUpdatedValue = data?.['lastUpdated'];
+                
+                if (lastUpdatedValue) {
+                  if (typeof lastUpdatedValue === 'object' && 'toDate' in lastUpdatedValue && typeof lastUpdatedValue.toDate === 'function') {
+                    // Handle Firestore Timestamp
+                    lastUpdated = lastUpdatedValue.toDate();
+                  } else if (typeof lastUpdatedValue === 'string') {
+                    // Handle string date
+                    lastUpdated = new Date(lastUpdatedValue);
+                  } else if (lastUpdatedValue instanceof Date) {
+                    // Handle Date object
+                    lastUpdated = lastUpdatedValue;
+                  }
+                }
+                
+                return {
+                  symbol,
+                  dataPointsCount,
+                  companyOverviewCount,
+                  ...(lastUpdated && { lastUpdated })
+                };
+              }),
+              catchError(error => {
+                console.error(`Error processing symbol ${symbol}:`, error);
+                return of({
+                  symbol,
+                  dataPointsCount: -1,
+                  companyOverviewCount: -1,
+                  error: error.message
+                });
+              })
             )
           );
           
-          return combineLatest(symbolObservables).pipe(
+          return forkJoin(symbolObservables).pipe(
             map(symbolsData => ({
-              marketDataCount: symbols.length,
-              symbols: symbolsData
-            }))
+              marketDataCount: symbolsData.length,
+              symbols: symbolsData.filter(s => s !== null)
+            })),
+            catchError(error => {
+              console.error('Error processing market data structure:', error);
+              return of({
+                marketDataCount: 0,
+                symbols: [],
+                error: 'Failed to process market data structure: ' + error.message
+              });
+            })
           );
         }),
         catchError(error => {
@@ -174,7 +230,7 @@ export class FirestoreDebugService {
           return of({
             marketDataCount: 0,
             symbols: [],
-            error: error.message
+            error: 'Failed to fetch market data: ' + error.message
           });
         })
       );
@@ -187,7 +243,7 @@ export class FirestoreDebugService {
     
     // In the web client, we can't directly list root collections.
     // Instead, we'll return the known collection names we expect to use.
-    const knownCollections = ['market_data', 'tracked_symbols'];
+    const knownCollections = [FirestoreCollections.MARKET_DATA, FirestoreCollections.TRACKED_SYMBOLS];
     console.log('Using known collections:', knownCollections);
     
     // For debugging, we'll also try to get a document count for each collection
@@ -230,9 +286,11 @@ export class FirestoreDebugService {
   }
 
   // Get all tracked symbols
+  // TODO: Update collection name to use hyphen (tracked-symbols) in the next major version
+  // Currently using underscore to match existing emulator data
   getTrackedSymbols(): Observable<TrackedSymbol[]> {
     return this.runInZone(
-      from(getDocs(collection(this.firestore, 'tracked_symbols'))).pipe(
+      from(getDocs(collection(this.firestore, FirestoreCollections.TRACKED_SYMBOLS))).pipe(
         map((querySnapshot: QuerySnapshot<DocumentData>) => {
           return querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -249,6 +307,8 @@ export class FirestoreDebugService {
               currency: data['currency'] || 'USD',
               matchScore: data['matchScore']?.toString() || '1',
               isActive: data['isActive'] !== undefined ? data['isActive'] : (data['active'] !== undefined ? data['active'] : true),
+              refreshEnabled: data['refreshEnabled'] !== undefined ? data['refreshEnabled'] : false,
+              lastUpdated: safeDate(data['lastUpdated'], 'medium'),
               createdAt: safeDate(data['createdAt'], 'medium'),
               clientId: data['clientId'] || 'debug-client'
             };
@@ -266,52 +326,115 @@ export class FirestoreDebugService {
   
   // Get all market data symbols
   getAllMarketData(): Observable<string[]> {
-    console.log('Fetching all market data symbols...');
+    console.log('=== Starting getAllMarketData() ===');
     
-    // Check for the specific symbols we know exist
-    const knownSymbols = ['COF', 'NVDA'];
-    console.log(`Checking for known symbols: ${knownSymbols.join(', ')}`);
+    // Check if Firestore is initialized
+    if (!this.firestore) {
+      console.error('Firestore is not initialized');
+      return of([]);
+    }
     
-    // Check which of these symbols exist
-    const symbolChecks = knownSymbols.map(symbol => 
-      from(getDoc(doc(this.firestore, `market_data/${symbol}`))).pipe(
-        map(docSnap => {
-          const exists = docSnap.exists();
-          console.log(`Symbol ${symbol} ${exists ? 'found' : 'not found'}`);
-          return exists ? symbol : null;
-        }),
-        catchError(e => {
-          console.error(`Error checking symbol ${symbol}:`, e);
-          return of(null);
-        })
-      )
-    );
+    console.log(`1. Getting list of all documents in ${FirestoreCollections.MARKET_DATA} collection...`);
     
     return this.runInZone(
-      forkJoin(symbolChecks).pipe(
-        map((results: (string | null)[]) => {
-          const validSymbols = results.filter((result): result is string => result !== null);
-          console.log(`Found ${validSymbols.length} valid symbols:`, validSymbols);
-          
-          if (validSymbols.length === 0) {
-            console.warn('No valid symbols found in market_data collection');
+      from(getDocs(collection(this.firestore, FirestoreCollections.MARKET_DATA))).pipe(
+        map(querySnapshot => {
+          const symbols = querySnapshot.docs.map(doc => doc.id);
+          console.log(`Found ${symbols.length} symbols in ${FirestoreCollections.MARKET_DATA} collection`);
+          return symbols;
+        }),
+        switchMap(symbols => {
+          if (symbols.length > 0) {
+            console.log(`Returning symbols from ${FirestoreCollections.MARKET_DATA} collection`);
+            return of(symbols);
           }
           
-          return validSymbols;
+          console.log(`No symbols found in ${FirestoreCollections.MARKET_DATA} collection, falling back to test access`);
+          return this.testMarketDataAccess();
         }),
         catchError(error => {
-          console.error('Error checking for known symbols:', error);
-          return of([]);
+          console.error('Error getting market data:', {
+            error: error.message,
+            code: error.code,
+            details: error
+          });
+          return this.testMarketDataAccess();
         })
       )
     );
+  }
+
+  // Helper method to test access to market-data collection
+  private testMarketDataAccess(): Observable<string[]> {
+    console.log(`=== Testing ${FirestoreCollections.MARKET_DATA} collection access ===`);
+    
+    return new Observable<string[]>(subscriber => {
+      const testDocRef = doc(this.firestore, `${FirestoreCollections.MARKET_DATA}/TEST_SYMBOL`);
+      
+      this.ngZone.run(() => {
+        from(getDoc(testDocRef)).pipe(
+          map(testDoc => {
+            const testResult = {
+              exists: testDoc.exists(),
+              data: testDoc.data()
+            };
+            
+            console.log('Test document access result:', testResult);
+            
+            if (!testDoc.exists()) {
+              console.warn('Test document does not exist. This is expected if no test data has been created.');
+              console.log('Attempting to list all collections for diagnostic purposes...');
+              
+              // Try to get collection list for more diagnostics
+              this.listCollections().subscribe(collections => {
+                console.log('Available collections:', collections);
+              });
+            }
+            
+            // Return empty array since we're just testing access
+            return [];
+          }),
+          catchError(testError => {
+            const errorDetails = {
+              message: testError.message,
+              code: testError.code,
+              name: testError.name,
+              stack: testError.stack
+            };
+            
+            console.error(`Error accessing test document in ${FirestoreCollections.MARKET_DATA} collection:`, errorDetails);
+            
+            if (testError.code === 'permission-denied') {
+              console.error(`PERMISSION DENIED: The current user does not have permission to access the ${FirestoreCollections.MARKET_DATA} collection`);
+              console.log('Current authentication state:', getAuth().currentUser);
+            } else if (testError.code === 'not-found') {
+              console.error(`COLLECTION NOT FOUND: The ${FirestoreCollections.MARKET_DATA} collection does not exist or is empty`);
+            }
+            
+            return of([]);
+          })
+        ).subscribe({
+          next: result => this.ngZone.run(() => subscriber.next(result)),
+          error: err => this.ngZone.run(() => {
+            console.error('Error in testMarketDataAccess subscription:', err);
+            subscriber.error(err);
+          }),
+          complete: () => this.ngZone.run(() => subscriber.complete())
+        });
+      });
+      
+      // Cleanup function
+      return () => {
+        console.log('Cleaning up testMarketDataAccess subscription');
+      };
+    });
   }
 
   // Get all data point endpoints for a symbol
   getDataPoints(symbol: string): Observable<string[]> {
     console.log(`Fetching data points for symbol: ${symbol}`);
     return this.runInZone(
-      from(getDocs(collection(this.firestore, `market_data/${symbol}/data_points`))).pipe(
+      from(getDocs(collection(this.firestore, `${FirestoreCollections.MARKET_DATA}/${symbol}/data_points`))).pipe(
         map((querySnapshot: QuerySnapshot<DocumentData>) => {
           const endpoints = querySnapshot.docs.map(doc => doc.id);
           console.log(`Found ${endpoints.length} data point endpoints for ${symbol}:`, endpoints);
@@ -328,33 +451,53 @@ export class FirestoreDebugService {
   // Get a specific data point for a symbol and endpoint
   getDataPoint(symbol: string, endpoint: string): Observable<EndpointData<any> | null> {
     console.log(`Fetching data point for ${symbol} - ${endpoint}`);
-    return this.runInZone(
-      from(getDoc(doc(this.firestore, `market_data/${symbol}/data_points/${endpoint}`))).pipe(
-        map(docSnap => {
-          if (!docSnap.exists()) {
-            console.warn(`No data point found for ${symbol} - ${endpoint}`);
-            return null;
-          }
-          const data = docSnap.data();
-          const result = {
-            endpoint: docSnap.id,
+    
+    // Try with vendor prefixes if not already present
+    const tryEndpoints = [
+      `bz-${endpoint}`,  // Benzinga prefix with hyphen
+      `av-${endpoint}`,  // Alpha Vantage prefix with hyphen
+      `bz_${endpoint}`,  // Legacy Benzinga prefix with underscore (for backward compatibility)
+      `av_${endpoint}`,  // Legacy Alpha Vantage prefix with underscore (for backward compatibility)
+      endpoint           // Original (for backward compatibility)
+    ];
+
+    // Try each endpoint in sequence until one works
+    return from(tryEndpoints).pipe(
+      concatMap(ep => 
+        from(getDoc(doc(this.firestore, `${FirestoreCollections.MARKET_DATA}/${symbol}/data_points/${ep}`))).pipe(
+          map(docSnap => {
+            if (docSnap.exists()) {
+              console.log(`Found data for ${symbol} - ${ep}`);
+              return { success: true, doc: docSnap };
+            }
+            return { success: false };
+          }),
+          catchError(() => of({ success: false }))
+        )
+      ),
+      filter((result: any) => result.success),
+      take(1),
+      map((result: any) => {
+        if (result.success) {
+          const data = result.doc.data();
+          return {
+            id: symbol,
             symbol: symbol,
-            lastUpdated: data['lastUpdated']?.toDate(),
-            nextRefreshAt: data['nextRefreshAt']?.toDate(),
-            ttlSeconds: data['ttlSeconds'],
-            status: data['status'],
-            data: data['data'] || {},
-            errorDetails: data['errorDetails']
+            endpoint: result.doc.id, // Return the actual document ID that was found
+            data: data?.['data'] || {},
+            lastUpdated: data?.['lastUpdated']?.toDate?.(),
+            nextRefreshAt: data?.['nextRefreshAt']?.toDate?.(),
+            ttlSeconds: data?.['ttlSeconds'],
+            status: data?.['status'] || 'unknown',
+            errorDetails: data?.['errorDetails']
           } as EndpointData<any>;
-          
-          console.log(`Successfully loaded data point for ${symbol} - ${endpoint}:`, result);
-          return result;
-        }),
-        catchError(error => {
-          console.error(`Error fetching data point for ${symbol} - ${endpoint}:`, error);
-          return of(null);
-        })
-      )
+        }
+        return null;
+      }),
+      catchError(error => {
+        console.error(`Error fetching data point for ${symbol} - ${endpoint}:`, error);
+        return of(null);
+      })
     );
   }
 
@@ -362,7 +505,7 @@ export class FirestoreDebugService {
   getRefreshEventEndpoints(symbol: string): Observable<string[]> {
     console.log(`Fetching refresh event endpoints for symbol: ${symbol}`);
     return this.runInZone(
-      from(getDocs(collection(this.firestore, `market_data/${symbol}/refresh_events`))).pipe(
+      from(getDocs(collection(this.firestore, `${FirestoreCollections.MARKET_DATA}/${symbol}/refresh_events`))).pipe(
         map((querySnapshot: QuerySnapshot<DocumentData>) => {
           const endpoints = querySnapshot.docs.map(doc => doc.id);
           console.log(`Found ${endpoints.length} refresh event endpoints for ${symbol}:`, endpoints);
@@ -379,8 +522,12 @@ export class FirestoreDebugService {
   // Get a specific refresh event for a symbol and endpoint
   getRefreshEvent(symbol: string, endpoint: string): Observable<RefreshEvent | null> {
     console.log(`Fetching refresh event for ${symbol} - ${endpoint}`);
+    if (!this.firestore) {
+      return of(null);
+    }
+
     return this.runInZone(
-      from(getDoc(doc(this.firestore, `market_data/${symbol}/refresh_events/${endpoint}`))).pipe(
+      from(getDoc(doc(this.firestore, `${FirestoreCollections.MARKET_DATA}/${symbol}/refresh_events/${endpoint}`))).pipe(
         map((docSnap) => {
           if (!docSnap.exists()) {
             console.warn(`No refresh event found for ${symbol} - ${endpoint}`);
@@ -395,7 +542,8 @@ export class FirestoreDebugService {
           
           // Convert completedAt to Date if it's a Firestore Timestamp
           const completedAt = data['completedAt'];
-          const completedAtDate = completedAt?.toDate ? completedAt.toDate() : (typeof completedAt === 'string' ? new Date(completedAt) : completedAt || new Date());
+          const completedAtDate = completedAt?.toDate ? completedAt.toDate() : 
+            (typeof completedAt === 'string' ? new Date(completedAt) : completedAt || new Date());
           
           // Map the document data to the RefreshEvent interface
           const result: RefreshEvent = {
@@ -415,9 +563,60 @@ export class FirestoreDebugService {
           console.log(`Successfully loaded refresh event for ${symbol} - ${endpoint}:`, result);
           return result;
         }),
-        catchError((error: Error) => {
+        catchError(error => {
           console.error(`Error fetching refresh event for ${symbol} - ${endpoint}:`, error);
           return of(null);
+        })
+      )
+    );
+  }
+
+  /**
+   * Debug method to check Firestore emulator data
+   * @returns Observable with debug information about Firestore data
+   */
+  debugCheckFirestoreData(): Observable<{
+    collections: string[];
+    trackedSymbolsCount: number;
+    marketDataCount: number;
+    error?: string;
+  }> {
+    console.log('[FirestoreDebugService] Starting Firestore data debug check');
+    
+    return this.runInZone(
+      from(getDocs(query(collection(this.firestore, FirestoreCollections.TRACKED_SYMBOLS)))).pipe(
+        switchMap(trackedSymbolsSnapshot => {
+          const trackedSymbolsCount = trackedSymbolsSnapshot.size;
+          console.log(`[FirestoreDebugService] Found ${trackedSymbolsCount} tracked symbols`);
+          
+          return from(getDocs(query(collection(this.firestore, FirestoreCollections.MARKET_DATA)))).pipe(
+            map(marketDataSnapshot => {
+              const marketDataCount = marketDataSnapshot.size;
+              console.log(`[FirestoreDebugService] Found ${marketDataCount} market data entries`);
+              
+              return {
+                collections: [
+                  FirestoreCollections.TRACKED_SYMBOLS,
+                  FirestoreCollections.MARKET_DATA,
+                  FirestoreCollections.REFRESH_EVENTS,
+                  FirestoreCollections.REFRESH_HISTORY,
+                  FirestoreCollections.SETTINGS,
+                  FirestoreCollections.USERS
+                ],
+                trackedSymbolsCount,
+                marketDataCount
+              };
+            })
+          );
+        }),
+        catchError(error => {
+          console.error('[FirestoreDebugService] Error checking Firestore data:', error);
+          return of({
+            collections: [],
+            trackedSymbolsCount: -1,
+            marketDataCount: -1,
+            error: error.message
+          });
         })
       )
     );

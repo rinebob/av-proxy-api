@@ -1,105 +1,128 @@
 import { db } from '../firebase-admin-init';
 import { FieldValue } from 'firebase-admin/firestore';
-import { BenzingaCalendarParams } from '../common/common-benz';
+import { 
+  CompanyDataEndpoint,
+  MarketDataEndpoint,
+  BenzingaEndpoint,
+  isCompanyDataEndpoint,
+  isMarketDataEndpoint
+} from '../common/common-benz';
+import { Firestore } from 'firebase-admin/firestore';
+import { FirestoreCollection } from '../common/firestore-collections';
 
 // Collection names
-const CALENDAR_CACHE_COLLECTION = 'benzingaCalendarCache';
 const LOGO_CACHE_COLLECTION = 'benzingaLogoCache';
 const LOGO_CACHE_DURATION_DAYS = 30;
 
 /**
- * Generate a cache key for the given calendar parameters
+ * Get a reference to a company data collection and ensure parent document exists with metadata
  */
-function generateCacheKey(params: BenzingaCalendarParams & { calendarType?: string }): string {
-  // Accept an optional calendarType for uniqueness if needed
-  const keyParts = [
-    params.calendarType || '', // Optionally pass in endpoint type if needed
-    ...(params.tickers ? params.tickers.sort() : []),
-    params.date_from || '',
-    params.date_to || '',
-    params.page?.toString() || '',
-    params.pagesize?.toString() || '',
-    params.updated || ''
-  ];
-  return keyParts.join('_');
+export async function getCompanyDataCollection(
+  db: Firestore, 
+  symbol: string, 
+  dataType: CompanyDataEndpoint
+) {
+  const symbolUpper = symbol.toUpperCase();
+  const companyDocRef = db.collection(FirestoreCollection.COMPANY_DATA).doc(symbolUpper);
+  
+  // Initialize the company document if it doesn't exist
+  await companyDocRef.set(
+    {
+      symbol: symbolUpper, 
+      originalSymbol: symbol, 
+      createdAt: FieldValue.serverTimestamp(),
+      lastUpdated: FieldValue.serverTimestamp(),
+      lastUpdatedBy: `calendar:${dataType}`,
+      endpoints: {
+        [dataType]: {
+          dataInSubcollection: true,
+          lastUpdated: FieldValue.serverTimestamp()
+        }
+      }
+    },
+    { merge: true }
+  );
+  
+  return companyDocRef.collection(dataType);
 }
 
 /**
- * Get cached calendar data from Firestore if it exists and is not expired
+ * Get a reference to a market data collection and ensure parent document exists with metadata
  */
-async function getCachedCalendarData(params: BenzingaCalendarParams): Promise<any | null> {
-  const cacheKey = generateCacheKey(params);
-  const cacheDoc = await db.collection(CALENDAR_CACHE_COLLECTION).doc(cacheKey).get();
+export async function getMarketDataCollection(
+  db: Firestore,
+  dataType: MarketDataEndpoint
+) {
+  const marketDocRef = db.collection(FirestoreCollection.MARKET_DATA).doc(dataType);
   
-  if (!cacheDoc.exists) {
-    return null;
-  }
+  // Initialize the market data document if it doesn't exist
+  await marketDocRef.set(
+    {
+      dataType,
+      createdAt: FieldValue.serverTimestamp(),
+      lastUpdated: FieldValue.serverTimestamp(),
+      lastUpdatedBy: `calendar:${dataType}`,
+      dataInSubcollection: true
+    },
+    { merge: true }
+  );
   
-  const cacheData = cacheDoc.data();
-  const now = new Date();
-  const cacheTime = cacheData?.cachedAt?.toDate();
-  
-  // Check if cache is expired (default 1 hour)
-  if (cacheTime && now.getTime() - cacheTime.getTime() > 60 * 60 * 1000) {
-    return null;
-  }
-  
-  return cacheData?.data || null;
+  return marketDocRef.collection('data');
 }
 
 /**
- * Save calendar data to Firestore cache
+ * Get the appropriate collection reference based on endpoint type and symbol
  */
-async function cacheCalendarData(params: BenzingaCalendarParams, response: any): Promise<void> {
-  const cacheKey = generateCacheKey(params);
-  const cacheData = {
-    data: response,
-    cachedAt: FieldValue.serverTimestamp(),
-    ...params
-  };
-  
-  await db.collection(CALENDAR_CACHE_COLLECTION).doc(cacheKey).set(cacheData);
-}
-
-/**
- * Clear expired cache entries
- */
-async function clearExpiredCache(expiryHours: number = 24): Promise<void> {
-  try {
-    const expiryTime = new Date(Date.now() - expiryHours * 60 * 60 * 1000);
-    const snapshot = await db.collection(CALENDAR_CACHE_COLLECTION)
-      .where('cachedAt', '<', expiryTime)
-      .limit(100)
-      .get();
-
-    const batch = db.batch();
-    snapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-
-    if (snapshot.size > 0) {
-      await batch.commit();
-      console.log(`Cleared ${snapshot.size} expired cache entries`);
+export async function getDataCollection(
+  db: Firestore,
+  endpoint: BenzingaEndpoint,
+  symbol?: string
+) {
+  if (isCompanyDataEndpoint(endpoint)) {
+    if (!symbol) {
+      throw new Error(`Symbol is required for ${endpoint} data`);
     }
-  } catch (error) {
-    console.error('Error clearing expired cache:', error);
+    return getCompanyDataCollection(db, symbol, endpoint);
   }
+  
+  if (isMarketDataEndpoint(endpoint)) {
+    return getMarketDataCollection(db, endpoint);
+  }
+  
+  // This should never happen due to type guards, but provides a type-safe fallback
+  throw new Error(`Unknown endpoint type: ${endpoint}`);
+}
+
+/**
+ * Generate a consistent document ID with vendor prefix
+ */
+export function getVendorDocId(vendor: string, dataType: string): string {
+  return `${vendor}-${dataType}`;
 }
 
 /**
  * Retrieves a cached company logo from Firestore if it's valid.
  */
-async function getLogoData(ticker: string): Promise<any | null> {
-  const cacheDoc = await db.collection(LOGO_CACHE_COLLECTION).doc(ticker).get();
-
-  if (!cacheDoc.exists) {
+export async function getLogoData(ticker: string): Promise<any | null> {
+  const doc = await db.collection(LOGO_CACHE_COLLECTION).doc(ticker).get();
+  
+  if (!doc.exists) {
+    console.log(`[${ticker}] NO LOGO CACHE FOUND`);
     return null;
   }
-
-  const cacheData = cacheDoc.data();
+  
+  const cacheData = doc.data();
   const cacheTime = cacheData?.cachedAt?.toDate();
-  const isCacheExpired = (new Date().getTime() - cacheTime.getTime()) > LOGO_CACHE_DURATION_DAYS * 24 * 60 * 60 * 1000;
-
+  
+  if (!cacheTime) {
+    console.log(`[${ticker}] INVALID CACHE TIMESTAMP`);
+    return null;
+  }
+  
+  const expiryDate = new Date(cacheTime);
+  expiryDate.setDate(expiryDate.getDate() + LOGO_CACHE_DURATION_DAYS);
+  const isCacheExpired = new Date() > expiryDate;
+  
   if (isCacheExpired) {
     console.log(`[${ticker}] LOGO CACHE EXPIRED`);
     return null;
@@ -111,7 +134,7 @@ async function getLogoData(ticker: string): Promise<any | null> {
 /**
  * Saves company logo data to the Firestore cache.
  */
-async function saveLogoData(ticker: string, data: any): Promise<void> {
+export async function saveLogoData(ticker: string, data: any): Promise<void> {
   const cachePayload = {
     cachedAt: FieldValue.serverTimestamp(),
     data,
@@ -119,5 +142,3 @@ async function saveLogoData(ticker: string, data: any): Promise<void> {
 
   await db.collection(LOGO_CACHE_COLLECTION).doc(ticker).set(cachePayload);
 }
-
-export { getCachedCalendarData, cacheCalendarData, clearExpiredCache, getLogoData, saveLogoData };
