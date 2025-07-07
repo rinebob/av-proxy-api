@@ -103,6 +103,7 @@ export class SymbolManagerService {
         let symbolData: Partial<TrackedSymbol> = {
           symbol,
           isActive: true,
+          refreshEnabled: false, // Set default to false for new symbols
           lastUpdated: now,
           createdAt: now,
         };
@@ -139,7 +140,8 @@ export class SymbolManagerService {
               marketClose: exactMatch.marketClose,
               timezone: exactMatch.timezone,
               currency: exactMatch.currency,
-              matchScore: exactMatch.matchScore
+              matchScore: exactMatch.matchScore,
+              refreshEnabled: false // Ensure refreshEnabled is set even if metadata is merged
             };
           } else if (matches.length > 0) {
             console.log(`sMSvc sS [SymbolManager] No exact match found for ${symbol}, but found ${matches.length} similar symbols`);

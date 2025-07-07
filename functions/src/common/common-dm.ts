@@ -114,6 +114,7 @@ export interface TrackedSymbol {
   
   // System fields
   isActive: boolean;
+  refreshEnabled?: boolean;  // If true, AV data will be refreshed for this symbol
   lastUpdated: admin.firestore.Timestamp | Date;
   createdAt: admin.firestore.Timestamp | Date;
 }

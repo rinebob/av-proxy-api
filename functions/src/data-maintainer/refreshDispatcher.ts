@@ -50,31 +50,37 @@ export async function refreshAllData(): Promise<RefreshResult> {
     if (pr) console.log(`rD rAD Starting scheduled refresh at ${pacificTime} PT`);
     if (pr) console.log(`rD rAD Test mode: ${TEST_MODE}, TTL: ${TEST_TTL_SECONDS}s`);
     
-    // Get all active tracked symbols
+    // Get all active tracked symbols with their refreshEnabled status
     if (pr) console.log('rD rAD Fetching active tracked symbols...');
     const activeSymbols = await db.collection(FirestoreCollection.TRACKED_SYMBOLS)
       .where('isActive', '==', true)
-      .select('symbol')
       .get();
       
-    if (pr) console.log(`rD rAD Found ${activeSymbols.size} active symbols to process`);
+    // Filter out symbols where refreshEnabled is false for AV endpoints
+    const symbolsToProcess = activeSymbols.docs
+      .filter(doc => {
+        const data = doc.data();
+        // For AV endpoints, skip if refreshEnabled is explicitly false
+        const isAvEndpoint = Array.from(IMPLEMENTED_ENDPOINTS).some(ep => ep.startsWith('AV_'));
+        return !(isAvEndpoint && data.refreshEnabled === false);
+      })
+      .map(doc => doc.id);
+      
+    if (pr) console.log(`rD rAD Found ${symbolsToProcess.length} symbols to process`);
     
     // Log current time and test settings
     if (pr) console.log('rD rAD Current time:', formatPST(now));
     
     // Process each symbol for each implemented endpoint
-    const symbols = activeSymbols.docs.map(doc => doc.id);
     const endpoints = Array.from(IMPLEMENTED_ENDPOINTS);
     
-    if (pr) console.log(`rD rAD Processing ${symbols.length} symbols across ${endpoints.length} endpoints`);
+    if (pr) console.log(`rD rAD Processing ${symbolsToProcess.length} symbols across ${endpoints.length} endpoints`);
     
     // Build the list of documents to process
     const docsToProcess: DocumentToProcess[] = [];
     
     // Process each symbol
-    for (const symbolDoc of activeSymbols.docs) {
-      const symbol = symbolDoc.id;
-      
+    for (const symbol of symbolsToProcess) {
       // Process each implemented endpoint for this symbol
       for (const endpoint of endpoints) {
         const endpointKey = endpoint as DataMaintainerEndpoint;
