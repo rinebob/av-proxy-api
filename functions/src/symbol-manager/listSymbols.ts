@@ -25,7 +25,26 @@ export const listSymbols = onRequest({ cors: true }, async (req, res) => {
 
     console.log('Calling symbolManagerService.listSymbols with options:', options);
     const result = await symbolManagerService.listSymbols(options);
-    console.log('Successfully retrieved symbols:', { count: result.symbols?.length, total: result.total });
+    
+    console.log('Successfully retrieved symbols:', { 
+      count: result.symbols?.length, 
+      total: result.total,
+      hasSymbols: Array.isArray(result.symbols) && result.symbols.length > 0,
+      firstFewSymbols: result.symbols?.slice(0, 3) // Log first few symbols if available
+    });
+    
+    if (!result.symbols || result.symbols.length === 0) {
+      console.warn('No symbols returned from symbolManagerService.listSymbols');
+      // Log the query being used
+      console.log('Query parameters:', {
+        activeOnly: options.activeOnly,
+        limit: options.limit,
+        offset: options.offset,
+        sortBy: options.sortBy,
+        sortDirection: options.sortDirection
+      });
+    }
+    
     res.status(200).json(result);
   } catch (error: any) {
     console.error('Error in listSymbols:', {
