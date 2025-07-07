@@ -176,7 +176,11 @@ export const getBenzingaCalendar = onRequest(
 
       // Build params object
       const params: BenzingaCalendarParams = {
-        tickers: tickers.split(',').map(t => t.trim().toUpperCase()),
+        ...(tickers && { 
+          tickers: tickers.split(',')
+            .map(t => t.trim().toUpperCase())
+            .join(',')
+        }),
         ...(date_from && { date_from: date_from as string }),
         ...(date_to && { date_to: date_to as string }),
         page: parseInt(page as string, 10) || 1,
