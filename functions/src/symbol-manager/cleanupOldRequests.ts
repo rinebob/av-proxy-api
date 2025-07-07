@@ -1,6 +1,8 @@
+// Import from the correct v2 paths
 import { onSchedule, ScheduleOptions } from 'firebase-functions/v2/scheduler';
+import type { ScheduledEvent } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
-import { SYMBOL_REQUESTS } from '../common/firestore-collections';
+import { FirestoreCollection } from '../common/firestore-collections';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -8,24 +10,24 @@ if (!admin.apps.length) {
 }
 
 // Define schedule options
-const WEEKLY_SCHEDULE: ScheduleOptions = {
+const SCHEDULE_OPTIONS: ScheduleOptions = {
   schedule: '0 0 * * 0', // Every Sunday at midnight
   timeZone: 'America/Los_Angeles',
   timeoutSeconds: 540, // 9 minutes
-  memory: '1GiB'
+  memory: '1GiB' as const
 };
 
 /**
  * Cleans up old symbol sync requests to keep the database size in check
  */
-export const cleanupOldSyncRequests = onSchedule(WEEKLY_SCHEDULE, async (event) => {
+export const cleanupOldSyncRequests = onSchedule(SCHEDULE_OPTIONS, async (event: ScheduledEvent) => {
   try {
     const db = admin.firestore();
     const thirtyDaysAgo = admin.firestore.Timestamp.fromDate(
       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     );
     
-    const snapshot = await db.collection(SYMBOL_REQUESTS)
+    const snapshot = await db.collection(FirestoreCollection.REFRESH_EVENTS)
       .where('timestamp', '<', thirtyDaysAgo)
       .limit(500)
       .get();
