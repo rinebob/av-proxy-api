@@ -84,12 +84,6 @@
                 </td>
               </ng-container>
 
-              <!-- Region Column -->
-              <ng-container matColumnDef="region">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Region</th>
-                <td mat-cell *matCellDef="let symbol">{{ symbol.region || 'N/A' }}</td>
-              </ng-container>
-
               <!-- Market Hours Column -->
               <ng-container matColumnDef="marketHours">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Market Hours</th>
@@ -101,33 +95,19 @@
                 </td>
               </ng-container>
 
-              <!-- Currency Column -->
-              <ng-container matColumnDef="currency">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Currency</th>
-                <td mat-cell *matCellDef="let symbol">
-                  <span *ngIf="symbol.currency; else noCurrency" [title]="symbol.currency">
-                    {{ symbol.currency | uppercase }}
-                  </span>
-                  <ng-template #noCurrency>N/A</ng-template>
-                </td>
-              </ng-container>
-
-              <!-- Match Score Column -->
-              <ng-container matColumnDef="matchScore">
-                <th mat-header-cell *matHeaderCellDef mat-sort-header>Match Score</th>
-                <td mat-cell *matCellDef="let symbol">
-                  <span *ngIf="symbol.matchScore !== undefined; else noScore" class="match-score">
-                    {{ symbol.matchScore | number:'1.0-2' }}
-                  </span>
-                  <ng-template #noScore>N/A</ng-template>
-                </td>
-              </ng-container>
-
               <!-- Last Updated Column -->
               <ng-container matColumnDef="lastUpdated">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Last Updated</th>
                 <td mat-cell *matCellDef="let symbol">
                   {{ symbol.lastUpdated ? (symbol.lastUpdated | date: 'short') : 'Never' }}
+                </td>
+              </ng-container>
+
+              <!-- Refresh Status Column -->
+              <ng-container matColumnDef="refreshEnabled">
+                <th mat-header-cell *matHeaderCellDef mat-sort-header>Auto-Refresh</th>
+                <td mat-cell *matCellDef="let symbol">
+                  {{ symbol.refreshEnabled ? 'Yes' : 'No' }}
                 </td>
               </ng-container>
 

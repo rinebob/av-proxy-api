@@ -58,10 +58,9 @@ export class SymbolManagerComponent implements OnInit {
   displayedColumns: string[] = [
     'symbol', 
     'name', 
-    'type', 
-    'region', 
-    'marketHours', 
-    'currency', 
+    'type',
+    'marketHours',
+    'refreshEnabled',
     'lastUpdated',
     'actions'
   ];
