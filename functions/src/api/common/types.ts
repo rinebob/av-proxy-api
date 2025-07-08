@@ -44,6 +44,8 @@ export interface ApiResponse<T = any> {
     endpoint: string;
     symbol?: string;
     ttl: number;
+    requestId: string;
+    processingTimeMs: number;
   };
 }
 
