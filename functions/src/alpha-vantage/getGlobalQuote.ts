@@ -4,19 +4,18 @@ import {
   getAlphaVantageApiKey, 
   fetchStockData, 
   handleApiError,
-  authenticateRequest
+  authenticateRequest,
 } from '../utils/utils';
+
 import { 
-  AlphaVantageFunctionName
+  AlphaVantageFunctionName,
 } from '../common/common-fn';
-import { 
-  AlphaVantageFunction,
-  AlphaVantageGlobalQuoteResponse,
-} from '../common/common-av';
+
 import { 
   saveStockData, 
   getStockData 
 } from './av-firestore-helpers';
+import { AlphaVantageGlobalQuoteResponse } from '../common/common-av';
 
 export const getGlobalQuote = onRequest(
   {
@@ -60,7 +59,7 @@ export const getGlobalQuote = onRequest(
 
       // Create the correctly-typed parameters object for the API call
       const apiParams: { [key: string]: string } = {
-        function: AlphaVantageFunction.GLOBAL_QUOTE,
+        function: AlphaVantageFunctionName.GET_GLOBAL_QUOTE,
         symbol: symbol
       };
 

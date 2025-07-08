@@ -24,11 +24,11 @@ export type {
 // Export specific types from common-av
 export { 
   OutputSize, 
-  AlphaVantageFunction,
   ALPHAVANTAGE_BASE_URL,
   CACHE_DURATION_MS,
   RATE_LIMIT_WINDOW_MS,
-  MAX_REQUESTS_PER_WINDOW 
+  AlphaVantageEndpoint,
+  AlphaVantageSymbolSearchResponse,
 } from './common-av';
 
 export type { 

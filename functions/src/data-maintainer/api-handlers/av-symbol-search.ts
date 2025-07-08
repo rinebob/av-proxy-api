@@ -1,6 +1,6 @@
 // Handler for AV SYMBOL_SEARCH endpoint
 import { getAlphaVantageApiKey, fetchStockData } from '../../utils/utils';
-import { AlphaVantageFunction, AlphaVantageSymbolSearchResponse } from '../../common/common-av';
+import { AlphaVantageEndpoint, AlphaVantageSymbolSearchResponse } from '../../common/common-av';
 import { TrackedSymbol } from '../../common/common-dm';
 import { Timestamp } from 'firebase-admin/firestore';
 
@@ -37,7 +37,7 @@ export class AvSymbolSearchHandler {
     try {
       const apiKey = getAlphaVantageApiKey();
       const apiParams = {
-        function: AlphaVantageFunction.SYMBOL_SEARCH,
+        function: AlphaVantageEndpoint.SYMBOL_SEARCH,
         keywords: keywords.trim()
       };
 

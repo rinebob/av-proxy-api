@@ -151,94 +151,42 @@ export interface StoredStockData {
   lastUpdated: Timestamp | FieldValue;
 }
 
-// Define an enum for Alpha Vantage API functions
-// This helps provide type safety when specifying which function to call
-export enum AlphaVantageFunction {
-    // Time Series
-    TIME_SERIES_DAILY = 'TIME_SERIES_DAILY',
-    TIME_SERIES_DAILY_ADJUSTED = 'TIME_SERIES_DAILY_ADJUSTED',
-    TIME_SERIES_WEEKLY = 'TIME_SERIES_WEEKLY',
-    TIME_SERIES_WEEKLY_ADJUSTED = 'TIME_SERIES_WEEKLY_ADJUSTED',
-    TIME_SERIES_MONTHLY = 'TIME_SERIES_MONTHLY',
-    TIME_SERIES_MONTHLY_ADJUSTED = 'TIME_SERIES_MONTHLY_ADJUSTED',
-    TIME_SERIES_INTRADAY = 'TIME_SERIES_INTRADAY', // Requires interval parameter
+// Define an enum for Alpha Vantage API endpoints
+// This helps provide type safety when specifying which endpoint to call
+export enum AlphaVantageEndpoint {
+  // Time Series
+  TIME_SERIES_INTRADAY = 'TIME_SERIES_INTRADAY',
+  TIME_SERIES_DAILY = 'TIME_SERIES_DAILY',
+  TIME_SERIES_DAILY_ADJUSTED = 'TIME_SERIES_DAILY_ADJUSTED',
+  TIME_SERIES_WEEKLY = 'TIME_SERIES_WEEKLY',
+  TIME_SERIES_WEEKLY_ADJUSTED = 'TIME_SERIES_WEEKLY_ADJUSTED',
+  TIME_SERIES_MONTHLY = 'TIME_SERIES_MONTHLY',
+  TIME_SERIES_MONTHLY_ADJUSTED = 'TIME_SERIES_MONTHLY_ADJUSTED',
 
-    // Quotes
-    GLOBAL_QUOTE = 'GLOBAL_QUOTE', // This is the one you're using now
-    SYMBOL_SEARCH = 'SYMBOL_SEARCH', // Symbol search functionality
-
-    // Fundamental Data
-    COMPANY_OVERVIEW = 'OVERVIEW',
-    INCOME_STATEMENT = 'INCOME_STATEMENT',
-    BALANCE_SHEET = 'BALANCE_SHEET',
-    CASH_FLOW = 'CASH_FLOW',
-    EARNINGS = 'EARNINGS',
-    // ... add other Fundamental Data functions you might use
-
-    // Technical Indicators (Examples - many more exist)
-    SMA = 'SMA', // Simple Moving Average (requires interval, time_period, series_type)
-    EMA = 'EMA', // Exponential Moving Average (requires interval, time_period, series_type)
-    MACD = 'MACD', // Moving Average Convergence Divergence (requires interval, series_type)
-    // ... add other Technical Indicators you might use
-
-    // FX (Forex)
-    CURRENCY_EXCHANGE_RATE = 'CURRENCY_EXCHANGE_RATE', // Requires from_currency, to_currency
-
-    // Cryptocurrencies
-    DIGITAL_CURRENCY_DAILY = 'DIGITAL_CURRENCY_DAILY', // Requires symbol, market
-    // ... add other Crypto functions
-
-    // Economic Indicators (Examples - many more exist)
-    CPI = 'CPI', // Consumer Price Index (requires interval)
-    INFLATION = 'INFLATION', // Inflation (requires interval)
-    // ... add other Economic Indicators you might use
-}
-
-// Add other response types as needed
-/**
- * Represents a single symbol match from Alpha Vantage SYMBOL_SEARCH endpoint
- */
-export interface AlphaVantageSymbolMatch {
-    '1. symbol': string;
-    '2. name': string;
-    '3. type': string;
-    '4. region': string;
-    '5. marketOpen': string;
-    '6. marketClose': string;
-    '7. timezone': string;
-    '8. currency': string;
-    '9. matchScore': string;
-}
-
-/**
- * Response format for Alpha Vantage SYMBOL_SEARCH endpoint
- */
-export interface AlphaVantageSymbolSearchResponse {
-    bestMatches: AlphaVantageSymbolMatch[];
-}
-
-export const ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
-export const CACHE_DURATION_MS = 1000 * 60 * 30; // Cache for 30 minutes
-
-export const RATE_LIMIT_WINDOW_MS = 1000 * 60; // 1 minute
-export const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 requests per minute
-
-// Interface for authentication and validation result
-export interface AuthValidationResult {
-    decodedToken: any; // Consider using a more specific type if available
-    params: QueryParams;
-    apiKey: string;
-}
-
-// Interface for query parameters
-export interface QueryParams {
-    symbol: string;
-    outputSize: OutputSize;
+  // Stock Quotes
+  GLOBAL_QUOTE = 'GLOBAL_QUOTE',
+  
+  // Company Information
+  OVERVIEW = 'OVERVIEW',
+  EARNINGS = 'EARNINGS',
+  INCOME_STATEMENT = 'INCOME_STATEMENT',
+  BALANCE_SHEET = 'BALANCE_SHEET',
+  CASH_FLOW = 'CASH_FLOW',
+  
+  // Search
+  SYMBOL_SEARCH = 'SYMBOL_SEARCH',
+  
+  // Technical Indicators
+  // Note: Add technical indicators here as needed
+  // Example:
+  // SMA = 'SMA',
+  // EMA = 'EMA',
+  // RSI = 'RSI'
 }
 
 // Generic parameter interface for Alpha Vantage API calls
 export interface AlphaVantageParams {
-  function: AlphaVantageFunction;
+  endpoint: AlphaVantageEndpoint;
   symbol: string;
   outputsize: OutputSize;
 }
@@ -326,4 +274,45 @@ export interface CheckMockDataResponse {
   availableEndpoints?: string[];
   availableSymbols?: string[];
   error?: string;
+}
+
+export const ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
+export const CACHE_DURATION_MS = 1000 * 60 * 30; // Cache for 30 minutes
+
+export const RATE_LIMIT_WINDOW_MS = 1000 * 60; // 1 minute
+export const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 requests per minute
+
+// Interface for authentication and validation result
+export interface AuthValidationResult {
+    decodedToken: any; // Consider using a more specific type if available
+    params: QueryParams;
+    apiKey: string;
+}
+
+// Interface for query parameters
+export interface QueryParams {
+    symbol: string;
+    outputSize: OutputSize;
+}
+
+/**
+ * Represents a single symbol match from Alpha Vantage SYMBOL_SEARCH endpoint
+ */
+export interface AlphaVantageSymbolMatch {
+    '1. symbol': string;
+    '2. name': string;
+    '3. type': string;
+    '4. region': string;
+    '5. marketOpen': string;
+    '6. marketClose': string;
+    '7. timezone': string;
+    '8. currency': string;
+    '9. matchScore': string;
+}
+
+/**
+ * Response format for Alpha Vantage SYMBOL_SEARCH endpoint
+ */
+export interface AlphaVantageSymbolSearchResponse {
+    bestMatches: AlphaVantageSymbolMatch[];
 }

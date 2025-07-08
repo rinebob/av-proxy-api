@@ -6,12 +6,12 @@ import {
   authenticateRequest
 } from '../utils/utils';
 import { 
-  AlphaVantageFunctionName
-} from '../common/common-fn';
-import { 
-  AlphaVantageFunction,
+  AlphaVantageEndpoint,
   OutputSize
 } from '../common/common-av';
+import { 
+  AlphaVantageFunctionName,
+} from '../common/common-fn';
 import { 
   transformAlphaVantageResponse,
   saveStockData, 
@@ -55,7 +55,7 @@ export const getDailyStockDataSimple = onRequest(
         // Fetch from API
         console.info(`gDSDS [${symbol}] CACHE MISS - Fetching from Alpha Vantage`);
         const response = await fetchStockData({
-          function: AlphaVantageFunction.TIME_SERIES_DAILY,
+          endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY,
           symbol: symbol,
           outputsize: (outputsize as string) || OutputSize.COMPACT
         }, apiKey);
