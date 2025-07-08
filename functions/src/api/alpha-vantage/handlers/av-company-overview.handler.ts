@@ -65,21 +65,38 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
    * @returns Processed company overview data
    */
   public async fetch(params: Record<string, any>): Promise<ApiResponse<CompanyOverviewData>> {
+    const startTime = Date.now();
+    console.log(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Starting fetch for symbol: ${params.symbol}`);
+    
     try {
       // Validate required parameters
       if (!params.symbol) {
-        throw new Error('Symbol parameter is required');
+        const error = new Error('Symbol parameter is required');
+        console.error(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Validation error:`, error.message);
+        throw error;
       }
 
+      console.log(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Fetching company overview data`);
+      
       // Call the parent fetch method to make the actual API request
       const response = await super.fetch({
         symbol: params.symbol,
         datatype: 'json'
       });
 
+      console.log(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Successfully fetched company overview in ${Date.now() - startTime}ms`, {
+        symbol: params.symbol,
+        dataPoints: response.data ? Object.keys(response.data).length : 0
+      });
+
       return response;
     } catch (error) {
-      console.error('Error in AvCompanyOverviewHandler:', error);
+      console.error(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Error in fetch:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        symbol: params.symbol,
+        processingTimeMs: Date.now() - startTime
+      });
       throw error;
     }
   }
@@ -90,92 +107,144 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
    * @returns Transformed company overview data
    */
   protected transformResponse(data: any): CompanyOverviewData {
+    console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Starting response transformation`);
+    
     // If the API returns an error message in the response
     if (data['Error Message']) {
-      throw new Error(data['Error Message']);
+      const errorMsg = `Alpha Vantage API error: ${data['Error Message']}`;
+      console.error(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
 
     // If no data is returned
     if (!data || Object.keys(data).length === 0) {
-      throw new Error('No data returned from Alpha Vantage API');
+      const errorMsg = 'No data returned from Alpha Vantage API';
+      console.error(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
 
-    // The Alpha Vantage API returns the data directly as an object
-    // We'll clean it up and ensure all fields are properly typed
-    const result: Partial<CompanyOverviewData> = {};
+    console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Processing company overview for symbol: ${data.Symbol || 'unknown'}`);
+
+    try {
+      // The Alpha Vantage API returns the data directly as an object
+      // We'll clean it up and ensure all fields are properly typed
+      const result: Partial<CompanyOverviewData> = {};
+      
+      // Map the response fields to our interface
+      const fieldMappings: Record<keyof CompanyOverviewData, string | string[]> = {
+        Symbol: 'Symbol',
+        AssetType: 'AssetType',
+        Name: 'Name',
+        Description: 'Description',
+        CIK: 'CIK',
+        Exchange: 'Exchange',
+        Currency: 'Currency',
+        Country: 'Country',
+        Sector: 'Sector',
+        Industry: 'Industry',
+        Address: 'Address',
+        FiscalYearEnd: 'FiscalYearEnd',
+        LatestQuarter: 'LatestQuarter',
+        MarketCapitalization: 'MarketCapitalization',
+        EBITDA: 'EBITDA',
+        PERatio: 'PERatio',
+        PEGRatio: 'PEGRatio',
+        BookValue: 'BookValue',
+        DividendPerShare: 'DividendPerShare',
+        DividendYield: 'DividendYield',
+        EPS: 'EPS',
+        RevenuePerShareTTM: 'RevenuePerShareTTM',
+        ProfitMargin: 'ProfitMargin',
+        OperatingMarginTTM: 'OperatingMarginTTM',
+        ReturnOnAssetsTTM: 'ReturnOnAssetsTTM',
+        ReturnOnEquityTTM: 'ReturnOnEquityTTM',
+        RevenueTTM: 'RevenueTTM',
+        GrossProfitTTM: 'GrossProfitTTM',
+        DilutedEPSTTM: 'DilutedEPSTTM',
+        QuarterlyEarningsGrowthYOY: 'QuarterlyEarningsGrowthYOY',
+        QuarterlyRevenueGrowthYOY: 'QuarterlyRevenueGrowthYOY',
+        AnalystTargetPrice: 'AnalystTargetPrice',
+        TrailingPE: 'TrailingPE',
+        ForwardPE: 'ForwardPE',
+        PriceToSalesRatioTTM: 'PriceToSalesRatioTTM',
+        PriceToBookRatio: 'PriceToBookRatio',
+        EVToRevenue: 'EVToRevenue',
+        EVToEBITDA: 'EVToEBITDA',
+        Beta: 'Beta',
+        '52WeekHigh': '52WeekHigh',
+        '52WeekLow': '52WeekLow',
+        '50DayMovingAverage': '50DayMovingAverage',
+        '200DayMovingAverage': '200DayMovingAverage',
+        SharesOutstanding: 'SharesOutstanding',
+        DividendDate: 'DividendDate',
+        ExDividendDate: 'ExDividendDate'
+      };
+
+      let mappedFields = 0;
+      // Map each field from the API response to our result object
+      (Object.entries(fieldMappings) as [keyof CompanyOverviewData, string | string[]][]).forEach(([key, apiKey]) => {
+        if (Array.isArray(apiKey)) {
+          // Handle multiple possible field names (not needed here but kept for future use)
+          for (const k of apiKey) {
+            if (data[k] !== undefined) {
+              result[key] = data[k];
+              mappedFields++;
+              break;
+            }
+          }
+        } else if (data[apiKey] !== undefined) {
+          // Handle single field name
+          result[key] = data[apiKey];
+          mappedFields++;
+        }
+      });
+
+      // Log field mapping statistics
+      console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Mapped ${mappedFields} out of ${Object.keys(fieldMappings).length} fields`);
+
+      // Ensure we have at least some data
+      if (mappedFields === 0) {
+        const errorMsg = 'No valid data found in API response';
+        console.error(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] ${errorMsg}`, {
+          availableKeys: Object.keys(data),
+          dataSample: JSON.stringify(data).substring(0, 200) + '...'
+        });
+        throw new Error(errorMsg);
+      }
+
+      console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Successfully transformed company overview data`, {
+        symbol: result.Symbol,
+        name: result.Name,
+        sector: result.Sector,
+        industry: result.Industry,
+        mappedFields
+      });
+
+      return result as CompanyOverviewData;
+      
+    } catch (error) {
+      console.error(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Error transforming response:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        dataSample: data ? JSON.stringify(data).substring(0, 200) + '...' : 'No data'
+      });
+      throw error;
+    }
+  }
+  
+  protected prepareRequestParams(params: Record<string, any>): Record<string, any> {
+    console.log(`aCO.H pRP [${this.requestId}] [COMPANY-OVERVIEW] Preparing request params:`, params);
     
-    // Map the response fields to our interface
-    // This ensures we only include the fields we expect and handle any missing ones
-    const fieldMappings: Record<keyof CompanyOverviewData, string | string[]> = {
-      Symbol: 'Symbol',
-      AssetType: 'AssetType',
-      Name: 'Name',
-      Description: 'Description',
-      CIK: 'CIK',
-      Exchange: 'Exchange',
-      Currency: 'Currency',
-      Country: 'Country',
-      Sector: 'Sector',
-      Industry: 'Industry',
-      Address: 'Address',
-      FiscalYearEnd: 'FiscalYearEnd',
-      LatestQuarter: 'LatestQuarter',
-      MarketCapitalization: 'MarketCapitalization',
-      EBITDA: 'EBITDA',
-      PERatio: 'PERatio',
-      PEGRatio: 'PEGRatio',
-      BookValue: 'BookValue',
-      DividendPerShare: 'DividendPerShare',
-      DividendYield: 'DividendYield',
-      EPS: 'EPS',
-      RevenuePerShareTTM: 'RevenuePerShareTTM',
-      ProfitMargin: 'ProfitMargin',
-      OperatingMarginTTM: 'OperatingMarginTTM',
-      ReturnOnAssetsTTM: 'ReturnOnAssetsTTM',
-      ReturnOnEquityTTM: 'ReturnOnEquityTTM',
-      RevenueTTM: 'RevenueTTM',
-      GrossProfitTTM: 'GrossProfitTTM',
-      DilutedEPSTTM: 'DilutedEPSTTM',
-      QuarterlyEarningsGrowthYOY: 'QuarterlyEarningsGrowthYOY',
-      QuarterlyRevenueGrowthYOY: 'QuarterlyRevenueGrowthYOY',
-      AnalystTargetPrice: 'AnalystTargetPrice',
-      TrailingPE: 'TrailingPE',
-      ForwardPE: 'ForwardPE',
-      PriceToSalesRatioTTM: 'PriceToSalesRatioTTM',
-      PriceToBookRatio: 'PriceToBookRatio',
-      EVToRevenue: 'EVToRevenue',
-      EVToEBITDA: 'EVToEBITDA',
-      Beta: 'Beta',
-      '52WeekHigh': '52WeekHigh',
-      '52WeekLow': '52WeekLow',
-      '50DayMovingAverage': '50DayMovingAverage',
-      '200DayMovingAverage': '200DayMovingAverage',
-      SharesOutstanding: 'SharesOutstanding',
-      DividendDate: 'DividendDate',
-      ExDividendDate: 'ExDividendDate'
+    // Call the parent's prepareRequestParams first
+    const baseParams = super.prepareRequestParams(params);
+    
+    // Add any additional parameters specific to this endpoint
+    const requestParams = {
+      ...baseParams,
+      datatype: 'json' // Force JSON response
     };
 
-    // Map each field from the API response to our result object
-    (Object.entries(fieldMappings) as [keyof CompanyOverviewData, string | string[]][]).forEach(([key, apiKey]) => {
-      if (Array.isArray(apiKey)) {
-        // Handle multiple possible field names (not needed here but kept for future use)
-        for (const k of apiKey) {
-          if (data[k] !== undefined) {
-            result[key] = data[k];
-            break;
-          }
-        }
-      } else if (data[apiKey] !== undefined) {
-        // Handle single field name
-        result[key] = data[apiKey];
-      }
-    });
-
-    // Ensure we have at least some data
-    if (Object.keys(result).length === 0) {
-      throw new Error('No valid data found in API response');
-    }
-
-    return result as CompanyOverviewData;
+    console.log(`aCO.H pRP [${this.requestId}] [COMPANY-OVERVIEW] Final request params:`, requestParams);
+    return requestParams;
   }
 }
