@@ -41,7 +41,12 @@ function endpointToPath(endpoint: AlphaVantageEndpoint): string {
 export function getAlphaVantageEndpointUrl(endpoint: AlphaVantageEndpoint): string {
   const baseUrl = getAlphaVantageBaseUrl();
   console.log(`av-api gAEU Using base URL: ${baseUrl}, endpoint: ${endpoint}`);
-  return `${baseUrl}/alphaVantageApi/${endpoint}`;
+  
+  // For production, use the direct path (e.g., https://alpha-vantage-gateway-lsluydmucq-uc.a.run.app/TIME_SERIES_DAILY)
+  // For development, use the full path with function name
+  return environment.production 
+    ? `${baseUrl}/${endpoint}`
+    : `${baseUrl}/alphaVantageApi/${endpoint}`;
 }
 
 /////////////////////////////// TYPES /////////////////////////
