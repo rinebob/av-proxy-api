@@ -1,57 +1,46 @@
 <section class="data-maintainer-view">
-  <h1>Test Data Maintainer Endpoints</h1>
+  <h1>Alpha Vantage Data</h1>
   <app-endpoint-selector-row />
+  
   <div class="test-controls">
     <div class="symbol-input">
       <label for="symbol">Symbol:</label>
       <input 
         id="symbol"
         type="text" 
-        [value]="dataMaintainerStore.symbol()"
-        (input)="onSymbolChange($event)"
-        [disabled]="dataMaintainerStore.loading()"
-        placeholder="Enter stock symbol (e.g., NVDA)"
+        (input)="onSymbolInput($event)"
+        [disabled]="alphaVantageStore.loading()"
+        placeholder="Enter symbol (e.g., AAPL)"
         class="symbol-textbox"
       >
     </div>
     
     <button 
-      (click)="fetchCompanyOverview()" 
-      [disabled]="dataMaintainerStore.loading() || !dataMaintainerStore.symbol()"
+      (click)="onSubmit()" 
+      [disabled]="alphaVantageStore.loading() || !alphaVantageStore.symbol()"
       class="fetch-button"
     >
       Fetch
     </button>
-    
-    <div class="mock-toggle">
-      <label class="switch">
-        <input 
-          type="checkbox" 
-          [checked]="dataMaintainerStore.useMock()" 
-          (change)="toggleMockData($event)">
-        <span class="slider round"></span>
-      </label>
-      <span class="mock-label">Use Mock Data</span>
-    </div>
   </div>
-  @defer (when dataMaintainerStore.results()[DataMaintainerEndpoint.COMPANY_OVERVIEW]) {
-    <div class="data-source-info" [class.mock]="dataMaintainerStore.dataSourceInfo()[DataMaintainerEndpoint.COMPANY_OVERVIEW]?.type === 'mock'">
-      <span class="data-source-badge">
-        {{ dataMaintainerStore.dataSourceInfo()[DataMaintainerEndpoint.COMPANY_OVERVIEW]?.type === 'mock' ? 'Mock Data' : 'Real Data' }}
-      </span>
-      <span class="data-source-timestamp" *ngIf="dataMaintainerStore.dataSourceInfo()[DataMaintainerEndpoint.COMPANY_OVERVIEW]?.timestamp">
-        ({{ dataMaintainerStore.dataSourceInfo()[DataMaintainerEndpoint.COMPANY_OVERVIEW]?.timestamp | date:'medium' }})
-      </span>
+
+  @if (alphaVantageStore.loading()) {
+    <div class="loading">Loading data...</div>
+  }
+  
+  @if (alphaVantageStore.error()) {
+    <div class="error">
+      {{ alphaVantageStore.error() }}
+      <button (click)="clearError()">Dismiss</button>
     </div>
-    <pre>{{ dataMaintainerStore.results()[DataMaintainerEndpoint.COMPANY_OVERVIEW] | json }}</pre>
   }
-  @loading {
-    <div>Loading...</div>
-  }
-  @error {
-    <div class="error">{{ dataMaintainerStore.error() }}</div>
-  }
-  @placeholder {
-    <div>Click Fetch to load data.</div>
+
+  @if (alphaVantageStore.currentData()) {
+    <div class="data-container">
+      <h3>{{ alphaVantageStore.endpoint() }} Data for {{ alphaVantageStore.symbol() }}</h3>
+      <pre>{{ alphaVantageStore.currentData() | json }}</pre>
+    </div>
+  } @else if (alphaVantageStore.symbol() && !alphaVantageStore.loading()) {
+    <div class="no-data">No data available for {{ alphaVantageStore.symbol() }}. Click Fetch to load.</div>
   }
 </section>

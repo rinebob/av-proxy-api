@@ -1,10 +1,6 @@
 /**
- * This file contains shared interfaces for Alpha Vantage API parameters.
- */
-
-/**
- * Frontend-specific Alpha Vantage endpoint definitions
- * This should be kept in sync with the backend's AlphaVantageFunction enum
+ * Alpha Vantage API endpoint definitions.
+ * These are the raw API endpoint strings used to communicate with the Alpha Vantage API.
  */
 export enum AlphaVantageEndpoint {
   // Time Series
@@ -25,9 +21,6 @@ export enum AlphaVantageEndpoint {
   INCOME_STATEMENT = 'INCOME_STATEMENT',
   BALANCE_SHEET = 'BALANCE_SHEET',
   CASH_FLOW = 'CASH_FLOW',
-  
-  // Search
-  SYMBOL_SEARCH = 'SYMBOL_SEARCH',
   
   // Technical Indicators
   SMA = 'SMA',
@@ -55,19 +48,4 @@ export enum AlphaVantageEndpoint {
   
   // Sectors
   SECTOR = 'SECTOR',
-}
-
-/**
- * Parameters for the getDailyStockDataSimple Cloud Function.
- */
-export interface DailyStockParams {
-  symbol: string;
-  outputsize?: 'compact' | 'full';
-}
-
-/**
- * Parameters for the getGlobalQuote Cloud Function.
- */
-export interface GlobalQuoteParams {
-  symbol: string;
 }

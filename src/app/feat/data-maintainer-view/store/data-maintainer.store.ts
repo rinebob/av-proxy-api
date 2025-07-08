@@ -1,10 +1,10 @@
 import { signalStore, withState, patchState, withMethods, withProps } from '@ngrx/signals';
 import { inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { DataMaintainerDataService } from './data-maintainer-data.service';
-import { DataMaintainerEndpoint } from './common/fe-common-dm';
+import { DataMaintainerDataService } from '../services/data-maintainer-data.service';
+import { AlphaVantageEndpoint } from '../../../common/fe-common-av';
 import { debounceTime } from 'rxjs/operators';
-import type { DataMaintainerResultsMap } from './common/fe-common-dm';
+import type { DataMaintainerResultsMap } from '../common/fe-common-dm';
 
 export interface DataSourceInfo {
     type: 'mock' | 'alpha_vantage';
@@ -16,8 +16,8 @@ export interface DataMaintainerState {
     loading: boolean;
     error: string | null;
     results: DataMaintainerResultsMap;
-    dataSourceInfo: Record<DataMaintainerEndpoint, DataSourceInfo | null>;
-    endpoint: DataMaintainerEndpoint;
+    dataSourceInfo: Record<AlphaVantageEndpoint, DataSourceInfo | null>;
+    endpoint: AlphaVantageEndpoint;
     useMock: boolean;
     mockDataAvailable: boolean;
     awaitingUserDecision: boolean;
@@ -28,19 +28,32 @@ const initialState: DataMaintainerState = {
     loading: false,
     error: null,
     results: {
-        [DataMaintainerEndpoint.COMPANY_OVERVIEW]: null,
-        // Add initial values for other endpoints as needed
+        [AlphaVantageEndpoint.OVERVIEW]: null,
+        [AlphaVantageEndpoint.BALANCE_SHEET]: null,
+        [AlphaVantageEndpoint.INCOME_STATEMENT]: null,
+        [AlphaVantageEndpoint.CASH_FLOW]: null,
+        [AlphaVantageEndpoint.EARNINGS]: null,
+        [AlphaVantageEndpoint.SYMBOL_SEARCH]: null,
+        [AlphaVantageEndpoint.TIME_SERIES_DAILY]: null,
+        [AlphaVantageEndpoint.GLOBAL_QUOTE]: null,
     },
     dataSourceInfo: {
-        [DataMaintainerEndpoint.COMPANY_OVERVIEW]: null,
-        // Add initial values for other endpoints as needed
-    } as Record<DataMaintainerEndpoint, DataSourceInfo | null>,
-    endpoint: DataMaintainerEndpoint.COMPANY_OVERVIEW,
-    useMock: true, // Default to using mock data
-    mockDataAvailable: true, // Will be updated based on symbol
-    awaitingUserDecision: false, // True when waiting for user to confirm real API call
+        [AlphaVantageEndpoint.OVERVIEW]: null,
+        [AlphaVantageEndpoint.BALANCE_SHEET]: null,
+        [AlphaVantageEndpoint.INCOME_STATEMENT]: null,
+        [AlphaVantageEndpoint.CASH_FLOW]: null,
+        [AlphaVantageEndpoint.EARNINGS]: null,
+        [AlphaVantageEndpoint.SYMBOL_SEARCH]: null,
+        [AlphaVantageEndpoint.TIME_SERIES_DAILY]: null,
+        [AlphaVantageEndpoint.GLOBAL_QUOTE]: null,
+    } as Record<AlphaVantageEndpoint, DataSourceInfo | null>,
+    endpoint: AlphaVantageEndpoint.OVERVIEW,
+    useMock: true,
+    mockDataAvailable: true,
+    awaitingUserDecision: false,
 };
 
+// NOTE THIS IS DEPRECATED IN FAVOR OF ALPHA-VANTAGE-DATA.STORE.TS
 export const DataMaintainerStore = signalStore(
     { providedIn: 'root' },
     withState(initialState),
@@ -81,7 +94,7 @@ export const DataMaintainerStore = signalStore(
                 });
         },
 
-        setEndpoint(endpoint: DataMaintainerEndpoint) {
+        setEndpoint(endpoint: AlphaVantageEndpoint) {
             patchState(store, { endpoint });
             
             // When endpoint changes, recheck mock data availability for current symbol
@@ -180,7 +193,7 @@ export const DataMaintainerStore = signalStore(
             patchState(store, {
                 useMock: false,  // Switch to real data
                 awaitingUserDecision: false,
-                loading: true  // Show loading state
+                loading: true
             });
             
             // Retry the fetch with real data
@@ -204,7 +217,4 @@ export const DataMaintainerStore = signalStore(
             });
         },
     })),
-
-
 );
-

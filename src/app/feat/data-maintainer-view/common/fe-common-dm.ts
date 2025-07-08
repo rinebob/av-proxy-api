@@ -1,52 +1,36 @@
-// Common frontend Data Maintainer enums, interfaces, and constants
+// Common frontend Data Maintainer interfaces and constants
 
-/**
- * Enum for Data Maintainer endpoints used in the UI and backend integration.
- * Add all new endpoints here for type safety and maintainability.
- */
-export enum DataMaintainerEndpoint {
-  COMPANY_OVERVIEW = 'company-overview',
-  BALANCE_SHEET = 'balance-sheet',
-  INCOME_STATEMENT = 'income-statement',
-  CASH_FLOW = 'cash-flow',
-  EARNINGS = 'earnings',
-  LISTING_STATUS = 'listing-status',
-  IPO_CALENDAR = 'ipo-calendar',
-  SECTOR_PERFORMANCE = 'sector-performance',
-  OVERVIEW = 'overview',
-  SYMBOL_SEARCH = 'symbol-search',
-  TIME_SERIES = 'time-series',
-  QUOTE_ENDPOINT = 'quote-endpoint',
-}
-
+import { AlphaVantageEndpoint } from '../../../common/fe-common-av';
 
 /**
  * List of Data Maintainer endpoints for UI selection, with labels and disabled flags.
+ * Only endpoints with backend implementations are enabled by default.
  */
 export const DATA_MAINTAINER_ENDPOINTS_METADATA = [
-  { key: DataMaintainerEndpoint.COMPANY_OVERVIEW, label: 'Company Overview', disabled: false },
-  { key: DataMaintainerEndpoint.BALANCE_SHEET, label: 'Balance Sheet', disabled: true },
-  { key: DataMaintainerEndpoint.INCOME_STATEMENT, label: 'Income Statement', disabled: true },
-  { key: DataMaintainerEndpoint.CASH_FLOW, label: 'Cash Flow', disabled: true },
-  { key: DataMaintainerEndpoint.EARNINGS, label: 'Earnings', disabled: true },
-  { key: DataMaintainerEndpoint.LISTING_STATUS, label: 'Listing Status', disabled: true },
-  { key: DataMaintainerEndpoint.IPO_CALENDAR, label: 'IPO Calendar', disabled: true },
-  { key: DataMaintainerEndpoint.SECTOR_PERFORMANCE, label: 'Sector Performance', disabled: true },
-  { key: DataMaintainerEndpoint.OVERVIEW, label: 'Overview', disabled: true },
-  { key: DataMaintainerEndpoint.SYMBOL_SEARCH, label: 'Symbol Search', disabled: true },
-  { key: DataMaintainerEndpoint.TIME_SERIES, label: 'Time Series', disabled: true },
-  { key: DataMaintainerEndpoint.QUOTE_ENDPOINT, label: 'Quote Endpoint', disabled: true },
-  // Add more endpoints as needed
+  { key: AlphaVantageEndpoint.OVERVIEW, label: 'Company Overview', disabled: false }, 
+  { key: AlphaVantageEndpoint.BALANCE_SHEET, label: 'Balance Sheet', disabled: true },
+  { key: AlphaVantageEndpoint.INCOME_STATEMENT, label: 'Income Statement', disabled: true },
+  { key: AlphaVantageEndpoint.CASH_FLOW, label: 'Cash Flow', disabled: true },
+  { key: AlphaVantageEndpoint.EARNINGS, label: 'Earnings', disabled: true },
+  { key: AlphaVantageEndpoint.SYMBOL_SEARCH, label: 'Symbol Search', disabled: true },
+  { key: AlphaVantageEndpoint.TIME_SERIES_DAILY, label: 'Daily Time Series', disabled: false }, // Implemented
+  { key: AlphaVantageEndpoint.GLOBAL_QUOTE, label: 'Global Quote', disabled: false }, // Implemented
 ];
 
-
 /**
- * Map type for Data Maintainer API results, keyed by endpoint.
+ * Map type for Data Maintainer API results, keyed by AlphaVantageEndpoint.
+ * Each endpoint maps to its specific response type.
  */
 export interface DataMaintainerResultsMap {
-  [DataMaintainerEndpoint.COMPANY_OVERVIEW]?: import('./fe-common-dm-api').AvCompanyOverviewResponse | null;
-  // Add types for other endpoints as needed
+  [AlphaVantageEndpoint.OVERVIEW]?: any | null;
+  [AlphaVantageEndpoint.BALANCE_SHEET]?: any | null;
+  [AlphaVantageEndpoint.INCOME_STATEMENT]?: any | null;
+  [AlphaVantageEndpoint.CASH_FLOW]?: any | null;
+  [AlphaVantageEndpoint.EARNINGS]?: any | null;
+  [AlphaVantageEndpoint.SYMBOL_SEARCH]?: any | null;
+  [AlphaVantageEndpoint.TIME_SERIES_DAILY]?: any | null;
+  [AlphaVantageEndpoint.GLOBAL_QUOTE]?: any | null;
+  
+  // Index signature for type safety with dynamic access
   [key: string]: any;
 }
-
-// All future Data Maintainer frontend constants, types, and interfaces should go here.

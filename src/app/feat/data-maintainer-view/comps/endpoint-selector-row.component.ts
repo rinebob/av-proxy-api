@@ -1,8 +1,9 @@
 import { Component, signal, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { inject } from '@angular/core';
-import { DataMaintainerStore } from '../data-maintainer.store';
-import { DataMaintainerEndpoint, DATA_MAINTAINER_ENDPOINTS_METADATA } from '../common/fe-common-dm';
+import { AlphaVantageStore } from '../store/alpha-vantage.store';
+import { AlphaVantageEndpoint } from '../../../common/fe-common-av';
+import { DATA_MAINTAINER_ENDPOINTS_METADATA } from '../common/fe-common-dm';
 
 /**
  * Button row for selecting endpoints in Data Maintainer view.
@@ -16,11 +17,12 @@ import { DataMaintainerEndpoint, DATA_MAINTAINER_ENDPOINTS_METADATA } from '../c
   styleUrls: ['./endpoint-selector-row.component.scss'],
 })
 export class EndpointSelectorRowComponent {
-  dataMaintainerStore = inject(DataMaintainerStore);
+  alphaVantageStore = inject(AlphaVantageStore);
   endpoints = DATA_MAINTAINER_ENDPOINTS_METADATA;
+  currentEndpoint = this.alphaVantageStore.endpoint;
 
-  selectEndpoint(key: DataMaintainerEndpoint) {
-    console.log('eSR sE selected endpoint:', key);
-    this.dataMaintainerStore.setEndpoint(key);
+  selectEndpoint(key: AlphaVantageEndpoint) {
+    console.log('Endpoint selected:', key);
+    this.alphaVantageStore.setEndpoint(key);
   }
 }

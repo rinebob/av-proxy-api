@@ -2,13 +2,13 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, of, tap } from 'rxjs';
 import { Auth } from '@angular/fire/auth';
-import { DataMaintainerEndpoint } from './common/fe-common-dm';
+import { AlphaVantageEndpoint } from '../../../common/fe-common-av';
 import { 
   ApiResponse, 
   AvCompanyOverviewResponse, 
   DataMaintainerFunctionName,
   getDataMaintainerFunctionUrl
-} from './common/fe-common-dm-api';
+} from '../common/fe-common-dm-api';
 
 // Define the expected response shape from the syncSymbols endpoint
 interface SymbolSyncResponse {
@@ -26,10 +26,11 @@ export type CompanyOverviewData = ApiResponse<AvCompanyOverviewResponse['data']>
 
 export interface CheckMockDataResponse {
   hasMockData: boolean;
-  endpoint: DataMaintainerEndpoint;
+  endpoint: AlphaVantageEndpoint;
   symbol: string;
 }
 
+// NOTE THIS IS DEPRECATED IN FAVOR OF ALPHA-VANTAGE-DATA.SERVICE.TS
 @Injectable({
   providedIn: 'root'
 })
@@ -44,7 +45,7 @@ export class DataMaintainerDataService {
   fetchCompanyOverview(symbol: string, useMock: boolean = true): Observable<AvCompanyOverviewResponse> {
     const requestData = { 
       symbol, 
-      endpoint: DataMaintainerEndpoint.COMPANY_OVERVIEW,
+      endpoint: AlphaVantageEndpoint.OVERVIEW,
       useMock 
     };
     
@@ -74,7 +75,7 @@ export class DataMaintainerDataService {
    * @param endpoint The endpoint to check
    * @returns Observable with the check result
    */
-  checkMockData(symbol: string, endpoint: DataMaintainerEndpoint): Observable<CheckMockDataResponse> {
+  checkMockData(symbol: string, endpoint: AlphaVantageEndpoint): Observable<CheckMockDataResponse> {
     const requestData = { symbol, endpoint };
     
     console.log('DMV cMD Checking mock data for:', JSON.stringify(requestData, null, 2));
@@ -89,6 +90,4 @@ export class DataMaintainerDataService {
       })
     );
   }
-
-
 }
