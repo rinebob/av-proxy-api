@@ -4,7 +4,7 @@ import { AlphaVantageEndpoint } from '../../../common/fe-common-av';
 /**
  * Production URL for the Alpha Vantage API Gateway
  */
-const AV_GATEWAY_PROD_URL = 'https://alpha-vantage-gateway-lsluydmucq-uc.a.run.app';
+const AV_GATEWAY_PROD_URL = 'https://alphavantageapi-lsluydmucq-uc.a.run.app';
 
 /**
  * Development URL base for the Alpha Vantage API Gateway
