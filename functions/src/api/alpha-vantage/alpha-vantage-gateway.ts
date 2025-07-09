@@ -20,18 +20,6 @@ export const alphaVantageApi = onRequest(
     const requestId = Math.random().toString(36).substring(2, 10);
     const startTime = Date.now();
     
-    // Set CORS headers for all responses
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-KEY, x-debug-request');
-    res.set('Access-Control-Max-Age', '3600');
-
-    // Handle preflight OPTIONS request
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
-    }
-
     // Log incoming request
     console.log(`aVG aVA [${requestId}] [GATEWAY] Incoming request: ${req.method} ${req.url}`);
     console.log(`aVG aVA [${requestId}] [GATEWAY] Headers:`, JSON.stringify(req.headers));
@@ -49,9 +37,6 @@ export const alphaVantageApi = onRequest(
         return;
       }
 
-      // Log the extracted endpoint
-      console.log(`aVG aVA [${requestId}] [GATEWAY] Extracted endpoint: ${endpoint}`);
-      
       // Get the list of valid endpoints from the factory
       const validEndpoints = AlphaVantageHandlerFactory.getAvailableEndpoints();
       console.log(`aVG aVA [${requestId}] [GATEWAY] Valid endpoints:`, validEndpoints);
@@ -60,7 +45,8 @@ export const alphaVantageApi = onRequest(
       if (!validEndpoints.includes(endpoint as AlphaVantageEndpoint)) {
         const error = new Error(`Invalid endpoint: ${endpoint}. Valid endpoints are: ${validEndpoints.join(', ')}`);
         console.error(`aVG aVA [${requestId}] [GATEWAY] Error: ${error.message}`);
-        throw error;
+        res.status(404).json({ error: error.message });
+        return;
       }
 
       // Get the endpoint config and create the appropriate handler
@@ -98,16 +84,9 @@ export const alphaVantageApi = onRequest(
         requestId,
         processingTimeMs: Date.now() - startTime
       };
-
-      console.error(`aVG aVA [${requestId}] [GATEWAY] Error processing request:`, {
-        error: error.message,
-        stack: error.stack,
-        code: error.code,
-        status: error.status,
-        processingTimeMs: Date.now() - startTime
-      });
-
-      res.status(error.status || 500).json(errorResponse);
+      
+      console.error(`aVG aVA [${requestId}] [GATEWAY] Error:`, error);
+      res.status(error.statusCode || 500).json(errorResponse);
     }
   }
 );
