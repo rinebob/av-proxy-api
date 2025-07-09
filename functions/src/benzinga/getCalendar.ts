@@ -3,7 +3,8 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 // import { getCachedCalendarData, cacheCalendarData } from './benzinga-firestore-helpers';
 import { 
   BenzingaCalendarParams, 
-  BenzingaCalendarResponse
+  BenzingaCalendarResponse,
+  CompanyDataEndpoint
 } from '../common/common-benz';
 import { BenzingaFunctionName } from '../common/common-fn';
 import { 
@@ -52,7 +53,7 @@ function getBenzingaApiKey(): string {
 async function fetchBenzingaCalendar(
   apiKey: string,
   params: BenzingaCalendarParams
-): Promise<BenzingaCalendarResponse> {
+): Promise<BenzingaCalendarResponse<CompanyDataEndpoint.EARNINGS>> {
   try {
     const url = new URL(`${BENZINGA_API_BASE_URL}/calendar/earnings`);
     
