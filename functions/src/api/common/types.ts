@@ -3,9 +3,12 @@ import {
 } from '../../common/common-av';
 
 import { 
+  BenzingaEndpoint 
+} from '../../common/common-benz';
+
+import { 
   ApiProvider, 
   EndpointCategory, 
-  BenzingaEndpoint, 
   HttpMethod 
 } from './enums';
 

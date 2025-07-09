@@ -3,7 +3,6 @@ import { defineString } from 'firebase-functions/params';
 import { defineSecret } from 'firebase-functions/params';
 import { ApiClient } from './api/api-client';
 import { AlphaVantageEndpoint } from './common/common-av';
-import { BenzingaEndpoint } from './api/common/enums';
 import axios from 'axios';
 
 // Define the secrets using firebase-functions/params
@@ -95,7 +94,7 @@ export const testEndpoints = onRequest(
       
       try {
         // Construct URL with parameters in parameters[] namespace
-        const url = new URL(`https://api.benzinga.com/api/v2.1/${BenzingaEndpoint.CALENDAR}/earnings`);
+        const url = new URL(`https://api.benzinga.com/api/v2.1/calendar/earnings`);
         
         // Add token as top-level parameter
         url.searchParams.append('token', benzingaKey);

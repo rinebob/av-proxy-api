@@ -12,12 +12,6 @@ export enum EndpointCategory {
   BENZINGA_CALENDAR = 'benzinga_calendar'
 }
 
-export enum BenzingaEndpoint {
-  CALENDAR = 'calendar',
-  NEWS = 'news',
-  // Add other BZ endpoints as needed
-}
-
 export enum HttpMethod {
   GET = 'GET',
   POST = 'POST',

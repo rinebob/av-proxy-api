@@ -1,14 +1,11 @@
 /**
- * Benzinga API Types and Enums
+ * Benzinga API Types and Enums (Backend)
+ * Consolidated types for Benzinga API integration
  */
 
 /**
- * Benzinga API Types and Enums (Backend Minimal)
- * Only types/enums needed for backend calendar param validation and mapping.
- * Do NOT add frontend/UI-specific objects here.
+ * Company-specific endpoints (require a ticker/symbol)
  */
-
-// Company-specific endpoints (require a ticker/symbol)
 export enum CompanyDataEndpoint {
   EARNINGS = 'earnings',
   DIVIDENDS = 'dividends',
@@ -19,49 +16,52 @@ export enum CompanyDataEndpoint {
   OFFERINGS = 'offerings',
 }
 
-// Market-wide endpoints (don't require a ticker)
+/**
+ * Market-wide endpoints (don't require a ticker)
+ */
 export enum MarketDataEndpoint {
   ECONOMICS = 'economics',
   IPOS = 'ipos',
   FDA = 'fda',
   MERGERS_ACQUISITIONS = 'mergers-acquisitions',
+  NEWS = 'news'
 }
 
-// Union of all endpoint types
+/**
+ * Union of all endpoint types
+ */
 export type BenzingaEndpoint = CompanyDataEndpoint | MarketDataEndpoint;
 
-// Type guard to check if an endpoint is a company data endpoint
+/**
+ * Type guard to check if an endpoint is a company data endpoint
+ */
 export function isCompanyDataEndpoint(endpoint: BenzingaEndpoint): endpoint is CompanyDataEndpoint {
   return Object.values(CompanyDataEndpoint).includes(endpoint as CompanyDataEndpoint);
 }
 
-// Type guard to check if an endpoint is a market data endpoint
+/**
+ * Type guard to check if an endpoint is a market data endpoint
+ */
 export function isMarketDataEndpoint(endpoint: BenzingaEndpoint): endpoint is MarketDataEndpoint {
   return Object.values(MarketDataEndpoint).includes(endpoint as MarketDataEndpoint);
 }
 
-// Backward compatibility type (deprecated, use BenzingaEndpoint instead)
+/**
+ * Backward compatibility type
+ */
 export type BenzingaCalendarType = BenzingaEndpoint;
 
-export const BenzingaCalendarType = {
-  ...CompanyDataEndpoint,
-  ...MarketDataEndpoint
-} as const;
-
-// Type assertion to ensure all endpoints are covered
-type AssertExtends<T, U extends T> = never;
-// Export the type to avoid unused warning and make it available for use
-export type _AllEndpointsCovered = AssertExtends<
-  keyof BenzingaCalendarResponse,
-  BenzingaEndpoint
->;
-
+/**
+ * Output format for API responses
+ */
 export enum BenzingaOutputFormat {
   JSON = 'json',
   XML = 'xml'
 }
 
-// Base interface for all calendar items
+/**
+ * Base interface for all calendar items
+ */
 export interface BenzingaCalendarItemBase {
   id: string;
   date: string;
@@ -71,7 +71,6 @@ export interface BenzingaCalendarItemBase {
   ticker: string;
   name: string;
   exchange: string;
-  [key: string]: any; // Allow additional properties
 }
 
 // Earnings specific fields
@@ -120,7 +119,9 @@ export interface BenzingaRatingItem extends BenzingaCalendarItemBase {
   prior?: string | null;
 }
 
-// Union type for all possible calendar items
+/**
+ * Union type for all possible calendar items
+ */
 export type BenzingaCalendarItem = 
   | BenzingaEarningsItem
   | BenzingaDividendItem
@@ -128,27 +129,30 @@ export type BenzingaCalendarItem =
   | BenzingaRatingItem
   | BenzingaCalendarItemBase;
 
-// Type mapping from endpoint to response item type
-export type BenzingaEndpointResponseMap = {
-  [K in BenzingaEndpoint]: 
-    K extends CompanyDataEndpoint.EARNINGS ? BenzingaEarningsItem[] :
-    K extends CompanyDataEndpoint.DIVIDENDS ? BenzingaDividendItem[] :
-    K extends CompanyDataEndpoint.CONFERENCE_CALLS ? BenzingaConferenceCallItem[] :
-    K extends CompanyDataEndpoint.RATINGS ? BenzingaRatingItem[] :
-    K extends CompanyDataEndpoint.GUIDANCE ? BenzingaCalendarItemBase[] :
-    K extends CompanyDataEndpoint.SPLITS ? BenzingaCalendarItemBase[] :
-    K extends CompanyDataEndpoint.OFFERINGS ? BenzingaCalendarItemBase[] :
-    K extends MarketDataEndpoint.ECONOMICS ? BenzingaCalendarItemBase[] :
-    K extends MarketDataEndpoint.IPOS ? BenzingaCalendarItemBase[] :
-    K extends MarketDataEndpoint.FDA ? BenzingaCalendarItemBase[] :
-    K extends MarketDataEndpoint.MERGERS_ACQUISITIONS ? BenzingaCalendarItemBase[] :
-    BenzingaCalendarItemBase[];
-};
+/**
+ * Type mapping from endpoint to response item type
+ */
+export interface BenzingaEndpointResponseMap {
+  [CompanyDataEndpoint.EARNINGS]: BenzingaEarningsItem[];
+  [CompanyDataEndpoint.DIVIDENDS]: BenzingaDividendItem[];
+  [MarketDataEndpoint.ECONOMICS]: any[];
+  [MarketDataEndpoint.IPOS]: any[];
+  [CompanyDataEndpoint.CONFERENCE_CALLS]: BenzingaConferenceCallItem[];
+  [MarketDataEndpoint.FDA]: any[];
+  [MarketDataEndpoint.MERGERS_ACQUISITIONS]: any[];
+  [CompanyDataEndpoint.RATINGS]: BenzingaRatingItem[];
+  [CompanyDataEndpoint.GUIDANCE]: any[];
+  [CompanyDataEndpoint.SPLITS]: any[];
+  [CompanyDataEndpoint.OFFERINGS]: any[];
+  [MarketDataEndpoint.NEWS]: any[];
+}
 
-// Strongly-typed response type
-// Usage: BenzingaCalendarResponse<CompanyDataEndpoint.EARNINGS> for earnings data
-export type BenzingaCalendarResponse<K extends BenzingaEndpoint = BenzingaEndpoint> = {
-  [P in K]: BenzingaEndpointResponseMap[P];
+/**
+ * Strongly-typed response type
+ * Usage: BenzingaCalendarResponse<CompanyDataEndpoint.EARNINGS> for earnings data
+ */
+export type BenzingaCalendarResponse<T extends BenzingaEndpoint> = {
+  [K in T]: BenzingaEndpointResponseMap[K];
 };
 
 // Type guard functions
@@ -161,20 +165,23 @@ export function isDividendItem(item: BenzingaCalendarItem): item is BenzingaDivi
 }
 
 export function isConferenceCallItem(item: BenzingaCalendarItem): item is BenzingaConferenceCallItem {
-  return 'call_url' in item || 'call_phone' in item;
+  return 'call_time' in item || 'call_url' in item;
 }
 
 export function isRatingItem(item: BenzingaCalendarItem): item is BenzingaRatingItem {
   return 'action_company' in item || 'analyst' in item;
 }
 
-// Helper to get the correct response type for an endpoint
+/**
+ * Helper to get the correct response type for an endpoint
+ */
 export function getResponseTypeForEndpoint<T extends BenzingaEndpoint>(
   endpoint: T,
   data: any
 ): BenzingaCalendarResponse<T>[T] {
-  // Add runtime validation here if needed
-  return data as BenzingaCalendarResponse<T>[T];
+  return {
+    [endpoint]: data
+  }[endpoint];
 }
 
 /**
@@ -182,18 +189,18 @@ export function getResponseTypeForEndpoint<T extends BenzingaEndpoint>(
  * Only include fields that are actually sent to Benzinga.
  */
 export interface BenzingaCalendarParams {
-  tickers?: string;             // Comma-separated ticker symbols (e.g., 'AAPL,MSFT')
-  securities?: string[];        // FDA endpoint only
-  date_from?: string;           // Start of date range (YYYY-MM-DD)
-  date_to?: string;            // End of date range (YYYY-MM-DD)
-  date?: string;               // Single date (if supported)
-  updated?: string;            // For deltas
-  importance?: string;         // For filtering by importance
-  dividend_yield_gt?: string;  // Dividends endpoint only
-  country?: string;            // Economics endpoint
-  category?: string;           // Economics endpoint
-  fuzzy?: string;              // Economics endpoint
-  sort?: string;               // If supported (e.g., Dividends)
+  tickers?: string;
+  securities?: string[];
+  date_from?: string;
+  date_to?: string;
+  date?: string;
+  updated?: string;
+  importance?: string;
+  dividend_yield_gt?: string;
+  country?: string;
+  category?: string;
+  fuzzy?: string;
+  sort?: string;
   page?: number;
   pagesize?: number;
 }
@@ -202,7 +209,7 @@ export interface BenzingaCalendarParams {
  * Indicates which Benzinga calendar endpoints require a ticker parameter.
  * Keys are BenzingaCalendarType enum values for type safety.
  */
-export const BENZINGA_ENDPOINT_REQUIRES_TICKER: Record<CompanyDataEndpoint, boolean> = {
+export const BENZINGA_ENDPOINTS_REQUIRING_TICKER: Record<CompanyDataEndpoint, boolean> = {
   [CompanyDataEndpoint.EARNINGS]: true,
   [CompanyDataEndpoint.DIVIDENDS]: true,
   [CompanyDataEndpoint.CONFERENCE_CALLS]: true,
@@ -210,4 +217,4 @@ export const BENZINGA_ENDPOINT_REQUIRES_TICKER: Record<CompanyDataEndpoint, bool
   [CompanyDataEndpoint.GUIDANCE]: true,
   [CompanyDataEndpoint.SPLITS]: true,
   [CompanyDataEndpoint.OFFERINGS]: true,
-};
+} as const;
