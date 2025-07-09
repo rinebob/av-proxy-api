@@ -29,25 +29,20 @@ export class BenzingaService {
     );
   }
 
-  private createHttpParams(params: BenzingaCalendarParams): HttpParams {
-    let httpParams = new HttpParams();
-    const queryParams: Record<string, any> = { ...params };
-
-    // Rename calendarType to type for the API call
-    if (queryParams['calendarType']) {
-      queryParams['type'] = queryParams['calendarType'];
-      delete queryParams['calendarType'];
-    }
+  private createHttpParams(queryParams: any): HttpParams {
+    let params = new HttpParams();
 
     for (const key in queryParams) {
-      if (Object.prototype.hasOwnProperty.call(queryParams, key)) {
-        const value = queryParams[key];
-        if (value !== undefined && value !== null) {
-          httpParams = httpParams.set(key, value.toString());
+      if (queryParams.hasOwnProperty(key) && queryParams[key] !== undefined && queryParams[key] !== null) {
+        // If the key is 'tickers', join the array into a comma-separated string
+        if (key === 'tickers') {
+          params = params.set(key, queryParams[key].join(','));
+        } else {
+          params = params.set(key, queryParams[key].toString());
         }
       }
     }
-    return httpParams;
+    return params;
   }
 
   private getAuthHeaders(): Observable<HttpHeaders> {
