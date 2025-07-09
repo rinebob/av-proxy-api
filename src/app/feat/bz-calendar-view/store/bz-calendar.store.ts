@@ -4,7 +4,7 @@ import { toObservable } from '@angular/core/rxjs-interop';
 
 import { BenzingaEndpoint, BenzingaCalendarParams, BENZINGA_ENDPOINTS_META_MAP, BenzingaCalendarParam, BENZINGA_PARAM_META_MAP } from '../../../common/fe-common-bz';
 import type { BenzingaEndpointItemMap, BenzingaEndpointParamMeta, BenzingaEndpointResponseMap } from '../../../common/fe-common-bz';
-import { BenzingaService } from '../../../services/benzinga.service';
+import { BenzingaApiService } from '../services/benzinga-api.service';
 
 /**
  * State for Benzinga calendar UI.
@@ -45,7 +45,8 @@ const initialState: BenzingaCalendarState = {
         [BenzingaEndpoint.RATINGS]: [],
         [BenzingaEndpoint.GUIDANCE]: [],
         [BenzingaEndpoint.SPLITS]: [],
-        [BenzingaEndpoint.OFFERINGS]: []
+        [BenzingaEndpoint.OFFERINGS]: [],
+        [BenzingaEndpoint.NEWS]: []
     },
     pagination: {
         pageIndex: 0,
@@ -154,7 +155,7 @@ export const BenzingaCalendarStore = signalStore(
 
     withMethods((
         store,
-        benzingaService = inject(BenzingaService)
+        benzingaApi = inject(BenzingaApiService)
     ) => ({
         markSearched() {
             patchState(store, { hasSearched: true });
@@ -182,65 +183,39 @@ export const BenzingaCalendarStore = signalStore(
 
         searchCalendar(formValues: BenzingaCalendarParams) {
             console.log('bCSto sC calendar formValues: ', formValues);
-            const endpoint = formValues.calendarType;
-            patchState(store, {
-                loading: true,
-                error: null,
-                formValues: formValues,
-                hasSearched: true
-            });
-            // Generic param mapping using endpoint metadata for all endpoints
-            let apiParams: BenzingaCalendarParams = formValues;
-            const endpointMeta = BENZINGA_ENDPOINTS_META_MAP[endpoint];
-            console.log('bCSto sC calendar endpointMeta: ', endpointMeta);
-            if (endpointMeta?.params) {
-                // Copy to avoid mutating formValues
-                const mapped: Record<string, any> = { ...formValues };
-                endpointMeta.params.forEach((param: BenzingaCalendarParam) => {
-                    const meta = BENZINGA_PARAM_META_MAP[param];
-                    if (!meta) return;
-                    const formControlName = meta.formControlName;
-                    const apiKey = meta.apiKey;
-                    if (formControlName in mapped) {
-                        mapped[apiKey] = mapped[formControlName];
-                        if (formControlName as string !== apiKey as string) delete mapped[formControlName];
-                    }
-                });
-                apiParams = mapped as BenzingaCalendarParams;
-                console.log('bCSto sC calendar endpoint/params: ', endpoint, apiParams);
+            patchState(store, { loading: true, error: null, hasSearched: true, formValues });
+
+            // The endpoint is determined by the 'type' property in the formValues
+            const endpoint = formValues.type;
+            if (!endpoint) {
+                patchState(store, { error: 'No endpoint type specified in form submission.', loading: false });
+                return;
             }
-            console.log('bCSto sC calendar making API call with params:', apiParams);
-            benzingaService.getDynamicCalendar(apiParams).subscribe({
+
+            // The form already provides the correct parameter keys, so we can use them directly.
+            const apiParams = { ...formValues };
+
+            console.log('bCSto sC calendar calling benzingaApi.fetchData with:', { endpoint, apiParams });
+
+            benzingaApi.fetchData(endpoint, apiParams).subscribe({
                 next: (response: any) => {
-                    console.log('bCSto sC calendar raw API response:', response);
-                    
-                    // Handle both direct array responses and object responses with a nested array
-                    let items: any[] = [];
-                    const endpointMeta = BENZINGA_ENDPOINTS_META_MAP[endpoint];
-                    
-                    if (Array.isArray(response)) {
-                        // Direct array response (like in the logs)
-                        items = response;
-                    } else if (endpointMeta?.responseKey && response[endpointMeta.responseKey]) {
-                        // Response with a nested array under a specific key
-                        items = Array.isArray(response[endpointMeta.responseKey]) 
-                            ? response[endpointMeta.responseKey] 
-                            : [];
-                    } else {
-                        // Default fallback - try to find the first array in the response
-                        const possibleArrayKeys = Object.keys(response).filter(key => Array.isArray(response[key]));
-                        items = possibleArrayKeys.length > 0 ? response[possibleArrayKeys[0]] : [];
-                    }
+                    console.log('bCSto sC calendar received response:', response);
+
+                    const { items } = extractCalendarItems(endpoint, response);
 
                     console.log('bCSto sC calendar extracted items:', { 
                         endpoint, 
-                        responseKey: endpointMeta?.responseKey,
+                        responseKey: endpoint,
                         itemCount: items.length, 
                         items,
                         sampleItem: items[0],
                         responseKeys: items[0] ? Object.keys(items[0]) : 'no items',
                         isArrayResponse: Array.isArray(response)
                     });
+
+                    if (!items) {
+                        console.warn('No items found in response for endpoint:', endpoint);
+                    }
                     
                     const currentResponses = store.responses();
                     const updatedResponses = {
@@ -268,14 +243,15 @@ export const BenzingaCalendarStore = signalStore(
                         hasPagedResults: store.pagedResults().length > 0
                     });
                 },
-                error: (err) => {
+                error: (err: Error) => {
+                    console.error('Error fetching calendar data:', err);
                     patchState(store, {
-                        error: 'Failed to load calendar data for symbol/endpoint/params: ' + formValues.tickers + '/' + endpoint + '/' + apiParams,
+                        error: `Failed to load calendar data. Details: ${err.message}`,
                         loading: false
                     });
                 }
             });
-        }
+        },
     })),
 
     withProps((store) => ({

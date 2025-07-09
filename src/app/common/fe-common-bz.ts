@@ -1,24 +1,66 @@
 // fe-common-bz.ts
-// Renamed from common-bz.ts for frontend distinctness. See commit history for original authorship and history.
+// Consolidated Benzinga enums and types for both frontend and backend
 
 //////////////////// ENUMS ////////////////////
-// === 1. Enums ===
 
+/**
+ * Benzinga API endpoint enums
+ * These match the actual API endpoint paths used in the Benzinga API
+ */
 export enum BenzingaEndpoint {
-    EARNINGS = 'earnings',
-    DIVIDENDS = 'dividends',
-    ECONOMICS = 'economics',
-    IPOS = 'ipos',
-    CONFERENCE_CALLS = 'conference-calls',
-    FDA = 'fda',
-    MERGERS_ACQUISITIONS = 'mergers-acquisitions',
-    RATINGS = 'ratings',
-    GUIDANCE = 'guidance',
-    SPLITS = 'splits',
-    OFFERINGS = 'offerings'
+  // Company-specific endpoints (require a ticker/symbol)
+  EARNINGS = 'earnings',
+  DIVIDENDS = 'dividends',
+  CONFERENCE_CALLS = 'conference-calls',
+  RATINGS = 'ratings',
+  GUIDANCE = 'guidance',
+  SPLITS = 'splits',
+  OFFERINGS = 'offerings',
+  
+  // Market-wide endpoints (don't require a ticker)
+  ECONOMICS = 'economics',
+  IPOS = 'ipos',
+  FDA = 'fda',
+  MERGERS_ACQUISITIONS = 'mergers-acquisitions',
+  
+  // News endpoint
+  NEWS = 'news'
 }
 
-//////////////////////////////////////////////////
+/**
+ * Type guard to check if an endpoint is a company data endpoint
+ */
+export function isCompanyDataEndpoint(endpoint: BenzingaEndpoint): boolean {
+  return [
+    BenzingaEndpoint.EARNINGS,
+    BenzingaEndpoint.DIVIDENDS,
+    BenzingaEndpoint.CONFERENCE_CALLS,
+    BenzingaEndpoint.RATINGS,
+    BenzingaEndpoint.GUIDANCE,
+    BenzingaEndpoint.SPLITS,
+    BenzingaEndpoint.OFFERINGS
+  ].includes(endpoint);
+}
+
+/**
+ * Type guard to check if an endpoint is a market data endpoint
+ */
+export function isMarketDataEndpoint(endpoint: BenzingaEndpoint): boolean {
+  return [
+    BenzingaEndpoint.ECONOMICS,
+    BenzingaEndpoint.IPOS,
+    BenzingaEndpoint.FDA,
+    BenzingaEndpoint.MERGERS_ACQUISITIONS,
+    BenzingaEndpoint.NEWS
+  ].includes(endpoint);
+}
+
+// Backward compatibility type
+export type BenzingaCalendarType = BenzingaEndpoint;
+
+export const BenzingaCalendarType = {
+  ...BenzingaEndpoint
+} as const;
 
 //////////////////// TYPES & INTERFACES ////////////////////
 // === 2. Shared Types & Interfaces ===
@@ -56,16 +98,16 @@ export interface BenzingaEndpointMetadata {
 }
 
 export interface BenzingaCalendarParamsBase {
-    calendarType: BenzingaEndpoint;
-    tickers?: string | string[];
-    dateFrom?: string;
-    dateTo?: string;
+    // The type of calendar to request (e.g., earnings, dividends)
+    type: BenzingaEndpoint;
+    tickers?: string; // Optional: Comma-separated list of tickers
+    date_from?: string; // Optional: YYYY-MM-DD
+    date_to?: string; // Optional: YYYY-MM-DD
     page?: number;
     pageSize?: number;
 }
 
 //////////////////// ENDPOINT RESPONSE INTERFACES ////////////////////
-
 
 // === Earnings Endpoint Types ===
 export interface EarningsItem {
@@ -87,7 +129,8 @@ export interface EarningsItem {
 }
 
 export interface EarningsCalendarParams extends BenzingaCalendarParamsBase {
-    calendarType: BenzingaEndpoint.EARNINGS;
+    // Override the base 'type' to be specific to Earnings
+    type: BenzingaEndpoint.EARNINGS;
     // Add earnings-specific filters if needed
 }
 
@@ -131,15 +174,11 @@ export interface DividendsApiResponse {
 }
 
 export interface DividendsCalendarParams extends BenzingaCalendarParamsBase {
-    calendarType: BenzingaEndpoint.DIVIDENDS;
-    ticker?: string;
-    pagesize?: number;
-    importance?: number;
-    updated?: number;
+    // Override the base 'type' to be specific to Dividends
+    type: BenzingaEndpoint.DIVIDENDS;
+    // Dividend yield is a number, but the API expects a string with an operator, e.g., ">5"
+    dividend_yield?: string;
     dividend_yield_operation?: 'gt' | 'gte' | 'eq' | 'lt' | 'lte';
-    dividend_yield?: number;
-    date_sort?: 'announced' | 'ex' | 'payable' | 'record';
-    sort?: string;
 }
 
 // === IPOs Endpoint Types ===
@@ -183,7 +222,8 @@ export interface BzIpoCalendarResponse {
 }
 
 export interface IposCalendarParams extends BenzingaCalendarParamsBase {
-    calendarType: BenzingaEndpoint.IPOS;
+    // Override the base 'type' to be specific to IPOs
+    type: BenzingaEndpoint.IPOS;
     // Add IPO-specific filters if needed
 }
 
@@ -212,7 +252,8 @@ export interface BzSplitsCalendarResponse {
 }
 
 export interface SplitsCalendarParams extends BenzingaCalendarParamsBase {
-    calendarType: BenzingaEndpoint.SPLITS;
+    // Override the base 'type' to be specific to Splits
+    type: BenzingaEndpoint.SPLITS;
     // Add splits-specific filters if needed
 }
 
@@ -242,7 +283,8 @@ export interface BzGuidanceCalendarResponse {
 }
 
 export interface GuidanceCalendarParams extends BenzingaCalendarParamsBase {
-    calendarType: BenzingaEndpoint.GUIDANCE;
+    // Override the base 'type' to be specific to Guidance
+    type: BenzingaEndpoint.GUIDANCE;
     // Add guidance-specific filters if needed
 }
 
@@ -384,7 +426,6 @@ export const bzIpoCalendarColumns: CalendarColumnConfig[] = [
     { key: 'updated', displayName: 'Last Updated', format: 'date' }
 ];
 
-
 /**
  * Columns for Benzinga Guidance Calendar (API: /calendar/guidance)
  * Includes all relevant fields from the sample data object for completeness.
@@ -457,7 +498,9 @@ export enum BenzingaCalendarParam {
     FIRM_ID = 'firmId',
     ANALYST = 'analyst',
     FIRM = 'firm',
-    IS_PRIMARY = 'isPrimary'
+    IS_PRIMARY = 'isPrimary',
+    CHANNELS = 'channels',
+    TOPICS = 'topics'
 }
 
 export enum BenzingaCalendarParamApiKey {
@@ -480,7 +523,9 @@ export enum BenzingaCalendarParamApiKey {
     FIRM_ID = 'firm_id',
     ANALYST = 'analyst',
     FIRM = 'firm',
-    IS_PRIMARY = 'is_primary'
+    IS_PRIMARY = 'is_primary',
+    CHANNELS = 'channels',
+    TOPICS = 'topics'
 }
 
 export enum BenzingaCalendarParamFormField {
@@ -503,7 +548,9 @@ export enum BenzingaCalendarParamFormField {
     FIRM_ID = 'firmId',
     ANALYST = 'analyst',
     FIRM = 'firm',
-    IS_PRIMARY = 'isPrimary'
+    IS_PRIMARY = 'isPrimary',
+    CHANNELS = 'channels',
+    TOPICS = 'topics'
 }
 
 export interface BenzingaCalendarParamMetadata {
@@ -704,6 +751,22 @@ export const IS_PRIMARY_PARAM_META: BenzingaCalendarParamMetadata = {
     ]
 };
 
+export const CHANNELS_PARAM_META: BenzingaCalendarParamMetadata = {
+    apiKey: BenzingaCalendarParamApiKey.CHANNELS,
+    formControlName: BenzingaCalendarParamFormField.CHANNELS,
+    type: 'text',
+    label: 'Channels',
+    placeholder: ''
+};
+
+export const TOPICS_PARAM_META: BenzingaCalendarParamMetadata = {
+    apiKey: BenzingaCalendarParamApiKey.TOPICS,
+    formControlName: BenzingaCalendarParamFormField.TOPICS,
+    type: 'text',
+    label: 'Topics',
+    placeholder: ''
+};
+
 export const BENZINGA_PARAM_META_MAP: Record<BenzingaCalendarParam, BenzingaCalendarParamMetadata> = {
     [BenzingaCalendarParam.RATINGS_ACTION]: RATINGS_ACTION_PARAM_META,
     [BenzingaCalendarParam.START_DATE]: START_DATE_PARAM_META,
@@ -724,10 +787,12 @@ export const BENZINGA_PARAM_META_MAP: Record<BenzingaCalendarParam, BenzingaCale
     [BenzingaCalendarParam.FIRM_ID]: FIRM_ID_PARAM_META,
     [BenzingaCalendarParam.ANALYST]: ANALYST_PARAM_META,
     [BenzingaCalendarParam.FIRM]: FIRM_PARAM_META,
-    [BenzingaCalendarParam.IS_PRIMARY]: IS_PRIMARY_PARAM_META
+    [BenzingaCalendarParam.IS_PRIMARY]: IS_PRIMARY_PARAM_META,
+    [BenzingaCalendarParam.CHANNELS]: CHANNELS_PARAM_META,
+    [BenzingaCalendarParam.TOPICS]: TOPICS_PARAM_META
 };
 
-//////////// ENDPOINT METADATA //////////// 
+/////////////// ENDPOINT METADATA //////////// 
 
 // === Endpoint Metadata Objects ===
 
@@ -907,6 +972,61 @@ const offeringsMeta: BenzingaEndpointMetadata = {
     responseKey: 'offering'  // Singular form of 'offerings'
 };
 
+const newsMeta: BenzingaEndpointMetadata = {
+    name: BenzingaEndpoint.NEWS,
+    url: 'news',
+    displayName: 'News',
+    title: 'Market News',
+    columns: [
+        { key: 'created', displayName: 'Date', format: 'date' },
+        { key: 'title', displayName: 'Title', format: 'text' },
+        { key: 'tickers', displayName: 'Tickers', format: 'text' },
+        { key: 'author', displayName: 'Author', format: 'text' },
+        { key: 'channels', displayName: 'Channels', format: 'text' },
+        { key: 'stocks', displayName: 'Stocks', format: 'text' }
+    ],
+    params: [
+        ...baseParams,
+        BenzingaCalendarParam.TICKERS,
+        BenzingaCalendarParam.UPDATED,
+        BenzingaCalendarParam.CHANNELS,
+        BenzingaCalendarParam.TOPICS
+    ],
+    responseKey: 'news'
+};
+
+/////////////// PARAMS METADATA //////////////////////
+
+export interface NewsItem {
+    id: string;
+    created: string;
+    updated: number;
+    title: string;
+    teaser: string;
+    body: string;
+    url: string;
+    image: string | null;
+    channels: string[];
+    stocks: Array<{
+        name: string;
+        symbol: string;
+        exchange: string;
+    }>;
+    authors: string[];
+    tickers: string[];
+    tags: string[];
+    updated_header: string;
+}
+
+export interface NewsResponse {
+    news: NewsItem[];
+    next_url?: string;
+    previous_url?: string | null;
+    count: number;
+    status: string;
+    message?: string;
+}
+
 //////////// ENDPOINT MAPS //////////// 
 
 // === Master Endpoint Maps ===
@@ -922,7 +1042,8 @@ export const BENZINGA_ENDPOINTS_META_MAP: Record<BenzingaEndpoint, BenzingaEndpo
     [BenzingaEndpoint.RATINGS]: ratingsMeta,
     [BenzingaEndpoint.GUIDANCE]: guidanceMeta,
     [BenzingaEndpoint.SPLITS]: splitsMeta,
-    [BenzingaEndpoint.OFFERINGS]: offeringsMeta
+    [BenzingaEndpoint.OFFERINGS]: offeringsMeta,
+    [BenzingaEndpoint.NEWS]: newsMeta
 };
 
 export type BenzingaCalendarParams =
@@ -945,6 +1066,7 @@ export interface BenzingaEndpointResponseMap {
     [BenzingaEndpoint.GUIDANCE]: BzGuidanceCalendarResponse;
     [BenzingaEndpoint.SPLITS]: BzSplitsCalendarResponse;
     [BenzingaEndpoint.OFFERINGS]: any;
+    [BenzingaEndpoint.NEWS]: NewsResponse;
 }
 
 export interface BenzingaEndpointItemMap {
@@ -959,7 +1081,7 @@ export interface BenzingaEndpointItemMap {
     [BenzingaEndpoint.GUIDANCE]: BzGuidanceCalendarEntry[];
     [BenzingaEndpoint.SPLITS]: BzSplitCalendarEntry[];
     [BenzingaEndpoint.OFFERINGS]: any[];
+    [BenzingaEndpoint.NEWS]: NewsItem[];
 }
 
 // Add any additional shared utilities/constants as needed
-
