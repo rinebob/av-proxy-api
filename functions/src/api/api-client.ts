@@ -1,4 +1,5 @@
-import { ApiProvider, BenzingaEndpoint } from './common/enums';
+import { ApiProvider } from './common/enums';
+import { BenzingaEndpoint } from '../common/common-benz';
 import { AlphaVantageEndpoint } from '../common/common-av';
 import { ApiResponse } from './common/types';
 import { AlphaVantageHandlerFactory } from './alpha-vantage/alpha-vantage-factory';

@@ -1,166 +1,115 @@
-import { ApiProvider, BenzingaEndpoint, EndpointCategory, HttpMethod } from '../common/enums';
+import { CompanyDataEndpoint, MarketDataEndpoint, BenzingaEndpoint } from '../../common/common-benz';
 import { EndpointConfig } from '../common/types';
 import { BenzingaBaseHandler } from './handlers/benzinga-base.handler';
 
+// Import endpoint configurations
+import { BENZINGA_ENDPOINT_CONFIGS } from './config/bz-endpoint-configs';
+
 // Import concrete handlers
 import { BenzingaCalendarHandler } from './handlers/benzinga-calendar.handler';
-// import { BenzingaNewsHandler } from './handlers/benzinga-news.handler'; // Uncomment when implemented
+// Import other handlers as they are implemented
+// import { BenzingaNewsHandler } from './handlers/benzinga-news.handler';
 
-type EndpointConfigMap = {
-  [key in BenzingaEndpoint]: EndpointConfig;
+// Define a mapped type that ensures all BenzingaEndpoints have a config
+type BenzingaEndpointConfigs = {
+  [K in BenzingaEndpoint]: EndpointConfig & { id: K };
 };
 
-const ENDPOINT_CONFIGS: EndpointConfigMap = {
-  [BenzingaEndpoint.CALENDAR]: {
-    id: BenzingaEndpoint.CALENDAR,
-    name: 'Benzinga Calendar',
-    provider: ApiProvider.BENZINGA,
-    category: EndpointCategory.BENZINGA_CALENDAR,
-    path: '/calendar/earnings',
-    method: HttpMethod.GET,
-    description: 'Returns earnings calendar data from Benzinga',
-    ttl: 6 * 60 * 60, // 6 hours
-    requiresSymbol: false,
-    parameters: {
-      parameters: {
-        type: 'string',
-        required: false,
-        description: 'Comma-separated list of fields to return'
-      },
-      page: {
-        type: 'number',
-        required: false,
-        description: 'Page number of results',
-        default: 0
-      },
-      page_size: {
-        type: 'number',
-        required: false,
-        description: 'Number of results per page',
-        default: 10,
-        enum: ['10', '50', '100', '500', '1000']
-      },
-      date_from: {
-        type: 'string',
-        required: false,
-        description: 'Start date for the calendar (YYYY-MM-DD)'
-      },
-      date_to: {
-        type: 'string',
-        required: false,
-        description: 'End date for the calendar (YYYY-MM-DD)'
-      },
-      symbols: {
-        type: 'string',
-        required: false,
-        description: 'Comma-separated list of ticker symbols to filter by'
-      },
-      token: {
-        type: 'string',
-        required: false,
-        description: 'Pagination token for fetching the next page of results'
-      }
-    },
-    firestorePath: 'market_data/{symbol}/data_points/calendar',
-    documentationUrl: 'https://docs.benzinga.com/benzinga/calendar/v2/earnings'
-  },
-  [BenzingaEndpoint.NEWS]: {
-    id: BenzingaEndpoint.NEWS,
-    name: 'Benzinga News',
-    provider: ApiProvider.BENZINGA,
-    category: EndpointCategory.BENZINGA_CALENDAR, // Using BENZINGA_CALENDAR as a temporary category
-    path: '/news',
-    method: HttpMethod.GET,
-    description: 'Returns news articles from Benzinga',
-    ttl: 30 * 60, // 30 minutes
-    requiresSymbol: false,
-    parameters: {
-      page: {
-        type: 'number',
-        required: false,
-        description: 'Page number of results',
-        default: 0
-      },
-      page_size: {
-        type: 'number',
-        required: false,
-        description: 'Number of results per page',
-        default: 10
-      },
-      display_output: {
-        type: 'string',
-        required: false,
-        description: 'Output format',
-        default: 'full',
-        enum: ['full', 'headline', 'abstract']
-      },
-      date_from: {
-        type: 'string',
-        required: false,
-        description: 'Start date for news (YYYY-MM-DD)'
-      },
-      date_to: {
-        type: 'string',
-        required: false,
-        description: 'End date for news (YYYY-MM-DD)'
-      },
-      tickers: {
-        type: 'string',
-        required: false,
-        description: 'Comma-separated list of ticker symbols to filter by'
-      }
-    },
-    firestorePath: 'market_data/{symbol}/data_points/news',
-    documentationUrl: 'https://docs.benzinga.com/benzinga/newsfeed/v2'
-  }
-} as const;
+// Use the imported endpoint configurations
+const ENDPOINT_CONFIGS: BenzingaEndpointConfigs = BENZINGA_ENDPOINT_CONFIGS as BenzingaEndpointConfigs;
 
-type HandlerConstructor = new (config: EndpointConfig) => BenzingaBaseHandler;
-
-// Only include endpoints that have handlers implemented
-const HANDLER_MAP: Partial<Record<BenzingaEndpoint, HandlerConstructor>> = {
-  [BenzingaEndpoint.CALENDAR]: BenzingaCalendarHandler,
-  // [BenzingaEndpoint.NEWS]: BenzingaNewsHandler, // Uncomment when implemented
-} as const;
+// Handler map - maps endpoint IDs to their handler classes
+const HANDLER_MAP: Record<BenzingaEndpoint, new (config: EndpointConfig) => BenzingaBaseHandler> = {
+  // Company Data Endpoints
+  [CompanyDataEndpoint.EARNINGS]: BenzingaCalendarHandler,
+  [CompanyDataEndpoint.DIVIDENDS]: BenzingaCalendarHandler,
+  [CompanyDataEndpoint.CONFERENCE_CALLS]: BenzingaCalendarHandler,
+  [CompanyDataEndpoint.RATINGS]: BenzingaCalendarHandler,
+  [CompanyDataEndpoint.GUIDANCE]: BenzingaCalendarHandler,
+  [CompanyDataEndpoint.SPLITS]: BenzingaCalendarHandler,
+  [CompanyDataEndpoint.OFFERINGS]: BenzingaCalendarHandler,
+  
+  // Market Data Endpoints
+  [MarketDataEndpoint.ECONOMICS]: BenzingaCalendarHandler,
+  [MarketDataEndpoint.IPOS]: BenzingaCalendarHandler,
+  [MarketDataEndpoint.FDA]: BenzingaCalendarHandler,
+  [MarketDataEndpoint.MERGERS_ACQUISITIONS]: BenzingaCalendarHandler,
+  [MarketDataEndpoint.NEWS]: BenzingaCalendarHandler,
+};
 
 export class BenzingaHandlerFactory {
-  static createHandler<T = any>(
-    endpointId: BenzingaEndpoint,
-  ): BenzingaBaseHandler<T> {
-    if (!this.hasHandler(endpointId)) {
-      throw new Error(`No handler registered for endpoint: ${endpointId}`);
-    }
-    const config = this.getEndpointConfig(endpointId);
-    const Handler = this.getHandler(endpointId);
-    
-    return new Handler(config) as BenzingaBaseHandler<T>;
-  }
-
-  static getEndpointConfig(endpointId: BenzingaEndpoint): Readonly<EndpointConfig> {
-    const config = ENDPOINT_CONFIGS[endpointId];
+  /**
+   * Gets the configuration for a specific endpoint
+   */
+  static getEndpointConfig(endpoint: BenzingaEndpoint): Readonly<EndpointConfig> {
+    const config = ENDPOINT_CONFIGS[endpoint];
     if (!config) {
-      throw new Error(`No configuration found for endpoint: ${endpointId}`);
+      throw new Error(`No configuration found for endpoint: ${endpoint}`);
     }
     return Object.freeze({ ...config });
   }
 
-  static getAllEndpointConfigs(): Readonly<EndpointConfigMap> {
+  /**
+   * Gets all available endpoint configurations
+   */
+  static getAllEndpointConfigs(): Readonly<Record<BenzingaEndpoint, EndpointConfig>> {
     return Object.freeze({ ...ENDPOINT_CONFIGS });
   }
 
-  static getAvailableEndpoints(): BenzingaEndpoint[] {
-    return Object.values(BenzingaEndpoint);
-  }
-
-  private static getHandler(endpointId: BenzingaEndpoint): HandlerConstructor {
-    const Handler = HANDLER_MAP[endpointId];
+  /**
+   * Gets the handler constructor for a specific endpoint
+   */
+  private static getHandler(endpoint: BenzingaEndpoint) {
+    const Handler = HANDLER_MAP[endpoint];
     if (!Handler) {
-      throw new Error(`No handler registered for endpoint: ${endpointId}`);
+      throw new Error(`No handler registered for endpoint: ${endpoint}`);
     }
     return Handler;
   }
 
-  static hasHandler(endpointId: BenzingaEndpoint): boolean {
-    return endpointId in HANDLER_MAP;
+  /**
+   * Creates a handler instance for the specified endpoint
+   */
+  static createHandler<T = any>(
+    endpoint: BenzingaEndpoint,
+  ): BenzingaBaseHandler<T> {
+    const requestId = `factory-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    console.log(`bHF cH [${requestId}] [FACTORY] Creating handler for endpoint: ${endpoint}`);
+    
+    try {
+      const config = this.getEndpointConfig(endpoint);
+      const Handler = this.getHandler(endpoint);
+      
+      console.log(`bHF cH [${requestId}] [FACTORY] Handler created:`, {
+        endpointId: endpoint,
+        handlerName: Handler.name
+      });
+      
+      const handler = new Handler(config);
+      
+      console.log(`bHF cH [${requestId}] [FACTORY] Successfully created handler for endpoint: ${endpoint}`);
+      return handler;
+      
+    } catch (error) {
+      console.error(`bHF cH [${requestId}] [FACTORY] Error creating handler for endpoint ${endpoint}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Gets all available endpoint IDs
+   */
+  static getAvailableEndpoints(): BenzingaEndpoint[] {
+    return Object.keys(ENDPOINT_CONFIGS) as BenzingaEndpoint[];
+  }
+
+  /**
+   * Checks if a handler exists for the specified endpoint
+   */
+  static hasHandler(endpoint: BenzingaEndpoint): boolean {
+    return endpoint in HANDLER_MAP;
   }
 }

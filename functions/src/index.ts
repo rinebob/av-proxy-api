@@ -7,7 +7,8 @@ export { alphaVantageApi } from './api/alpha-vantage/alpha-vantage-gateway';
 
 // Benzinga endpoints
 export { getCompanyLogo } from './benzinga/getCompanyLogo.js';
-export { getDynamicCalendar } from './benzinga/getDynamicCalendar.js';
+export { getDynamicCalendar } from './benzinga/getDynamicCalendar.js';// Benzinga API Gateway
+export { benzingaApi } from './api/benzinga/benzinga-gateway';
 
 // Data Maintainer endpoints
 export { fetchAndStoreData } from './data-maintainer/fetchAndStoreData.js';
@@ -24,4 +25,4 @@ export { cleanupOldSyncRequests } from './symbol-manager/cleanupOldRequests.js';
 export { scheduledRefresh, manualRefresh } from './data-maintainer/refreshDispatcher.js';
 
 // Test endpoints
-// export { testEndpoints } from './test-endpoints.js';
+export { testEndpoints } from './test-endpoints.js';

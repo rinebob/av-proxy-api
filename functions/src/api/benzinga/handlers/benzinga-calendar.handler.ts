@@ -1,4 +1,4 @@
-import { EndpointConfig, ApiResponse } from '../../common/types';
+import { EndpointConfig } from '../../common/types';
 import { BenzingaBaseHandler } from './benzinga-base.handler';
 
 export interface CalendarEvent {
@@ -20,58 +20,50 @@ export class BenzingaCalendarHandler extends BenzingaBaseHandler<CalendarEvent[]
   }
 
   protected validateParams(params: Record<string, any>): void {
-    const requiredParams = ['parameters'];
-    
-    for (const param of requiredParams) {
-      if (!params[param]) {
-        throw new Error(`Missing required parameter: ${param}`);
-      }
-    }
+    // No specific validation needed for calendar handler as prepareRequestParams handles defaults.
   }
+
 
   protected prepareRequestParams(params: Record<string, any>): Record<string, any> {
     const preparedParams = { ...params };
     
+    // Ensure required parameters have proper defaults
+    if (!preparedParams.page) preparedParams.page = '0';
+    if (!preparedParams.pagesize) preparedParams.pagesize = '20';
+    if (!preparedParams.type) preparedParams.type = 'earnings';
+    
     // Convert array parameters to comma-separated strings if needed
-    if (preparedParams.parameters && Array.isArray(preparedParams.parameters)) {
-      preparedParams.parameters = preparedParams.parameters.join(',');
+    if (preparedParams.tickers && Array.isArray(preparedParams.tickers)) {
+      preparedParams.tickers = preparedParams.tickers.join(',');
     }
     
-    if (preparedParams.symbols && Array.isArray(preparedParams.symbols)) {
-      preparedParams.symbols = preparedParams.symbols.join(',');
+    // Ensure date format is correct
+    if (!preparedParams.date_from) {
+      const today = new Date();
+      preparedParams.date_from = today.toISOString().split('T')[0];
+    }
+    
+    if (!preparedParams.date_to) {
+      const oneYearFromNow = new Date();
+      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+      preparedParams.date_to = oneYearFromNow.toISOString().split('T')[0];
     }
 
     return preparedParams;
   }
 
-  protected transformResponse(data: any): CalendarEvent[] {
-    if (!data || !Array.isArray(data)) {
-      return [];
-    }
-
-    return data.map((event: any) => ({
-      date: event.date || '',
-      time: event.time,
-      ticker: event.ticker || '',
-      name: event.name || '',
-      exchange: event.exchange || '',
-      eps: event.eps || null,
-      eps_estimated: event.eps_estimated || null,
-      time_updated: event.time_updated || '',
-      date_updated: event.date_updated || ''
-    }));
+  /**
+   * Process the request by calling the base handler's fetch method.
+   * @param params The request parameters.
+   * @returns A promise that resolves with the API response.
+   */
+  protected async processRequest(params: Record<string, any>): Promise<any> {
+    return this.fetch(params);
   }
 
-  public async fetch(params: Record<string, any> = {}): Promise<ApiResponse<CalendarEvent[]>> {
-    try {
-      this.validateParams(params);
-      const preparedParams = this.prepareRequestParams(params);
-      const response = await super.fetch(preparedParams);
-      const transformedResponse = this.transformResponse(response.data);
-      return { ...response, data: transformedResponse };
-    } catch (error) {
-      // Add specific error handling for calendar endpoint if needed
-      throw error;
-    }
+  // Override transformResponse to pass through raw data
+  protected transformResponse(data: any): any {
+    return data;
   }
+
 }

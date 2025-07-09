@@ -45,6 +45,32 @@ export { db };
  * @param res The Express response object.
  * @returns A promise that resolves to the decoded ID token, or null if authentication fails.
  */
+/**
+ * Sets the required CORS headers on the response.
+ * @param res The Express response object.
+ */
+export function setCorsHeaders(res: any): void {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-KEY, x-debug-request');
+  res.set('Access-Control-Max-Age', '3600');
+}
+
+/**
+ * Handles CORS preflight OPTIONS requests.
+ * @param req The Express request object.
+ * @param res The Express response object.
+ * @returns True if the request was an OPTIONS request and was handled, false otherwise.
+ */
+export function handleOptionsRequest(req: any, res: any): boolean {
+  if (req.method === 'OPTIONS') {
+    setCorsHeaders(res);
+    res.status(204).send('');
+    return true;
+  }
+  return false;
+}
+
 export async function authenticateRequest(
   req: any,
   res: any
@@ -52,12 +78,14 @@ export async function authenticateRequest(
   try {
     const idToken = req.headers.authorization?.split('Bearer ')[1];
     if (!idToken) {
+      setCorsHeaders(res); // Ensure CORS headers on error response
       res.status(401).json({ error: 'Unauthorized', message: 'No authentication token provided.' });
       return null;
     }
 
     const decodedToken = await authenticateFirebaseUser(idToken);
     if (!decodedToken) {
+      setCorsHeaders(res); // Ensure CORS headers on error response
       res.status(403).json({
         error: 'Forbidden',
         message: 'Invalid or expired authentication token.'
@@ -66,6 +94,8 @@ export async function authenticateRequest(
     }
     return decodedToken;
   } catch (error) {
+    // handleApiError should ideally handle CORS, but we add it here for safety
+    setCorsHeaders(res);
     handleApiError(error, res, 'authenticateRequest');
     return null;
   }
@@ -166,6 +196,7 @@ export function validateRequestMethod(req: any, res: any): boolean {
  * @returns True if the error was handled, false otherwise
  */
 export function handleApiError(error: any, res: any, context: string = ''): boolean {
+  setCorsHeaders(res); // Ensure CORS headers are set on all error responses
   const contextPrefix = context ? `${context} - ` : '';
   
   // Check for rate limit error first and handle without stack trace
