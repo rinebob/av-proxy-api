@@ -9,9 +9,10 @@ import {
 } from '../../common/common-benz';
 
 import { 
-  ApiProvider, 
   HttpMethod 
 } from './enums';
+
+import { ApiProvider } from '../../common/data-providers';
 
 import { AvEndpointCategory } from '../../common/alpha-vantage/av-endpoint-category.enum';
 

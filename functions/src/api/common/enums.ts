@@ -1,7 +1,4 @@
-export enum ApiProvider {
-  ALPHA_VANTAGE = 'alpha_vantage',
-  BENZINGA = 'benzinga'
-}
+
 
 export enum EndpointCategory {
   STOCK_TIME_SERIES = 'stock_time_series',

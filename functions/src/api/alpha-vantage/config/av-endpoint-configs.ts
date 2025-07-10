@@ -1,11 +1,11 @@
 import { 
-  ApiProvider,
   HttpMethod 
 } from '../../common/enums';
 import { AlphaVantageEndpoint, OutputSize, AvEndpointSymbolUsage } from '../../../common/common-av';
 import { EndpointConfig } from '../../common/types';
 import { FirestoreCollection } from '../../../common/firestore-collections';
 import { AvEndpointCategory } from '../../../common/alpha-vantage/av-endpoint-category.enum';
+import { ApiProvider } from '../../../common/data-providers';
 
 /**
  * Base configurations for Alpha Vantage API endpoints
@@ -223,7 +223,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     path: '/query',
     method: HttpMethod.GET,
     description: 'Returns the company information, financial ratios, and other key metrics for the equity specified.',
-    ttl: 7 * 24 * 60 * 60, // 1 week
+    ttl: 2 * 60, // 2 minutes
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.COMPANY_OVERVIEW}/av-${FirestoreCollection.COMPANY_OVERVIEW}`,

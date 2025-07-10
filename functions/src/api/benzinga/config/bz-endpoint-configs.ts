@@ -1,4 +1,5 @@
-import { ApiProvider, EndpointCategory, HttpMethod } from '../../common/enums';
+import { ApiProvider } from '../../../common/data-providers';
+import { EndpointCategory, HttpMethod } from '../../common/enums';
 import { FirestoreCollection } from '../../../common/firestore-collections';
 import { 
   BzCompanyDataCalendarType, 
