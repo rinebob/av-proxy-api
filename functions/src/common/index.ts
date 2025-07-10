@@ -12,7 +12,7 @@ export type {
 
 // Export specific types from common-benz
 export { 
-  BenzingaCalendarType, 
+  BzCalendarType, 
   BenzingaOutputFormat 
 } from './common-benz';
 
@@ -23,7 +23,7 @@ export type {
 
 // Export specific types from common-av
 export { 
-  OutputSize, 
+  OutputSize,
   ALPHAVANTAGE_BASE_URL,
   CACHE_DURATION_MS,
   RATE_LIMIT_WINDOW_MS,
@@ -32,7 +32,6 @@ export {
 } from './common-av';
 
 export type { 
-  QueryParamsAv,
   AlphaVantageDailyTimeSeriesResponse,
   AlphaVantageGlobalQuoteResponse 
 } from './common-av';

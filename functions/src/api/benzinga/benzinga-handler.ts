@@ -1,14 +1,13 @@
 import { Request as ExpressRequest } from 'express';
-import { BenzingaEndpoint, CompanyDataEndpoint } from '../../common/common-benz';
+import { BenzingaEndpoint, BzCompanyDataCalendarType, BzCalendarType, BzMarketDataCalendarType } from '../../common/common-benz';
 import { BenzingaBaseHandler } from './handlers/benzinga-base.handler';
 import { BenzingaHandlerFactory } from './benzinga-factory';
 
 /**
- * Handler map type that maps endpoint names to their respective handlers
+ * Union type of all possible handler keys
  */
-type HandlerMap = {
-  [key in BenzingaEndpoint]?: BenzingaBaseHandler<any>;
-};
+type HandlerKey = BenzingaEndpoint | BzCalendarType;
+
 
 /**
  * Handles Benzinga API requests by routing them to the appropriate endpoint handler
@@ -18,7 +17,7 @@ type HandlerMap = {
  * @returns The raw response data from Benzinga API
  */
 export async function handleBenzingaRequest(
-  endpoint: BenzingaEndpoint,
+  endpoint: HandlerKey,
   req: ExpressRequest,
   requestId: string
 ): Promise<any> {
@@ -39,19 +38,34 @@ export async function handleBenzingaRequest(
 }
 
 /**
+ * Maps calendar types to their corresponding endpoint values
+ */
+function mapCalendarTypeToEndpoint(calendarType: BzCalendarType): BenzingaEndpoint {
+  // For now, we'll just cast since we know the values align
+  // In a more complex scenario, we might need a proper mapping
+  return calendarType as unknown as BenzingaEndpoint;
+}
+
+/**
  * Gets the appropriate handler for the given endpoint
- * @param endpoint The Benzinga endpoint
+ * @param endpoint The Benzinga endpoint or calendar type
  * @returns The handler instance for the endpoint
  */
-function getHandler(endpoint: BenzingaEndpoint): BenzingaBaseHandler<any> {
-  // Initialize handlers map
-  const handlers: HandlerMap = {
-    // Add calendar handler for earnings endpoint
-    [CompanyDataEndpoint.EARNINGS as BenzingaEndpoint]: BenzingaHandlerFactory.createHandler(CompanyDataEndpoint.EARNINGS as BenzingaEndpoint),
-    // Add more handlers here as they are implemented
+function getHandler(endpoint: HandlerKey): BenzingaBaseHandler<any> {
+  // Convert calendar type to endpoint if needed
+  const endpointKey = (Object.values(BzCompanyDataCalendarType).includes(endpoint as BzCompanyDataCalendarType) ||
+                      Object.values(BzMarketDataCalendarType).includes(endpoint as BzMarketDataCalendarType))
+    ? mapCalendarTypeToEndpoint(endpoint as BzCalendarType)
+    : endpoint as BenzingaEndpoint;
+
+  // Initialize handlers map with BenzingaEndpoint keys
+  const handlers: Partial<Record<BenzingaEndpoint, BenzingaBaseHandler<any>>> = {
+    // Use CALENDAR as the endpoint since EARNINGS is a calendar type
+    [BenzingaEndpoint.CALENDAR]: BenzingaHandlerFactory.createHandler(BenzingaEndpoint.CALENDAR),
+    // NEWS handler is optional and can be added later
   };
 
-  const handler = handlers[endpoint];
+  const handler = handlers[endpointKey];
   
   if (!handler) {
     throw new Error(`No handler implemented for endpoint: ${endpoint}`);

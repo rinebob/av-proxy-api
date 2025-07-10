@@ -3,12 +3,11 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import { db } from '../firebase-admin-init';
 import { 
   BenzingaCalendarParams, 
-  BenzingaCalendarType,
+  BzCalendarType,
   type BenzingaCalendarResponse,
-  BenzingaEndpoint,
-  BenzingaEndpointResponseMap,
-  isCompanyDataEndpoint,
-  isMarketDataEndpoint
+  BZCalendarResponseMap,
+  isBzCompanyDataCalendarType,
+  isBzMarketDataCalendarType
 } from '../common/common-benz';
 import { BenzingaFunctionName } from '../common/common-fn';
 import { 
@@ -58,7 +57,7 @@ function getBenzingaApiKey(): string {
 /**
  * Fetch dynamic calendar data from Benzinga API
  */
-async function fetchDynamicBenzingaCalendar<K extends BenzingaEndpoint, T = BenzingaEndpointResponseMap[K]>(
+async function fetchDynamicBenzingaCalendar<K extends BzCalendarType, T = BZCalendarResponseMap[K]>(
   apiKey: string,
   params: BenzingaCalendarParams,
   endpoint: K,
@@ -190,7 +189,7 @@ export const getDynamicCalendar = onRequest(
         sort
       } = req.query;
 
-      const calendarType = type as BenzingaCalendarType;
+      const calendarType = type as BzCalendarType;
 
       // Log the incoming request for debugging
       console.log('Incoming request parameters:', {
@@ -262,7 +261,7 @@ export const getDynamicCalendar = onRequest(
       }
 
       // Get the endpoint metadata to determine the response key
-      const endpointMeta = isCompanyDataEndpoint(calendarType) ? 'company' : isMarketDataEndpoint(calendarType) ? 'market' : calendarType;
+      const endpointMeta = isBzCompanyDataCalendarType(calendarType) ? 'company' : isBzMarketDataCalendarType(calendarType) ? 'market' : calendarType;
 
       // Save to Firestore if we have valid tickers and data
       if (tickers && data) {

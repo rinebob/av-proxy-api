@@ -3,7 +3,8 @@ import {
 } from '../../common/common-av';
 
 import { 
-  BenzingaEndpoint 
+  BenzingaEndpoint,
+  BzCalendarType
 } from '../../common/common-benz';
 
 import { 
@@ -21,7 +22,7 @@ export interface EndpointParameter {
 }
 
 export interface EndpointConfig {
-  id: AlphaVantageEndpoint | BenzingaEndpoint;
+  id: AlphaVantageEndpoint | BenzingaEndpoint | BzCalendarType;
   name: string;
   provider: ApiProvider;
   category: EndpointCategory;

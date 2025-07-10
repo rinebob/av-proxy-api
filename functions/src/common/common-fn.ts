@@ -1,5 +1,3 @@
-import { QueryParamsAv } from './common-av';
-
 ///////////// CONSTANTS //////////////////
 
 export const CLOUD_FUNCTIONS_BASE_URL = `https://us-central1-${process.env.GCLOUD_PROJECT}.cloudfunctions.net`;
@@ -27,11 +25,10 @@ export enum OutputSize {
   COMPACT = 'compact',
   FULL = 'full'
 }
-
 // Interface for authentication and validation result
-export interface AuthValidationResult {
-  decodedToken: any; 
-  params: QueryParamsAv;
+export interface AuthValidationResult<T = any> {
+  decodedToken: any;
+  params: T;
   apiKey: string;
 }
 

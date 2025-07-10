@@ -1,11 +1,11 @@
 import { db } from '../firebase-admin-init';
 import { FieldValue } from 'firebase-admin/firestore';
 import { 
-  CompanyDataEndpoint,
-  MarketDataEndpoint,
-  BenzingaEndpoint,
-  isCompanyDataEndpoint,
-  isMarketDataEndpoint
+  BzCompanyDataCalendarType,
+  BzMarketDataCalendarType,
+  isBzCompanyDataCalendarType,
+  isBzMarketDataCalendarType,
+  BzCalendarType
 } from '../common/common-benz';
 import { Firestore } from 'firebase-admin/firestore';
 import { FirestoreCollection } from '../common/firestore-collections';
@@ -20,7 +20,7 @@ const LOGO_CACHE_DURATION_DAYS = 30;
 export async function getCompanyDataCollection(
   db: Firestore, 
   symbol: string, 
-  dataType: CompanyDataEndpoint
+  dataType: BzCompanyDataCalendarType
 ) {
   const symbolUpper = symbol.toUpperCase();
   const companyDocRef = db.collection(FirestoreCollection.COMPANY_DATA).doc(symbolUpper);
@@ -51,7 +51,7 @@ export async function getCompanyDataCollection(
  */
 export async function getMarketDataCollection(
   db: Firestore,
-  dataType: MarketDataEndpoint
+  dataType: BzMarketDataCalendarType
 ) {
   const marketDocRef = db.collection(FirestoreCollection.MARKET_DATA).doc(dataType);
   
@@ -75,17 +75,17 @@ export async function getMarketDataCollection(
  */
 export async function getDataCollection(
   db: Firestore,
-  endpoint: BenzingaEndpoint,
+  endpoint: BzCalendarType,
   symbol?: string
 ) {
-  if (isCompanyDataEndpoint(endpoint)) {
+  if (isBzCompanyDataCalendarType(endpoint)) {
     if (!symbol) {
       throw new Error(`Symbol is required for ${endpoint} data`);
     }
     return getCompanyDataCollection(db, symbol, endpoint);
   }
   
-  if (isMarketDataEndpoint(endpoint)) {
+  if (isBzMarketDataCalendarType(endpoint)) {
     return getMarketDataCollection(db, endpoint);
   }
   

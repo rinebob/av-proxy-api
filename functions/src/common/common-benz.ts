@@ -4,9 +4,17 @@
  */
 
 /**
- * Company-specific endpoints (require a ticker/symbol)
+ * Actual Benzinga API endpoints
  */
-export enum CompanyDataEndpoint {
+export enum BenzingaEndpoint {
+  CALENDAR = 'calendar',
+  NEWS = 'news'
+}
+
+/**
+ * Company-specific calendar types (require a ticker/symbol)
+ */
+export enum BzCompanyDataCalendarType {
   EARNINGS = 'earnings',
   DIVIDENDS = 'dividends',
   CONFERENCE_CALLS = 'conference-calls',
@@ -17,39 +25,33 @@ export enum CompanyDataEndpoint {
 }
 
 /**
- * Market-wide endpoints (don't require a ticker)
+ * Market-wide calendar types (don't require a ticker)
  */
-export enum MarketDataEndpoint {
+export enum BzMarketDataCalendarType {
   ECONOMICS = 'economics',
   IPOS = 'ipos',
   FDA = 'fda',
-  MERGERS_ACQUISITIONS = 'mergers-acquisitions',
-  NEWS = 'news'
+  MERGERS_ACQUISITIONS = 'mergers-acquisitions'
 }
 
 /**
- * Union of all endpoint types
+ * Union of all calendar types
  */
-export type BenzingaEndpoint = CompanyDataEndpoint | MarketDataEndpoint;
+export type BzCalendarType = BzCompanyDataCalendarType | BzMarketDataCalendarType;
 
 /**
- * Type guard to check if an endpoint is a company data endpoint
+ * Type guard to check if a calendar type is a company data type
  */
-export function isCompanyDataEndpoint(endpoint: BenzingaEndpoint): endpoint is CompanyDataEndpoint {
-  return Object.values(CompanyDataEndpoint).includes(endpoint as CompanyDataEndpoint);
+export function isBzCompanyDataCalendarType(calendarType: BzCalendarType): calendarType is BzCompanyDataCalendarType {
+  return Object.values(BzCompanyDataCalendarType).includes(calendarType as BzCompanyDataCalendarType);
 }
 
 /**
- * Type guard to check if an endpoint is a market data endpoint
+ * Type guard to check if a calendar type is a market data type
  */
-export function isMarketDataEndpoint(endpoint: BenzingaEndpoint): endpoint is MarketDataEndpoint {
-  return Object.values(MarketDataEndpoint).includes(endpoint as MarketDataEndpoint);
+export function isBzMarketDataCalendarType(calendarType: BzCalendarType): calendarType is BzMarketDataCalendarType {
+  return Object.values(BzMarketDataCalendarType).includes(calendarType as BzMarketDataCalendarType);
 }
-
-/**
- * Backward compatibility type
- */
-export type BenzingaCalendarType = BenzingaEndpoint;
 
 /**
  * Output format for API responses
@@ -130,29 +132,28 @@ export type BenzingaCalendarItem =
   | BenzingaCalendarItemBase;
 
 /**
- * Type mapping from endpoint to response item type
+ * Type mapping from calendar type to response item type
  */
-export interface BenzingaEndpointResponseMap {
-  [CompanyDataEndpoint.EARNINGS]: BenzingaEarningsItem[];
-  [CompanyDataEndpoint.DIVIDENDS]: BenzingaDividendItem[];
-  [MarketDataEndpoint.ECONOMICS]: any[];
-  [MarketDataEndpoint.IPOS]: any[];
-  [CompanyDataEndpoint.CONFERENCE_CALLS]: BenzingaConferenceCallItem[];
-  [MarketDataEndpoint.FDA]: any[];
-  [MarketDataEndpoint.MERGERS_ACQUISITIONS]: any[];
-  [CompanyDataEndpoint.RATINGS]: BenzingaRatingItem[];
-  [CompanyDataEndpoint.GUIDANCE]: any[];
-  [CompanyDataEndpoint.SPLITS]: any[];
-  [CompanyDataEndpoint.OFFERINGS]: any[];
-  [MarketDataEndpoint.NEWS]: any[];
+export interface BZCalendarResponseMap {
+  [BzCompanyDataCalendarType.EARNINGS]: BenzingaEarningsItem[];
+  [BzCompanyDataCalendarType.DIVIDENDS]: BenzingaDividendItem[];
+  [BzMarketDataCalendarType.ECONOMICS]: any[];
+  [BzMarketDataCalendarType.IPOS]: any[];
+  [BzCompanyDataCalendarType.CONFERENCE_CALLS]: BenzingaConferenceCallItem[];
+  [BzMarketDataCalendarType.FDA]: any[];
+  [BzMarketDataCalendarType.MERGERS_ACQUISITIONS]: any[];
+  [BzCompanyDataCalendarType.RATINGS]: BenzingaRatingItem[];
+  [BzCompanyDataCalendarType.GUIDANCE]: any[];
+  [BzCompanyDataCalendarType.SPLITS]: any[];
+  [BzCompanyDataCalendarType.OFFERINGS]: any[];
 }
 
 /**
  * Strongly-typed response type
- * Usage: BenzingaCalendarResponse<CompanyDataEndpoint.EARNINGS> for earnings data
+ * Usage: BenzingaCalendarResponse<BzCompanyDataCalendarType.EARNINGS> for earnings data
  */
-export type BenzingaCalendarResponse<T extends BenzingaEndpoint> = {
-  [K in T]: BenzingaEndpointResponseMap[K];
+export type BenzingaCalendarResponse<T extends BzCalendarType> = {
+  [K in T]: BZCalendarResponseMap[K];
 };
 
 // Type guard functions
@@ -173,15 +174,15 @@ export function isRatingItem(item: BenzingaCalendarItem): item is BenzingaRating
 }
 
 /**
- * Helper to get the correct response type for an endpoint
+ * Helper to get the correct response type for a calendar type
  */
-export function getResponseTypeForEndpoint<T extends BenzingaEndpoint>(
-  endpoint: T,
+export function getResponseTypeForCalendarType<T extends BzCalendarType>(
+  calendarType: T,
   data: any
 ): BenzingaCalendarResponse<T>[T] {
   return {
-    [endpoint]: data
-  }[endpoint];
+    [calendarType]: data
+  }[calendarType];
 }
 
 /**
@@ -207,14 +208,14 @@ export interface BenzingaCalendarParams {
 
 /**
  * Indicates which Benzinga calendar endpoints require a ticker parameter.
- * Keys are BenzingaCalendarType enum values for type safety.
+ * Keys are BzCompanyDataCalendarType enum values for type safety.
  */
-export const BENZINGA_ENDPOINTS_REQUIRING_TICKER: Record<CompanyDataEndpoint, boolean> = {
-  [CompanyDataEndpoint.EARNINGS]: true,
-  [CompanyDataEndpoint.DIVIDENDS]: true,
-  [CompanyDataEndpoint.CONFERENCE_CALLS]: true,
-  [CompanyDataEndpoint.RATINGS]: true,
-  [CompanyDataEndpoint.GUIDANCE]: true,
-  [CompanyDataEndpoint.SPLITS]: true,
-  [CompanyDataEndpoint.OFFERINGS]: true,
+export const BENZINGA_ENDPOINTS_REQUIRING_TICKER: Record<BzCompanyDataCalendarType, boolean> = {
+  [BzCompanyDataCalendarType.EARNINGS]: true,
+  [BzCompanyDataCalendarType.DIVIDENDS]: true,
+  [BzCompanyDataCalendarType.CONFERENCE_CALLS]: true,
+  [BzCompanyDataCalendarType.RATINGS]: true,
+  [BzCompanyDataCalendarType.GUIDANCE]: true,
+  [BzCompanyDataCalendarType.SPLITS]: true,
+  [BzCompanyDataCalendarType.OFFERINGS]: true,
 } as const;

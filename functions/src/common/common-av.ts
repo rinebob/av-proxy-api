@@ -2,19 +2,10 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { DataMaintainerEndpoint } from './common-dm';
 
 /////////// ENUMS ///////////////////////
-
 // Define output size options for API responses
 export enum OutputSize {
   COMPACT = 'compact',
   FULL = 'full'
-}
-
-/////////// INTERFACES ///////////////////////
-
-// Interface for query parameters specific to Alpha Vantage
-export interface QueryParamsAv {
-  symbol: string;
-  outputSize: OutputSize;
 }
 
 /////////// INTERFACES ///////////////////////

@@ -1,40 +1,44 @@
-import { CompanyDataEndpoint, MarketDataEndpoint, BenzingaEndpoint } from '../../common/common-benz';
+import { BzCompanyDataCalendarType, BzMarketDataCalendarType, BenzingaEndpoint } from '../../common/common-benz';
 import { EndpointConfig } from '../common/types';
 import { BenzingaBaseHandler } from './handlers/benzinga-base.handler';
 
 // Import endpoint configurations
-import { BENZINGA_ENDPOINT_CONFIGS } from './config/bz-endpoint-configs';
+import { ALL_BENZINGA_ENDPOINT_CONFIGS } from './config/bz-endpoint-configs';
 
 // Import concrete handlers
 import { BenzingaCalendarHandler } from './handlers/benzinga-calendar.handler';
-// Import other handlers as they are implemented
-// import { BenzingaNewsHandler } from './handlers/benzinga-news.handler';
 
 // Define a mapped type that ensures all BenzingaEndpoints have a config
 type BenzingaEndpointConfigs = {
   [K in BenzingaEndpoint]: EndpointConfig & { id: K };
 };
 
+// Define a union type of all possible handler keys
+type HandlerKey = BenzingaEndpoint | BzCompanyDataCalendarType | BzMarketDataCalendarType;
+
 // Use the imported endpoint configurations
-const ENDPOINT_CONFIGS: BenzingaEndpointConfigs = BENZINGA_ENDPOINT_CONFIGS as BenzingaEndpointConfigs;
+const ENDPOINT_CONFIGS: BenzingaEndpointConfigs = ALL_BENZINGA_ENDPOINT_CONFIGS as unknown as BenzingaEndpointConfigs;
 
 // Handler map - maps endpoint IDs to their handler classes
-const HANDLER_MAP: Record<BenzingaEndpoint, new (config: EndpointConfig) => BenzingaBaseHandler> = {
+const HANDLER_MAP: Record<HandlerKey, new (config: EndpointConfig) => BenzingaBaseHandler> = {
   // Company Data Endpoints
-  [CompanyDataEndpoint.EARNINGS]: BenzingaCalendarHandler,
-  [CompanyDataEndpoint.DIVIDENDS]: BenzingaCalendarHandler,
-  [CompanyDataEndpoint.CONFERENCE_CALLS]: BenzingaCalendarHandler,
-  [CompanyDataEndpoint.RATINGS]: BenzingaCalendarHandler,
-  [CompanyDataEndpoint.GUIDANCE]: BenzingaCalendarHandler,
-  [CompanyDataEndpoint.SPLITS]: BenzingaCalendarHandler,
-  [CompanyDataEndpoint.OFFERINGS]: BenzingaCalendarHandler,
+  [BzCompanyDataCalendarType.EARNINGS]: BenzingaCalendarHandler,
+  [BzCompanyDataCalendarType.DIVIDENDS]: BenzingaCalendarHandler,
+  [BzCompanyDataCalendarType.CONFERENCE_CALLS]: BenzingaCalendarHandler,
+  [BzCompanyDataCalendarType.RATINGS]: BenzingaCalendarHandler,
+  [BzCompanyDataCalendarType.GUIDANCE]: BenzingaCalendarHandler,
+  [BzCompanyDataCalendarType.SPLITS]: BenzingaCalendarHandler,
+  [BzCompanyDataCalendarType.OFFERINGS]: BenzingaCalendarHandler,
   
   // Market Data Endpoints
-  [MarketDataEndpoint.ECONOMICS]: BenzingaCalendarHandler,
-  [MarketDataEndpoint.IPOS]: BenzingaCalendarHandler,
-  [MarketDataEndpoint.FDA]: BenzingaCalendarHandler,
-  [MarketDataEndpoint.MERGERS_ACQUISITIONS]: BenzingaCalendarHandler,
-  [MarketDataEndpoint.NEWS]: BenzingaCalendarHandler,
+  [BzMarketDataCalendarType.ECONOMICS]: BenzingaCalendarHandler,
+  [BzMarketDataCalendarType.IPOS]: BenzingaCalendarHandler,
+  [BzMarketDataCalendarType.FDA]: BenzingaCalendarHandler,
+  [BzMarketDataCalendarType.MERGERS_ACQUISITIONS]: BenzingaCalendarHandler,
+
+  // Top-level endpoints
+  [BenzingaEndpoint.CALENDAR]: BenzingaCalendarHandler,
+  [BenzingaEndpoint.NEWS]: BenzingaCalendarHandler,
 };
 
 export class BenzingaHandlerFactory {
@@ -59,7 +63,7 @@ export class BenzingaHandlerFactory {
   /**
    * Gets the handler constructor for a specific endpoint
    */
-  private static getHandler(endpoint: BenzingaEndpoint) {
+  private static getHandler(endpoint: HandlerKey) {
     const Handler = HANDLER_MAP[endpoint];
     if (!Handler) {
       throw new Error(`No handler registered for endpoint: ${endpoint}`);
@@ -71,13 +75,13 @@ export class BenzingaHandlerFactory {
    * Creates a handler instance for the specified endpoint
    */
   static createHandler<T = any>(
-    endpoint: BenzingaEndpoint,
+    endpoint: HandlerKey,
   ): BenzingaBaseHandler<T> {
     const requestId = `factory-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     console.log(`bHF cH [${requestId}] [FACTORY] Creating handler for endpoint: ${endpoint}`);
     
     try {
-      const config = this.getEndpointConfig(endpoint);
+      const config = this.getEndpointConfig(endpoint as BenzingaEndpoint);
       const Handler = this.getHandler(endpoint);
       
       console.log(`bHF cH [${requestId}] [FACTORY] Handler created:`, {
@@ -109,7 +113,7 @@ export class BenzingaHandlerFactory {
   /**
    * Checks if a handler exists for the specified endpoint
    */
-  static hasHandler(endpoint: BenzingaEndpoint): boolean {
+  static hasHandler(endpoint: HandlerKey): boolean {
     return endpoint in HANDLER_MAP;
   }
 }
