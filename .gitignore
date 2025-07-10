@@ -55,6 +55,7 @@ functions/.env.alpha-vantage-proxy-api
 *.js.map
 !**/dist/**/*.js
 !**/dist/**/*.js.map
+!test-alpha.js
 
 # TypeScript compiled output
 **/*.d.ts

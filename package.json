@@ -8,7 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "dev": "ng serve",
-    "emulators": "firebase emulators:start --only auth,functions,firestore --import=.firebase/emulator-data --export-on-exit",
+    "emulators": "firebase emulators:start --only auth,functions,firestore,pubsub --import=.firebase/emulator-data --export-on-exit",
     "emulators:clean": "if exist .firebase\\emulator-data rmdir /s /q .firebase\\emulator-data && mkdir .firebase\\emulator-data"
   },
   "private": true,
