@@ -24,5 +24,8 @@ export { cleanupOldSyncRequests } from './symbol-manager/cleanupOldRequests.js';
 // Data Refresh Scheduler
 export { scheduledRefresh, manualRefresh } from './data-maintainer/refreshDispatcher.js';
 
+// New AlphaVantage Data Manager
+export { refreshAlphaVantageData } from './data-manager/av-data-manager.js';
+
 // Test endpoints
 export { testEndpoints } from './test-endpoints.js';

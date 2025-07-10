@@ -4,6 +4,16 @@ import { saveAvData } from '../av-firestore-helper';
 import { API_CONSTANTS } from '../../../common/api-constants';
 import { AlphaVantageEndpoint } from '../../../common/common-av';
 
+function getAlphaVantageApiKey(): string {
+  if (process.env.FUNCTIONS_EMULATOR === 'true' && process.env.LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY) {
+    return process.env.LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY;
+  }
+  if (process.env.ALPHAVANTAGE_API_KEY) {
+    return process.env.ALPHAVANTAGE_API_KEY;
+  }
+  throw new Error('Alpha Vantage API key not configured');
+}
+
 export abstract class AlphaVantageBaseHandler<T = any> {
   protected readonly config: EndpointConfig;
   protected readonly apiClient: AxiosInstance;
@@ -16,12 +26,15 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     this.apiClient = axios.create({
       baseURL: API_CONSTANTS.ALPHA_VANTAGE.BASE_URL,
       params: {
-        apikey: process.env.ALPHAVANTAGE_API_KEY,
+        apikey: getAlphaVantageApiKey(),
         function: this.config.id,
         datatype: API_CONSTANTS.ALPHA_VANTAGE.RESPONSE_TYPE
       },
       timeout: API_CONSTANTS.ALPHA_VANTAGE.DEFAULT_TIMEOUT_MS
     });
+
+    console.log('aVB.H ctor request params:', this.apiClient.defaults.params);
+    console.log('aVB.H ctor base URL:', this.apiClient.defaults.baseURL);
   }
 
   public async fetch(params: Record<string, any> = {}): Promise<ApiResponse<T>> {
