@@ -24,7 +24,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 24 hours
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.DAILY}/bz-${FirestoreCollection.DAILY}`,
+    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#daily',
     parameters: {
       symbol: {
@@ -52,7 +52,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 5 * 60, // 5 minutes
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.INTRADAY}/bz-${FirestoreCollection.INTRADAY}`,
+    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.INTRADAY}/av-${FirestoreCollection.INTRADAY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#intraday',
     parameters: {
       symbol: {
@@ -86,7 +86,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 24 hours
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.DAILY_ADJUSTED}/bz-${FirestoreCollection.DAILY_ADJUSTED}`,
+    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.DAILY_ADJUSTED}/av-${FirestoreCollection.DAILY_ADJUSTED}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#dailyadj',
     parameters: {
       symbol: {
@@ -114,7 +114,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.WEEKLY}/bz-${FirestoreCollection.WEEKLY}`,
+    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.WEEKLY}/av-${FirestoreCollection.WEEKLY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#weekly',
     parameters: {
       symbol: {
@@ -136,7 +136,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.WEEKLY_ADJUSTED}/bz-${FirestoreCollection.WEEKLY_ADJUSTED}`,
+    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.WEEKLY_ADJUSTED}/av-${FirestoreCollection.WEEKLY_ADJUSTED}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#weeklyadj',
     parameters: {
       symbol: {
@@ -158,7 +158,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 30 * 24 * 60 * 60, // 30 days
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.MONTHLY}/bz-${FirestoreCollection.MONTHLY}`,
+    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.MONTHLY}/av-${FirestoreCollection.MONTHLY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#monthly',
     parameters: {
       symbol: {
@@ -180,7 +180,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 30 * 24 * 60 * 60, // 30 days
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.MONTHLY_ADJUSTED}/bz-${FirestoreCollection.MONTHLY_ADJUSTED}`,
+    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.MONTHLY_ADJUSTED}/av-${FirestoreCollection.MONTHLY_ADJUSTED}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#monthlyadj',
     parameters: {
       symbol: {
@@ -203,7 +203,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 5 * 60, // 5 minutes
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.DAILY}/bz-${FirestoreCollection.DAILY}`,
+    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#latestprice',
     parameters: {
       symbol: {
@@ -226,7 +226,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.COMPANY_OVERVIEW}/bz-${FirestoreCollection.COMPANY_OVERVIEW}`,
+    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.COMPANY_OVERVIEW}/av-${FirestoreCollection.COMPANY_OVERVIEW}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#company-overview',
     parameters: {
       symbol: {
@@ -248,7 +248,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/bz-${FirestoreCollection.EARNINGS}`,
+    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/av-${FirestoreCollection.EARNINGS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#earnings',
     parameters: {
       symbol: {
@@ -270,7 +270,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.INCOME_STATEMENT}/bz-${FirestoreCollection.INCOME_STATEMENT}`,
+    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.INCOME_STATEMENT}/av-${FirestoreCollection.INCOME_STATEMENT}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#income-statement',
     parameters: {
       symbol: {
@@ -292,7 +292,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.BALANCE_SHEET}/bz-${FirestoreCollection.BALANCE_SHEET}`,
+    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.BALANCE_SHEET}/av-${FirestoreCollection.BALANCE_SHEET}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#balance-sheet',
     parameters: {
       symbol: {
@@ -314,7 +314,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.CASH_FLOW}/bz-${FirestoreCollection.CASH_FLOW}`,
+    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.CASH_FLOW}/av-${FirestoreCollection.CASH_FLOW}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#cash-flow',
     parameters: {
       symbol: {
@@ -336,7 +336,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.LISTING_DELISTING_STATUS}/bz-${FirestoreCollection.LISTING_DELISTING_STATUS}`,
+    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.LISTING_DELISTING_STATUS}/av-${FirestoreCollection.LISTING_DELISTING_STATUS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#listing-status',
     parameters: {
       symbol: {
@@ -358,7 +358,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.OPTIONAL,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS_CALENDAR}/bz-${FirestoreCollection.EARNINGS_CALENDAR}`,
+    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS_CALENDAR}/av-${FirestoreCollection.EARNINGS_CALENDAR}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#earnings-calendar',
     parameters: {
       symbol: {
@@ -380,7 +380,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.IPO_CALENDAR}`,
+    firestorePath: `${FirestoreCollection.MARKET_DATA}/av-${FirestoreCollection.IPO_CALENDAR}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#ipo-calendar',
     parameters: {
       symbol: {
@@ -426,7 +426,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: false,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.REAL_GDP}/bz-${FirestoreCollection.REAL_GDP}`,
+    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.REAL_GDP}/av-${FirestoreCollection.REAL_GDP}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#gdp',
     parameters: {},
   },
@@ -442,7 +442,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: false,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.TREASURY_YIELD}/bz-${FirestoreCollection.TREASURY_YIELD}`,
+    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.TREASURY_YIELD}/av-${FirestoreCollection.TREASURY_YIELD}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#treasury-yield',
     parameters: {},
   },
@@ -458,7 +458,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: false,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.FEDERAL_FUNDS_RATE}/bz-${FirestoreCollection.FEDERAL_FUNDS_RATE}`,
+    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.FEDERAL_FUNDS_RATE}/av-${FirestoreCollection.FEDERAL_FUNDS_RATE}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#federal-funds-rate',
     parameters: {},
   },
@@ -474,7 +474,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: false,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.CPI}/bz-${FirestoreCollection.CPI}`,
+    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.CPI}/av-${FirestoreCollection.CPI}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#cpi',
     parameters: {},
   },
@@ -490,7 +490,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: false,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.INFLATION}/bz-${FirestoreCollection.INFLATION}`,
+    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.INFLATION}/av-${FirestoreCollection.INFLATION}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#inflation',
     parameters: {},
   },
@@ -506,7 +506,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: false,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.RETAIL_SALES}/bz-${FirestoreCollection.RETAIL_SALES}`,
+    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.RETAIL_SALES}/av-${FirestoreCollection.RETAIL_SALES}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#retail-sales',
     parameters: {},
   },
@@ -522,7 +522,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: false,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.DURABLE_GOODS_ORDERS}/bz-${FirestoreCollection.DURABLE_GOODS_ORDERS}`,
+    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.DURABLE_GOODS_ORDERS}/av-${FirestoreCollection.DURABLE_GOODS_ORDERS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#durable-goods',
     parameters: {},
   },
@@ -538,7 +538,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: false,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.UNEMPLOYMENT_RATE}/bz-${FirestoreCollection.UNEMPLOYMENT_RATE}`,
+    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.UNEMPLOYMENT_RATE}/av-${FirestoreCollection.UNEMPLOYMENT_RATE}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#unemployment',
     parameters: {},
   },
@@ -554,7 +554,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: false,
     symbolUsage: AvEndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.NONFARM_PAYROLL}/bz-${FirestoreCollection.NONFARM_PAYROLL}`,
+    firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.NONFARM_PAYROLL}/av-${FirestoreCollection.NONFARM_PAYROLL}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#nonfarm-payroll',
     parameters: {},
   },
