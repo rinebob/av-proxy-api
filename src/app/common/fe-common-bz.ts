@@ -30,7 +30,7 @@ export enum BenzingaEndpoint {
 /**
  * Type guard to check if an endpoint is a company data endpoint
  */
-export function isCompanyDataEndpoint(endpoint: BenzingaEndpoint): boolean {
+export function isBzCompanyDataCalendarType(endpoint: BenzingaEndpoint): boolean {
   return [
     BenzingaEndpoint.EARNINGS,
     BenzingaEndpoint.DIVIDENDS,
@@ -45,7 +45,7 @@ export function isCompanyDataEndpoint(endpoint: BenzingaEndpoint): boolean {
 /**
  * Type guard to check if an endpoint is a market data endpoint
  */
-export function isMarketDataEndpoint(endpoint: BenzingaEndpoint): boolean {
+export function isBzMarketDataCalendarType(endpoint: BenzingaEndpoint): boolean {
   return [
     BenzingaEndpoint.ECONOMICS,
     BenzingaEndpoint.IPOS,
@@ -54,13 +54,6 @@ export function isMarketDataEndpoint(endpoint: BenzingaEndpoint): boolean {
     BenzingaEndpoint.NEWS
   ].includes(endpoint);
 }
-
-// Backward compatibility type
-export type BenzingaCalendarType = BenzingaEndpoint;
-
-export const BenzingaCalendarType = {
-  ...BenzingaEndpoint
-} as const;
 
 //////////////////// TYPES & INTERFACES ////////////////////
 // === 2. Shared Types & Interfaces ===
@@ -1054,7 +1047,7 @@ export type BenzingaCalendarParams =
 
 // === Master Response and Item Maps ===
 
-export interface BenzingaEndpointResponseMap {
+export interface BZCalendarResponseMap {
     [BenzingaEndpoint.EARNINGS]: EarningsResponse;
     [BenzingaEndpoint.DIVIDENDS]: DividendsApiResponse;
     [BenzingaEndpoint.ECONOMICS]: any;

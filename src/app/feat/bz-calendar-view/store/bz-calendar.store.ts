@@ -2,9 +2,9 @@ import { signalStore, withState, withMethods, patchState, withProps, withCompute
 import { computed, inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 
-import { BenzingaEndpoint, BenzingaCalendarParams, BENZINGA_ENDPOINTS_META_MAP, BenzingaCalendarParam, BENZINGA_PARAM_META_MAP } from '../../../common/fe-common-bz';
-import type { BenzingaEndpointItemMap, BenzingaEndpointParamMeta, BenzingaEndpointResponseMap } from '../../../common/fe-common-bz';
+import { BenzingaEndpoint, BenzingaCalendarParams, BENZINGA_ENDPOINTS_META_MAP } from '../../../common/fe-common-bz';
 import { BenzingaApiService } from '../services/benzinga-api.service';
+import type { BenzingaEndpointItemMap, BZCalendarResponseMap } from '../../../common/fe-common-bz';
 
 /**
  * State for Benzinga calendar UI.
@@ -279,7 +279,7 @@ export const BenzingaCalendarStore = signalStore(
  */
 function extractCalendarItems<E extends BenzingaEndpoint>(
   endpoint: E,
-  response: BenzingaEndpointResponseMap[E]
+  response: BZCalendarResponseMap[E]
 ): { items: any[] } {
   // Get the endpoint metadata to check for a custom responseKey
   const endpointMeta = BENZINGA_ENDPOINTS_META_MAP[endpoint];
