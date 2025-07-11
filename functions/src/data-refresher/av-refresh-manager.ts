@@ -41,6 +41,10 @@ export const refreshAlphaVantageData = onSchedule(
 
     // 2. For each implemented AV endpoint
     for (const endpoint of Array.from(AV_IMPLEMENTED_ENDPOINTS)) {
+      logDM(`**********************************************************************************`);
+      logDM(`**********************************************************************************`);
+      logDM(`=========== START ENDPOINT [${endpoint}] ===================================`);
+      
       const endpointConfig = AV_ENDPOINT_CONFIGS[endpoint]; 
       if (!endpointConfig) {
         logDM(`aDM rAVD: No config found for endpoint: ${endpoint}`);
@@ -52,6 +56,8 @@ export const refreshAlphaVantageData = onSchedule(
 
       // 3. For each symbol
       for (const symbol of symbols) {
+        logDM(`**********************************************************************************`);
+        logDM(`=========== START SYMBOL [${symbol}] ===================================`);
         const docPath = resolveFirestorePath(endpoint, symbol);
         logDM(`aDM rAVD: docPath: ${docPath}`);
         const docRef = db.doc(docPath);
@@ -180,7 +186,16 @@ export const refreshAlphaVantageData = onSchedule(
           logDM(`aDM rAVD: Logged failure event for ${symbol} ${endpointName} as ${refreshEventId}.`);
           logDM(`----------- aDM rAVD: END LOG REFRESH EVENT TO HISTORY FOR ${symbol} ${endpointName} -----------------------`);
         }
+        logDM(`=========== END SYMBOL [${symbol}] ===================================`);
+        logDM(`**********************************************************************************`);
+        logDM(`-`);
+        logDM(`-`);
       }
+      logDM(`=========== END ENDPOINT [${endpoint}] ===================================`);
+      logDM(`**********************************************************************************`);
+      logDM(`**********************************************************************************`);
+      logDM(`-`);
+      logDM(`-`);
     }
     logDM(`aDM rAVD: --- Alpha Vantage Data Refresh Cycle Complete. Duration: ${Date.now() - batchStart}ms ---`);
     logDM('==============================================');

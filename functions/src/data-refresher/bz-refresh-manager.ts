@@ -8,7 +8,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { ALL_BENZINGA_ENDPOINT_CONFIGS } from '../api/benzinga/config/bz-endpoint-configs';
 import { ApiProvider } from '../common/data-providers';
 import { FirestoreCollection } from '../common/firestore-collections';
-import { BenzingaNewsItem } from '../common/common-benz';
+
 import { BenzingaHandlerFactory } from '../api/benzinga/benzinga-factory';
 import type { HandlerKey } from '../api/benzinga/benzinga-factory';
 
@@ -40,6 +40,9 @@ export const refreshBenzingaData = onSchedule(
 
     // 2. For each implemented Benzinga endpoint
     for (const [endpointName, endpointConfig] of Object.entries(ALL_BENZINGA_ENDPOINT_CONFIGS)) {
+      logBZDM(`**********************************************************************************`);
+      logBZDM(`**********************************************************************************`);
+      logBZDM(`=========== START ENDPOINT [${endpointName}] ===================================`);
       if (!endpointConfig) {
         logBZDM(`rBZD: No config found for endpoint: ${endpointName}`);
         continue;
@@ -53,6 +56,8 @@ export const refreshBenzingaData = onSchedule(
       const targets = requiresSymbol ? symbols : [undefined];
 
       for (const symbol of targets) {
+        logBZDM(`**********************************************************************************`);
+        logBZDM(`=========== START SYMBOL [${symbol} ${endpointName}] ===================================`);
         logBZDM(`----------- bRM rBD: START FRESHNESS CHECK FOR [${symbol} ${endpointName}] -------------`);
         const docPath = resolveFirestorePath(endpointName, symbol);
         logBZDM(`bRM rBD: docPath: ${docPath}`);
@@ -124,6 +129,15 @@ export const refreshBenzingaData = onSchedule(
           // 5. Write to Firestore
           // If this is a market-data endpoint (requiresSymbol === false) and no data is returned, still write a metadata doc
           let dataToSave = apiResponse;
+          if (
+            endpointConfig.id !== 'news' &&
+            dataToSave &&
+            typeof dataToSave === 'object' &&
+            'data' in dataToSave &&
+            Object.keys(dataToSave).length === 1 // Only a single 'data' property
+          ) {
+            dataToSave = dataToSave.data;
+          }
           if (!requiresSymbol && (apiResponse == null || (Array.isArray(apiResponse) && apiResponse.length === 0) || (typeof apiResponse === 'object' && Object.keys(apiResponse).length === 0))) {
             logBZDM(`rBZD: No data returned for market-data endpoint ${endpointName}; writing metadata doc only.`);
             dataToSave = null;
@@ -194,7 +208,16 @@ export const refreshBenzingaData = onSchedule(
           logBZDM(`rBZD: Logged failure event for ${symbol || '(no symbol)'} ${endpointName} as ${refreshEventId}.`);
           logBZDM(`----------- bRM rBD: END REFRESH FOR ${symbol} ${endpointName} -----------------------`);
         }
+        logBZDM(`=========== END SYMBOL [${symbol}] ===================================`);
+        logBZDM(`**********************************************************************************`);
+        logBZDM(`-`);
+        logBZDM(`-`);
       }
+      logBZDM(`**********************************************************************************`);
+      logBZDM(`**********************************************************************************`);
+      logBZDM(`=========== END ENDPOINT [${endpointName}] ===================================`);
+      logBZDM(`-`);
+      logBZDM(`-`);
     }
     logBZDM(`rBZD: --- Benzinga Data Refresh Cycle Complete. Duration: ${Date.now() - batchStart}ms ---`);
     logBZDM('==============================================');
