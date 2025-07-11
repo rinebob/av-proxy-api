@@ -1,7 +1,7 @@
 import { 
-  AlphaVantageEndpoint,
-  AvEndpointSymbolUsage 
+  AlphaVantageEndpoint
 } from '../../common/common-av';
+import { EndpointSymbolUsage } from '../../common/common-fn';
 
 import { 
   BenzingaEndpoint,
@@ -35,7 +35,7 @@ export interface EndpointConfig {
   ttl: number;
   /** @deprecated Use symbolUsage instead */
   requiresSymbol?: boolean;
-  symbolUsage?: AvEndpointSymbolUsage;
+  symbolUsage?: EndpointSymbolUsage;
   parameters: Record<string, EndpointParameter>;
   /**
    * The Firestore document path in the format 'collection/doc/collection/doc/...'.

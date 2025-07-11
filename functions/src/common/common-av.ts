@@ -218,16 +218,7 @@ export interface AlphaVantageParams {
   outputsize: OutputSize;
 }
 
-export enum AvEndpointSymbolUsage {
-  /** Symbol is required for the endpoint */
-  REQUIRED = 'required',
-  
-  /** Symbol is optional for the endpoint */
-  OPTIONAL = 'optional',
-  
-  /** Endpoint does not support a symbol parameter */
-  NOT_SUPPORTED = 'not-supported'
-}
+
 
 /**
  * Alpha Vantage Company Overview types

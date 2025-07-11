@@ -17,6 +17,18 @@ export enum BenzingaFunctionName {
   GET_DYNAMIC_CALENDAR = 'getDynamicCalendar',
 }
 
+// Symbol usage for endpoint configs
+export enum EndpointSymbolUsage {
+  /** Symbol is required for the endpoint */
+  REQUIRED = 'required',
+
+  /** Symbol is optional for the endpoint */
+  OPTIONAL = 'optional',
+
+  /** Endpoint does not support a symbol parameter */
+  NOT_SUPPORTED = 'not-supported'
+}
+
 // Union type for all cloud function names
 export type CloudFunctionName = AlphaVantageFunctionName | BenzingaFunctionName;
 

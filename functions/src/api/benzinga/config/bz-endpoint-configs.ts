@@ -9,8 +9,18 @@ import {
 import { EndpointConfig } from '../../common/types';
 
 // Benzinga-specific endpoint config interface
+import { EndpointSymbolUsage } from '../../../common/common-fn';
+
+// Union type for all Benzinga endpoint IDs
+export type BenzingaEndpointId =
+  | BzCompanyDataCalendarType
+  | BzMarketDataCalendarType
+  | BenzingaEndpoint.NEWS;
+
 export interface BenzingaEndpointConfig extends EndpointConfig {
+  id: BenzingaEndpointId;
   parameterKeys: string[];
+  symbolUsage: EndpointSymbolUsage;
 }
 
 // Define the shared BenzingaCalendarParameter enum
@@ -166,6 +176,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
   [BzCompanyDataCalendarType.EARNINGS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.EARNINGS,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Earnings',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.EARNINGS}`,
     description: 'Returns earnings data for companies',
@@ -180,6 +191,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
   [BzCompanyDataCalendarType.DIVIDENDS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.DIVIDENDS,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Dividends',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.DIVIDENDS}`,
     description: 'Returns dividend data for companies',
@@ -193,6 +205,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
   [BzCompanyDataCalendarType.CONFERENCE_CALLS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.CONFERENCE_CALLS,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Conference Calls',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.CONFERENCE_CALLS}`,
     description: 'Returns conference call information',
@@ -205,6 +218,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
   [BzCompanyDataCalendarType.RATINGS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.RATINGS,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Analyst Ratings',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.RATINGS}`,
     description: 'Returns analyst ratings for companies',
@@ -218,6 +232,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
   [BzCompanyDataCalendarType.GUIDANCE]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.GUIDANCE,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Guidance',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.GUIDANCE}`,
     description: 'Returns company guidance',
@@ -230,6 +245,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
   [BzCompanyDataCalendarType.SPLITS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.SPLITS,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Stock Splits',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.SPLITS}`,
     description: 'Returns stock split information',
@@ -242,6 +258,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
   [BzCompanyDataCalendarType.OFFERINGS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.OFFERINGS,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Offerings',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.OFFERINGS}`,
     description: 'Returns company offerings',
@@ -258,6 +275,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
   [BzMarketDataCalendarType.ECONOMICS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzMarketDataCalendarType.ECONOMICS,
+    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'Economics Calendar',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.ECONOMICS}`,
     description: 'Returns economic calendar data',
@@ -270,6 +288,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
   [BzMarketDataCalendarType.IPOS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzMarketDataCalendarType.IPOS,
+    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'IPOs',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.IPOS}`,
     description: 'Returns IPO calendar data',
@@ -282,6 +301,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
   [BzMarketDataCalendarType.FDA]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzMarketDataCalendarType.FDA,
+    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'FDA Calendar',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.FDA}`,
     description: 'Returns FDA calendar data',
@@ -294,6 +314,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
   [BzMarketDataCalendarType.MERGERS_ACQUISITIONS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzMarketDataCalendarType.MERGERS_ACQUISITIONS,
+    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'Mergers & Acquisitions',
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.MERGERS_ACQUISITIONS}`,
     description: 'Returns M&A activity data',
@@ -388,6 +409,7 @@ export const BZ_NEWS_ENDPOINT: Record<BenzingaEndpoint.NEWS, BenzingaEndpointCon
   [BenzingaEndpoint.NEWS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BenzingaEndpoint.NEWS,
+    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'News',
     apiEndpoint: `/${BenzingaEndpoint.NEWS}`,
     description: 'Returns news articles (including WIIM)',
