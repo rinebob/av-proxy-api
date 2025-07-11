@@ -187,7 +187,13 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       
       if (axiosError.response?.data) {
         details = axiosError.response.data;
-        message = details['Error Message'] || details['Note'] || message;
+        if (details['Information'] && typeof details['Information'] === 'string' && details['Information'].includes('rate limit')) {
+          message = 'Oh No!!! dude you exceeded your AV request limit! Doh!!';
+          details['Information'] = message;
+          console.error(`aVB.H handleError [${this.requestId}] Alpha Vantage daily rate limit exceeded:`, message);
+        } else {
+          message = details['Error Message'] || details['Note'] || message;
+        }
       }
     } else if (error instanceof Error) {
       // Handle standard errors
