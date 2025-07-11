@@ -63,7 +63,29 @@ export enum FirestoreCollection {
   UNEMPLOYMENT_RATE = 'unemployment-rate',
   NONFARM_PAYROLL = 'nonfarm-payroll',
 
-  //////// be ///////////////////
+  ///////////// END ALPHA VANTAGE ///////////////
+
+  /////////////////// BENZINGA ///////////////////
+
+  DIVIDENDS = 'dividends',
+  CONFERENCE_CALLS = 'conference-calls',
+  RATINGS = 'ratings',
+  GUIDANCE = 'guidance',
+  SPLITS = 'splits',
+  OFFERINGS = 'offerings',
+
+  ECONOMICS = 'economics',
+  IPOS = 'ipos',
+  FDA = 'fda',
+  MERGERS_ACQUISITIONS = 'mergers-acquisitions',
+
+  NEWS = 'news',
+  // Why Is It Moving?
+  WIIM = 'wiim',
+  
+
+
+  /////////////////// END BENZINGA ///////////////////
   
 
   // For disabling / not implementing an endpoint
