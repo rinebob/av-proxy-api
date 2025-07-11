@@ -25,12 +25,14 @@ export class AvSymbolSearchHandler {
     information?: string;
     note?: string;
     errorMessage?: string;
+    avRawResponse?: AlphaVantageSymbolSearchResponse | null;
   }> {
     // Defensive: Keywords required
     if (!keywords || typeof keywords !== 'string' || keywords.trim().length === 0) {
       return { 
         matches: [],
-        errorMessage: 'Keywords parameter is required for symbol search' 
+        errorMessage: 'aSS fAT Keywords parameter is required for symbol search',
+        avRawResponse: null
       };
     }
 
@@ -46,13 +48,16 @@ export class AvSymbolSearchHandler {
       
       // Transform the response to TrackedSymbol format
       const result = this.transformResponse(apiResponse);
+      console.log(`aSS fAT result: ${JSON.stringify(result)}`);
 
-      return result;
+      // Attach the raw AV response for traceability
+      return { ...result, avRawResponse: apiResponse };
     } catch (error: any) {
-      console.error('Error in AvSymbolSearchHandler:', error);
+      console.error('aSS fAT Error in AvSymbolSearchHandler:', error);
       return {
         matches: [],
-        errorMessage: error?.message || 'Failed to fetch symbol search results'
+        errorMessage: error?.message || 'Failed to fetch symbol search results',
+        avRawResponse: error?.apiResponse || null
       };
     }
   }
@@ -67,10 +72,11 @@ export class AvSymbolSearchHandler {
     information?: string;
     note?: string;
     errorMessage?: string;
+    avRawResponse?: AlphaVantageSymbolSearchResponse;
   } {
     // If there are no matches, return empty array
     if (!response.bestMatches || response.bestMatches.length === 0) {
-      return { matches: [] };
+      return { matches: [], avRawResponse: response };
     }
 
     const now = Timestamp.now();
@@ -91,6 +97,6 @@ export class AvSymbolSearchHandler {
       createdAt: now
     }));
 
-    return { matches };
+    return { matches, avRawResponse: response };
   }
 }

@@ -147,10 +147,13 @@ export async function fetchStockData(
 
     try {
         const response = await axios.get<AlphaVantageResponse>(url);
+
+        console.log(`ut fSD response: ${response}`);
         
-        // The Alpha Vantage API sometimes returns a 200 OK status even for errors,
+        // The Alpha Vantage API sometimes returns a 200 OK sttus even for errors,
         // with the error message in the response body. We need to check for this.
         const responseData = response.data;
+        console.log(`ut fSD responseData: ${responseData}`);
 
         if (responseData['Error Message']) {
             console.error('ut fSD Alpha Vantage API Error:', responseData['Error Message']);
