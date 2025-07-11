@@ -7,7 +7,10 @@ import { symbolManagerService } from "./symbolManager.service";
  * POST /syncSymbols
  * Body: { symbols: string[] }
  */
-export const syncSymbols = onRequest({ cors: true }, async (req, res) => {
+export const syncSymbols = onRequest({ 
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+  cors: true 
+}, async (req, res) => {
   const requestId = Math.random().toString(36).substring(2, 10);
   const startTime = Date.now();
   

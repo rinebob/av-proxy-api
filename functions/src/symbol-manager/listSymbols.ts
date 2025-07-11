@@ -8,7 +8,10 @@ import { symbolManagerService } from "./symbolManager.service";
  * HTTP endpoint for listing tracked symbols
  * GET /listSymbols?activeOnly=true&limit=100&offset=0&sortBy=symbol&sortDirection=asc
  */
-export const listSymbols = onRequest({ cors: true }, async (req, res) => {
+export const listSymbols = onRequest({ 
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+  cors: true 
+}, async (req, res) => {
   try {
     if (req.method !== 'GET') {
       res.status(405).json({ error: 'Method not allowed' });
