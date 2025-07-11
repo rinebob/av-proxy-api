@@ -34,7 +34,7 @@ export const BASE_ENDPOINT_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'path' |
   provider: ApiProvider.BENZINGA,
   category: EndpointCategory.BENZINGA_CALENDAR,
   method: HttpMethod.GET,
-  ttl: 6 * 60 * 60, // 6 hours
+  ttl: 1 * 60 * 60, // 1 hour
   requiresSymbol: true,
   parameters: {
     [BenzingaCalendarParameter.SYMBOLS]: {

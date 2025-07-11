@@ -11,6 +11,10 @@ export enum BenzingaEndpoint {
   NEWS = 'news'
 }
 
+export const BZ_IMPLEMENTED_ENDPOINTS: Set<string> = new Set([
+  BenzingaEndpoint.CALENDAR,
+]);
+
 /**
  * Company-specific calendar types (require a ticker/symbol)
  */
@@ -119,6 +123,22 @@ export interface BenzingaRatingItem extends BenzingaCalendarItemBase {
   analyst_name?: string | null;
   current?: string | null;
   prior?: string | null;
+}
+
+// News specific fields
+export interface BenzingaNewsItem {
+  id: number;
+  author: string;
+  created: string;
+  updated: string;
+  title: string;
+  teaser: string;
+  body: string;
+  url: string;
+  image: Array<{ size: string; url: string }>;
+  channels: Array<{ name: string }>;
+  stocks: Array<{ name: string }>;
+  tags: Array<{ name: string }>;
 }
 
 /**

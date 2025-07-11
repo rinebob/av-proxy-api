@@ -14,7 +14,7 @@ type BenzingaEndpointConfigs = {
 };
 
 // Define a union type of all possible handler keys
-type HandlerKey = BenzingaEndpoint | BzCompanyDataCalendarType | BzMarketDataCalendarType;
+export type HandlerKey = BenzingaEndpoint | BzCompanyDataCalendarType | BzMarketDataCalendarType;
 
 // Use the imported endpoint configurations
 const ENDPOINT_CONFIGS: BenzingaEndpointConfigs = ALL_BENZINGA_ENDPOINT_CONFIGS as unknown as BenzingaEndpointConfigs;
