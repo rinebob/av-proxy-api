@@ -24,8 +24,11 @@ export { cleanupOldSyncRequests } from './symbol-manager/cleanupOldRequests.js';
 // Data Refresh Scheduler
 export { scheduledRefresh, manualRefresh } from './data-maintainer/refreshDispatcher.js';
 
-// New AlphaVantage Data Manager
-export { refreshAlphaVantageData } from './data-manager/av-data-manager.js';
+// New AlphaVantage Data Refresher
+export { refreshAlphaVantageData } from './data-refresher/av-refresh-manager.js';
+
+// New Benzinga Data Refresher
+export { refreshBenzingaData } from './data-refresher/bz-refresh-manager.js';
 
 // Test endpoints
 export { testEndpoints } from './test-endpoints.js';

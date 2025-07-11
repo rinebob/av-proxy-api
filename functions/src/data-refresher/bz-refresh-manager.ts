@@ -19,45 +19,14 @@ function logBZDM(message: string, ...args: any[]) {
   if (pr) console.log(`dM rBZD: ${message}`, ...args);
 }
 
-// Helper to resolve the Firestore path for a given endpoint and symbol using config
-function resolveFirestorePath(endpointName: string, symbol?: string): string {
-  const config = ALL_BENZINGA_ENDPOINT_CONFIGS[endpointName];
-  if (!config || !config.firestorePath) {
-    throw new Error(`No Firestore path config for endpoint ${endpointName}`);
-  }
-  // Replace {symbol} if present
-  return config.firestorePath.replace('{symbol}', symbol || '');
-}
-
-// Helper for refresh history collection
-function resolveRefreshHistoryPath(endpointName: string, symbol?: string): string {
-  // Use FirestoreCollection.REFRESH_HISTORY for consistency
-  return resolveFirestorePath(endpointName, symbol) + `/${FirestoreCollection.REFRESH_HISTORY}`;
-}
-
-// Generate a human-readable, sortable, unique Firestore doc ID for a refresh event
-function getRefreshEventDocId(
-  provider: ApiProvider,
-  endpoint: string,
-  date: Date,
-  symbol?: string
-): string {
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  const YYYY = date.getFullYear();
-  const MM = pad(date.getMonth() + 1);
-  const DD = pad(date.getDate());
-  const HH = pad(date.getHours());
-  const mm = pad(date.getMinutes());
-  const ss = pad(date.getSeconds());
-  const base = `${provider}-${endpoint}-${YYYY}${MM}${DD}-${HH}${mm}${ss}`;
-  return symbol ? `${base}-${symbol}` : base;
-}
+// Shared Firestore utility functions
+import { resolveFirestorePath, resolveRefreshHistoryPath, getRefreshEventDocId } from './firestore-utils';
 
 // Main scheduled function for refreshing Benzinga data
 export const refreshBenzingaData = onSchedule(
   {
-    schedule: 'every 15 minutes',
-    secrets: ['BENZINGA_API_KEY'],
+    schedule: 'every 5 minutes',
+    secrets: ['BENZINGA_CALENDAR_API_KEY'],
   },
   async () => {
     logBZDM('==============================================');
@@ -75,6 +44,7 @@ export const refreshBenzingaData = onSchedule(
         logBZDM(`rBZD: No config found for endpoint: ${endpointName}`);
         continue;
       }
+      
       const ttl = endpointConfig.ttl;
       logBZDM(`rBZD: Processing endpoint: ${endpointName} (TTL: ${ttl}s)`);
 
@@ -83,15 +53,16 @@ export const refreshBenzingaData = onSchedule(
       const targets = requiresSymbol ? symbols : [undefined];
 
       for (const symbol of targets) {
+        logBZDM(`----------- bRM rBD: START FRESHNESS CHECK FOR [${symbol} ${endpointName}] -------------`);
         const docPath = resolveFirestorePath(endpointName, symbol);
-        logBZDM(`rBZD: docPath: ${docPath}`);
+        logBZDM(`bRM rBD: docPath: ${docPath}`);
         const docRef = db.doc(docPath);
         const docSnap = await docRef.get();
         const now = Timestamp.now();
         let needsRefresh = false;
 
         if (!docSnap.exists) {
-          logBZDM(`rBZD: No data for ${symbol || '(no symbol)'} ${endpointName}, will fetch.`);
+          logBZDM(`bRM rBD: No data for ${symbol || '(no symbol)'} ${endpointName}, will fetch.`);
           needsRefresh = true;
         } else {
           const metadata = docSnap.data()?.metadata;
@@ -104,12 +75,19 @@ export const refreshBenzingaData = onSchedule(
               nextRefreshDate = new Date(Number(nextRefreshAt));
             }
           }
+          // Diagnostic debug logging
+          const nowDate = new Date();
+          logBZDM(`bRM rBD: [DEBUG] nowDate: ${nowDate.toISOString()} (${nowDate.getTime()} ms)`);
+          logBZDM(`bRM rBD: [DEBUG] nextRefreshAt (raw):`, nextRefreshAt, `type: ${typeof nextRefreshAt}`);
+          logBZDM(`bRM rBD: [DEBUG] nextRefreshDate: ${nextRefreshDate ? nextRefreshDate.toISOString() : 'N/A'} (${nextRefreshDate ? nextRefreshDate.getTime() : 'N/A'} ms)`);
+          logBZDM(`bRM rBD: [DEBUG] nowDate >= nextRefreshDate?`, nextRefreshDate ? nowDate >= nextRefreshDate : 'N/A');
           if (!nextRefreshDate || now.toDate() >= nextRefreshDate) {
-            logBZDM(`rBZD: Data for ${symbol || '(no symbol)'} ${endpointName} is stale or missing nextRefreshAt.`);
+            logBZDM(`bRM rBD: Data for ${symbol || '(no symbol)'} ${endpointName} is stale or missing nextRefreshAt.`);
             needsRefresh = true;
           } else {
-            logBZDM(`rBZD: Data for ${symbol || '(no symbol)'} ${endpointName} is fresh (nextRefreshAt: ${nextRefreshDate})`);
+            logBZDM(`bRM rBD: Data for ${symbol || '(no symbol)'} ${endpointName} is fresh (nextRefreshAt: ${nextRefreshDate})`);
           }
+          logBZDM(`----------- bRM rBD: END FRESHNESS CHECK FOR [${symbol} ${endpointName}] -------------`);
         }
 
         if (!needsRefresh) continue;
@@ -117,6 +95,7 @@ export const refreshBenzingaData = onSchedule(
         // 4. Call Benzinga API (pseudo-code, replace with real handler)
         const apiStart = Date.now();
         try {
+          logBZDM(`----------- bRM rBD: START API CALL FOR [${symbol} ${endpointName}] -------------`);
           logBZDM(`rBZD: Refreshing ${symbol || '(no symbol)'} ${endpointName} via Benzinga API...`);
 
           // Use BenzingaHandlerFactory to create and call the handler
@@ -140,10 +119,17 @@ export const refreshBenzingaData = onSchedule(
           const apiResponse = await handler.handleRequest(apiParams, requestId);
           const durationMs = Date.now() - apiStart;
           logBZDM(`rBZD: Fetched data for ${symbol || '(no symbol)'} ${endpointName} in ${durationMs}ms.`);
+          logBZDM(`----------- bRM rBD: END API CALL FOR [${symbol} ${endpointName}] -------------`);
 
           // 5. Write to Firestore
+          // If this is a market-data endpoint (requiresSymbol === false) and no data is returned, still write a metadata doc
+          let dataToSave = apiResponse;
+          if (!requiresSymbol && (apiResponse == null || (Array.isArray(apiResponse) && apiResponse.length === 0) || (typeof apiResponse === 'object' && Object.keys(apiResponse).length === 0))) {
+            logBZDM(`rBZD: No data returned for market-data endpoint ${endpointName}; writing metadata doc only.`);
+            dataToSave = null;
+          }
           const updateData = {
-            data: apiResponse,
+            data: dataToSave,
             metadata: {
               endpoint: endpointName,
               symbol,
@@ -157,8 +143,10 @@ export const refreshBenzingaData = onSchedule(
               error: null,
             },
           };
+          logBZDM(`----------- bRM rBD: START WRITE TO FIRESTORE FOR [${symbol} ${endpointName}] -------------`);
           await docRef.set(updateData, { merge: true });
           logBZDM(`rBZD: Saved refreshed data for ${symbol || '(no symbol)'} ${endpointName} to Firestore.`);
+          logBZDM(`----------- bRM rBD: END WRITE TO FIRESTORE FOR [${symbol} ${endpointName}] -------------`);
 
           // 6. Log refresh event to history with human-readable doc ID
           const historyPath = resolveRefreshHistoryPath(endpointName, symbol);
@@ -172,6 +160,7 @@ export const refreshBenzingaData = onSchedule(
             timestamp: now,
           });
           logBZDM(`rBZD: Logged refresh event for ${symbol || '(no symbol)'} ${endpointName} as ${refreshEventId}.`);
+          logBZDM(`----------- bRM rBD: END LOG REFRESH EVENT TO HISTORY FOR [${symbol} ${endpointName}] -------------`);
 
           // Save WIIM news item to Firestore
           if (endpointName === 'wiim') {
@@ -200,6 +189,7 @@ export const refreshBenzingaData = onSchedule(
             vendor: ApiProvider.BENZINGA,
           });
           logBZDM(`rBZD: Logged failure event for ${symbol || '(no symbol)'} ${endpointName} as ${refreshEventId}.`);
+          logBZDM(`----------- bRM rBD: END REFRESH FOR ${symbol} ${endpointName} -----------------------`);
         }
       }
     }
