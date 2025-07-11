@@ -130,7 +130,7 @@ export abstract class BenzingaBaseHandler<T = any> {
       
       const config: AxiosRequestConfig = {
         method: this.config.method || 'GET',
-        url: this.config.path || '',
+        url: this.config.apiEndpoint || '',
         params: finalParams
       };
 

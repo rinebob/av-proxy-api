@@ -18,7 +18,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Daily Time Series',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.TIME_SERIES,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns daily time series (date, daily open, daily high, daily low, daily close, daily volume) of the global equity specified.',
     ttl: 24 * 60 * 60, // 24 hours
@@ -46,7 +46,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Intraday Time Series',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.TIME_SERIES,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns intraday time series (timestamp, open, high, low, close, volume) of the equity specified.',
     ttl: 5 * 60, // 5 minutes
@@ -80,7 +80,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Daily Adjusted Time Series',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.TIME_SERIES,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns daily time series (date, daily open, daily high, daily low, daily close, daily volume, daily adjusted close, and split/dividend events) of the global equity specified.',
     ttl: 24 * 60 * 60, // 24 hours
@@ -108,7 +108,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Weekly Time Series',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.TIME_SERIES,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns weekly time series (last trading day of each week, weekly open, weekly high, weekly low, weekly close, weekly volume) of the global equity specified.',
     ttl: 7 * 24 * 60 * 60, // 1 week
@@ -130,7 +130,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Weekly Adjusted Time Series',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.TIME_SERIES,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns weekly adjusted time series (last trading day of each week, weekly open, weekly high, weekly low, weekly close, weekly adjusted close, weekly volume, weekly dividend) of the equity specified.',
     ttl: 7 * 24 * 60 * 60, // 1 week
@@ -152,7 +152,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Monthly Time Series',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.TIME_SERIES,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns monthly time series (last trading day of each month, monthly open, monthly high, monthly low, monthly close, monthly volume) of the global equity specified.',
     ttl: 30 * 24 * 60 * 60, // 30 days
@@ -174,7 +174,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Monthly Adjusted Time Series',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.TIME_SERIES,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns monthly adjusted time series (last trading day of each month, monthly open, monthly high, monthly low, monthly close, monthly adjusted close, monthly volume, monthly dividend) of the equity specified.',
     ttl: 30 * 24 * 60 * 60, // 30 days
@@ -197,7 +197,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Global Quote',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.TIME_SERIES,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the latest price and volume information for a security of your choice.',
     ttl: 5 * 60, // 5 minutes
@@ -220,10 +220,10 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Company Overview',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.FUNDAMENTAL_DATA,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the company information, financial ratios, and other key metrics for the equity specified.',
-    ttl: 2 * 60, // 2 minutes
+    ttl: 8 * 60 * 60, // 8 hours
     requiresSymbol: true,
     symbolUsage: AvEndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.COMPANY_OVERVIEW}/av-${FirestoreCollection.COMPANY_OVERVIEW}`,
@@ -242,7 +242,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Earnings',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.FUNDAMENTAL_DATA,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly earnings (EPS) for the company of interest.',
     ttl: 7 * 24 * 60 * 60, // 1 week
@@ -264,7 +264,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Income Statement',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.FUNDAMENTAL_DATA,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly income statements for the company of interest.',
     ttl: 7 * 24 * 60 * 60, // 1 week
@@ -286,7 +286,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Balance Sheet',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.FUNDAMENTAL_DATA,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly balance sheets for the company of interest.',
     ttl: 7 * 24 * 60 * 60, // 1 week
@@ -308,7 +308,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Cash Flow',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.FUNDAMENTAL_DATA,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly cash flow for the company of interest.',
     ttl: 7 * 24 * 60 * 60, // 1 week
@@ -330,7 +330,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Listing Status',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.FUNDAMENTAL_DATA,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns a list of active or delisted US stocks and ETFs, either as of the latest trading day or at a specific time in history.',
     ttl: 7 * 24 * 60 * 60, // 1 week
@@ -352,7 +352,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Earnings Calendar',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.FUNDAMENTAL_DATA,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the earnings calendar for stocks that report earnings within the next 3 months.',
     ttl: 24 * 60 * 60, // 1 day
@@ -374,7 +374,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'IPO Calendar',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.FUNDAMENTAL_DATA,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns a list of IPOs expected in the next 3-4 months.',
     ttl: 24 * 60 * 60, // 1 day
@@ -397,7 +397,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Symbol Search',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.TIME_SERIES,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns best matching symbols and market information based on keywords of your choice.',
     ttl: 7 * 24 * 60 * 60 * 52 * 100, // 100 years (effectively never expires)
@@ -420,7 +420,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Real GDP',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.ECONOMIC_INDICATORS,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly Real GDP of the United States.',
     ttl: 24 * 60 * 60, // 1 day
@@ -436,7 +436,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Treasury Yield',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.ECONOMIC_INDICATORS,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the daily, weekly, and monthly US treasury yield of a given maturity timeline (e.g., 5 year, 10 year, 30 year, etc.)',
     ttl: 24 * 60 * 60, // 1 day
@@ -452,7 +452,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Federal Funds Rate',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.ECONOMIC_INDICATORS,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the daily, weekly, and monthly federal funds rate (interest rate) of the United States.',
     ttl: 24 * 60 * 60, // 1 day
@@ -468,7 +468,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Consumer Price Index (CPI)',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.ECONOMIC_INDICATORS,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the monthly and semiannual consumer price index (CPI) of the United States.',
     ttl: 24 * 60 * 60, // 1 day
@@ -484,7 +484,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Inflation',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.ECONOMIC_INDICATORS,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the annual inflation rates (consumer prices) of the United States.',
     ttl: 24 * 60 * 60, // 1 day
@@ -500,7 +500,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Retail Sales',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.ECONOMIC_INDICATORS,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the monthly advance and monthly retail trade report for the United States.',
     ttl: 24 * 60 * 60, // 1 day
@@ -516,7 +516,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Durable Goods',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.ECONOMIC_INDICATORS,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the monthly advance report on durable goods orders in the United States.',
     ttl: 24 * 60 * 60, // 1 day
@@ -532,7 +532,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Unemployment Rate',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.ECONOMIC_INDICATORS,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the monthly unemployment data of the United States.',
     ttl: 24 * 60 * 60, // 1 day
@@ -548,7 +548,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     name: 'Nonfarm Payroll',
     provider: ApiProvider.ALPHA_VANTAGE,
     category: AvEndpointCategory.ECONOMIC_INDICATORS,
-    path: '/query',
+    apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the monthly US All Employees: Total Nonfarm Payrolls (NFP) report.',
     ttl: 24 * 60 * 60, // 1 day

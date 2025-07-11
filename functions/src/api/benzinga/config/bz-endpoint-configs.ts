@@ -30,11 +30,11 @@ export enum BenzingaCalendarParameter {
 }
 
 // Base configuration that can be extended by specific endpoints
-export const BASE_ENDPOINT_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'path' | 'description'> = {
+export const BASE_ENDPOINT_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> = {
   provider: ApiProvider.BENZINGA,
   category: EndpointCategory.BENZINGA_CALENDAR,
   method: HttpMethod.GET,
-  ttl: 1 * 60 * 60, // 1 hour
+  ttl: 2 * 60, // 2 minutes
   requiresSymbol: true,
   parameters: {
     [BenzingaCalendarParameter.SYMBOLS]: {
@@ -167,7 +167,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.EARNINGS,
     name: 'Earnings',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.EARNINGS}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.EARNINGS}`,
     description: 'Returns earnings data for companies',
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/bz-${FirestoreCollection.EARNINGS}`,
     parameterKeys: [
@@ -181,7 +181,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.DIVIDENDS,
     name: 'Dividends',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.DIVIDENDS}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.DIVIDENDS}`,
     description: 'Returns dividend data for companies',
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.DIVIDENDS}/bz-${FirestoreCollection.DIVIDENDS}`,
     parameterKeys: [
@@ -194,7 +194,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.CONFERENCE_CALLS,
     name: 'Conference Calls',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.CONFERENCE_CALLS}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.CONFERENCE_CALLS}`,
     description: 'Returns conference call information',
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.CONFERENCE_CALLS}/bz-${FirestoreCollection.CONFERENCE_CALLS}`,
     parameterKeys: [
@@ -206,7 +206,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.RATINGS,
     name: 'Analyst Ratings',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.RATINGS}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.RATINGS}`,
     description: 'Returns analyst ratings for companies',
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.RATINGS}/bz-${FirestoreCollection.RATINGS}`,
     parameterKeys: [
@@ -219,7 +219,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.GUIDANCE,
     name: 'Guidance',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.GUIDANCE}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.GUIDANCE}`,
     description: 'Returns company guidance',
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.GUIDANCE}/bz-${FirestoreCollection.GUIDANCE}`,
     parameterKeys: [
@@ -231,7 +231,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.SPLITS,
     name: 'Stock Splits',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.SPLITS}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.SPLITS}`,
     description: 'Returns stock split information',
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.SPLITS}/bz-${FirestoreCollection.SPLITS}`,
     parameterKeys: [
@@ -243,7 +243,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.OFFERINGS,
     name: 'Offerings',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.OFFERINGS}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.OFFERINGS}`,
     description: 'Returns company offerings',
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.OFFERINGS}/bz-${FirestoreCollection.OFFERINGS}`,
     parameterKeys: [
@@ -259,7 +259,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
     ...BASE_ENDPOINT_CONFIG,
     id: BzMarketDataCalendarType.ECONOMICS,
     name: 'Economics Calendar',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.ECONOMICS}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.ECONOMICS}`,
     description: 'Returns economic calendar data',
     requiresSymbol: false,
     firestorePath: `${FirestoreCollection.MARKET_DATA}/${FirestoreCollection.ECONOMICS}`,
@@ -271,7 +271,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
     ...BASE_ENDPOINT_CONFIG,
     id: BzMarketDataCalendarType.IPOS,
     name: 'IPOs',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.IPOS}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.IPOS}`,
     description: 'Returns IPO calendar data',
     requiresSymbol: false,
     firestorePath: `${FirestoreCollection.MARKET_DATA}/${FirestoreCollection.IPOS}`,
@@ -283,7 +283,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
     ...BASE_ENDPOINT_CONFIG,
     id: BzMarketDataCalendarType.FDA,
     name: 'FDA Calendar',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.FDA}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.FDA}`,
     description: 'Returns FDA calendar data',
     requiresSymbol: false,
     firestorePath: `${FirestoreCollection.MARKET_DATA}/${FirestoreCollection.FDA}`,
@@ -295,7 +295,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
     ...BASE_ENDPOINT_CONFIG,
     id: BzMarketDataCalendarType.MERGERS_ACQUISITIONS,
     name: 'Mergers & Acquisitions',
-    path: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.MERGERS_ACQUISITIONS}`,
+    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.MERGERS_ACQUISITIONS}`,
     description: 'Returns M&A activity data',
     requiresSymbol: false,
     firestorePath: `${FirestoreCollection.MARKET_DATA}/${FirestoreCollection.MERGERS_ACQUISITIONS}`,
@@ -389,7 +389,7 @@ export const BZ_NEWS_ENDPOINT: Record<BenzingaEndpoint.NEWS, BenzingaEndpointCon
     ...BASE_ENDPOINT_CONFIG,
     id: BenzingaEndpoint.NEWS,
     name: 'News',
-    path: `/${BenzingaEndpoint.NEWS}`,
+    apiEndpoint: `/${BenzingaEndpoint.NEWS}`,
     description: 'Returns news articles (including WIIM)',
     requiresSymbol: false,
     firestorePath: `${FirestoreCollection.NEWS}/${ApiProvider.BENZINGA}/${FirestoreCollection.WIIM}`,

@@ -29,7 +29,7 @@ export interface EndpointConfig {
   name: string;
   provider: ApiProvider;
   category: AvEndpointCategory | string;  // Allow string for backward compatibility
-  path: string;
+  apiEndpoint: string;
   method: HttpMethod;
   description: string;
   ttl: number;
