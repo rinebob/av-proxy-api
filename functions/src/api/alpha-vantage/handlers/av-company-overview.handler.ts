@@ -65,6 +65,7 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
    * @returns Processed company overview data
    */
   public async fetch(params: Record<string, any>): Promise<ApiResponse<CompanyOverviewData>> {
+    console.log('========== START AvCompanyOverviewHandler.fetch ====================');
     const startTime = Date.now();
     console.log(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Starting fetch for symbol: ${params.symbol}`);
     
@@ -89,6 +90,8 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
         dataPoints: response.data ? Object.keys(response.data).length : 0
       });
 
+      console.log('========== END AvCompanyOverviewHandler.fetch ====================');
+
       return response;
     } catch (error) {
       console.error(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Error in fetch:`, {
@@ -107,7 +110,7 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
    * @returns Transformed company overview data
    */
   protected transformResponse(data: any): CompanyOverviewData {
-    console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Starting response transformation`);
+    console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Starting response transformation. data: ${JSON.stringify(data)}`);
     
     // If the API returns an error message in the response
     if (data['Error Message']) {
@@ -201,6 +204,7 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
 
       // Log field mapping statistics
       console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Mapped ${mappedFields} out of ${Object.keys(fieldMappings).length} fields`);
+      console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Result: ${JSON.stringify(result)}`);
 
       // Ensure we have at least some data
       if (mappedFields === 0) {

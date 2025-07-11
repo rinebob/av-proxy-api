@@ -20,6 +20,9 @@ export abstract class AlphaVantageBaseHandler<T = any> {
   protected readonly requestId: string;
   
   constructor(config: EndpointConfig) {
+    console.log('==============================');
+    console.log(' --- AlphaVantageBaseHandler ---');
+    
     this.config = config;
     this.requestId = Math.random().toString(36).substring(2, 10);
     
@@ -32,12 +35,15 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       },
       timeout: API_CONSTANTS.ALPHA_VANTAGE.DEFAULT_TIMEOUT_MS
     });
-
+   
     console.log('aVB.H ctor request params:', this.apiClient.defaults.params);
     console.log('aVB.H ctor base URL:', this.apiClient.defaults.baseURL);
   }
 
   public async fetch(params: Record<string, any> = {}): Promise<ApiResponse<T>> {
+    
+    console.log('----------------------------------------');
+    console.log(' --- START AlphaVantageBaseHandler.fetch ---');
     const startTime = Date.now();
     const endpoint = this.config.id;
     
@@ -49,14 +55,14 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       this.validateParams(params);
       
       // 2. Prepare and make API request
-      console.log(`aVB.H fetch [${this.requestId}] Fetching from API`);
+      console.log(`aVB.H fetch [${this.requestId}] Fetching from API. params: ${JSON.stringify(params)}`);
       const requestParams = this.prepareRequestParams(params);
       const config: AxiosRequestConfig = { params: requestParams };
       
       const response = await this.apiClient.get('', config);
       
       // 3. Transform the response
-      console.log(`aVB.H fetch [${this.requestId}] Transforming response data`);
+      console.log(`aVB.H fetch [${this.requestId}] Transforming response data. response: ${JSON.stringify(response.data)}`);
       const transformedData = this.transformResponse(response.data);
       
       // 4. Save to Firestore if we have a symbol
@@ -67,7 +73,7 @@ export abstract class AlphaVantageBaseHandler<T = any> {
         }
         
         try {
-          console.log(`aVB.H fetch [${this.requestId}] Saving data to Firestore`);
+          console.log(`aVB.H fetch [${this.requestId}] Saving data to Firestore. transformedData: ${JSON.stringify(transformedData)}`);
           // Ensure we're working with an AlphaVantageEndpoint before saving
           if (Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)) {
             await saveAvData(
@@ -87,6 +93,9 @@ export abstract class AlphaVantageBaseHandler<T = any> {
           // Don't fail the request if Firestore save fails
         }
       }
+
+      console.log(' --- END AlphaVantageBaseHandler.fetch ---');
+      console.log('----------------------------------------');
       
       // 5. Return the response
       return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
