@@ -262,7 +262,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.ECONOMICS}`,
     description: 'Returns economic calendar data',
     requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.MARKET_DATA}/${FirestoreCollection.ECONOMICS}`,
+    firestorePath: `${FirestoreCollection.ECONOMICS}/bz-${FirestoreCollection.ECONOMIC_CALENDAR}`,
     parameterKeys: [
       ...BZ_CALENDAR_COMMON_PARAMS
     ],
@@ -274,7 +274,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.IPOS}`,
     description: 'Returns IPO calendar data',
     requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.MARKET_DATA}/${FirestoreCollection.IPOS}`,
+    firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.IPOS}`,
     parameterKeys: [
       ...BZ_CALENDAR_COMMON_PARAMS
     ],
@@ -286,7 +286,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.FDA}`,
     description: 'Returns FDA calendar data',
     requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.MARKET_DATA}/${FirestoreCollection.FDA}`,
+    firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.FDA}`,
     parameterKeys: [
       ...BZ_CALENDAR_COMMON_PARAMS
     ],
@@ -298,7 +298,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
     apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.MERGERS_ACQUISITIONS}`,
     description: 'Returns M&A activity data',
     requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.MARKET_DATA}/${FirestoreCollection.MERGERS_ACQUISITIONS}`,
+    firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.MERGERS_ACQUISITIONS}`,
     parameterKeys: [
       ...BZ_CALENDAR_COMMON_PARAMS
     ],
@@ -392,7 +392,7 @@ export const BZ_NEWS_ENDPOINT: Record<BenzingaEndpoint.NEWS, BenzingaEndpointCon
     apiEndpoint: `/${BenzingaEndpoint.NEWS}`,
     description: 'Returns news articles (including WIIM)',
     requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.NEWS}/${ApiProvider.BENZINGA}/${FirestoreCollection.WIIM}`,
+    firestorePath: `${FirestoreCollection.NEWS}/${ApiProvider.BENZINGA}/${FirestoreCollection.WIIM}/{newsId}`,
     parameterKeys: [
       BenzingaNewsParameter.TICKERS,
       BenzingaNewsParameter.DATE,

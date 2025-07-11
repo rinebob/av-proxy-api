@@ -162,15 +162,18 @@ export const refreshBenzingaData = onSchedule(
           logBZDM(`rBZD: Logged refresh event for ${symbol || '(no symbol)'} ${endpointName} as ${refreshEventId}.`);
           logBZDM(`----------- bRM rBD: END LOG REFRESH EVENT TO HISTORY FOR [${symbol} ${endpointName}] -------------`);
 
-          // Save WIIM news item to Firestore
-          if (endpointName === 'wiim') {
-            const wiimItem = apiResponse as BenzingaNewsItem;
-            if (!wiimItem || !wiimItem.id) {
-              throw new Error('WIIM news item must have an id field');
+          // If this endpoint returns an array of news items, write each as its own document
+          if (Array.isArray(apiResponse) && endpointConfig.id === 'news') {
+            for (const newsItem of apiResponse) {
+              if (!newsItem.id) {
+                logBZDM('Skipping news item with missing id:', newsItem);
+                continue;
+              }
+              const newsId = newsItem.id.toString();
+              const newsDocPath = resolveFirestorePath(endpointName, undefined, newsId);
+              await db.doc(newsDocPath).set(newsItem, { merge: true });
+              logBZDM(`Saved news item ${newsId} for endpoint ${endpointName} to Firestore.`);
             }
-            const wiimDocId = wiimItem.id.toString();
-            const wiimDocRef = db.doc(`/news/benzinga/wiim/${wiimDocId}`);
-            await wiimDocRef.set(wiimItem, { merge: true });
           }
         } catch (error: any) {
           const durationMs = Date.now() - apiStart;

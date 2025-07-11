@@ -6,13 +6,23 @@ import { ALL_BENZINGA_ENDPOINT_CONFIGS } from '../api/benzinga/config/bz-endpoin
 /**
  * Resolves the Firestore path for a given endpoint and symbol using config.
  */
-export function resolveFirestorePath(endpointName: string, symbol?: string): string {
+/**
+ * Resolves the Firestore path for a given endpoint, symbol, and newsId using config.
+ * Pass symbol for symbol-based endpoints, newsId for news endpoints, or both if needed.
+ */
+export function resolveFirestorePath(endpointName: string, symbol?: string, newsId?: string): string {
   const config = ALL_BENZINGA_ENDPOINT_CONFIGS[endpointName];
   if (!config || !config.firestorePath) {
     throw new Error(`No Firestore path config for endpoint ${endpointName}`);
   }
-  // Replace {symbol} if present
-  return config.firestorePath.replace('{symbol}', symbol || '');
+  let path = config.firestorePath;
+  if (path.includes('{symbol}')) {
+    path = path.replace('{symbol}', symbol || '');
+  }
+  if (path.includes('{newsId}')) {
+    path = path.replace('{newsId}', newsId || '');
+  }
+  return path; // Ensures correct doc path for both symbol-based and newsId-based endpoints
 }
 
 /**

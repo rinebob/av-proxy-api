@@ -35,7 +35,7 @@ export enum BzMarketDataCalendarType {
   ECONOMICS = 'economics',
   IPOS = 'ipos',
   FDA = 'fda',
-  MERGERS_ACQUISITIONS = 'mergers-acquisitions'
+  MERGERS_ACQUISITIONS = 'ma' // matches Benzinga API endpoint
 }
 
 /**

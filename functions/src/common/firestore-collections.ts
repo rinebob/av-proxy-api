@@ -7,6 +7,8 @@ export enum FirestoreCollection {
   COMPANY_DATA = "company-data",
   MARKET_DATA = "market-data",
   ECONOMIC_INDICATORS = "economic-indicators",
+  ECONOMICS = 'economics',
+
   // LEGACY - refactor to use above core collections
   DATA_POINTS = "data-points",
   
@@ -74,7 +76,7 @@ export enum FirestoreCollection {
   SPLITS = 'splits',
   OFFERINGS = 'offerings',
 
-  ECONOMICS = 'economics',
+  ECONOMIC_CALENDAR = 'economic-calendar',
   IPOS = 'ipos',
   FDA = 'fda',
   MERGERS_ACQUISITIONS = 'mergers-acquisitions',
