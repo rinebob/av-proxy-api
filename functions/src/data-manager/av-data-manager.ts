@@ -58,126 +58,132 @@ function resolveRefreshHistoryPath(endpointName: AlphaVantageEndpoint, symbol?: 
  * Main scheduled function for refreshing Alpha Vantage data
  * Scans all tracked symbols and endpoints, checks freshness, and refreshes as needed
  */
-export const refreshAlphaVantageData = onSchedule('every 15 minutes', async () => {
-  logDM('==============================================');
-  logDM('--- Alpha Vantage Data Refresh Cycle Started ---');
-  const batchStart = Date.now();
+export const refreshAlphaVantageData = onSchedule(
+  {
+    schedule: 'every 8 hours',
+    secrets: ['ALPHAVANTAGE_API_KEY'],
+  },
+  async () => {
+    logDM('==============================================');
+    logDM('--- Alpha Vantage Data Refresh Cycle Started ---');
+    const batchStart = Date.now();
 
-  // 1. Get all tracked symbols (assume a collection 'tracked-symbols' exists)
-  const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
-  const symbols = symbolsSnap.docs.map(doc => doc.id);
-  logDM(`Found ${symbols.length} tracked symbols:`, symbols);
+    // 1. Get all tracked symbols (assume a collection 'tracked-symbols' exists)
+    const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
+    const symbols = symbolsSnap.docs.map(doc => doc.id);
+    logDM(`aDM rAVD: Found ${symbols.length} tracked symbols:`, symbols);
 
-  // 2. For each implemented AV endpoint
-  for (const endpoint of Array.from(AV_IMPLEMENTED_ENDPOINTS)) {
-    const endpointConfig = AV_ENDPOINT_CONFIGS[endpoint]; 
-    if (!endpointConfig) {
-      logDM(`No config found for endpoint: ${endpoint}`);
-      continue;
-    }
-    const endpointName = endpointConfig.name;
-    const ttl = endpointConfig.ttl;
-    logDM(`Processing endpoint: ${endpointName} (TTL: ${ttl}s)`);
+    // 2. For each implemented AV endpoint
+    for (const endpoint of Array.from(AV_IMPLEMENTED_ENDPOINTS)) {
+      const endpointConfig = AV_ENDPOINT_CONFIGS[endpoint]; 
+      if (!endpointConfig) {
+        logDM(`aDM rAVD: No config found for endpoint: ${endpoint}`);
+        continue;
+      }
+      const endpointName = endpointConfig.name;
+      const ttl = endpointConfig.ttl;
+      logDM(`aDM rAVD: Processing endpoint: ${endpointName} (TTL: ${ttl}s)`);
 
-    // 3. For each symbol
-    for (const symbol of symbols) {
-      const docPath = resolveFirestorePath(endpoint, symbol);
-      logDM(`dM rAVD: docPath: ${docPath}`);
-      const docRef = db.doc(docPath);
-      const docSnap = await docRef.get();
-      const now = Timestamp.now();
-      let needsRefresh = false;
+      // 3. For each symbol
+      for (const symbol of symbols) {
+        const docPath = resolveFirestorePath(endpoint, symbol);
+        logDM(`aDM rAVD: docPath: ${docPath}`);
+        const docRef = db.doc(docPath);
+        const docSnap = await docRef.get();
+        const now = Timestamp.now();
+        let needsRefresh = false;
 
-      if (!docSnap.exists) {
-        logDM(`dM rAVD: No data for ${symbol} ${endpointName}, will fetch.`);
-        needsRefresh = true;
-      } else {
-        const metadata = docSnap.data()?.metadata;
-        const nextRefreshAt = metadata?.nextRefreshAt;
-        let nextRefreshDate;
-        if (nextRefreshAt) {
-          if (typeof nextRefreshAt.toDate === 'function') {
-            nextRefreshDate = nextRefreshAt.toDate();
-          } else if (typeof nextRefreshAt === 'number') {
-            nextRefreshDate = new Date(nextRefreshAt);
-          } else if (typeof nextRefreshAt === 'string') {
-            nextRefreshDate = new Date(Number(nextRefreshAt));
-          }
-        }
-        if (!nextRefreshDate || now >= nextRefreshDate) {
-          logDM(`dM rAVD: Data for ${symbol} ${endpointName} is stale or missing nextRefreshAt.`);
+        if (!docSnap.exists) {
+          logDM(`aDM rAVD: No data for ${symbol} ${endpointName}, will fetch.`);
           needsRefresh = true;
         } else {
-          logDM(`dM rAVD: Data for ${symbol} ${endpointName} is fresh (nextRefreshAt: ${nextRefreshDate})`);
+          const metadata = docSnap.data()?.metadata;
+          const nextRefreshAt = metadata?.nextRefreshAt;
+          let nextRefreshDate;
+          if (nextRefreshAt) {
+            if (typeof nextRefreshAt.toDate === 'function') {
+              nextRefreshDate = nextRefreshAt.toDate();
+            } else if (typeof nextRefreshAt === 'number') {
+              nextRefreshDate = new Date(nextRefreshAt);
+            } else if (typeof nextRefreshAt === 'string') {
+              nextRefreshDate = new Date(Number(nextRefreshAt));
+            }
+          }
+          if (!nextRefreshDate || now >= nextRefreshDate) {
+            logDM(`aDM rAVD: Data for ${symbol} ${endpointName} is stale or missing nextRefreshAt.`);
+            needsRefresh = true;
+          } else {
+            logDM(`aDM rAVD: Data for ${symbol} ${endpointName} is fresh (nextRefreshAt: ${nextRefreshDate})`);
+          }
         }
-      }
 
-      if (!needsRefresh) continue;
+        if (!needsRefresh) continue;
 
-      // 4. Call Alpha Vantage API via handler factory
-      const apiStart = Date.now();
-      try {
-        logDM(`dM rAVD: Refreshing ${symbol} ${endpointName} via AlphaVantageHandlerFactory...`);
-        // Use the handler factory for internal backend calls
-        const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
-        const apiResponse = await handler.fetch({ symbol });
-        const durationMs = Date.now() - apiStart;
-        logDM(`dM rAVD: Fetched data for ${symbol} ${endpointName} in ${durationMs}ms.`);
-        logDM(`dM rAVD: apiResponse: ${apiResponse}`);
+        // 4. Call Alpha Vantage API via handler factory
+        const apiStart = Date.now();
+        try {
+          logDM(`aDM rAVD: Refreshing ${symbol} ${endpointName} via AlphaVantageHandlerFactory...`);
+          // Use the handler factory for internal backend calls
+          const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
+          const apiResponse = await handler.fetch({ symbol });
+          const durationMs = Date.now() - apiStart;
+          logDM(`aDM rAVD: Fetched data for ${symbol} ${endpointName} in ${durationMs}ms.`);
+          logDM(`aDM rAVD: apiResponse: ${apiResponse}`);
 
-        // 5. Write to Firestore
-        const updateData = {
-          data: apiResponse.data,
-          metadata: {
-            lastUpdated: now,
-            nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttl * 1000)),
-            ttlSeconds: ttl,
-            vendor: ApiProvider.ALPHA_VANTAGE,
+          // 5. Write to Firestore
+          const updateData = {
+            data: apiResponse.data,
+            metadata: {
+              lastUpdated: now,
+              nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttl * 1000)),
+              ttlSeconds: ttl,
+              vendor: ApiProvider.ALPHA_VANTAGE,
+              endpoint: endpointName,
+              symbol,
+            },
+            lastRefreshEvent: {
+              timestamp: now,
+              status: 'success',
+              durationMs,
+              error: null,
+            },
+          };
+          await docRef.set(updateData, { merge: true });
+          logDM(`aDM rAVD: Saved refreshed data for ${symbol} ${endpointName} to Firestore.`);
+
+          // 6. Log refresh event to history with human-readable doc ID
+          const historyPath = resolveRefreshHistoryPath(endpoint, symbol);
+          const nowDate = new Date();
+          const refreshEventId = getRefreshEventDocId(ApiProvider.ALPHA_VANTAGE, endpoint, nowDate, symbol);
+          await db.collection(historyPath).doc(refreshEventId).set({
+            ...updateData.lastRefreshEvent,
             endpoint: endpointName,
             symbol,
-          },
-          lastRefreshEvent: {
+            vendor: ApiProvider.ALPHA_VANTAGE,
             timestamp: now,
-            status: 'success',
+          });
+          logDM(`aDM rAVD: Logged refresh event for ${symbol} ${endpointName} as ${refreshEventId}.`);
+        } catch (error: any) {
+          const durationMs = Date.now() - apiStart;
+          logDM(`aDM rAVD: ERROR refreshing ${symbol} ${endpointName}:`, error.message);
+          // Log failure event with human-readable doc ID
+          const historyPath = resolveRefreshHistoryPath(endpoint, symbol);
+          const nowDate = new Date();
+          const refreshEventId = getRefreshEventDocId(ApiProvider.ALPHA_VANTAGE, endpoint, nowDate, symbol);
+          await db.collection(historyPath).doc(refreshEventId).set({
+            timestamp: now,
+            status: 'failure',
             durationMs,
-            error: null,
-          },
-        };
-        await docRef.set(updateData, { merge: true });
-        logDM(`dM rAVD: Saved refreshed data for ${symbol} ${endpointName} to Firestore.`);
-
-        // 6. Log refresh event to history with human-readable doc ID
-        const historyPath = resolveRefreshHistoryPath(endpoint, symbol);
-        const nowDate = new Date();
-        const refreshEventId = getRefreshEventDocId(ApiProvider.ALPHA_VANTAGE, endpoint, nowDate, symbol);
-        await db.collection(historyPath).doc(refreshEventId).set({
-          ...updateData.lastRefreshEvent,
-          endpoint: endpointName,
-          symbol,
-          vendor: 'av',
-          timestamp: now,
-        });
-        logDM(`dM rAVD: Logged refresh event for ${symbol} ${endpointName} as ${refreshEventId}.`);
-      } catch (error: any) {
-        const durationMs = Date.now() - apiStart;
-        logDM(`dM rAVD: ERROR refreshing ${symbol} ${endpointName}:`, error.message);
-        // Log failure event with human-readable doc ID
-        const historyPath = resolveRefreshHistoryPath(endpoint, symbol);
-        const nowDate = new Date();
-        const refreshEventId = getRefreshEventDocId(ApiProvider.ALPHA_VANTAGE, endpoint, nowDate, symbol);
-        await db.collection(historyPath).doc(refreshEventId).set({
-          timestamp: now,
-          status: 'failure',
-          durationMs,
-          error: error.message,
-          endpoint: endpointName,
-          symbol,
-          vendor: 'av',
-        });
-        logDM(`dM rAVD: Logged failure event for ${symbol} ${endpointName} as ${refreshEventId}.`);
+            error: error.message,
+            endpoint: endpointName,
+            symbol,
+            vendor: ApiProvider.ALPHA_VANTAGE,
+          });
+          logDM(`aDM rAVD: Logged failure event for ${symbol} ${endpointName} as ${refreshEventId}.`);
+        }
       }
     }
+    logDM(`aDM rAVD: --- Alpha Vantage Data Refresh Cycle Complete. Duration: ${Date.now() - batchStart}ms ---`);
+    logDM('==============================================');
   }
-  logDM(`dM rAVD: --- Alpha Vantage Data Refresh Cycle Complete. Duration: ${Date.now() - batchStart}ms ---`);
-  logDM('==============================================');
-});
+);
