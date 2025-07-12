@@ -1,5 +1,6 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import * as admin from "firebase-admin";
+import * as admin from 'firebase-admin';
+import { BzNewsChannel } from '../api/benzinga/config/bz-news-channels';
 import { BenzingaHandlerFactory } from '../api/benzinga/benzinga-factory';
 import { ALL_BENZINGA_ENDPOINT_CONFIGS } from '../api/benzinga/config/bz-endpoint-configs';
 import { FirestoreCollection } from '../common/firestore-collections';
@@ -57,9 +58,11 @@ export const refreshNewsEndpoints = onSchedule(
       }
 
       const requestId = `news-refresh-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const apiStart = Date.now();
       const apiResponse = await handler.handleRequest(apiParams, requestId);
+      const durationMs = Date.now() - apiStart;
       logNewsRefresh('Received API response:', apiResponse);
-      if (Array.isArray(apiResponse)) {
+      if (Array.isArray(apiResponse) && apiResponse.length > 0) {
         for (const newsItem of apiResponse) {
           const newsId = newsItem.id || newsItem.newsId || newsItem.article_id || newsItem._id;
           if (!newsId) {
@@ -71,17 +74,23 @@ export const refreshNewsEndpoints = onSchedule(
             continue;
           }
           const docPath = endpointConfig.firestorePath.replace('{newsId}', newsId);
-          await db.doc(docPath).set({
-            data: newsItem,
-            metadata: {
-              endpoint: endpointName,
-              newsId,
-              lastRefreshedAt: admin.firestore.Timestamp.now(),
-              lastRefreshedAtPST: new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }),
-            }
-          }, { merge: true });
-          logNewsRefresh(`Wrote news doc: ${docPath}`);
+          try {
+            await db.doc(docPath).set({
+              data: newsItem,
+              metadata: {
+                endpoint: endpointName,
+                newsId,
+                lastRefreshedAt: admin.firestore.Timestamp.now(),
+                lastRefreshedAtPST: new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }),
+              }
+            }, { merge: true });
+            logNewsRefresh(`Wrote news doc: ${docPath}`);
+          } catch (err) {
+            logNewsRefresh(`Failed to write news doc: ${docPath}`, err);
+          }
         }
+      } else {
+        logNewsRefresh('No news items to write for endpoint:', endpointName);
       }
       // Update collection-level metadata, including new maxUpdated
       let newMaxUpdated = lastMaxUpdated;
@@ -96,8 +105,38 @@ export const refreshNewsEndpoints = onSchedule(
         lastFetchedAt: admin.firestore.Timestamp.now(),
         lastFetchedAtPST: new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }),
         maxUpdated: newMaxUpdated,
+        durationMs,
+        error: null,
+        status: 'success',
+        timestamp: admin.firestore.Timestamp.now(),
       }, { merge: true });
       logNewsRefresh(`Updated news collection metadata: ${metaDocPath}`);
+
+      // Write root news/benzinga metadata doc
+      // Extract channel from apiParams.channels or default to 'wiim'
+      let channel = BzNewsChannel.WIIM;
+      if (apiParams.channels) {
+        if (Array.isArray(apiParams.channels)) {
+          // Only assign if every channel is a valid enum value
+          if (apiParams.channels.every((c: string) => Object.values(BzNewsChannel).includes(c as BzNewsChannel))) {
+            channel = apiParams.channels.join(',') as BzNewsChannel;
+          }
+        } else if (typeof apiParams.channels === 'string') {
+          if (Object.values(BzNewsChannel).includes(apiParams.channels as BzNewsChannel)) {
+            channel = apiParams.channels as BzNewsChannel;
+          }
+        }
+      }
+      const now = admin.firestore.Timestamp.now();
+      const ttlMs = (typeof endpointConfig.ttl === 'number' ? endpointConfig.ttl : 60) * 1000;
+      const nextUpdateAt = admin.firestore.Timestamp.fromDate(new Date(Date.now() + ttlMs)); // Next update based on endpoint TTL
+      await db.doc(`${FirestoreCollection.NEWS}/${FirestoreCollection.BENZINGA}`).set({
+        lastUpdatedAt: now,
+        lastUpdatedByChannel: channel,
+        nextUpdateAt,
+        nextUpdateByChannel: channel,
+      }, { merge: true });
+      logNewsRefresh('Updated root news/benzinga metadata doc');
     }
     logNewsRefresh('--- News Endpoint Refresh Cycle Complete ---');
   }
