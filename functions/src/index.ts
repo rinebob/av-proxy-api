@@ -7,6 +7,7 @@ export { alphaVantageApi } from './api/alpha-vantage/alpha-vantage-gateway';
 
 // Benzinga endpoints
 export { getCompanyLogo } from './benzinga/getCompanyLogo.js';
+export { getBenzingaCalendar } from './benzinga/getCalendar.js';// Benzinga API Gateway
 export { getDynamicCalendar } from './benzinga/getDynamicCalendar.js';// Benzinga API Gateway
 export { benzingaApi } from './api/benzinga/benzinga-gateway';
 
