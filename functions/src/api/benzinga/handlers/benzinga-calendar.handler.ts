@@ -1,4 +1,4 @@
-import { EndpointConfig } from '../../common/types';
+import { BenzingaEndpointConfig } from '../config/bz-endpoint-configs';
 import { BenzingaBaseHandler } from './benzinga-base.handler';
 
 export interface CalendarEvent {
@@ -15,7 +15,7 @@ export interface CalendarEvent {
 }
 
 export class BenzingaCalendarHandler extends BenzingaBaseHandler<CalendarEvent[]> {
-  constructor(config: EndpointConfig) {
+  constructor(config: BenzingaEndpointConfig) {
     super(config);
   }
 

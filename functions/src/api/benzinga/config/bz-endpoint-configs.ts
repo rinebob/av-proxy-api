@@ -18,6 +18,7 @@ export type BenzingaEndpointId =
   | BenzingaEndpoint.NEWS;
 
 export interface BenzingaEndpointConfig extends EndpointConfig {
+  apiKeyEnv: string; // Name of the env var for the API key
   id: BenzingaEndpointId;
   parameterKeys: string[];
   symbolUsage: EndpointSymbolUsage;
@@ -40,7 +41,8 @@ export enum BenzingaCalendarParameter {
 }
 
 // Base configuration that can be extended by specific endpoints
-export const BASE_ENDPOINT_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> = {
+export const BASE_ENDPOINT_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> & { apiKeyEnv: string } = {
+  apiKeyEnv: 'BENZINGA_CALENDAR_API_KEY',
   provider: ApiProvider.BENZINGA,
   category: EndpointCategory.BENZINGA_CALENDAR,
   method: HttpMethod.GET,
@@ -408,6 +410,7 @@ export function getBzNewsParams(keys: BenzingaNewsParameter[]): Record<string, a
 export const BZ_NEWS_ENDPOINT: Record<BenzingaEndpoint.NEWS, BenzingaEndpointConfig> = {
   [BenzingaEndpoint.NEWS]: {
     ...BASE_ENDPOINT_CONFIG,
+    apiKeyEnv: 'BENZINGA_WIIM_API_KEY', // override for news
     id: BenzingaEndpoint.NEWS,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'News',

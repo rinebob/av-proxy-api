@@ -4,6 +4,15 @@
  */
 
 /**
+ * Actual Benzinga API base URL
+ */
+export const BENZINGA_API_BASE_URL = 'https://api.benzinga.com/api/v2.1';
+/**
+ * Benzinga News API v2 Base URL (for /news endpoint)
+ */
+export const BENZINGA_NEWS_API_BASE_URL = 'https://api.benzinga.com/api/v2/news';
+
+/**
  * Actual Benzinga API endpoints
  */
 export enum BenzingaEndpoint {

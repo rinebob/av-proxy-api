@@ -1,5 +1,17 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+
 import { EndpointConfig, ApiResponse, ApiError } from '../../common/types';
+import { BenzingaEndpointConfig } from '../config/bz-endpoint-configs';
+import { BENZINGA_API_BASE_URL } from '../../../common/common-benz';
+
+import { BenzingaCalendarParameter } from '../config/bz-endpoint-configs';
+
+// Dynamically compute which keys should be nested for calendar endpoints
+const CALENDAR_NESTED_KEYS = new Set(
+  Object.values(BenzingaCalendarParameter)
+    .filter((v) => v.startsWith('parameters['))
+    .map((v) => v.slice(11, -1)) // extract the key inside 'parameters[...]'
+);
 
 export abstract class BenzingaBaseHandler<T = any> {
   protected readonly config: EndpointConfig;
@@ -7,22 +19,20 @@ export abstract class BenzingaBaseHandler<T = any> {
   protected readonly apiKey: string;
   protected readonly requestId: string;
 
-  constructor(config: EndpointConfig) {
+  constructor(config: BenzingaEndpointConfig) {
     this.config = config;
     this.requestId = Math.random().toString(36).substring(2, 10);
-    
-    // Verify API key is present
-    if (process.env.FUNCTIONS_EMULATOR === 'true') {
-      this.apiKey = process.env.LOCAL_EMULATOR_BENZINGA_CALENDAR_API_KEY || '';
-    } else {
-      this.apiKey = process.env.BENZINGA_CALENDAR_API_KEY || '';
-    }
+
+    // Always use the endpoint's configured env var for the API key
+    const envVar = config.apiKeyEnv;
+    this.apiKey = process.env[envVar] || '';
+
     if (!this.apiKey) {
-      throw new Error('Benzinga API key is not configured');
+      throw new Error(`Benzinga API key (${envVar}) is not configured`);
     }
 
     this.apiClient = axios.create({
-      baseURL: 'https://api.benzinga.com/api/v2.1',
+      baseURL: BENZINGA_API_BASE_URL,
       headers: {
         'Accept': 'application/json'
       },
@@ -112,28 +122,40 @@ export abstract class BenzingaBaseHandler<T = any> {
       this.validateParams(params);
       const preparedParams = this.prepareRequestParams(params);
 
-      // Separate top-level params from nested params as per Benzinga API spec.
       const topLevelParams: Record<string, any> = {};
-      // Initialize nestedParams with any 'parameters' object already in the query.
-      const nestedParams: Record<string, any> = preparedParams.parameters || {};
+      const nestedParams: Record<string, any> = {};
 
-      for (const key in preparedParams) {
-        if (key === 'page' || key === 'pagesize') {
-          topLevelParams[key] = preparedParams[key];
-        } else if (key !== 'type' && key !== 'parameters') {
-          // Add other params to nestedParams, avoiding duplication.
-          nestedParams[key] = preparedParams[key];
+      let finalParams: Record<string, any>;
+      if (this.config.category === 'BENZINGA_CALENDAR') {
+        for (const key in preparedParams) {
+          if (CALENDAR_NESTED_KEYS.has(key)) {
+            nestedParams[key] = preparedParams[key];
+          } else {
+            topLevelParams[key] = preparedParams[key];
+          }
         }
+        topLevelParams.token = this.apiKey;
+        finalParams = Object.keys(nestedParams).length > 0
+          ? { ...topLevelParams, parameters: nestedParams }
+          : topLevelParams;
+      } else {
+        // All params top-level for news and other endpoints
+        for (const key in preparedParams) {
+          topLevelParams[key] = preparedParams[key];
+        }
+        topLevelParams.token = this.apiKey;
+        finalParams = topLevelParams;
       }
 
-      const finalParams = { ...topLevelParams, token: this.apiKey, parameters: nestedParams };
-      
       const config: AxiosRequestConfig = {
         method: this.config.method || 'GET',
         url: this.config.apiEndpoint || '',
         params: finalParams
       };
 
+      // Log the actual request URL (with query string)
+      const fullUrl = this.apiClient.getUri(config);
+      console.log(`bB.H fetch [${this.requestId}] FULL REQUEST URL: ${fullUrl}`);
       console.log(`bB.H fetch [${this.requestId}] Sending request to Benzinga API`, {
         method: config.method,
         url: config.url,
