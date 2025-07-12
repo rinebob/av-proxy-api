@@ -30,5 +30,8 @@ export { refreshAlphaVantageData } from './data-refresher/av-refresh-manager.js'
 // New Benzinga Data Refresher
 export { refreshBenzingaData } from './data-refresher/bz-refresh-manager.js';
 
+// New News Data Refresher
+export { refreshNewsEndpoints } from './data-refresher/news-refresh-manager.js';
+
 // Test endpoints
 export { testEndpoints } from './test-endpoints.js';

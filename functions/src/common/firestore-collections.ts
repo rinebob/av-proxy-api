@@ -68,6 +68,8 @@ export enum FirestoreCollection {
   ///////////// END ALPHA VANTAGE ///////////////
 
   /////////////////// BENZINGA ///////////////////
+  
+  BENZINGA = 'benzinga',
 
   DIVIDENDS = 'dividends',
   CONFERENCE_CALLS = 'conference-calls',
@@ -84,6 +86,7 @@ export enum FirestoreCollection {
   NEWS = 'news',
   // Why Is It Moving?
   WIIM = 'wiim',
+  METADATA = 'metadata',
   
 
 
