@@ -1,10 +1,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 
-import { EndpointConfig, ApiResponse, ApiError } from '../../common/types';
-import { BenzingaEndpointConfig } from '../config/bz-endpoint-configs';
+import { ApiResponse, ApiError } from '../../common/types';
+import { BenzingaRequestConfig, BenzingaCalendarParameter } from '../../../common/common-benz';
 import { BENZINGA_API_BASE_URL } from '../../../common/common-benz';
-
-import { BenzingaCalendarParameter } from '../config/bz-endpoint-configs';
 
 // Dynamically compute which keys should be nested for calendar endpoints
 const CALENDAR_NESTED_KEYS = new Set(
@@ -14,12 +12,12 @@ const CALENDAR_NESTED_KEYS = new Set(
 );
 
 export abstract class BenzingaBaseHandler<T = any> {
-  protected readonly config: EndpointConfig;
+  protected readonly config: BenzingaRequestConfig;
   protected readonly apiClient: AxiosInstance;
   protected readonly apiKey: string;
   protected readonly requestId: string;
 
-  constructor(config: BenzingaEndpointConfig) {
+  constructor(config: BenzingaRequestConfig) {
     this.config = config;
     this.requestId = Math.random().toString(36).substring(2, 10);
 
@@ -212,7 +210,7 @@ export abstract class BenzingaBaseHandler<T = any> {
       const message = error.response?.data?.message || error.message;
       
       return {
-        name: 'BenzingaApiError',
+        name: 'SvtBzNewsRequest.BZ_NEWS error',
         message: `API Error: ${message}`,
         code: error.code || 'BENZINGA_API_ERROR',
         status,
@@ -246,7 +244,7 @@ export abstract class BenzingaBaseHandler<T = any> {
 
     if (axios.isAxiosError(error)) {
       const errorObj = new Error(error.message) as ApiError;
-      errorObj.name = 'BenzingaApiError';
+      errorObj.name = 'SvtBzNewsRequest.BZ_NEWS error';
       errorObj.code = error.code || 'BENZINGA_API_ERROR';
       errorObj.status = error.response?.status || 500;
       errorObj.details = error.response?.data;

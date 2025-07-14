@@ -1,3 +1,6 @@
+import { RequestConfig } from '../api/common/types';
+import { EndpointSymbolUsage } from '../common/common-fn';
+import { BzNewsChannel } from '../api/benzinga/config/bz-news-channels';
 /**
  * Benzinga API Types and Enums (Backend)
  * Consolidated types for Benzinga API integration
@@ -17,11 +20,63 @@ export const BENZINGA_NEWS_API_BASE_URL = 'https://api.benzinga.com/api/v2/news'
  */
 export enum BenzingaEndpoint {
   CALENDAR = 'calendar',
-  NEWS = 'news'
+  NEWS = 'news',
 }
+
+// ===== Shared Benzinga Backend Types (moved from bz-endpoint-configs.ts) =====
+
+/**
+ * Savant API (SVT) backend endpoint enum for distinguishing implemented endpoints
+ */
+export enum SvtBzNewsRequest {
+  BZ_NEWS = 'bz-news',
+  BZ_NEWS_BY_ID = 'bz-news-by-id',
+}
+
+/**
+ * Union type for all Benzinga endpoint IDs (excluding backend-only endpoints)
+ */
+export type BenzingaRequestId =
+  | BzCompanyDataCalendarType
+  | BzMarketDataCalendarType
+  | SvtBzNewsRequest;
+
+// TODO: Migrate all Benzinga code to use BenzingaRequestConfig and BenzingaNewsRequestConfig instead of BenzingaEndpointConfig/BenzingaNewsEndpointConfig
+export interface BenzingaRequestConfig extends RequestConfig<BenzingaRequestId> {
+  apiKeyEnv: string;
+  id: BenzingaRequestId;
+  parameterKeys: string[];
+  symbolUsage: EndpointSymbolUsage;
+}
+
+export interface BenzingaNewsRequestConfig extends BenzingaRequestConfig {
+  channels?: BzNewsChannel[];
+}
+
+// Define the shared BenzingaCalendarParameter enum
+export enum BenzingaCalendarParameter {
+  PAGE = 'page',
+  PAGESIZE = 'pagesize',
+  DATE = 'parameters[date]',
+  DATE_FROM = 'parameters[date_from]',
+  DATE_TO = 'parameters[date_to]',
+  DATE_SORT = 'parameters[date_sort]',
+  TICKERS = 'parameters[tickers]',
+  IMPORTANCE = 'parameters[importance]',
+  UPDATED = 'parameters[updated]',
+  DIVIDEND_YIELD = 'parameters[dividend_yield]',
+  ACTION = 'parameters[action]',
+  SYMBOLS = 'symbols',
+}
+
+/**
+ * Type for Benzinga endpoints that are specifically news-related (NEWS, NEWS_BY_ID)
+ */
+export type BenzingaNewsEndpoint = BenzingaEndpoint.NEWS;
 
 export const BZ_IMPLEMENTED_ENDPOINTS: Set<string> = new Set([
   BenzingaEndpoint.CALENDAR,
+  BenzingaEndpoint.NEWS,
 ]);
 
 /**

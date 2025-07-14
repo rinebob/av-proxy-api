@@ -1,12 +1,13 @@
-import { BenzingaEndpointConfig } from '../config/bz-endpoint-configs';
+import { BenzingaNewsRequestConfig } from '../../../common/common-benz';
 import { BenzingaBaseHandler } from './benzinga-base.handler';
 import { BENZINGA_NEWS_API_BASE_URL } from '../../../common/common-benz';
+import { admin } from '../../../firebase-admin-init';
 
 /**
- * Handler for Benzinga News endpoint. Handles parameter formatting and response transformation for /news.
+ * Handler for SvtBzNewsRequest.BZ_NEWS Handles parameter formatting and response transformation for /news.
  */
 export class BenzingaNewsHandler extends BenzingaBaseHandler<any> {
-  constructor(config: BenzingaEndpointConfig) {
+  constructor(config: BenzingaNewsRequestConfig) {
     super({ ...config, apiEndpoint: BENZINGA_NEWS_API_BASE_URL });
     // Override the apiClient baseURL for news endpoint
     this.apiClient.defaults.baseURL = BENZINGA_NEWS_API_BASE_URL;
@@ -20,10 +21,13 @@ export class BenzingaNewsHandler extends BenzingaBaseHandler<any> {
     const preparedParams = { ...params };
     // Set defaults for news endpoint if needed
     if (preparedParams.page === undefined) preparedParams.page = 0;
-    if (preparedParams.pageSize === undefined) preparedParams.pageSize = 20;
-    // --- Hardcoded WIIM news logic ---
-    preparedParams.channels = 'WIIM'; // Benzinga expects uppercase
-    preparedParams.pageSize = 20; // Use camelCase as per Benzinga API
+    // Use pageSize from params, or default to 100 if not provided
+    if (preparedParams.pageSize === undefined) preparedParams.pageSize = 100;
+    // Set channels from config (array to comma string)
+    const newsConfig = this.config as BenzingaNewsRequestConfig;
+    if (Array.isArray(newsConfig.channels)) {
+      preparedParams.channels = newsConfig.channels.join(',');
+    }
     if (params.sinceLastUpdate) {
       preparedParams.updatedSince = params.sinceLastUpdate;
     }
@@ -41,6 +45,64 @@ export class BenzingaNewsHandler extends BenzingaBaseHandler<any> {
    * @returns A promise that resolves with the API response.
    */
   protected async processRequest(params: Record<string, any>): Promise<any> {
+    // If newsId is provided, fetch a single news item
+    if (params.newsId) {
+      const newsId = params.newsId;
+      // Compose Firestore path (WIIM collection)
+      // Path: news/benzinga/wiim/{newsId}
+      const firestore = admin.firestore();
+      const docPath = `news/benzinga/wiim/${newsId}`;
+      try {
+        const docSnap = await firestore.doc(docPath).get();
+        if (docSnap.exists) {
+          return { data: docSnap.data(), source: 'firestore', id: newsId };
+        }
+      } catch (err) {
+        // Log Firestore error but continue to Benzinga fallback
+        console.error('Error fetching newsId from Firestore:', err);
+      }
+      // Fall back to Benzinga API (direct fetch)
+      const apiParams = { ...params };
+      // Remove both possible id/newsId keys from params to avoid query param pollution
+      delete apiParams.newsId;
+      delete apiParams.id;
+      // Inject path param for {newsId}
+      if (this.config.apiEndpoint && this.config.apiEndpoint.includes('{newsId}')) {
+        this.config.apiEndpoint = this.config.apiEndpoint.replace('{newsId}', encodeURIComponent(newsId));
+      }
+      // Only send params specified in endpoint config for SvtBzNewsRequest.BZ_NEWS_BY_ID
+      const benzingaConfig = this.config as BenzingaNewsRequestConfig;
+      const allowedParams = benzingaConfig.parameterKeys || [];
+      const filteredParams: Record<string, any> = {};
+      for (const key of allowedParams) {
+        if (apiParams[key] !== undefined) filteredParams[key] = apiParams[key];
+      }
+      try {
+        // Use fetchRaw to avoid prepareRequestParams for by-id
+        if (typeof (this as any).fetchRaw === 'function') {
+          const apiResp = await (this as any).fetchRaw(filteredParams);
+          if (apiResp && apiResp.data && Array.isArray(apiResp.data) && apiResp.data.length > 0) {
+            return { data: apiResp.data[0], source: 'benzinga', id: newsId };
+          } else if (apiResp && apiResp.data && apiResp.data.id) {
+            // In case Benzinga returns a single object
+            return { data: apiResp.data, source: 'benzinga', id: newsId };
+          }
+          return { error: 'Not Found', message: `News item ${newsId} not found in Benzinga or Firestore` };
+        } else {
+          const apiResp = await this.fetch(filteredParams);
+          if (apiResp && apiResp.data && Array.isArray(apiResp.data) && apiResp.data.length > 0) {
+            return { data: apiResp.data[0], source: 'benzinga', id: newsId };
+          } else if (apiResp && apiResp.data && apiResp.data.id) {
+            // In case Benzinga returns a single object
+            return { data: apiResp.data, source: 'benzinga', id: newsId };
+          }
+          return { error: 'Not Found', message: `News item ${newsId} not found in Benzinga or Firestore` };
+        }
+      } catch (err) {
+        return { error: 'Not Found', message: `News item ${newsId} not found in Benzinga or Firestore`, details: err };
+      }
+    }
+    // Default: fetch news list
     return this.fetch(params);
   }
 }

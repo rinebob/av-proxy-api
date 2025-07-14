@@ -8,17 +8,12 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { ALL_BENZINGA_ENDPOINT_CONFIGS } from '../api/benzinga/config/bz-endpoint-configs';
 import { ApiProvider } from '../common/data-providers';
 import { FirestoreCollection } from '../common/firestore-collections';
-import { BenzingaEndpoint } from '../common/common-benz';
-import { BenzingaEndpointId } from '../api/benzinga/config/bz-endpoint-configs';
+import { SvtBzNewsRequest } from '../common/common-benz';
 
 import { BenzingaHandlerFactory } from '../api/benzinga/benzinga-factory';
 import type { HandlerKey } from '../api/benzinga/benzinga-factory';
 
 
-// Type guard for news endpoint id
-function isNewsEndpointId(id: BenzingaEndpointId): id is typeof BenzingaEndpoint.NEWS {
-  return id === BenzingaEndpoint.NEWS;
-}
 
 // Logging helper
 const pr = true;
@@ -47,7 +42,7 @@ export const refreshBenzingaData = onSchedule(
 
     // 2. For each implemented Benzinga endpoint
     for (const [endpointName, endpointConfig] of Object.entries(ALL_BENZINGA_ENDPOINT_CONFIGS)) {
-      if (endpointConfig.id === BenzingaEndpoint.NEWS) {
+      if (endpointConfig.id === SvtBzNewsRequest.BZ_NEWS) {
         logBZDM(`Skipping news endpoint [${endpointName}] in calendar/data refresher; handled by refreshNewsEndpoints.`);
         continue;
       }
@@ -142,7 +137,7 @@ export const refreshBenzingaData = onSchedule(
           // If this is a market-data endpoint (requiresSymbol === false) and no data is returned, still write a metadata doc
           let dataToSave = apiResponse;
           if (
-            !isNewsEndpointId(endpointConfig.id) &&
+            !Object.values(SvtBzNewsRequest).includes(endpointConfig.id as SvtBzNewsRequest) &&
             dataToSave &&
             typeof dataToSave === 'object' &&
             'data' in dataToSave &&
@@ -215,7 +210,7 @@ export const refreshBenzingaData = onSchedule(
           logBZDM(`----------- bRM rBD: END LOG REFRESH EVENT TO HISTORY FOR [${symbol} ${endpointName}] -------------`);
 
           // If this endpoint returns an array of news items, write each as its own document
-          if (Array.isArray(apiResponse) && isNewsEndpointId(endpointConfig.id)) {
+          if (Array.isArray(apiResponse) && Object.values(SvtBzNewsRequest).includes(endpointConfig.id as SvtBzNewsRequest)) {
             for (const newsItem of apiResponse) {
               if (!newsItem.id) {
                 logBZDM('Skipping news item with missing id:', newsItem);

@@ -24,6 +24,8 @@ export interface EndpointParameter {
   enum?: string[];
 }
 
+/////////// DO NOT EDIT
+// Legacy support for AV. Migrate to new RequestConfig as soon as possible
 export interface EndpointConfig {
   id: AlphaVantageEndpoint | BenzingaEndpoint | BzCalendarType;
   name: string;
@@ -45,6 +47,30 @@ export interface EndpointConfig {
   firestorePath?: string;
   documentationUrl: string;
 }
+
+// TODO: Update all Alpha Vantage (AV) usage to use RequestConfig instead of EndpointConfig
+export interface RequestConfig<TId = string> {
+  id: TId;
+  name: string;
+  provider: ApiProvider;
+  category: AvEndpointCategory | string;  // Allow string for backward compatibility
+  apiEndpoint: string;
+  method: HttpMethod;
+  description: string;
+  ttl: number;
+  /** @deprecated Use symbolUsage instead */
+  requiresSymbol?: boolean;
+  symbolUsage?: EndpointSymbolUsage;
+  parameters: Record<string, EndpointParameter>;
+  /**
+   * The Firestore document path in the format 'collection/doc/collection/doc/...'.
+   * Parameters in curly braces will be replaced with actual values from the request.
+   * Example: 'market_data/{symbol}/time_series/daily/{date}'
+   */
+  firestorePath?: string;
+  documentationUrl: string;
+}
+
 
 export interface ApiResponse<T = any> {
   data: T;

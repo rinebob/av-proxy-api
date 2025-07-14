@@ -4,41 +4,18 @@ import { FirestoreCollection } from '../../../common/firestore-collections';
 import { 
   BzCompanyDataCalendarType, 
   BzMarketDataCalendarType,
-  BenzingaEndpoint
+  BenzingaEndpoint,
+  BenzingaRequestConfig,
+  BenzingaNewsRequestConfig,
+  BenzingaCalendarParameter,
+  SvtBzNewsRequest,
 } from '../../../common/common-benz';
 import { EndpointConfig } from '../../common/types';
+import { BzNewsChannel } from './bz-news-channels';
 
 // Benzinga-specific endpoint config interface
 import { EndpointSymbolUsage } from '../../../common/common-fn';
 
-// Union type for all Benzinga endpoint IDs
-export type BenzingaEndpointId =
-  | BzCompanyDataCalendarType
-  | BzMarketDataCalendarType
-  | BenzingaEndpoint.NEWS;
-
-export interface BenzingaEndpointConfig extends EndpointConfig {
-  apiKeyEnv: string; // Name of the env var for the API key
-  id: BenzingaEndpointId;
-  parameterKeys: string[];
-  symbolUsage: EndpointSymbolUsage;
-}
-
-// Define the shared BenzingaCalendarParameter enum
-export enum BenzingaCalendarParameter {
-  PAGE = 'page',
-  PAGESIZE = 'pagesize',
-  DATE = 'parameters[date]',
-  DATE_FROM = 'parameters[date_from]',
-  DATE_TO = 'parameters[date_to]',
-  DATE_SORT = 'parameters[date_sort]',
-  TICKERS = 'parameters[tickers]',
-  IMPORTANCE = 'parameters[importance]',
-  UPDATED = 'parameters[updated]',
-  DIVIDEND_YIELD = 'parameters[dividend_yield]',
-  ACTION = 'parameters[action]',
-  SYMBOLS = 'symbols',
-}
 
 // Base configuration that can be extended by specific endpoints
 export const BASE_ENDPOINT_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> & { apiKeyEnv: string } = {
@@ -174,7 +151,7 @@ export const BZ_CALENDAR_COMMON_PARAMS: BenzingaCalendarParameter[] = [
 ];
 
 // Company Data Endpoints
-export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaEndpointConfig> = {
+export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaRequestConfig> = {
   [BzCompanyDataCalendarType.EARNINGS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzCompanyDataCalendarType.EARNINGS,
@@ -273,7 +250,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaE
 };
 
 // Market Data Endpoints
-export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEndpointConfig> = {
+export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaRequestConfig> = {
   [BzMarketDataCalendarType.ECONOMICS]: {
     ...BASE_ENDPOINT_CONFIG,
     id: BzMarketDataCalendarType.ECONOMICS,
@@ -330,6 +307,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaEnd
 
 // --- News Endpoint Parameter Enum and Definitions ---
 export enum BenzingaNewsParameter {
+  NEWS_ID = 'newsId',
   TICKERS = 'tickers',
   DATE = 'date',
   CHANNELS = 'channels',
@@ -389,11 +367,17 @@ export const BZ_NEWS_PARAMETER_DEFS: Record<BenzingaNewsParameter, any> = {
     required: false,
     description: "Controls verbosity. Use 'full' for all fields.",
     enum: ['full'],
+    default: 'full',
   },
   [BenzingaNewsParameter.EXCLUDE_CONTENT]: {
     type: 'boolean',
     required: false,
     description: 'Exclude article content/body for lighter responses',
+  },
+  [BenzingaNewsParameter.NEWS_ID]: {
+    type: 'string',
+    required: true,
+    description: 'The unique NodeID of the news article to fetch',
   },
 };
 
@@ -407,17 +391,17 @@ export function getBzNewsParams(keys: BenzingaNewsParameter[]): Record<string, a
 }
 
 // --- News Endpoint Config ---
-export const BZ_NEWS_ENDPOINT: Record<BenzingaEndpoint.NEWS, BenzingaEndpointConfig> = {
-  [BenzingaEndpoint.NEWS]: {
+export const BZ_NEWS_ENDPOINTS: Record<SvtBzNewsRequest, BenzingaNewsRequestConfig> = {
+  [SvtBzNewsRequest.BZ_NEWS]: {
     ...BASE_ENDPOINT_CONFIG,
     apiKeyEnv: 'BENZINGA_WIIM_API_KEY', // override for news
-    id: BenzingaEndpoint.NEWS,
+    id: SvtBzNewsRequest.BZ_NEWS,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'News',
     apiEndpoint: `/${BenzingaEndpoint.NEWS}`,
     description: 'Returns news articles (including WIIM)',
     requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.NEWS}/${ApiProvider.BENZINGA}/${FirestoreCollection.WIIM}/{newsId}`,
+    firestorePath: `${FirestoreCollection.NEWS}/${ApiProvider.BENZINGA}/{channel}/{newsId}`,
     parameterKeys: [
       BenzingaNewsParameter.TICKERS,
       BenzingaNewsParameter.DATE,
@@ -429,12 +413,38 @@ export const BZ_NEWS_ENDPOINT: Record<BenzingaEndpoint.NEWS, BenzingaEndpointCon
       BenzingaNewsParameter.DISPLAY_OUTPUT,
       BenzingaNewsParameter.EXCLUDE_CONTENT,
     ],
+    // Set default pageSize to 100
+    parameters: {
+      ...BASE_ENDPOINT_CONFIG.parameters,
+      [BenzingaNewsParameter.PAGE_SIZE]: {
+        type: 'number',
+        required: false,
+        description: 'Results per page (max 100)',
+        default: 100,
+      },
+    },
+    channels: [BzNewsChannel.WIIM],
   },
-};
+  [SvtBzNewsRequest.BZ_NEWS_BY_ID]: {
+    ...BASE_ENDPOINT_CONFIG,
+    apiKeyEnv: 'BENZINGA_WIIM_API_KEY',
+    id: SvtBzNewsRequest.BZ_NEWS_BY_ID,
+    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
+    name: 'News By ID',
+    apiEndpoint: `/${BenzingaEndpoint.NEWS}/{newsId}`,
+    description: 'Fetch a single news article by NodeID',
+    requiresSymbol: false,
+    firestorePath: `${FirestoreCollection.NEWS}/${ApiProvider.BENZINGA}/${FirestoreCollection.WIIM}/{newsId}`,
+    parameterKeys: [
+      BenzingaNewsParameter.NEWS_ID,
+      BenzingaNewsParameter.DISPLAY_OUTPUT,
+    ],
+  },
+}
 
 // Combine all endpoint configurations
-export const ALL_BENZINGA_ENDPOINT_CONFIGS: Record<string, BenzingaEndpointConfig> = {
+export const ALL_BENZINGA_ENDPOINT_CONFIGS: Record<string, BenzingaRequestConfig> = {
   ...COMPANY_DATA_ENDPOINTS,
   ...MARKET_DATA_ENDPOINTS,
-  ...BZ_NEWS_ENDPOINT,
+  ...BZ_NEWS_ENDPOINTS,
 } as const;
