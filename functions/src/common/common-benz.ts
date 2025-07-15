@@ -33,6 +33,10 @@ export enum SvtBzNewsRequest {
   BZ_NEWS_BY_ID = 'bz-news-by-id',
 }
 
+export const NEWS_REFRESH_ACTIVE_ENDPOINTS: SvtBzNewsRequest[] = [
+    SvtBzNewsRequest.BZ_NEWS,
+];
+
 /**
  * Union type for all Benzinga endpoint IDs (excluding backend-only endpoints)
  */
@@ -46,7 +50,7 @@ export interface BenzingaRequestConfig extends RequestConfig<BenzingaRequestId> 
   apiKeyEnv: string;
   id: BenzingaRequestId;
   parameterKeys: string[];
-  symbolUsage: EndpointSymbolUsage;
+  symbolUsage?: EndpointSymbolUsage;
 }
 
 export interface BenzingaNewsRequestConfig extends BenzingaRequestConfig {
