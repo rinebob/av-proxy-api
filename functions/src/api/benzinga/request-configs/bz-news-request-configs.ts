@@ -203,7 +203,7 @@ export const BZ_NEWS_REQUEST_CONFIGS: Record<SvtBzNewsRequest, BenzingaNewsReque
         description: 'Unix timestamp (UTC) for filtering news updated after this time. Currently temporarily disabled due to API issues.',
       },
     },
-    channels: [BzNewsChannel.MARKET_MOVING_EXCLUSIVES, BzNewsChannel.MOVERS_SHAKERS],
+    channels: [BzNewsChannel.RUMORS, BzNewsChannel.OPINION],
   },
   [SvtBzNewsRequest.BZ_NEWS_BY_ID]: {
     ...BASE_NEWS_REQUEST_CONFIG,
