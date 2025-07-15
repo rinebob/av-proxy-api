@@ -80,13 +80,13 @@ function getMetadataDocPath(endpointConfig: RequestConfig<BenzingaRequestId>, ch
 
 async function fetchNewsFromApi(handler: any, apiParams: Record<string, any>, requestId: string, endpointName: string, lastMaxUpdated: number): Promise<{ apiResponse: any, durationMs: number }> {
     const apiStart = Date.now();
-    logNewsRefresh(`----------- nRM: START API CALL FOR [${endpointName}] -------------`);
-    logNewsRefresh(`nRM: Refreshing news for endpoint ${endpointName} via Benzinga API...`);
+    logNewsRefresh(`----------- bNRM: START API CALL FOR [${endpointName}] -------------`);
+    logNewsRefresh(`bNRM: Refreshing news for endpoint ${endpointName} via Benzinga API...`);
     const apiResponse = await handler.handleRequest(apiParams, requestId);
     const durationMs = Date.now() - apiStart;
-    logNewsRefresh(`nRM: Fetched news for ${endpointName} in ${durationMs}ms.`);
+    logNewsRefresh(`bNRM: Fetched news for ${endpointName} in ${durationMs}ms.`);
     if (apiResponse && apiResponse.data && apiResponse.data.length > 0) {
-        logNewsRefresh(`nRM: Logging channels for all ${apiResponse.data.length} news items:`);
+        logNewsRefresh(`bNRM: Logging channels for all ${apiResponse.data.length} news items:`);
         apiResponse.data.forEach((newsItem: any, index: number) => {
             if (newsItem.channels && Array.isArray(newsItem.channels)) {
                 const channelNames = newsItem.channels.map((c: any) => c.name).join(', ');
@@ -96,8 +96,8 @@ async function fetchNewsFromApi(handler: any, apiParams: Record<string, any>, re
             } 
         });
     }
-    logNewsRefresh('nRM: Full apiResponse (truncated):', JSON.stringify(apiResponse, null, 2).substring(0, 500) + '...');
-    logNewsRefresh(`----------- nRM: END API CALL FOR [${endpointName}] -------------`);
+    logNewsRefresh('bNRM: Full apiResponse (truncated 5000):', JSON.stringify(apiResponse, null, 2).substring(0, 5000) + '...');
+    logNewsRefresh(`----------- bNRM: END API CALL FOR [${endpointName}] -------------`);
     return { apiResponse, durationMs };
 }
 
@@ -165,11 +165,11 @@ async function processNewsItems(
         for (const newsItem of newsArray) {
             const newsId = newsItem.id || newsItem.newsId || newsItem.article_id || newsItem._id;
             if (!newsId) {
-                logNewsRefresh('Skipping news item with missing id:', newsItem);
+                logNewsRefresh('bNRM pNI Skipping news item with missing id:', newsItem);
                 continue;
             }
             if (!endpointConfig.firestorePath) {
-                logNewsRefresh(`No firestorePath defined for endpoint ${endpointName}, skipping news item ${newsId}.`);
+                logNewsRefresh('bNRM pNI No firestorePath defined for endpoint', endpointName, 'skipping news item', newsId);
                 continue;
             }
             // Build stock-names string
@@ -198,7 +198,7 @@ async function processNewsItems(
             const collectionName = channel;
 
             if (typeof newsId === 'number' && newsId <= highestNewsId) {
-                logNewsRefresh(`Skipping newsId ${newsId} (docId: ${customDocId}) because it is not higher than highestNewsId (${highestNewsId}) for channel ${channel}. Channels: [${newsChannels}], Collection: [${collectionName}]`);
+                logNewsRefresh(`bNRM pNI Skipping newsId ${newsId} (docId: ${customDocId}) because it is not higher than highestNewsId (${highestNewsId}) for channel ${channel}. Channels: [${newsChannels}], Collection: [${collectionName}]`);
                 continue;
             }
             // Transform channels to an array of strings (names) for easier storage and querying
@@ -208,14 +208,14 @@ async function processNewsItems(
             }
 
             try {
-                logNewsRefresh(`nRM: Writing news doc to Firestore: ${docPath}. Channels: [${newsChannels}], Collection: [${collectionName}]`);
+                logNewsRefresh(`bNRM pNI Writing news doc to Firestore: ${docPath}. Channels: [${newsChannels}], Collection: [${collectionName}]`);
                 await db.doc(docPath).set({
                     ...newsItem,
                     channels: processedChannels, // Override the original channels with the processed ones
                     lastRefreshedAt: now,
                 }, { merge: true });
             } catch (err) {
-                logNewsRefresh(`nRM: Failed to write news doc: ${docPath}`, err);
+                logNewsRefresh(`bNRM pNI Failed to write news doc: ${docPath}`, err);
             }
         }
     } else {
@@ -243,7 +243,7 @@ async function updateChannelMetadata(db: admin.firestore.Firestore, channelMetaD
         delete metaDocUpdate.channels;
     }
     await db.doc(channelMetaDocPath).set(metaDocUpdate, { merge: true });
-    logNewsRefresh(`Updated news collection metadata for channel ${channel}: ${channelMetaDocPath}`);
+    logNewsRefresh(`bNRM uCM Updated news collection metadata for channel ${channel}: ${channelMetaDocPath}`);
 }
 
 async function updateRootMetadata(db: admin.firestore.Firestore, rootMetaDocPath: string, now: admin.firestore.Timestamp, channel: string, lastNewsId: string | number | null, newMaxUpdated: number, newsCount: number) {
@@ -260,7 +260,7 @@ async function updateRootMetadata(db: admin.firestore.Firestore, rootMetaDocPath
         }
     };
     await db.doc(rootMetaDocPath).set(rootMetaUpdate, { merge: true });
-    logNewsRefresh(`Updated root news metadata with channel ${channel} info: ${rootMetaDocPath}`);
+    logNewsRefresh(`bNRM uRM Updated root news metadata with channel ${channel} info: ${rootMetaDocPath}`);
 }
 
 async function addRefreshHistory(db: admin.firestore.Firestore, channelMetaDocPath: string, rootMetaDocPath: string, eventTimestamp: admin.firestore.Timestamp, durationMs: number, newsCount: number, lastNewsId: string | number | null, newMaxUpdated: number, channel: string) {
@@ -293,11 +293,11 @@ async function addRefreshHistory(db: admin.firestore.Firestore, channelMetaDocPa
         channel: channel
     });
 
-    logNewsRefresh(`Appended refresh history event to ${channelMetaDocPath}/${FirestoreCollection.REFRESH_HISTORY} as ${docId}`);
+    logNewsRefresh(`bNRM aRH Appended refresh history event to ${channelMetaDocPath}/${FirestoreCollection.REFRESH_HISTORY} as ${docId}`);
 }
 
 async function handleFirestoreUpdates(db: admin.firestore.Firestore, newsArray: any[], endpointConfig: RequestConfig<BenzingaRequestId>, endpointName: string, channel: string, metaDocPath: string, now: admin.firestore.Timestamp, lastMaxUpdated: number, apiResponse: any, durationMs: number, ttlMs: number) {
-    logNewsRefresh(`----------- nRM: START FIRESTORE WRITE ------------------`);
+    logNewsRefresh(`----------- bNRM: START FIRESTORE WRITE ------------------`);
 
     await processNewsItems(db, newsArray, endpointConfig, endpointName, channel, metaDocPath, now, lastMaxUpdated, apiResponse);
 
@@ -317,11 +317,11 @@ async function handleFirestoreUpdates(db: admin.firestore.Firestore, newsArray: 
     }
     const nextRefreshAt = admin.firestore.Timestamp.fromDate(new Date(Date.now() + ttlMs));
     const channelMetaDocPath = metaDocPath.replace('{channel}', channel);
-    logNewsRefresh(`nRM: Updating channel metadata at path: ${channelMetaDocPath}`);
+    logNewsRefresh(`bNRM hFU Updating channel metadata at path: ${channelMetaDocPath}`);
     await updateChannelMetadata(db, channelMetaDocPath, now, newMaxUpdated, newsArray.length, durationMs, lastNewsId, nextRefreshAt, channel);
 
     const rootMetaDocPath = metaDocPath.replace('{channel}', 'root');
-    logNewsRefresh(`nRM: Updating root metadata at path: ${rootMetaDocPath}`);
+    logNewsRefresh(`bNRM hFU Updating root metadata at path: ${rootMetaDocPath}`);
     await updateRootMetadata(db, rootMetaDocPath, now, channel, lastNewsId, newMaxUpdated, newsArray.length);
 
     const eventTimestamp = admin.firestore.Timestamp.now();
@@ -336,7 +336,7 @@ async function handleFirestoreUpdates(db: admin.firestore.Firestore, newsArray: 
     }, { merge: true });
     logNewsRefresh('Updated root news/benzinga metadata doc');
 
-    logNewsRefresh(`----------- nRM: END FIRESTORE WRITE ------------------`);
+    logNewsRefresh(`----------- bNRM: END FIRESTORE WRITE ------------------`);
 }
 
 async function updateFirestoreMetadata(db: admin.firestore.Firestore, newsArray: any[], endpointConfig: RequestConfig<BenzingaRequestId>, endpointName: string, channel: string, metaDocPath: string, now: admin.firestore.Timestamp, lastMaxUpdated: number, apiResponse: any, durationMs: number, ttlMs: number) {
@@ -349,8 +349,8 @@ export const refreshNewsEndpoints = onSchedule(
         secrets: ['BENZINGA_WIIM_API_KEY'],
     },
     async () => {
-        logNewsRefresh('============== START NEWS REFRESH ============================');
-        logNewsRefresh('--- News Endpoint Refresh Cycle Started ---');
+        logNewsRefresh('============== bNRM rNE: START NEWS REFRESH ============================');
+        logNewsRefresh('--- bNRM rNE: News Endpoint Refresh Cycle Started ---');
         const db = admin.firestore();
         // Declare once for the whole refresh cycle
         const now = admin.firestore.Timestamp.now();
@@ -367,22 +367,22 @@ export const refreshNewsEndpoints = onSchedule(
         const endpointConfig = BZ_NEWS_REQUEST_CONFIG;
 
         const endpointId = endpointConfig.id as SvtBzNewsRequest;
-        logNewsRefresh(`----------- nRM: START [${endpointId}] REFRESH -------------`);
+        logNewsRefresh(`----------- bNRM: START [${endpointId}] REFRESH -------------`);
         const handler = BenzingaHandlerFactory.createHandler(endpointId as any);
 
         // Get all channels from the endpoint config (guaranteed to be an array)
         const channels = endpointConfig.channels as string[];
 
         for (const channel of channels) {
-            logNewsRefresh(`----------- nRM: START [${endpointId}] REFRESH for channel [${channel}] -------------`);
+            logNewsRefresh(`----------- bNRM: START [${endpointId}] REFRESH for channel [${channel}] -------------`);
             const { metaDocPath, lastMaxUpdated } = await getMetadataAndLastUpdated(db, endpointConfig, channel, endpointId);
             const { newsArray, apiResponse, durationMs } = await fetchAndProcessNews(handler, endpointConfig as BenzingaNewsRequestConfig, channel, lastMaxUpdated, endpointId);
             await updateFirestoreMetadata(db, newsArray, endpointConfig, endpointId, channel, metaDocPath, now, lastMaxUpdated, apiResponse, durationMs, ttlMs);
-            logNewsRefresh(`----------- nRM: END [${endpointId}] REFRESH for channel [${channel}] -------------`);
+            logNewsRefresh(`----------- bNRM: END [${endpointId}] REFRESH for channel [${channel}] -------------`);
             logNewsRefresh('');
         }
-        logNewsRefresh('--- News Endpoint Refresh Cycle Complete ---');
-        logNewsRefresh('============== END NEWS REFRESH ============================');
+        logNewsRefresh('--- bNRM rNE: News Endpoint Refresh Cycle Complete ---');
+        logNewsRefresh('============== bNRM rNE END NEWS REFRESH ============================');
         logNewsRefresh('');
         logNewsRefresh('');
     }
