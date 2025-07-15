@@ -6,7 +6,8 @@ export enum EndpointCategory {
   FOREX = 'forex',
   CRYPTO = 'cryptocurrency',
   TECHNICAL_INDICATORS = 'technical_indicators',
-  BENZINGA_CALENDAR = 'benzinga_calendar'
+  BENZINGA_CALENDAR = 'benzinga_calendar',
+  BENZINGA_NEWS = 'benzinga_news'
 }
 
 export enum HttpMethod {

@@ -1,7 +1,7 @@
 // Shared Firestore utilities for data refreshers
 import { FirestoreCollection } from '../common/firestore-collections';
 import { ApiProvider } from '../common/data-providers';
-import { ALL_BENZINGA_ENDPOINT_CONFIGS } from '../api/benzinga/config/bz-endpoint-configs';
+import { ALL_BENZINGA_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-request-configs';
 
 /**
  * Resolves the Firestore path for a given endpoint and symbol using config.
@@ -11,7 +11,7 @@ import { ALL_BENZINGA_ENDPOINT_CONFIGS } from '../api/benzinga/config/bz-endpoin
  * Pass symbol for symbol-based endpoints, newsId for news endpoints, or both if needed.
  */
 export function resolveFirestorePath(endpointName: string, symbol?: string, newsId?: string): string {
-  const config = ALL_BENZINGA_ENDPOINT_CONFIGS[endpointName];
+  const config = ALL_BENZINGA_REQUEST_CONFIGS[endpointName];
   if (!config || !config.firestorePath) {
     throw new Error(`No Firestore path config for endpoint ${endpointName}`);
   }

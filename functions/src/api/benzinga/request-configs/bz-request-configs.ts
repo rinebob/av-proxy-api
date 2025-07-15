@@ -9,6 +9,7 @@ import {
   BenzingaNewsRequestConfig,
   BenzingaCalendarParameter,
   SvtBzNewsRequest,
+  BenzingaNewsParameter,
 } from '../../../common/common-benz';
 import { EndpointConfig } from '../../common/types';
 import { BzNewsChannel } from './bz-news-channels';
@@ -16,9 +17,13 @@ import { BzNewsChannel } from './bz-news-channels';
 // Benzinga-specific endpoint config interface
 import { EndpointSymbolUsage } from '../../../common/common-fn';
 
+// NOTE: THIS FILE IS DEPRECATED - DO NOT USE ANY CODE IN THIS FILE
+
+// INSTEAD USE BZ-CALENDAR-REQUEST-CONFIGS.TS OR BZ-NEWS-REQUEST-CONFIGS.TS
+
 
 // Base configuration that can be extended by specific endpoints
-export const BASE_ENDPOINT_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> & { apiKeyEnv: string } = {
+export const BASE_REQUEST_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> & { apiKeyEnv: string } = {
   apiKeyEnv: 'BENZINGA_CALENDAR_API_KEY',
   provider: ApiProvider.BENZINGA,
   category: EndpointCategory.BENZINGA_CALENDAR,
@@ -26,11 +31,6 @@ export const BASE_ENDPOINT_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEndp
   ttl: 2 * 60, // 2 minutes
   requiresSymbol: true,
   parameters: {
-    [BenzingaCalendarParameter.SYMBOLS]: {
-      type: 'string',
-      required: false,
-      description: 'Comma-separated list of ticker symbols',
-    },
     [BenzingaCalendarParameter.DATE_FROM]: {
       type: 'string',
       required: false,
@@ -51,7 +51,7 @@ export const BASE_ENDPOINT_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEndp
       type: 'number',
       required: false,
       description: 'Number of results per page',
-      default: 50,
+      default: 100,
     },
   },
   firestorePath: '', // Will be set per endpoint
@@ -124,11 +124,6 @@ export const BZ_CALENDAR_PARAMETER_DEFS: Record<BenzingaCalendarParameter, any> 
     description: 'Rating action filter (e.g., upgrade, downgrade, initiate, reiterate, maintain).',
     enum: ['upgrade', 'downgrade', 'initiate', 'reiterate', 'maintain'],
   },
-  [BenzingaCalendarParameter.SYMBOLS]: {
-    type: 'string',
-    required: false,
-    description: 'Comma-separated list of ticker symbols',
-  },
 };
 
 // Utility to resolve full parameter object for an endpoint
@@ -151,9 +146,9 @@ export const BZ_CALENDAR_COMMON_PARAMS: BenzingaCalendarParameter[] = [
 ];
 
 // Company Data Endpoints
-export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaRequestConfig> = {
+export const COMPANY_DATA_REQUESTS: Record<BzCompanyDataCalendarType, BenzingaRequestConfig> = {
   [BzCompanyDataCalendarType.EARNINGS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzCompanyDataCalendarType.EARNINGS,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Earnings',
@@ -168,7 +163,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaR
     ],
   },
   [BzCompanyDataCalendarType.DIVIDENDS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzCompanyDataCalendarType.DIVIDENDS,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Dividends',
@@ -182,7 +177,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaR
     ],
   },
   [BzCompanyDataCalendarType.CONFERENCE_CALLS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzCompanyDataCalendarType.CONFERENCE_CALLS,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Conference Calls',
@@ -195,7 +190,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaR
     ],
   },
   [BzCompanyDataCalendarType.RATINGS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzCompanyDataCalendarType.RATINGS,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Analyst Ratings',
@@ -209,7 +204,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaR
     ],
   },
   [BzCompanyDataCalendarType.GUIDANCE]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzCompanyDataCalendarType.GUIDANCE,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Guidance',
@@ -222,7 +217,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaR
     ],
   },
   [BzCompanyDataCalendarType.SPLITS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzCompanyDataCalendarType.SPLITS,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Stock Splits',
@@ -235,7 +230,7 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaR
     ],
   },
   [BzCompanyDataCalendarType.OFFERINGS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzCompanyDataCalendarType.OFFERINGS,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     name: 'Offerings',
@@ -250,9 +245,9 @@ export const COMPANY_DATA_ENDPOINTS: Record<BzCompanyDataCalendarType, BenzingaR
 };
 
 // Market Data Endpoints
-export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaRequestConfig> = {
+export const MARKET_DATA_REQUESTS: Record<BzMarketDataCalendarType, BenzingaRequestConfig> = {
   [BzMarketDataCalendarType.ECONOMICS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzMarketDataCalendarType.ECONOMICS,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'Economics Calendar',
@@ -265,7 +260,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaReq
     ],
   },
   [BzMarketDataCalendarType.IPOS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzMarketDataCalendarType.IPOS,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'IPOs',
@@ -278,7 +273,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaReq
     ],
   },
   [BzMarketDataCalendarType.FDA]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzMarketDataCalendarType.FDA,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'FDA Calendar',
@@ -291,7 +286,7 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaReq
     ],
   },
   [BzMarketDataCalendarType.MERGERS_ACQUISITIONS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     id: BzMarketDataCalendarType.MERGERS_ACQUISITIONS,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     name: 'Mergers & Acquisitions',
@@ -305,39 +300,85 @@ export const MARKET_DATA_ENDPOINTS: Record<BzMarketDataCalendarType, BenzingaReq
   },
 };
 
-// --- News Endpoint Parameter Enum and Definitions ---
-export enum BenzingaNewsParameter {
-  NEWS_ID = 'newsId',
-  TICKERS = 'tickers',
-  DATE = 'date',
-  CHANNELS = 'channels',
-  TOPICS = 'topics',
-  UPDATED_SINCE = 'updatedSince',
-  PAGE = 'page',
-  PAGE_SIZE = 'pageSize',
-  DISPLAY_OUTPUT = 'displayOutput',
-  EXCLUDE_CONTENT = 'excludeContent',
-}
-
 export const BZ_NEWS_PARAMETER_DEFS: Record<BenzingaNewsParameter, any> = {
+  [BenzingaNewsParameter.API_KEY]: {
+    type: 'string',
+    required: true,
+    description: 'API key for authentication',
+  },
+  [BenzingaNewsParameter.PAGE]: {
+    type: 'number',
+    required: false,
+    description: 'Page offset (0-100000)',
+  },
+  [BenzingaNewsParameter.PAGE_SIZE]: {
+    type: 'number',
+    required: false,
+    description: 'Number of results returned (max 100)',
+  },
+  [BenzingaNewsParameter.DISPLAY_OUTPUT]: {
+    type: 'string',
+    required: false,
+    description: 'Specify headline only (headline), headline + teaser (abstract), or headline + full body (full) text',
+    enum: ['full', 'abstract', 'headline'],
+  },
+  [BenzingaNewsParameter.DATE]: {
+    type: 'string',
+    required: false,
+    description: 'Shorthand for date_from and date_to if they are the same (YYYY-MM-DD)',
+    format: 'YYYY-MM-DD',
+  },
+  [BenzingaNewsParameter.DATE_FROM]: {
+    type: 'string',
+    required: false,
+    description: 'Date to query from point in time (YYYY-MM-DD)',
+    format: 'YYYY-MM-DD',
+  },
+  [BenzingaNewsParameter.DATE_TO]: {
+    type: 'string',
+    required: false,
+    description: 'Date to query to point in time (YYYY-MM-DD)',
+    format: 'YYYY-MM-DD',
+  },
+  [BenzingaNewsParameter.UPDATED_SINCE]: {
+    type: 'number',
+    required: false,
+    description: 'Last updated Unix timestamp (UTC)',
+  },
+  [BenzingaNewsParameter.PUBLISHED_SINCE]: {
+    type: 'number',
+    required: false,
+    description: 'Last published Unix timestamp (UTC)',
+  },
+  [BenzingaNewsParameter.SORT]: {
+    type: 'string',
+    required: false,
+    description: 'Allows control of results sorting (e.g., created:desc)',
+    format: 'field:direction',
+  },
+  [BenzingaNewsParameter.ISIN]: {
+    type: 'string',
+    required: false,
+    description: 'Comma-separated list of ISINs (max 50)',
+    format: 'csv',
+  },
+  [BenzingaNewsParameter.CUSIP]: {
+    type: 'string',
+    required: false,
+    description: 'Comma-separated list of CUSIPs (max 50)',
+    format: 'csv',
+  },
   [BenzingaNewsParameter.TICKERS]: {
     type: 'string',
     required: false,
     description: 'Comma-separated list of ticker symbols (max 50)',
     format: 'csv',
   },
-  [BenzingaNewsParameter.DATE]: {
-    type: 'string',
-    required: false,
-    description: 'Filter by date (YYYY-MM-DD)',
-    format: 'YYYY-MM-DD',
-  },
   [BenzingaNewsParameter.CHANNELS]: {
     type: 'string',
     required: false,
     description: "Comma-separated list of news channels (e.g., 'wiim')",
     format: 'csv',
-    enum: ['wiim'], // add more channels as needed
   },
   [BenzingaNewsParameter.TOPICS]: {
     type: 'string',
@@ -345,29 +386,17 @@ export const BZ_NEWS_PARAMETER_DEFS: Record<BenzingaNewsParameter, any> = {
     description: 'Comma-separated list of news topics/entities',
     format: 'csv',
   },
-  [BenzingaNewsParameter.UPDATED_SINCE]: {
-    type: 'number',
-    required: false,
-    description: 'Return stories updated since this Unix timestamp (for polling/deltas)',
-  },
-  [BenzingaNewsParameter.PAGE]: {
-    type: 'number',
-    required: false,
-    description: 'Pagination offset',
-    default: 0,
-  },
-  [BenzingaNewsParameter.PAGE_SIZE]: {
-    type: 'number',
-    required: false,
-    description: 'Results per page (max 100)',
-    default: 100,
-  },
-  [BenzingaNewsParameter.DISPLAY_OUTPUT]: {
+  [BenzingaNewsParameter.AUTHORS]: {
     type: 'string',
     required: false,
-    description: "Controls verbosity. Use 'full' for all fields.",
-    enum: ['full'],
-    default: 'full',
+    description: 'Comma-separated list of authors',
+    format: 'csv',
+  },
+  [BenzingaNewsParameter.CONTENT_TYPES]: {
+    type: 'string',
+    required: false,
+    description: 'Comma-separated list of content types',
+    format: 'csv',
   },
   [BenzingaNewsParameter.EXCLUDE_CONTENT]: {
     type: 'boolean',
@@ -391,9 +420,9 @@ export function getBzNewsParams(keys: BenzingaNewsParameter[]): Record<string, a
 }
 
 // --- News Endpoint Config ---
-export const BZ_NEWS_ENDPOINTS: Record<SvtBzNewsRequest, BenzingaNewsRequestConfig> = {
+export const BZ_NEWS_REQUESTS: Record<SvtBzNewsRequest, BenzingaNewsRequestConfig> = {
   [SvtBzNewsRequest.BZ_NEWS]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     apiKeyEnv: 'BENZINGA_WIIM_API_KEY', // override for news
     id: SvtBzNewsRequest.BZ_NEWS,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
@@ -403,19 +432,14 @@ export const BZ_NEWS_ENDPOINTS: Record<SvtBzNewsRequest, BenzingaNewsRequestConf
     requiresSymbol: false,
     firestorePath: `${FirestoreCollection.NEWS}/${ApiProvider.BENZINGA}/{channel}/{newsId}`,
     parameterKeys: [
-      BenzingaNewsParameter.TICKERS,
-      BenzingaNewsParameter.DATE,
-      BenzingaNewsParameter.CHANNELS, // for 'wiim'
-      BenzingaNewsParameter.TOPICS,
-      BenzingaNewsParameter.UPDATED_SINCE,
       BenzingaNewsParameter.PAGE,
       BenzingaNewsParameter.PAGE_SIZE,
       BenzingaNewsParameter.DISPLAY_OUTPUT,
-      BenzingaNewsParameter.EXCLUDE_CONTENT,
+      BenzingaNewsParameter.CHANNELS,
     ],
     // Set default pageSize to 100
     parameters: {
-      ...BASE_ENDPOINT_CONFIG.parameters,
+      ...Object.fromEntries(Object.entries(BASE_REQUEST_CONFIG.parameters).filter(([key]) => key !== BenzingaCalendarParameter.PAGESIZE)),
       [BenzingaNewsParameter.PAGE_SIZE]: {
         type: 'number',
         required: false,
@@ -426,7 +450,7 @@ export const BZ_NEWS_ENDPOINTS: Record<SvtBzNewsRequest, BenzingaNewsRequestConf
     channels: [BzNewsChannel.MARKET_MOVING_EXCLUSIVES, BzNewsChannel.MOVERS_SHAKERS],
   },
   [SvtBzNewsRequest.BZ_NEWS_BY_ID]: {
-    ...BASE_ENDPOINT_CONFIG,
+    ...BASE_REQUEST_CONFIG,
     apiKeyEnv: 'BENZINGA_WIIM_API_KEY',
     id: SvtBzNewsRequest.BZ_NEWS_BY_ID,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
@@ -443,8 +467,8 @@ export const BZ_NEWS_ENDPOINTS: Record<SvtBzNewsRequest, BenzingaNewsRequestConf
 }
 
 // Combine all endpoint configurations
-export const ALL_BENZINGA_ENDPOINT_CONFIGS: Record<string, BenzingaRequestConfig> = {
-  ...COMPANY_DATA_ENDPOINTS,
-  ...MARKET_DATA_ENDPOINTS,
-  ...BZ_NEWS_ENDPOINTS,
+export const ALL_BENZINGA_REQUEST_CONFIGS: Record<string, BenzingaRequestConfig> = {
+  ...COMPANY_DATA_REQUESTS,
+  ...MARKET_DATA_REQUESTS,
+  ...BZ_NEWS_REQUESTS,
 } as const;

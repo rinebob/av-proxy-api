@@ -1,6 +1,6 @@
 import { RequestConfig } from '../api/common/types';
 import { EndpointSymbolUsage } from '../common/common-fn';
-import { BzNewsChannel } from '../api/benzinga/config/bz-news-channels';
+import { BzNewsChannel } from '../api/benzinga/request-configs/bz-news-channels';
 /**
  * Benzinga API Types and Enums (Backend)
  * Consolidated types for Benzinga API integration
@@ -70,7 +70,31 @@ export enum BenzingaCalendarParameter {
   UPDATED = 'parameters[updated]',
   DIVIDEND_YIELD = 'parameters[dividend_yield]',
   ACTION = 'parameters[action]',
-  SYMBOLS = 'symbols',
+}
+
+/**
+ * Benzinga News API parameters (camelCase, matches Benzinga docs)
+ */
+export enum BenzingaNewsParameter {
+  API_KEY = 'token',
+  PAGE = 'page',
+  PAGE_SIZE = 'pageSize',
+  DISPLAY_OUTPUT = 'displayOutput',
+  DATE = 'date',
+  DATE_FROM = 'dateFrom',
+  DATE_TO = 'dateTo',
+  UPDATED_SINCE = 'updatedSince',
+  PUBLISHED_SINCE = 'publishedSince',
+  SORT = 'sort',
+  ISIN = 'isin',
+  CUSIP = 'cusip',
+  TICKERS = 'tickers',
+  CHANNELS = 'channels',
+  TOPICS = 'topics',
+  AUTHORS = 'authors',
+  CONTENT_TYPES = 'contentTypes',
+  EXCLUDE_CONTENT = 'excludeContent',
+  NEWS_ID = 'newsId',
 }
 
 /**

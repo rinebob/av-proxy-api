@@ -5,10 +5,10 @@
 import { db } from '../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { ALL_BENZINGA_ENDPOINT_CONFIGS } from '../api/benzinga/config/bz-endpoint-configs';
+import { ALL_BENZINGA_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-request-configs';
 import { ApiProvider } from '../common/data-providers';
 import { FirestoreCollection } from '../common/firestore-collections';
-import { SvtBzNewsRequest } from '../common/common-benz';
+import { SvtBzNewsRequest, BenzingaRequestConfig } from '../common/common-benz';
 
 import { BenzingaHandlerFactory } from '../api/benzinga/benzinga-factory';
 import type { HandlerKey } from '../api/benzinga/benzinga-factory';
@@ -41,7 +41,7 @@ export const refreshBenzingaData = onSchedule(
     logBZDM(`bRM rBZD: Found ${symbols.length} tracked symbols:`, symbols);
 
     // 2. For each implemented Benzinga endpoint
-    for (const [endpointName, endpointConfig] of Object.entries(ALL_BENZINGA_ENDPOINT_CONFIGS)) {
+    for (const [endpointName, endpointConfig] of Object.entries(ALL_BENZINGA_REQUEST_CONFIGS as { [key: string]: BenzingaRequestConfig })) {
       if (endpointConfig.id === SvtBzNewsRequest.BZ_NEWS) {
         logBZDM(`Skipping news endpoint [${endpointName}] in calendar/data refresher; handled by refreshNewsEndpoints.`);
         continue;

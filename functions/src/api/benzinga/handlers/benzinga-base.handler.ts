@@ -1,21 +1,128 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
 
 import { ApiResponse, ApiError } from '../../common/types';
-import { BenzingaRequestConfig, BenzingaCalendarParameter } from '../../../common/common-benz';
-import { BENZINGA_API_BASE_URL } from '../../../common/common-benz';
-
-// Dynamically compute which keys should be nested for calendar endpoints
-const CALENDAR_NESTED_KEYS = new Set(
-  Object.values(BenzingaCalendarParameter)
-    .filter((v) => v.startsWith('parameters['))
-    .map((v) => v.slice(11, -1)) // extract the key inside 'parameters[...]'
-);
+import { BenzingaRequestConfig, BENZINGA_API_BASE_URL } from '../../../common/common-benz';
 
 export abstract class BenzingaBaseHandler<T = any> {
   protected readonly config: BenzingaRequestConfig;
   protected readonly apiClient: AxiosInstance;
   protected readonly apiKey: string;
   protected readonly requestId: string;
+
+  /**
+   * Validates the request parameters
+   * @param params The request parameters to validate
+   * @throws {Error} If validation fails
+   */
+  protected abstract validateParams(params: Record<string, any>): void;
+
+  /**
+   * Prepares the final request parameters
+   * @param params The request parameters to prepare
+   * @returns The prepared parameters
+   */
+  protected abstract prepareRequestParams(params: Record<string, any>): Record<string, any>;
+
+  /**
+   * Transforms the API response data
+   * @param data The raw API response data
+   * @returns The transformed response
+   */
+  protected abstract transformResponse(data: any): T;
+
+  /**
+   * Normalizes errors into a consistent format
+   * @param error The error to normalize
+   * @returns A normalized ApiError object
+   */
+  protected normalizeError(error: unknown): ApiError {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status || 500;
+      const message = error.response?.data?.message || error.message;
+      
+      return {
+        name: 'BenzingaError',
+        message: `API Error: ${message}`,
+        code: error.code || 'BENZINGA_API_ERROR',
+        status,
+        details: error.response?.data
+      };
+    }
+
+    if (error instanceof Error) {
+      return {
+        name: error.name,
+        message: error.message,
+        code: 'INTERNAL_ERROR',
+        status: 500,
+        stack: error.stack
+      };
+    }
+
+    return {
+      name: 'UnknownError',
+      message: 'An unknown error occurred',
+      code: 'UNKNOWN_ERROR',
+      status: 500
+    };
+  }
+
+  /**
+   * Handles errors with proper logging
+   * @param error The error to handle
+   * @returns A normalized ApiError object
+   */
+  protected handleError(error: unknown): ApiError {
+    const apiError = this.normalizeError(error);
+    console.error(`bB.H fetch [${this.requestId}] Error processing request:`, apiError);
+    return apiError;
+  }
+
+  /**
+   * Processes the request with validation and parameter preparation
+   * @param params The request parameters
+   * @returns A promise that resolves with the processed data
+   */
+  protected abstract processRequest(params: Record<string, any>): Promise<T>;
+
+  /**
+   * Base implementation of processRequest that handles common request processing logic
+   * @param params The request parameters
+   * @returns A promise that resolves with the processed data
+   */
+  protected async processRequestBase(params: Record<string, any>): Promise<T> {
+    // Validate parameters
+    this.validateParams(params);
+
+    // Prepare request parameters
+    const finalParams = this.prepareRequestParams(params);
+
+    // Make API request
+    const startTime = Date.now();
+    const response = await this.apiClient.request({
+      method: this.config.method || 'GET',
+      url: this.config.apiEndpoint || '',
+      params: finalParams
+    });
+
+    const duration = Date.now() - startTime;
+    
+    // Transform and return response
+    const result: ApiResponse<T> = {
+      data: this.transformResponse(response.data),
+      metadata: {
+        timestamp: new Date(),
+        endpoint: this.config.id,
+        symbol: params.symbol,
+        ttl: this.config.ttl,
+        requestId: this.requestId,
+        processingTimeMs: duration
+      }
+    };
+
+    console.log(`bB.H processRequestBase [${this.requestId}] Request completed successfully in ${duration}ms`);
+    return result.data;
+  }
 
   constructor(config: BenzingaRequestConfig) {
     this.config = config;
@@ -38,12 +145,34 @@ export abstract class BenzingaBaseHandler<T = any> {
       paramsSerializer: (params) => {
         const searchParams = new URLSearchParams();
         for (const key of Object.keys(params)) {
-          if (key === 'parameters') {
-            for (const nestedKey of Object.keys(params[key])) {
-              searchParams.append(`parameters[${nestedKey}]`, params[key][nestedKey]);
+          const value = params[key];
+          if (value === undefined || value === null) {
+            continue; // Skip undefined or null values
+          }
+
+          // Add API key as token parameter
+          if (key === 'token') {
+            searchParams.append('token', value);
+            continue;
+          }
+
+          if (key === 'parameters' && typeof value === 'object') {
+            for (const nestedKey of Object.keys(value)) {
+              const nestedValue = value[nestedKey];
+              if (nestedValue !== undefined && nestedValue !== null) {
+                searchParams.append(`parameters[${nestedKey}]`, nestedValue);
+              }
+            }
+          } else if (typeof value === 'object' && !Array.isArray(value)) {
+            // Handle other top-level objects by flattening them
+            for (const nestedKey of Object.keys(value)) {
+              const nestedValue = value[nestedKey];
+              if (nestedValue !== undefined && nestedValue !== null) {
+                searchParams.append(nestedKey, nestedValue);
+              }
             }
           } else {
-            searchParams.append(key, params[key]);
+            searchParams.append(key, value);
           }
         }
         console.log('bBH ctor searchParams: ', searchParams);
@@ -54,6 +183,27 @@ export abstract class BenzingaBaseHandler<T = any> {
     // Add request interceptor for logging
     this.apiClient.interceptors.request.use(
       (config) => {
+        // Remove any existing token parameter from URLSearchParams if present
+        if (config.url) {
+          const urlParts = config.url.split('?');
+          if (urlParts.length > 1) {
+            const searchParams = new URLSearchParams(urlParts[1]);
+            searchParams.delete('token');
+            config.url = `${urlParts[0]}?${searchParams.toString()}`;
+          }
+        }
+        
+        // Remove any existing token parameter from config.params
+        if (config.params && typeof config.params === 'object') {
+          delete config.params.token;
+        }
+        
+        // Add our token parameter
+        config.params = {
+          ...config.params,
+          token: this.apiKey
+        };
+        
         console.log(`bB.H ctor [${this.requestId}] Sending request to: ${config.url}`, {
           method: config.method?.toUpperCase(),
           params: config.params,
@@ -61,7 +211,7 @@ export abstract class BenzingaBaseHandler<T = any> {
         });
         return config;
       },
-      (error) => {
+      (error: AxiosError) => {
         console.error(`bB.H ctor [${this.requestId}] [HANDLER] Request error:`, error.message);
         return Promise.reject(error);
       }
@@ -110,153 +260,23 @@ export abstract class BenzingaBaseHandler<T = any> {
   }
 
   async fetch(params: Record<string, any> = {}): Promise<ApiResponse<T>> {
-    const startTime = Date.now();
-    
     try {
-      console.log(`bB.H fetch [${this.requestId}] Starting fetch for endpoint: ${this.config.id}`, {
-        params
-      });
-      
-      this.validateParams(params);
-      const preparedParams = this.prepareRequestParams(params);
-
-      const topLevelParams: Record<string, any> = {};
-      const nestedParams: Record<string, any> = {};
-
-      let finalParams: Record<string, any>;
-      if (this.config.category === 'BENZINGA_CALENDAR') {
-        for (const key in preparedParams) {
-          if (CALENDAR_NESTED_KEYS.has(key)) {
-            nestedParams[key] = preparedParams[key];
-          } else {
-            topLevelParams[key] = preparedParams[key];
-          }
-        }
-        topLevelParams.token = this.apiKey;
-        finalParams = Object.keys(nestedParams).length > 0
-          ? { ...topLevelParams, parameters: nestedParams }
-          : topLevelParams;
-      } else {
-        // All params top-level for news and other endpoints
-        for (const key in preparedParams) {
-          topLevelParams[key] = preparedParams[key];
-        }
-        topLevelParams.token = this.apiKey;
-        finalParams = topLevelParams;
-      }
-
-      const config: AxiosRequestConfig = {
-        method: this.config.method || 'GET',
-        url: this.config.apiEndpoint || '',
-        params: finalParams
-      };
-
-      // Log the actual request URL (with query string)
-      const fullUrl = this.apiClient.getUri(config);
-      console.log(`bB.H fetch [${this.requestId}] FULL REQUEST URL: ${fullUrl}`);
-      console.log(`bB.H fetch [${this.requestId}] Sending request to Benzinga API`, {
-        method: config.method,
-        url: config.url,
-        params: finalParams
-      });
-
-      const response = await this.apiClient.request(config);
-      
-      const result: ApiResponse<T> = {
-        data: this.transformResponse(response.data),
+      const startTime = Date.now();
+      const data = await this.processRequest(params);
+      const processingTimeMs = Date.now() - startTime;
+      return {
+        data,
         metadata: {
           timestamp: new Date(),
           endpoint: this.config.id,
           symbol: params.symbol,
           ttl: this.config.ttl,
           requestId: this.requestId,
-          processingTimeMs: Date.now() - startTime
+          processingTimeMs: processingTimeMs
         }
       };
-
-      console.log(`bB.H fetch [${this.requestId}] Request completed successfully in ${Date.now() - startTime}ms`);
-      return result;
-      
     } catch (error) {
-      console.error(`bB.H fetch [${this.requestId}] Error in fetch:`, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        endpoint: this.config.id,
-        params
-      });
-      throw this.normalizeError(error);
+      throw this.handleError(error);
     }
-  }
-
-  protected abstract transformResponse(data: any): T;
-  protected abstract validateParams(params: Record<string, any>): void;
-  protected abstract prepareRequestParams(params: Record<string, any>): Record<string, any>;
-
-  /**
-   * Validates the request parameters
-   * @param params The request parameters to validate
-   * @throws {Error} If validation fails
-   */
-  protected abstract processRequest(params: Record<string, any>): Promise<T>;
-
-  /**
-   * Normalizes errors into a consistent format
-   * @param error The error to normalize
-   * @returns A normalized ApiError object
-   */
-  protected normalizeError(error: unknown): ApiError {
-    if (axios.isAxiosError(error)) {
-      const status = error.response?.status || 500;
-      const message = error.response?.data?.message || error.message;
-      
-      return {
-        name: 'SvtBzNewsRequest.BZ_NEWS error',
-        message: `API Error: ${message}`,
-        code: error.code || 'BENZINGA_API_ERROR',
-        status,
-        details: error.response?.data
-      };
-    }
-
-    if (error instanceof Error) {
-      return {
-        name: error.name,
-        message: error.message,
-        code: 'INTERNAL_ERROR',
-        status: 500,
-        stack: error.stack
-      };
-    }
-
-    return {
-      name: 'UnknownError',
-      message: 'An unknown error occurred',
-      code: 'UNKNOWN_ERROR',
-      status: 500
-    };
-  }
-
-  protected handleError(error: unknown): ApiError {
-    console.error(`[${this.requestId}] Handling error:`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-
-    if (axios.isAxiosError(error)) {
-      const errorObj = new Error(error.message) as ApiError;
-      errorObj.name = 'SvtBzNewsRequest.BZ_NEWS error';
-      errorObj.code = error.code || 'BENZINGA_API_ERROR';
-      errorObj.status = error.response?.status || 500;
-      errorObj.details = error.response?.data;
-      return errorObj;
-    }
-
-    const errorObj = new Error(
-      error instanceof Error ? error.message : 'An unknown error occurred'
-    ) as ApiError;
-    errorObj.name = 'BenzingaError';
-    errorObj.code = 'INTERNAL_ERROR';
-    errorObj.status = 500;
-    return errorObj;
   }
 }
