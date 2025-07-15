@@ -29,10 +29,10 @@ export { scheduledRefresh, manualRefresh } from './data-maintainer/refreshDispat
 export { refreshAlphaVantageData } from './data-refresher/av-refresh-manager.js';
 
 // New Benzinga Data Refresher
-export { refreshBenzingaData } from './data-refresher/bz-refresh-manager.js';
+export { refreshBenzingaData } from './data-refresher/bz-calendar-refresh-manager.js';
 
 // New News Data Refresher
-export { refreshNewsEndpoints } from './data-refresher/news-refresh-manager.js';
+export { refreshNewsEndpoints } from './data-refresher/bz-news-refresh-manager.js';
 
 // Test endpoints
 export { testEndpoints } from './test-endpoints.js';

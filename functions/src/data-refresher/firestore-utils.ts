@@ -1,26 +1,27 @@
 // Shared Firestore utilities for data refreshers
 import { FirestoreCollection } from '../common/firestore-collections';
 import { ApiProvider } from '../common/data-providers';
-import { ALL_BENZINGA_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-request-configs';
+import { BZ_NEWS_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-news-request-configs';
+import { COMPANY_DATA_REQUESTS, MARKET_DATA_REQUESTS } from '../api/benzinga/request-configs/bz-calendar-request-configs';
+
+// Combine all Benzinga configs
+const ALL_BENZINGA_CONFIGS = {
+  ...BZ_NEWS_REQUEST_CONFIGS,
+  ...COMPANY_DATA_REQUESTS,
+  ...MARKET_DATA_REQUESTS
+} as const;
 
 /**
  * Resolves the Firestore path for a given endpoint and symbol using config.
  */
-/**
- * Resolves the Firestore path for a given endpoint, symbol, and newsId using config.
- * Pass symbol for symbol-based endpoints, newsId for news endpoints, or both if needed.
- */
-export function resolveFirestorePath(endpointName: string, symbol?: string, newsId?: string): string {
-  const config = ALL_BENZINGA_REQUEST_CONFIGS[endpointName];
-  if (!config || !config.firestorePath) {
-    throw new Error(`No Firestore path config for endpoint ${endpointName}`);
+export function resolveFirestorePath(endpointName: string, symbol?: string): string {
+  const config = ALL_BENZINGA_CONFIGS[endpointName as keyof typeof ALL_BENZINGA_CONFIGS];
+  if (!config?.firestorePath) {
+    throw new Error(`No Firestore path config found for endpoint: ${endpointName}`);
   }
   let path = config.firestorePath;
   if (path.includes('{symbol}')) {
     path = path.replace('{symbol}', symbol || '');
-  }
-  if (path.includes('{newsId}')) {
-    path = path.replace('{newsId}', newsId || '');
   }
   return path; // Ensures correct doc path for both symbol-based and newsId-based endpoints
 }

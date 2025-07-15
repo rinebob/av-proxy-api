@@ -5,13 +5,13 @@
 import { db } from '../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { ALL_BENZINGA_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-request-configs';
 import { ApiProvider } from '../common/data-providers';
 import { FirestoreCollection } from '../common/firestore-collections';
-import { SvtBzNewsRequest, BenzingaRequestConfig } from '../common/common-benz';
+import { SvtBzNewsRequest } from '../common/common-benz';
 
 import { BenzingaHandlerFactory } from '../api/benzinga/benzinga-factory';
 import type { HandlerKey } from '../api/benzinga/benzinga-factory';
+import { COMPANY_DATA_REQUESTS, MARKET_DATA_REQUESTS } from '../api/benzinga/request-configs/bz-calendar-request-configs';
 
 
 
@@ -40,12 +40,12 @@ export const refreshBenzingaData = onSchedule(
     const symbols = symbolsSnap.docs.map(doc => doc.id);
     logBZDM(`bRM rBZD: Found ${symbols.length} tracked symbols:`, symbols);
 
-    // 2. For each implemented Benzinga endpoint
-    for (const [endpointName, endpointConfig] of Object.entries(ALL_BENZINGA_REQUEST_CONFIGS as { [key: string]: BenzingaRequestConfig })) {
-      if (endpointConfig.id === SvtBzNewsRequest.BZ_NEWS) {
-        logBZDM(`Skipping news endpoint [${endpointName}] in calendar/data refresher; handled by refreshNewsEndpoints.`);
-        continue;
-      }
+    // 2. Combine company and market data requests
+    const calendarRequests = { ...COMPANY_DATA_REQUESTS, ...MARKET_DATA_REQUESTS };
+    
+    // 3. For each implemented Benzinga calendar endpoint
+    for (const [endpointName, endpointConfig] of Object.entries(calendarRequests)) {
+      
       logBZDM(`**********************************************************************************`);
       logBZDM(`**********************************************************************************`);
       logBZDM(`=========== START ENDPOINT [${endpointName}] ===================================`);
@@ -208,20 +208,6 @@ export const refreshBenzingaData = onSchedule(
           });
           logBZDM(`bRM rBD: Logged refresh event for ${symbol || '(no symbol)'} ${endpointName} as ${refreshEventId}.`);
           logBZDM(`----------- bRM rBD: END LOG REFRESH EVENT TO HISTORY FOR [${symbol} ${endpointName}] -------------`);
-
-          // If this endpoint returns an array of news items, write each as its own document
-          if (Array.isArray(apiResponse) && Object.values(SvtBzNewsRequest).includes(endpointConfig.id as SvtBzNewsRequest)) {
-            for (const newsItem of apiResponse) {
-              if (!newsItem.id) {
-                logBZDM('Skipping news item with missing id:', newsItem);
-                continue;
-              }
-              const newsId = newsItem.id.toString();
-              const newsDocPath = resolveFirestorePath(endpointName, undefined, newsId);
-              await db.doc(newsDocPath).set(newsItem, { merge: true });
-              logBZDM(`Saved news item ${newsId} for endpoint ${endpointName} to Firestore.`);
-            }
-          }
         } catch (error: any) {
           const durationMs = Date.now() - apiStart;
           logBZDM(`bRM rBD: ERROR refreshing ${symbol || '(no symbol)'} ${endpointName}:`, error.message);

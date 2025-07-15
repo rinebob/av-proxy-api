@@ -2,13 +2,13 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from 'firebase-admin';
 
 import { BenzingaHandlerFactory } from '../api/benzinga/benzinga-factory';
-import { ALL_BENZINGA_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-request-configs';
+import { BZ_NEWS_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-news-request-configs';
 import { BenzingaNewsParameter, BenzingaNewsRequestConfig, BenzingaRequestId, SvtBzNewsRequest } from '../common/common-benz';
 import { RequestConfig } from '../api/common/types';
 
 import { FirestoreCollection } from '../common/firestore-collections';
 
-const BZ_NEWS_ENDPOINTS: BenzingaNewsRequestConfig = ALL_BENZINGA_REQUEST_CONFIGS[SvtBzNewsRequest.BZ_NEWS] as BenzingaNewsRequestConfig;
+const BZ_NEWS_REQUEST_CONFIG: BenzingaNewsRequestConfig = BZ_NEWS_REQUEST_CONFIGS[SvtBzNewsRequest.BZ_NEWS] as BenzingaNewsRequestConfig;
 
 // Logging helper
 const pr = true;
@@ -48,6 +48,13 @@ function initializeApiParams(endpointConfig: BenzingaNewsRequestConfig, channel:
         }
     });
 
+    
+    // Remove updatedSince parameter as it's causing 401 errors
+    if (BenzingaNewsParameter.UPDATED_SINCE in apiParams) {
+        delete apiParams[BenzingaNewsParameter.UPDATED_SINCE];
+        logNewsRefresh(`Removed ${BenzingaNewsParameter.UPDATED_SINCE} parameter to prevent 401 errors`);
+    }
+
     console.log('nRM iAP final apiParams:', apiParams);
     return apiParams;
 }
@@ -72,12 +79,6 @@ function getMetadataDocPath(endpointConfig: RequestConfig<BenzingaRequestId>, ch
 }
 
 async function fetchNewsFromApi(handler: any, apiParams: Record<string, any>, requestId: string, endpointName: string, lastMaxUpdated: number): Promise<{ apiResponse: any, durationMs: number }> {
-    // Remove updatedSince parameter as it's causing 401 errors
-    if (BenzingaNewsParameter.UPDATED_SINCE in apiParams) {
-        delete apiParams[BenzingaNewsParameter.UPDATED_SINCE];
-        logNewsRefresh(`Removed ${BenzingaNewsParameter.UPDATED_SINCE} parameter to prevent 401 errors`);
-    }
-
     const apiStart = Date.now();
     logNewsRefresh(`----------- nRM: START API CALL FOR [${endpointName}] -------------`);
     logNewsRefresh(`nRM: Refreshing news for endpoint ${endpointName} via Benzinga API...`);
@@ -118,7 +119,17 @@ async function getMetadataAndLastUpdated(db: admin.firestore.Firestore, endpoint
     return { lastMaxUpdated, metaDocData, metaDocPath };
 }
 
-async function fetchAndProcessNews(handler: any, endpointConfig: BenzingaNewsRequestConfig, channel: string, lastMaxUpdated: number, endpointName: string): Promise<{ newsArray: any[], durationMs: number, apiResponse: any }> {
+async function fetchAndProcessNews(
+    handler: any,
+    endpointConfig: BenzingaNewsRequestConfig,
+    channel: string,
+    lastMaxUpdated: number,
+    endpointName: string
+): Promise<{
+    newsArray: any[];
+    durationMs: number;
+    apiResponse: any;
+}> {
     const apiParams = initializeApiParams(endpointConfig, channel, lastMaxUpdated ? new Date(lastMaxUpdated) : null);
 
     const requestId = `news-refresh-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -133,7 +144,17 @@ async function fetchAndProcessNews(handler: any, endpointConfig: BenzingaNewsReq
     return { newsArray, durationMs, apiResponse };
 }
 
-async function processNewsItems(db: admin.firestore.Firestore, newsArray: any[], endpointConfig: RequestConfig<BenzingaRequestId>, endpointName: string, channel: string, metaDocPath: string, now: admin.firestore.Timestamp, lastMaxUpdated: number, apiResponse: any) {
+async function processNewsItems(
+    db: admin.firestore.Firestore,
+    newsArray: any[],
+    endpointConfig: RequestConfig<BenzingaRequestId>,
+    endpointName: string,
+    channel: string,
+    metaDocPath: string,
+    now: admin.firestore.Timestamp,
+    lastMaxUpdated: number,
+    apiResponse: any
+) {
     if (newsArray.length > 0) {
         // Use Pacific time string as for refresh-history docId
         const laDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
@@ -334,16 +355,16 @@ export const refreshNewsEndpoints = onSchedule(
         // Declare once for the whole refresh cycle
         const now = admin.firestore.Timestamp.now();
         // Use Benzinga News endpoint's TTL from canonical config
-        const newsEndpointConfig = BZ_NEWS_ENDPOINTS;
+        const newsEndpointConfig = BZ_NEWS_REQUEST_CONFIG;
         if (!newsEndpointConfig || typeof newsEndpointConfig.ttl !== 'number') {
             throw new Error('Benzinga News endpoint config must have a numeric ttl');
         }
         const ttlMs = newsEndpointConfig.ttl * 1000;
 
-        // Only refresh the BZ_NEWS endpoint for now, as BZ_NEWS_ENDPOINTS is a single config.
+        // Only refresh the BZ_NEWS endpoint for now, as BZ_NEWS_REQUEST_CONFIG is a single config.
         // If other news endpoints are added, this loop will need to be re-evaluated to fetch
         // configs from ALL_BENZINGA_REQUEST_CONFIGS based on endpointKey.
-        const endpointConfig = BZ_NEWS_ENDPOINTS;
+        const endpointConfig = BZ_NEWS_REQUEST_CONFIG;
 
         const endpointId = endpointConfig.id as SvtBzNewsRequest;
         logNewsRefresh(`----------- nRM: START [${endpointId}] REFRESH -------------`);

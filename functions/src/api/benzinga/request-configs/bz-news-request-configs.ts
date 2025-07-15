@@ -162,7 +162,7 @@ const BASE_NEWS_REQUEST_CONFIG: Omit<RequestConfig, 'id' | 'name' | 'apiEndpoint
 };
 
 // --- News Endpoint Config ---
-export const BZ_NEWS_REQUESTS: Record<SvtBzNewsRequest, BenzingaNewsRequestConfig> = {
+export const BZ_NEWS_REQUEST_CONFIGS: Record<SvtBzNewsRequest, BenzingaNewsRequestConfig> = {
   [SvtBzNewsRequest.BZ_NEWS]: {
     ...BASE_NEWS_REQUEST_CONFIG,
     apiKeyEnv: 'BENZINGA_WIIM_API_KEY',

@@ -2,7 +2,8 @@ import { BzCompanyDataCalendarType, BzMarketDataCalendarType, BenzingaEndpoint, 
 import { BenzingaBaseHandler } from './handlers/benzinga-base.handler';
 
 // Import endpoint configurations
-import { ALL_BENZINGA_REQUEST_CONFIGS } from './request-configs/bz-request-configs';
+import { BZ_NEWS_REQUEST_CONFIGS } from './request-configs/bz-news-request-configs';
+import { COMPANY_DATA_REQUESTS, MARKET_DATA_REQUESTS } from './request-configs/bz-calendar-request-configs';
 
 // Import concrete handlers
 import { BenzingaCalendarHandler } from './handlers/benzinga-calendar.handler';
@@ -16,8 +17,12 @@ type BenzingaRequestConfigs = {
 // Define a union type of all possible handler keys
 export type HandlerKey = BenzingaEndpoint | BzCompanyDataCalendarType | BzMarketDataCalendarType | SvtBzNewsRequest;
 
-// Use the imported endpoint configurations
-const ENDPOINT_CONFIGS: BenzingaRequestConfigs = ALL_BENZINGA_REQUEST_CONFIGS as unknown as BenzingaRequestConfigs;
+// Combine all endpoint configurations
+const ENDPOINT_CONFIGS: BenzingaRequestConfigs = {
+  ...BZ_NEWS_REQUEST_CONFIGS,
+  ...COMPANY_DATA_REQUESTS,
+  ...MARKET_DATA_REQUESTS
+} as unknown as BenzingaRequestConfigs;
 
 // Handler map - maps endpoint IDs to their handler classes
 const HANDLER_MAP: Record<HandlerKey, new (config: BenzingaRequestConfig) => BenzingaBaseHandler> = {
@@ -48,7 +53,7 @@ export class BenzingaHandlerFactory {
    * Gets the configuration for a specific endpoint
    */
   static getEndpointConfig(endpoint: HandlerKey): Readonly<BenzingaRequestConfig> {
-    const endpointConfig = ALL_BENZINGA_REQUEST_CONFIGS[endpoint];
+    const endpointConfig = ENDPOINT_CONFIGS[endpoint];
     if (!endpointConfig) {
       throw new Error(`No configuration found for endpoint: ${endpoint}`);
     }
