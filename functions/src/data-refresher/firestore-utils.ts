@@ -2,36 +2,38 @@
 import { FirestoreCollection } from '../common/firestore-collections';
 import { ApiProvider } from '../common/data-providers';
 import { BZ_NEWS_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-news-request-configs';
-import { COMPANY_DATA_REQUESTS, MARKET_DATA_REQUESTS } from '../api/benzinga/request-configs/bz-calendar-request-configs';
+import { BZ_CALENDAR_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-calendar-request-configs';
 
 // Combine all Benzinga configs
 const ALL_BENZINGA_CONFIGS = {
   ...BZ_NEWS_REQUEST_CONFIGS,
-  ...COMPANY_DATA_REQUESTS,
-  ...MARKET_DATA_REQUESTS
+  ...BZ_CALENDAR_REQUEST_CONFIGS,
 } as const;
 
 /**
- * Resolves the Firestore path for a given endpoint and symbol using config.
+ * Resolves the Firestore path for a given endpoint by substituting the symbol.
+ * Only use this function for endpoints that require a symbol.
+ * @throws {Error} If the endpoint config is not found or if no symbol is provided
  */
-export function resolveFirestorePath(endpointName: string, symbol?: string): string {
+export function resolveFirestorePath(endpointName: string, symbol: string): string {
   const config = ALL_BENZINGA_CONFIGS[endpointName as keyof typeof ALL_BENZINGA_CONFIGS];
   if (!config?.firestorePath) {
     throw new Error(`No Firestore path config found for endpoint: ${endpointName}`);
   }
-  let path = config.firestorePath;
-  if (path.includes('{symbol}')) {
-    path = path.replace('{symbol}', symbol || '');
+  if (!symbol) {
+    throw new Error(`Symbol is required for endpoint: ${endpointName}`);
   }
-  return path; // Ensures correct doc path for both symbol-based and newsId-based endpoints
+  return config.firestorePath.replace('{symbol}', symbol);
 }
 
 /**
  * Resolves the refresh history subcollection path for a given endpoint and symbol.
  */
 export function resolveRefreshHistoryPath(endpointName: string, symbol?: string): string {
-  // Use FirestoreCollection.REFRESH_HISTORY for consistency
-  return resolveFirestorePath(endpointName, symbol) + `/${FirestoreCollection.REFRESH_HISTORY}`;
+  const basePath = symbol 
+    ? resolveFirestorePath(endpointName, symbol)
+    : ALL_BENZINGA_CONFIGS[endpointName as keyof typeof ALL_BENZINGA_CONFIGS]?.firestorePath || '';
+  return `${basePath}/${FirestoreCollection.REFRESH_HISTORY}`;
 }
 
 /**

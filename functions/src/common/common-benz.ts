@@ -41,8 +41,7 @@ export const NEWS_REFRESH_ACTIVE_ENDPOINTS: SvtBzNewsRequest[] = [
  * Union type for all Benzinga endpoint IDs (excluding backend-only endpoints)
  */
 export type BenzingaRequestId =
-  | BzCompanyDataCalendarType
-  | BzMarketDataCalendarType
+  | BzCalendarRequestType
   | SvtBzNewsRequest;
 
 // TODO: Migrate all Benzinga code to use BenzingaRequestConfig and BenzingaNewsRequestConfig instead of BenzingaEndpointConfig/BenzingaNewsEndpointConfig
@@ -134,6 +133,23 @@ export enum BzMarketDataCalendarType {
  * Union of all calendar types
  */
 export type BzCalendarType = BzCompanyDataCalendarType | BzMarketDataCalendarType;
+
+/**
+ * Company-specific calendar types (require a ticker/symbol)
+ */
+export enum BzCalendarRequestType {
+    EARNINGS = 'earnings',
+    DIVIDENDS = 'dividends',
+    CONFERENCE_CALLS = 'conference-calls',
+    RATINGS = 'ratings',
+    GUIDANCE = 'guidance',
+    SPLITS = 'splits',
+    OFFERINGS = 'offerings',
+    ECONOMICS = 'economics',
+    IPOS = 'ipos',
+    FDA = 'fda',
+    MERGERS_ACQUISITIONS = 'ma' // matches Benzinga API endpoint
+}
 
 /**
  * Type guard to check if a calendar type is a company data type

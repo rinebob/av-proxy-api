@@ -2,11 +2,10 @@ import { ApiProvider } from '../../../common/data-providers';
 import { EndpointCategory, HttpMethod } from '../../common/enums';
 import { FirestoreCollection } from '../../../common/firestore-collections';
 import {
-    BzCompanyDataCalendarType,
-    BzMarketDataCalendarType,
     BenzingaEndpoint,
     BenzingaRequestConfig,
     BenzingaCalendarParameter,
+    BzCalendarRequestType,
 } from '../../../common/common-benz';
 import { EndpointConfig } from '../../common/types';
 
@@ -132,161 +131,155 @@ const BASE_CALENDAR_REQUEST_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEnd
             default: 100,
         },
     },
-    firestorePath: '', // Will be set per endpoint
     documentationUrl: 'https://docs.benzinga.com/benzinga/calendar-v2.html',
 };
 
-// Company Data Endpoints
-export const COMPANY_DATA_REQUESTS: Record<BzCompanyDataCalendarType, BenzingaRequestConfig> = {
-  [BzCompanyDataCalendarType.EARNINGS]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzCompanyDataCalendarType.EARNINGS,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    name: 'Earnings',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.EARNINGS}`,
-    description: 'Returns earnings data for companies',
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/bz-${FirestoreCollection.EARNINGS}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS,
-      BenzingaCalendarParameter.DATE_SORT,
-      BenzingaCalendarParameter.TICKERS,
-      BenzingaCalendarParameter.IMPORTANCE
-    ],
-  },
-  [BzCompanyDataCalendarType.DIVIDENDS]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzCompanyDataCalendarType.DIVIDENDS,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    name: 'Dividends',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.DIVIDENDS}`,
-    description: 'Returns dividend data for companies',
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.DIVIDENDS}/bz-${FirestoreCollection.DIVIDENDS}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS,
-      BenzingaCalendarParameter.TICKERS,
-      BenzingaCalendarParameter.DIVIDEND_YIELD
-    ],
-  },
-  [BzCompanyDataCalendarType.CONFERENCE_CALLS]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzCompanyDataCalendarType.CONFERENCE_CALLS,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    name: 'Conference Calls',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.CONFERENCE_CALLS}`,
-    description: 'Returns conference call information',
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.CONFERENCE_CALLS}/bz-${FirestoreCollection.CONFERENCE_CALLS}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS,
-      BenzingaCalendarParameter.TICKERS
-    ],
-  },
-  [BzCompanyDataCalendarType.RATINGS]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzCompanyDataCalendarType.RATINGS,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    name: 'Analyst Ratings',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.RATINGS}`,
-    description: 'Returns analyst ratings for companies',
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.RATINGS}/bz-${FirestoreCollection.RATINGS}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS,
-      BenzingaCalendarParameter.TICKERS,
-      BenzingaCalendarParameter.ACTION
-    ],
-  },
-  [BzCompanyDataCalendarType.GUIDANCE]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzCompanyDataCalendarType.GUIDANCE,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    name: 'Guidance',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.GUIDANCE}`,
-    description: 'Returns company guidance',
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.GUIDANCE}/bz-${FirestoreCollection.GUIDANCE}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS,
-      BenzingaCalendarParameter.TICKERS
-    ],
-  },
-  [BzCompanyDataCalendarType.SPLITS]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzCompanyDataCalendarType.SPLITS,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    name: 'Stock Splits',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.SPLITS}`,
-    description: 'Returns stock split information',
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.SPLITS}/bz-${FirestoreCollection.SPLITS}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS,
-      BenzingaCalendarParameter.TICKERS
-    ],
-  },
-  [BzCompanyDataCalendarType.OFFERINGS]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzCompanyDataCalendarType.OFFERINGS,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    name: 'Offerings',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCompanyDataCalendarType.OFFERINGS}`,
-    description: 'Returns company offerings',
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.OFFERINGS}/bz-${FirestoreCollection.OFFERINGS}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS,
-      BenzingaCalendarParameter.TICKERS
-    ],
-  },
-};
-
-// Market Data Endpoints
-export const MARKET_DATA_REQUESTS: Record<BzMarketDataCalendarType, BenzingaRequestConfig> = {
-  [BzMarketDataCalendarType.ECONOMICS]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzMarketDataCalendarType.ECONOMICS,
-    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
-    name: 'Economics Calendar',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.ECONOMICS}`,
-    description: 'Returns economic calendar data',
-    requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.ECONOMICS}/bz-${FirestoreCollection.ECONOMIC_CALENDAR}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS
-    ],
-  },
-  [BzMarketDataCalendarType.IPOS]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzMarketDataCalendarType.IPOS,
-    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
-    name: 'IPOs',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.IPOS}`,
-    description: 'Returns IPO calendar data',
-    requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.IPOS}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS
-    ],
-  },
-  [BzMarketDataCalendarType.FDA]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzMarketDataCalendarType.FDA,
-    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
-    name: 'FDA Calendar',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.FDA}`,
-    description: 'Returns FDA calendar data',
-    requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.FDA}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS
-    ],
-  },
-  [BzMarketDataCalendarType.MERGERS_ACQUISITIONS]: {
-    ...BASE_CALENDAR_REQUEST_CONFIG,
-    id: BzMarketDataCalendarType.MERGERS_ACQUISITIONS,
-    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
-    name: 'Mergers & Acquisitions',
-    apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzMarketDataCalendarType.MERGERS_ACQUISITIONS}`,
-    description: 'Returns M&A activity data',
-    requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.MERGERS_ACQUISITIONS}`,
-    parameterKeys: [
-      ...BZ_CALENDAR_COMMON_PARAMS
-    ],
-  },
-};
+export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, BenzingaRequestConfig> = {
+    [BzCalendarRequestType.EARNINGS]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.EARNINGS,
+        symbolUsage: EndpointSymbolUsage.REQUIRED,
+        name: 'Earnings',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.EARNINGS}`,
+        description: 'Returns earnings data for companies',
+        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/bz-${FirestoreCollection.EARNINGS}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS,
+          BenzingaCalendarParameter.DATE_SORT,
+          BenzingaCalendarParameter.TICKERS,
+          BenzingaCalendarParameter.IMPORTANCE
+        ],
+      },
+      [BzCalendarRequestType.DIVIDENDS]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.DIVIDENDS,
+        symbolUsage: EndpointSymbolUsage.REQUIRED,
+        name: 'Dividends',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.DIVIDENDS}`,
+        description: 'Returns dividend data for companies',
+        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.DIVIDENDS}/bz-${FirestoreCollection.DIVIDENDS}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS,
+          BenzingaCalendarParameter.TICKERS,
+          BenzingaCalendarParameter.DIVIDEND_YIELD
+        ],
+      },
+      [BzCalendarRequestType.CONFERENCE_CALLS]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.CONFERENCE_CALLS,
+        symbolUsage: EndpointSymbolUsage.REQUIRED,
+        name: 'Conference Calls',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.CONFERENCE_CALLS}`,
+        description: 'Returns conference call information',
+        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.CONFERENCE_CALLS}/bz-${FirestoreCollection.CONFERENCE_CALLS}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS,
+          BenzingaCalendarParameter.TICKERS
+        ],
+      },
+      [BzCalendarRequestType.RATINGS]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.RATINGS,
+        symbolUsage: EndpointSymbolUsage.REQUIRED,
+        name: 'Analyst Ratings',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.RATINGS}`,
+        description: 'Returns analyst ratings for companies',
+        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.RATINGS}/bz-${FirestoreCollection.RATINGS}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS,
+          BenzingaCalendarParameter.TICKERS,
+          BenzingaCalendarParameter.ACTION
+        ],
+      },
+      [BzCalendarRequestType.GUIDANCE]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.GUIDANCE,
+        symbolUsage: EndpointSymbolUsage.REQUIRED,
+        name: 'Guidance',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.GUIDANCE}`,
+        description: 'Returns company guidance',
+        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.GUIDANCE}/bz-${FirestoreCollection.GUIDANCE}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS,
+          BenzingaCalendarParameter.TICKERS
+        ],
+      },
+      [BzCalendarRequestType.SPLITS]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.SPLITS,
+        symbolUsage: EndpointSymbolUsage.REQUIRED,
+        name: 'Stock Splits',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.SPLITS}`,
+        description: 'Returns stock split information',
+        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.SPLITS}/bz-${FirestoreCollection.SPLITS}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS,
+          BenzingaCalendarParameter.TICKERS
+        ],
+      },
+      [BzCalendarRequestType.OFFERINGS]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.OFFERINGS,
+        symbolUsage: EndpointSymbolUsage.REQUIRED,
+        name: 'Offerings',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.OFFERINGS}`,
+        description: 'Returns company offerings',
+        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.OFFERINGS}/bz-${FirestoreCollection.OFFERINGS}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS,
+          BenzingaCalendarParameter.TICKERS
+        ],
+      },
+      [BzCalendarRequestType.ECONOMICS]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.ECONOMICS,
+        symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
+        name: 'Economics Calendar',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.ECONOMICS}`,
+        description: 'Returns economic calendar data',
+        requiresSymbol: false,
+        firestorePath: `${FirestoreCollection.ECONOMICS}/bz-${FirestoreCollection.ECONOMIC_CALENDAR}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS
+        ],
+      },
+      [BzCalendarRequestType.IPOS]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.IPOS,
+        symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
+        name: 'IPOs',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.IPOS}`,
+        description: 'Returns IPO calendar data',
+        requiresSymbol: false,
+        firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.IPOS}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS
+        ],
+      },
+      [BzCalendarRequestType.FDA]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.FDA,
+        symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
+        name: 'FDA Calendar',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.FDA}`,
+        description: 'Returns FDA calendar data',
+        requiresSymbol: false,
+        firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.FDA}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS
+        ],
+      },
+      [BzCalendarRequestType.MERGERS_ACQUISITIONS]: {
+        ...BASE_CALENDAR_REQUEST_CONFIG,
+        id: BzCalendarRequestType.MERGERS_ACQUISITIONS,
+        symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
+        name: 'Mergers & Acquisitions',
+        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.MERGERS_ACQUISITIONS}`,
+        description: 'Returns M&A activity data',
+        requiresSymbol: false,
+        firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.MERGERS_ACQUISITIONS}`,
+        parameterKeys: [
+          ...BZ_CALENDAR_COMMON_PARAMS
+        ],
+      },
+    }

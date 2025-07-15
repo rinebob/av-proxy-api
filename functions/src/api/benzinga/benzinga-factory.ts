@@ -1,9 +1,9 @@
-import { BzCompanyDataCalendarType, BzMarketDataCalendarType, BenzingaEndpoint, SvtBzNewsRequest, BenzingaRequestConfig } from '../../common/common-benz';
+import { BzCalendarRequestType, BenzingaEndpoint, SvtBzNewsRequest, BenzingaRequestConfig } from '../../common/common-benz';
 import { BenzingaBaseHandler } from './handlers/benzinga-base.handler';
 
 // Import endpoint configurations
 import { BZ_NEWS_REQUEST_CONFIGS } from './request-configs/bz-news-request-configs';
-import { COMPANY_DATA_REQUESTS, MARKET_DATA_REQUESTS } from './request-configs/bz-calendar-request-configs';
+import { BZ_CALENDAR_REQUEST_CONFIGS } from './request-configs/bz-calendar-request-configs';
 
 // Import concrete handlers
 import { BenzingaCalendarHandler } from './handlers/benzinga-calendar.handler';
@@ -11,39 +11,38 @@ import { BenzingaNewsHandler } from './handlers/benzinga-news.handler';
 
 // Define a mapped type that ensures all BenzingaEndpoints have a config
 type BenzingaRequestConfigs = {
-  [K in BzCompanyDataCalendarType | BzMarketDataCalendarType | SvtBzNewsRequest | BenzingaEndpoint]: BenzingaRequestConfig & { id: K };
+  [K in BzCalendarRequestType | SvtBzNewsRequest | BenzingaEndpoint]: BenzingaRequestConfig & { id: K };
 };
 
 // Define a union type of all possible handler keys
-export type HandlerKey = BenzingaEndpoint | BzCompanyDataCalendarType | BzMarketDataCalendarType | SvtBzNewsRequest;
+export type HandlerKey = BenzingaEndpoint | BzCalendarRequestType | SvtBzNewsRequest;
 
 // Combine all endpoint configurations
 const ENDPOINT_CONFIGS: BenzingaRequestConfigs = {
   ...BZ_NEWS_REQUEST_CONFIGS,
-  ...COMPANY_DATA_REQUESTS,
-  ...MARKET_DATA_REQUESTS
+  ...BZ_CALENDAR_REQUEST_CONFIGS,
 } as unknown as BenzingaRequestConfigs;
 
 // Handler map - maps endpoint IDs to their handler classes
 const HANDLER_MAP: Record<HandlerKey, new (config: BenzingaRequestConfig) => BenzingaBaseHandler> = {
-  [BenzingaEndpoint.NEWS]: BenzingaNewsHandler,
-  // Company Data Endpoints
-  [BzCompanyDataCalendarType.EARNINGS]: BenzingaCalendarHandler,
-  [BzCompanyDataCalendarType.DIVIDENDS]: BenzingaCalendarHandler,
-  [BzCompanyDataCalendarType.CONFERENCE_CALLS]: BenzingaCalendarHandler,
-  [BzCompanyDataCalendarType.RATINGS]: BenzingaCalendarHandler,
-  [BzCompanyDataCalendarType.GUIDANCE]: BenzingaCalendarHandler,
-  [BzCompanyDataCalendarType.SPLITS]: BenzingaCalendarHandler,
-  [BzCompanyDataCalendarType.OFFERINGS]: BenzingaCalendarHandler,
-  
-  // Market Data Endpoints
-  [BzMarketDataCalendarType.ECONOMICS]: BenzingaCalendarHandler,
-  [BzMarketDataCalendarType.IPOS]: BenzingaCalendarHandler,
-  [BzMarketDataCalendarType.FDA]: BenzingaCalendarHandler,
-  [BzMarketDataCalendarType.MERGERS_ACQUISITIONS]: BenzingaCalendarHandler,
-
   // Top-level endpoints
+  [BenzingaEndpoint.NEWS]: BenzingaNewsHandler,
   [BenzingaEndpoint.CALENDAR]: BenzingaCalendarHandler,
+  
+  // Calendar endpoints
+  [BzCalendarRequestType.EARNINGS]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.DIVIDENDS]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.CONFERENCE_CALLS]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.RATINGS]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.GUIDANCE]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.SPLITS]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.OFFERINGS]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.ECONOMICS]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.IPOS]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.FDA]: BenzingaCalendarHandler,
+  [BzCalendarRequestType.MERGERS_ACQUISITIONS]: BenzingaCalendarHandler,
+  
+  // News endpoints
   [SvtBzNewsRequest.BZ_NEWS]: BenzingaNewsHandler,
   [SvtBzNewsRequest.BZ_NEWS_BY_ID]: BenzingaNewsHandler,
 };

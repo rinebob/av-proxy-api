@@ -53,12 +53,12 @@ export class BenzingaCalendarHandler extends BenzingaBaseHandler<CalendarEvent[]
   }
 
   /**
-   * Process the request by calling the base handler's fetch method.
+   * Process the request by calling the base handler's processRequestBase method.
    * @param params The request parameters.
    * @returns A promise that resolves with the API response.
    */
   protected async processRequest(params: Record<string, any>): Promise<any> {
-    return this.fetch(params);
+    return this.processRequestBase(params);
   }
 
   // Override transformResponse to pass through raw data
