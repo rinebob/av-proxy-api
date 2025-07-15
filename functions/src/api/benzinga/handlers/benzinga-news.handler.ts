@@ -1,7 +1,8 @@
 import { BenzingaNewsRequestConfig } from '../../../common/common-benz';
 import { BenzingaBaseHandler } from './benzinga-base.handler';
 import { BENZINGA_NEWS_API_BASE_URL } from '../../../common/common-benz';
-import { admin } from '../../../firebase-admin-init';
+
+const fetchNewsByIdArticle = false;
 
 /**
  * Handler for SvtBzNewsRequest.BZ_NEWS Handles parameter formatting and response transformation for /news.
@@ -23,11 +24,12 @@ export class BenzingaNewsHandler extends BenzingaBaseHandler<any> {
     if (preparedParams.page === undefined) preparedParams.page = 0;
     // Use pageSize from params, or default to 100 if not provided
     if (preparedParams.pageSize === undefined) preparedParams.pageSize = 100;
-    // Set channels from config (array to comma string)
-    const newsConfig = this.config as BenzingaNewsRequestConfig;
-    if (Array.isArray(newsConfig.channels)) {
-      preparedParams.channels = newsConfig.channels.join(',');
+    
+    // Set channels from params (should be a single string)
+    if (typeof params.channels === 'string') {
+      preparedParams.channels = params.channels;
     }
+    
     if (params.sinceLastUpdate) {
       preparedParams.updatedSince = params.sinceLastUpdate;
     }
@@ -46,22 +48,8 @@ export class BenzingaNewsHandler extends BenzingaBaseHandler<any> {
    */
   protected async processRequest(params: Record<string, any>): Promise<any> {
     // If newsId is provided, fetch a single news item
-    if (params.newsId) {
+    if (fetchNewsByIdArticle) { // Temporarily disabled news_by_id request
       const newsId = params.newsId;
-      // Compose Firestore path (WIIM collection)
-      // Path: news/benzinga/wiim/{newsId}
-      const firestore = admin.firestore();
-      const docPath = `news/benzinga/wiim/${newsId}`;
-      try {
-        const docSnap = await firestore.doc(docPath).get();
-        if (docSnap.exists) {
-          return { data: docSnap.data(), source: 'firestore', id: newsId };
-        }
-      } catch (err) {
-        // Log Firestore error but continue to Benzinga fallback
-        console.error('Error fetching newsId from Firestore:', err);
-      }
-      // Fall back to Benzinga API (direct fetch)
       const apiParams = { ...params };
       // Remove both possible id/newsId keys from params to avoid query param pollution
       delete apiParams.newsId;

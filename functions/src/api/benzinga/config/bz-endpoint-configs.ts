@@ -423,7 +423,7 @@ export const BZ_NEWS_ENDPOINTS: Record<SvtBzNewsRequest, BenzingaNewsRequestConf
         default: 100,
       },
     },
-    channels: [BzNewsChannel.WIIM],
+    channels: [BzNewsChannel.MARKET_MOVING_EXCLUSIVES, BzNewsChannel.MOVERS_SHAKERS],
   },
   [SvtBzNewsRequest.BZ_NEWS_BY_ID]: {
     ...BASE_ENDPOINT_CONFIG,
@@ -434,7 +434,7 @@ export const BZ_NEWS_ENDPOINTS: Record<SvtBzNewsRequest, BenzingaNewsRequestConf
     apiEndpoint: `/${BenzingaEndpoint.NEWS}/{newsId}`,
     description: 'Fetch a single news article by NodeID',
     requiresSymbol: false,
-    firestorePath: `${FirestoreCollection.NEWS}/${ApiProvider.BENZINGA}/${FirestoreCollection.WIIM}/{newsId}`,
+    firestorePath: `${FirestoreCollection.NEWS}/${ApiProvider.BENZINGA}/{channel}/{newsId}`,
     parameterKeys: [
       BenzingaNewsParameter.NEWS_ID,
       BenzingaNewsParameter.DISPLAY_OUTPUT,

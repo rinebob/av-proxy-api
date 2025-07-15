@@ -86,7 +86,7 @@ export enum FirestoreCollection {
   NEWS = 'news',
   // Why Is It Moving?
   WIIM = 'wiim',
-  METADATA = 'metadata',
+  METADATA = '_metadata',
   
 
 

@@ -157,7 +157,7 @@ export abstract class BenzingaBaseHandler<T = any> {
       console.log(`bB.H fetch [${this.requestId}] Sending request to Benzinga API`, {
         method: config.method,
         url: config.url,
-        params: config.params
+        params: finalParams
       });
 
       const response = await this.apiClient.request(config);
