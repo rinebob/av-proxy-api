@@ -31,7 +31,8 @@ function logBZDM(message: string, ...args: any[]) {
 // Main scheduled function for refreshing Benzinga data
 export const refreshBenzingaData = onSchedule(
     {
-        schedule: 'every 1 minute',
+        schedule: '*/1 * * * *', // Every minute using standard cron syntax
+        timeZone: 'America/Los_Angeles', // Explicit timezone for the schedule
         secrets: ['BENZINGA_CALENDAR_API_KEY'],
     },
     async () => {
