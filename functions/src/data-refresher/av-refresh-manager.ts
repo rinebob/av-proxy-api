@@ -58,7 +58,15 @@ export const refreshAlphaVantageData = onSchedule(
       for (const symbol of symbols) {
         logDM(`**********************************************************************************`);
         logDM(`=========== START SYMBOL [${symbol}] ===================================`);
-        const docPath = resolveFirestorePath(endpoint, symbol);
+        if (!endpointConfig.firestorePath) {
+          logDM(`Skipping - no firestorePath configured for endpoint: ${endpoint}`);
+          continue;
+        }
+        const docPath = resolveFirestorePath({
+          firestorePath: endpointConfig.firestorePath,
+          symbolUsage: endpointConfig.symbolUsage,
+          endpointName: endpoint
+        }, symbol);
         logDM(`aDM rAVD: docPath: ${docPath}`);
         const docRef = db.doc(docPath);
         const docSnap = await docRef.get();
@@ -155,7 +163,15 @@ export const refreshAlphaVantageData = onSchedule(
           logDM(`----------- aDM rAVD: END WRITE TO FIRESTORE FOR ${symbol} ${endpointName} -----------------------`);
 
           // 6. Log refresh event to history with human-readable doc ID
-          const historyPath = resolveRefreshHistoryPath(endpoint, symbol);
+          if (!endpointConfig.firestorePath) {
+            logDM(`Skipping history logging - no firestorePath for endpoint: ${endpoint}`);
+            continue;
+          }
+          const historyPath = resolveRefreshHistoryPath({
+            firestorePath: endpointConfig.firestorePath,
+            symbolUsage: endpointConfig.symbolUsage,
+            endpointName: endpoint
+          }, symbol);
           const nowDate = new Date();
           const refreshEventId = getRefreshEventDocId(ApiProvider.ALPHA_VANTAGE, endpoint, nowDate, symbol);
           await db.collection(historyPath).doc(refreshEventId).set({
@@ -171,7 +187,15 @@ export const refreshAlphaVantageData = onSchedule(
           const durationMs = Date.now() - apiStart;
           logDM(`aDM rAVD: ERROR refreshing ${symbol} ${endpointName}:`, error.message);
           // Log failure event with human-readable doc ID
-          const historyPath = resolveRefreshHistoryPath(endpoint, symbol);
+          if (!endpointConfig.firestorePath) {
+            logDM(`Skipping history logging - no firestorePath for endpoint: ${endpoint}`);
+            continue;
+          }
+          const historyPath = resolveRefreshHistoryPath({
+            firestorePath: endpointConfig.firestorePath,
+            symbolUsage: endpointConfig.symbolUsage,
+            endpointName: endpoint
+          }, symbol);
           const nowDate = new Date();
           const refreshEventId = getRefreshEventDocId(ApiProvider.ALPHA_VANTAGE, endpoint, nowDate, symbol);
           await db.collection(historyPath).doc(refreshEventId).set({

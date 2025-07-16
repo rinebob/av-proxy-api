@@ -1,38 +1,56 @@
 // Shared Firestore utilities for data refreshers
 import { FirestoreCollection } from '../common/firestore-collections';
 import { ApiProvider } from '../common/data-providers';
-import { BZ_NEWS_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-news-request-configs';
-import { BZ_CALENDAR_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-calendar-request-configs';
-
-// Combine all Benzinga configs
-const ALL_BENZINGA_CONFIGS = {
-  ...BZ_NEWS_REQUEST_CONFIGS,
-  ...BZ_CALENDAR_REQUEST_CONFIGS,
-} as const;
+import { EndpointSymbolUsage } from '../common/common-fn';
 
 /**
- * Resolves the Firestore path for a given endpoint by substituting the symbol.
- * Only use this function for endpoints that require a symbol.
- * @throws {Error} If the endpoint config is not found or if no symbol is provided
+ * Configuration for resolving Firestore paths
  */
-export function resolveFirestorePath(endpointName: string, symbol: string): string {
-  const config = ALL_BENZINGA_CONFIGS[endpointName as keyof typeof ALL_BENZINGA_CONFIGS];
+export interface FirestorePathConfig {
+  /** The Firestore path template, may contain {symbol} placeholder */
+  firestorePath: string;
+  
+  /** Whether and how this endpoint uses symbols */
+  symbolUsage?: EndpointSymbolUsage;
+  
+  /** The endpoint name for logging and identification */
+  endpointName: string;
+}
+
+
+
+/**
+ * Resolves the Firestore path for a given endpoint configuration and optional symbol.
+ * For symbol endpoints, the symbol will be substituted into the path.
+ * For non-symbol endpoints, the path is used as-is.
+ * @param config The endpoint configuration containing path and symbol usage
+ * @param symbol Optional symbol for endpoints that support it
+ * @throws {Error} If the config is invalid or if a symbol is required but not provided
+ */
+export function resolveFirestorePath(config: FirestorePathConfig, symbol?: string): string {
   if (!config?.firestorePath) {
-    throw new Error(`No Firestore path config found for endpoint: ${endpointName}`);
+    throw new Error(`No Firestore path configured for endpoint: ${config.endpointName}`);
   }
-  if (!symbol) {
-    throw new Error(`Symbol is required for endpoint: ${endpointName}`);
+  
+  // For endpoints that require a symbol, validate and substitute it
+  if (config.symbolUsage && config.symbolUsage !== EndpointSymbolUsage.NOT_SUPPORTED) {
+    if (!symbol) {
+      throw new Error(`Symbol is required for endpoint: ${config.endpointName}`);
+    }
+    return config.firestorePath.replace('{symbol}', symbol);
   }
-  return config.firestorePath.replace('{symbol}', symbol);
+  
+  // For non-symbol endpoints, return the path as-is
+  return config.firestorePath;
 }
 
 /**
- * Resolves the refresh history subcollection path for a given endpoint and symbol.
+ * Resolves the refresh history subcollection path for a given endpoint configuration and optional symbol.
+ * @param config The endpoint configuration containing path and symbol usage
+ * @param symbol Optional symbol for endpoints that support it
  */
-export function resolveRefreshHistoryPath(endpointName: string, symbol?: string): string {
-  const basePath = symbol 
-    ? resolveFirestorePath(endpointName, symbol)
-    : ALL_BENZINGA_CONFIGS[endpointName as keyof typeof ALL_BENZINGA_CONFIGS]?.firestorePath || '';
+export function resolveRefreshHistoryPath(config: FirestorePathConfig, symbol?: string): string {
+  const basePath = resolveFirestorePath(config, symbol);
   return `${basePath}/${FirestoreCollection.REFRESH_HISTORY}`;
 }
 

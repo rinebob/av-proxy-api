@@ -8,22 +8,25 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { ApiProvider } from '../common/data-providers';
 import { FirestoreCollection } from '../common/firestore-collections';
 import { SvtBzNewsRequest } from '../common/common-benz';
+import { EndpointSymbolUsage } from '../common/common-fn';
 
 import { BenzingaHandlerFactory } from '../api/benzinga/benzinga-factory';
 import type { HandlerKey } from '../api/benzinga/benzinga-factory';
 import { BZ_CALENDAR_REQUEST_CONFIGS } from '../api/benzinga/request-configs/bz-calendar-request-configs';
 
-
+// Firestore utilities
+import { 
+  resolveFirestorePath, 
+  resolveRefreshHistoryPath, 
+  getRefreshEventDocId
+} from './firestore-utils';
+import { createMetadataDocument } from './metadata-utils';
 
 // Logging helper
 const pr = true;
 function logBZDM(message: string, ...args: any[]) {
     if (pr) console.log(`${message}`, ...args);
 }
-
-// Shared Firestore utility functions and enums
-import { resolveFirestorePath, resolveRefreshHistoryPath, getRefreshEventDocId } from './firestore-utils';
-import { EndpointSymbolUsage } from '../common/common-fn';
 
 // Main scheduled function for refreshing Benzinga data
 export const refreshBenzingaData = onSchedule(
@@ -76,7 +79,15 @@ export const refreshBenzingaData = onSchedule(
                         logBZDM(`Skipping - symbol is required but not provided for endpoint: ${endpointName}`);
                         continue;
                     }
-                    docPath = resolveFirestorePath(endpointName, symbol);
+                    if (!endpointConfig.firestorePath) {
+                        logBZDM(`Skipping - no firestorePath configured for endpoint: ${endpointName}`);
+                        continue;
+                    }
+                    docPath = resolveFirestorePath({
+                      firestorePath: endpointConfig.firestorePath,
+                      symbolUsage: endpointConfig.symbolUsage,
+                      endpointName
+                    }, symbol);
                 } else {
                     // Ensure firestorePath is defined
                     if (!endpointConfig.firestorePath) {
@@ -125,6 +136,9 @@ export const refreshBenzingaData = onSchedule(
 
                 // 4. Call Benzinga API
                 const apiStart = Date.now();
+                const requestId = `bzdm-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                const refreshConfig = { ttl, requestId, id: endpointConfig.id };
+                
                 try {
                     logBZDM(`----------- bCRM rBD: START API CALL FOR [${symbol} ${endpointName}] -------------`);
                     logBZDM(`bCRM rBD: Refreshing ${symbol || '(no symbol)'} ${endpointName} via Benzinga API...`);
@@ -146,7 +160,6 @@ export const refreshBenzingaData = onSchedule(
                         // Add more param handling as needed
                     }
 
-                    const requestId = `bzdm-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
                     const apiResponse = await handler.handleRequest(apiParams, requestId);
                     const durationMs = Date.now() - apiStart;
                     logBZDM(`bCRM rBD: Fetched data for ${symbol || '(no symbol)'} ${endpointName} in ${durationMs}ms.`);
@@ -176,39 +189,24 @@ export const refreshBenzingaData = onSchedule(
                             dataToSave = dataToSave[onlyKey];
                         }
                     }
-                    if (!requiresSymbol && (apiResponse == null || (Array.isArray(apiResponse) && apiResponse.length === 0) || (typeof apiResponse === 'object' && Object.keys(apiResponse).length === 0))) {
+                    const isEmptyResponse = apiResponse == null || 
+                        (Array.isArray(apiResponse) && apiResponse.length === 0) || 
+                        (typeof apiResponse === 'object' && Object.keys(apiResponse).length === 0);
+                        
+                    if (!requiresSymbol && isEmptyResponse) {
                         logBZDM(`bCRM rBD: No data returned for market-data endpoint ${endpointName}; writing metadata doc only.`);
                         dataToSave = null;
+                        // Don't return here - we still want to write the metadata doc
                     }
-                    const PST_TZ = 'America/Los_Angeles';
-                    let lastRefreshedAtDate: Date;
-                    if (now instanceof Date) {
-                        lastRefreshedAtDate = now;
-                    } else if (now && typeof now.toDate === 'function') {
-                        lastRefreshedAtDate = now.toDate();
-                    } else if (typeof now === 'number' || typeof now === 'string') {
-                        lastRefreshedAtDate = new Date(now);
-                    } else {
-                        lastRefreshedAtDate = new Date(); // fallback to current time
-                    }
-                    const nextRefreshAtDate = new Date(Date.now() + ttl * 1000);
-                    const updateData = {
-                        data: dataToSave,
-                        metadata: {
-                            endpoint: endpointName,
-                            symbol,
-                            nextRefreshAt: nextRefreshAtDate,
-                            nextRefreshAtPST: nextRefreshAtDate.toLocaleString('en-US', { timeZone: PST_TZ }),
-                            lastRefreshedAt: lastRefreshedAtDate,
-                            lastRefreshedAtPST: lastRefreshedAtDate.toLocaleString('en-US', { timeZone: PST_TZ }),
-                        },
-                        lastRefreshEvent: {
-                            timestamp: now,
-                            status: 'success',
-                            durationMs,
-                            error: null,
-                        },
-                    };
+                    const updateData = createMetadataDocument(
+                        endpointName,
+                        symbol,
+                        durationMs,
+                        'success',
+                        null,
+                        dataToSave,
+                        refreshConfig
+                    );
                     logBZDM(`----------- bCRM rBD: START WRITE TO FIRESTORE FOR [${symbol} ${endpointName}] -------------`);
                     await docRef.set(updateData, { merge: true });
                     logBZDM(`bCRM rBD: Saved refreshed data for ${symbol || '(no symbol)'} ${endpointName} to Firestore.`);
@@ -229,7 +227,9 @@ export const refreshBenzingaData = onSchedule(
                                 endpoints: {
                                     [endpointName]: {
                                         dataInSubcollection: true,
-                                        lastUpdated: FieldValue.serverTimestamp()
+                                        lastUpdated: FieldValue.serverTimestamp(),
+                                        lastRefreshEvent: updateData.lastRefreshEvent,
+                                        metadata: updateData.metadata
                                     }
                                 }
                             };
@@ -242,7 +242,15 @@ export const refreshBenzingaData = onSchedule(
                     }
 
                     // 6. Log refresh event to history with human-readable doc ID
-                    const historyPath = resolveRefreshHistoryPath(endpointName, symbol);
+                    if (!endpointConfig.firestorePath) {
+                        logBZDM(`Skipping history logging - no firestorePath for endpoint: ${endpointName}`);
+                        continue;
+                    }
+                    const historyPath = resolveRefreshHistoryPath({
+                      firestorePath: endpointConfig.firestorePath,
+                      symbolUsage: endpointConfig.symbolUsage,
+                      endpointName
+                    }, symbol);
                     logBZDM(`bCRM rBD: Logging refresh event for ${symbol || '(no symbol)'} ${endpointName} to history path: ${historyPath}`);
                     const nowDate = new Date();
                     const refreshEventId = getRefreshEventDocId(ApiProvider.BENZINGA, endpointName, nowDate, symbol);
@@ -258,20 +266,50 @@ export const refreshBenzingaData = onSchedule(
                 } catch (error: any) {
                     const durationMs = Date.now() - apiStart;
                     logBZDM(`bCRM rBD: ERROR refreshing ${symbol || '(no symbol)'} ${endpointName}:`, error.message);
+                    
+                    // Create error metadata
+                    const errorMetadata = createMetadataDocument(
+                        endpointName,
+                        symbol,
+                        durationMs,
+                        'failure',
+                        error.message,
+                        null,
+                        refreshConfig
+                    );
+
                     // Log failure event
-                    const historyPath = resolveRefreshHistoryPath(endpointName, symbol);
+                    if (!endpointConfig.firestorePath) {
+                        logBZDM(`Skipping history logging - no firestorePath for endpoint: ${endpointName}`);
+                        continue;
+                    }
+                    const historyPath = resolveRefreshHistoryPath({
+                      firestorePath: endpointConfig.firestorePath,
+                      symbolUsage: endpointConfig.symbolUsage,
+                      endpointName
+                    }, symbol);
                     const nowDate = new Date();
                     const refreshEventId = getRefreshEventDocId(ApiProvider.BENZINGA, endpointName, nowDate, symbol);
+                    
                     await db.collection(historyPath).doc(refreshEventId).set({
-                        timestamp: now,
-                        status: 'failure',
-                        durationMs,
-                        error: error.message,
+                        ...errorMetadata.lastRefreshEvent,
                         endpoint: endpointName,
                         symbol,
                         vendor: ApiProvider.BENZINGA,
+                        timestamp: now,
                     });
+                    
                     logBZDM(`bCRM rBD: Logged failure event for ${symbol || '(no symbol)'} ${endpointName} as ${refreshEventId}.`);
+                    
+                    // Also update the main document with error status
+                    try {
+                        await docRef.set({
+                            lastRefreshEvent: errorMetadata.lastRefreshEvent,
+                            metadata: errorMetadata.metadata
+                        }, { merge: true });
+                    } catch (updateError) {
+                        logBZDM(`bCRM rBD: Error updating document with failure status:`, updateError);
+                    }
                     logBZDM(`----------- bCRM rBD: END REFRESH FOR ${symbol} ${endpointName} -----------------------`);
                 }
                 logBZDM(`=========== END SYMBOL [${symbol}] ===================================`);
