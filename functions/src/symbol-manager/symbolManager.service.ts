@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { db } from '../firebase-admin-init';
 import { Timestamp, DocumentData, Query, FieldValue } from 'firebase-admin/firestore';
-import { AvSymbolSearchHandler } from '../data-maintainer/api-handlers/av-symbol-search';
+import { AvSymbolSearchHandler } from './symbol-search.handler';
 import { FirestoreCollection } from '../common/firestore-collections';
 import {
   TrackedSymbol,

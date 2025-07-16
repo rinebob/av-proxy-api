@@ -4,7 +4,7 @@ import {
   handleApiError,
   authenticateRequest
 } from '../utils/utils';
-import { AvSymbolSearchHandler } from '../data-maintainer/api-handlers/av-symbol-search';
+import { AvSymbolSearchHandler } from './symbol-search.handler';
 import { TrackedSymbol } from '../common/common-dm';
 
 interface SymbolSearchResponse {
