@@ -12,7 +12,7 @@ const BATCH_DELAY_MS = 1000; // 1 second delay between batches to respect rate l
  * Updates daily time series data for all tracked symbols using bulk quotes
  * This is a scheduled function that runs periodically
  */
-export const updateAllDailyTimeSeriesBulk = onSchedule({
+export const _updateAllDailyTimeSeriesBulk = onSchedule({
   schedule: '20 20 * * *', // 4:20 PM ET (20:20 UTC during EDT, 21:20 UTC during EST)
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],

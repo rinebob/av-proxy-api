@@ -38,3 +38,9 @@ export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-c
 
 // New News Data Refresher
 export { refreshBenzingaNewsEndpointsV2 } from './v2/benzinga/data-refresher/bz-news-refresh-manager.js';
+
+// In the V2 section of index.ts
+export { updateDailyTimeSeries } from './v2/alpha-vantage';
+
+// Remove the underscore from the function name then uncomment the next line to export it
+// export { updateAllDailyTimeSeriesBulk } from './v2/alpha-vantage';

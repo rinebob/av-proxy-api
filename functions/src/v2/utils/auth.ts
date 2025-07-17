@@ -1,5 +1,4 @@
-import * as admin from 'firebase-admin';
-import { admin as centralizedAdmin } from '../../firebase-admin-init';
+import { admin } from '../../firebase-admin-init';
 
 // Initialize Firebase Admin if not already done
 if (!admin.apps.length) {
@@ -54,7 +53,7 @@ export async function authenticateFirebaseUser(
     console.log(`Auth Emulator Host from env: ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
 
     // verifyIdToken will automatically use the emulator if the host env var is set.
-    const decodedToken = await centralizedAdmin.auth().verifyIdToken(token, true);
+    const decodedToken = await admin.auth().verifyIdToken(token, true);
     console.log('ID token verified successfully. UID:', decodedToken.uid);
     return decodedToken;
 

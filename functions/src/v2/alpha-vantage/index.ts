@@ -1,11 +1,10 @@
-// Re-export all handlers from the handlers directory
 export * from './handlers/alpha-vantage-base.handler';
 export * from './handlers/av-global-quote.handler';
-
-// Re-export common types
 export * from '../common/types';
 export * from '../common/enums';
+export { updateDailyTimeSeries } from './data-refresher/av-daily-time-series-updater';
 
-// Export the factory as the default export
+// Remove the underscore from the function name then uncomment the next line to export it
+// export { updateAllDailyTimeSeriesBulk } from './data-refresher/av-daily-time-series-bulk-updater';
 import { AlphaVantageHandlerFactory } from './alpha-vantage-factory';
 export default AlphaVantageHandlerFactory;

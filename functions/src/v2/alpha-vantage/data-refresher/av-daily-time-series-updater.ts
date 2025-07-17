@@ -2,7 +2,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { Timestamp } from 'firebase-admin/firestore';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { AlphaVantageEndpoint } from '../../common/common-av';
-import { db } from '../../firebase/firebase-admin-init';
+import { db } from '../../../firebase-admin-init';
 import { FirestoreCollection } from '../../common/firestore-collections';
 
 // Helper function to update daily time series with latest quote
