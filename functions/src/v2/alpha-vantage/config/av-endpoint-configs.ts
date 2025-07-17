@@ -42,6 +42,34 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     },
   },
   
+  [AlphaVantageEndpoint.REALTIME_BULK_QUOTES]: {
+    id: AlphaVantageEndpoint.REALTIME_BULK_QUOTES,
+    name: 'Realtime Bulk Quotes',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.QUOTES,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Returns realtime and delayed stock quotes for multiple symbols in a single API call.',
+    ttl: 0, // ttl is not used for this endpoint
+    requiresSymbol: true,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: '',  // firestorePath is not used for this endpoint
+    documentationUrl: 'https://www.alphavantage.co/documentation/#latestprice',
+    parameters: {
+      symbols: {
+        type: 'string',
+        required: true,
+        description: 'A comma-separated list of up to 100 stock symbols to fetch quotes for. Example: symbols=IBM,AAPL,MSFT',
+      },
+      datatype: {
+        type: 'string',
+        required: false,
+        description: 'The format of the output. Default is json.',
+        default: 'json',
+      },
+    },
+  },
+  
   [AlphaVantageEndpoint.TIME_SERIES_INTRADAY]: {
     id: AlphaVantageEndpoint.TIME_SERIES_INTRADAY,
     name: 'Intraday Time Series',

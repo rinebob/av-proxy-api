@@ -4,6 +4,7 @@ import { AlphaVantageBaseHandler } from './handlers/alpha-vantage-base.handler';
 import { AvDailyTimeSeriesHandler } from './handlers/av-daily-time-series.handler';
 import { AvGlobalQuoteHandler } from './handlers/av-global-quote.handler';
 import { AvCompanyOverviewHandler } from './handlers/av-company-overview.handler';
+import { AvBulkQuoteHandler } from './handlers/av-bulk-quote.handler';
 import { AV_ENDPOINT_CONFIGS } from './config/av-endpoint-configs';
 
 type EndpointConfigMap = {
@@ -25,6 +26,7 @@ const HANDLER_MAP: HandlerMap = {
   [AlphaVantageEndpoint.TIME_SERIES_DAILY]: AvDailyTimeSeriesHandler,
   [AlphaVantageEndpoint.GLOBAL_QUOTE]: AvGlobalQuoteHandler,
   [AlphaVantageEndpoint.OVERVIEW]: AvCompanyOverviewHandler,
+  [AlphaVantageEndpoint.REALTIME_BULK_QUOTES]: AvBulkQuoteHandler,
 } as const;
 
 export class AlphaVantageHandlerFactory {
