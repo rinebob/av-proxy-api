@@ -1,0 +1,303 @@
+import axios from 'axios';
+import { defineSecret, defineString } from "firebase-functions/params";
+import * as dotenv from 'dotenv';
+import {
+    ALPHAVANTAGE_BASE_URL,
+    AlphaVantageDailyTimeSeriesResponse,
+    AlphaVantageGlobalQuoteResponse,
+} from '../common/common-av';
+import { db } from '../../firebase-admin-init';
+import { authenticateFirebaseUser } from './auth';
+
+// Create a union type for all possible Alpha Vantage API responses
+export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVantageGlobalQuoteResponse;
+
+/** Define the Alpha Vantage API key as a Firebase Function parameter
+* The key 'ALPHAVANTAGE_API_KEY' is what you'll see in the .env.<project-id> file
+* and what you'd set in the Google Cloud Console if managing directly.
+* The CLI command `firebase functions:config:set alphavantage.key="YOUR_KEY"`
+* actually creates an entry that defineString can pick up if the key name matches.
+* Let's use a clear name for the parameter.
+*/
+export const alphaVantageApiKeyParam = defineSecret("ALPHAVANTAGE_API_KEY");
+
+/**
+ * New param for local emulator. This is read from .env.<project-id> by the emulator.
+ * It uses a different name to avoid conflicts during deployment when ALPHAVANTAGE_API_KEY
+ * (the secret) is sourced from Secret Manager.
+ */
+const localEmulatorAlphaVantageApiKeyParam = defineString("LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY", {
+  input: {text: {}},
+  default: "", // Default to empty string, so value() doesn't throw if not set, allowing logic to proceed
+  description: "API key for Alpha Vantage, ONLY for local emulator use.",
+});
+
+// Only load .env in non-production environment
+if (process.env.FUNCTIONS_EMULATOR === 'true') {
+  dotenv.config();
+}
+
+export { db };
+
+/**
+ * Authenticates an incoming request by validating the Firebase ID token.
+ * @param req The Express request object.
+ * @param res The Express response object.
+ * @returns A promise that resolves to the decoded ID token, or null if authentication fails.
+ */
+/**
+ * Sets the required CORS headers on the response.
+ * @param res The Express response object.
+ */
+export function setCorsHeaders(res: any): void {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-KEY, x-debug-request');
+  res.set('Access-Control-Max-Age', '3600');
+}
+
+/**
+ * Handles CORS preflight OPTIONS requests.
+ * @param req The Express request object.
+ * @param res The Express response object.
+ * @returns True if the request was an OPTIONS request and was handled, false otherwise.
+ */
+export function handleOptionsRequest(req: any, res: any): boolean {
+  if (req.method === 'OPTIONS') {
+    setCorsHeaders(res);
+    res.status(204).send('');
+    return true;
+  }
+  return false;
+}
+
+export async function authenticateRequest(
+  req: any,
+  res: any
+): Promise<any | null> {
+  try {
+    const idToken = req.headers.authorization?.split('Bearer ')[1];
+    if (!idToken) {
+      setCorsHeaders(res); // Ensure CORS headers on error response
+      res.status(401).json({ error: 'Unauthorized', message: 'No authentication token provided.' });
+      return null;
+    }
+
+    const decodedToken = await authenticateFirebaseUser(idToken);
+    if (!decodedToken) {
+      setCorsHeaders(res); // Ensure CORS headers on error response
+      res.status(403).json({
+        error: 'Forbidden',
+        message: 'Invalid or expired authentication token.'
+      });
+      return null;
+    }
+    return decodedToken;
+  } catch (error) {
+    // handleApiError should ideally handle CORS, but we add it here for safety
+    setCorsHeaders(res);
+    handleApiError(error, res, 'authenticateRequest');
+    return null;
+  }
+}
+
+/**
+ * Retrieves the Alpha Vantage API key from Firebase environment configuration.
+ * Logs an error if the key is not found.
+ * @returns {string} The API key. Throws an error if not found.
+ */
+export function getAlphaVantageApiKey(): string {
+  if (process.env.FUNCTIONS_EMULATOR === 'true') {
+    const localKey = localEmulatorAlphaVantageApiKeyParam.value();
+    if (localKey) {
+      console.log("Using local emulator API key.");
+      return localKey;
+    }
+  }
+  // In a deployed environment, use the secret
+  const apiKey = alphaVantageApiKeyParam.value();
+  if (!apiKey) {
+    console.error("FATAL: ALPHAVANTAGE_API_KEY secret not found or loaded.");
+    // Throw an error to halt execution, as the function cannot proceed.
+    throw new Error("Server configuration error: Missing Alpha Vantage API key.");
+  }
+  return apiKey;
+}
+
+/**
+ * Fetches data from the Alphavantage API for a specified function and symbol.
+ * @param params An object containing all necessary parameters for the API call (e.g., function, symbol, outputsize).
+ * @param apiKey The Alpha Vantage API key.
+ * @returns A promise that resolves to the API response.
+ * @throws An error if the API call fails.
+ */
+export async function fetchStockData(
+  params: { [key: string]: string }, 
+  apiKey: string
+): Promise<AlphaVantageResponse> {
+  console.info('----------- Utils fetchStockData ---------------');
+    // Construct the query parameters for the Alpha Vantage API call
+    const queryParams = new URLSearchParams({
+        ...params,
+        apikey: apiKey,
+    });
+
+    const url = `${ALPHAVANTAGE_BASE_URL}?${queryParams.toString()}`;
+    console.log(`ut fSD Fetching data from URL: ${url}`);
+
+    try {
+        const response = await axios.get<AlphaVantageResponse>(url);
+
+        console.log(`ut fSD response: ${response}`);
+        
+        // The Alpha Vantage API sometimes returns a 200 OK sttus even for errors,
+        // with the error message in the response body. We need to check for this.
+        const responseData = response.data;
+        console.log(`ut fSD responseData: ${responseData}`);
+
+        if (responseData['Error Message']) {
+            console.error('ut fSD Alpha Vantage API Error:', responseData['Error Message']);
+            // We will throw an error here so it can be caught by the handleApiError utility
+            throw new Error(`API Error: ${responseData['Error Message']}`);
+        }
+
+        if (responseData['Note']) {
+            console.warn('ut fSD Alpha Vantage API Rate Limit Note:', responseData['Note']);
+            // Throw a specific error for rate limiting that can be handled downstream
+            throw new Error(`ut fSD RATE_LIMIT: ${responseData['Note']}`);
+        }
+
+        return responseData;
+    } catch (error: any) {
+        // Log the detailed error and re-throw it to be handled by the calling function's catch block
+        console.error(`ut fSD Error in fetchStockData for symbol ${params.symbol}:`, error.message);
+        // Re-throw the original error to preserve stack trace and allow for specific handling
+        throw error;
+    }
+}
+
+/**
+ * Validates the HTTP request method
+ */
+export function validateRequestMethod(req: any, res: any): boolean {
+  if (req.method !== 'GET') {
+    console.warn('Received non-GET request:', req.method);
+    res.status(405).json({ 
+      error: 'Method Not Allowed',
+      message: 'Please send a GET request.'
+    });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Handles errors from API calls and sends appropriate HTTP responses
+ * @param error The error object caught in a try-catch block
+ * @param res The Express response object
+ * @param context Optional context string for logging
+ * @returns True if the error was handled, false otherwise
+ */
+export function handleApiError(error: any, res: any, context: string = ''): boolean {
+  setCorsHeaders(res); // Ensure CORS headers are set on all error responses
+  const contextPrefix = context ? `${context} - ` : '';
+  
+  // Check for rate limit error first and handle without stack trace
+  if (error.message?.startsWith('RATE_LIMIT:')) {
+    const rateLimitMessage = error.message.replace('RATE_LIMIT:', '').trim();
+    console.warn(`${contextPrefix}Rate limit error:`, rateLimitMessage);
+    res.status(429).json({
+      error: 'ut hAE Rate Limit Exceeded',
+      message: rateLimitMessage,
+      code: 'RATE_LIMIT_EXCEEDED'
+    });
+    return true;
+  }
+  
+  // For other errors, log the full error
+  console.error(`${contextPrefix}Error processing response:`, error);
+  
+  // If we have an error response from Alpha Vantage
+  if (error.response?.data) {
+    const errorData = error.response.data;
+    console.error(`ut hAE ${contextPrefix}Alpha Vantage error response:`, errorData);
+    
+    if (errorData['Error Message']) {
+      res.status(400).json({ 
+        error: 'ut hAE Alpha Vantage API Error',
+        message: errorData['Error Message']
+      });
+    } else if (errorData['Information']) {
+      res.status(400).json({ 
+        error: 'ut hAE API Error',
+        message: errorData['Information']
+      });
+    } else if (errorData['Note']) {
+      res.status(429).json({ 
+        error: 'ut hAE Rate Limit Exceeded',
+        message: errorData['Note']
+      });
+    } else {
+      res.status(400).json({ 
+        error: 'ut hAE API Error',
+        message: 'Unknown error from Alpha Vantage API',
+        details: errorData
+      });
+    }
+    return true;
+  } 
+  // If we have an error from our transform function
+  else if (error.message) {
+    res.status(400).json({ 
+      error: 'ut hAE Data Processing Error',
+      message: error.message
+    });
+    return true;
+  }
+  // If we have a network error
+  else if (error.request) {
+    console.error(`ut hAE ${contextPrefix}No response received from API:`, error.request);
+    res.status(504).json({ 
+      error: 'ut hAE Gateway Timeout',
+      message: 'No response received from AlphaVantage API' 
+    });
+    return true;
+  }
+  // For any other errors
+  else {
+    console.error(`ut hAE ${contextPrefix}Unexpected error:`, error);
+    res.status(500).json({
+      error: 'ut hAE Internal Server Error',
+      message: error.message || 'An unexpected error occurred'
+    });
+    return true;
+  }
+}
+
+/**
+ * Formats a Firestore Timestamp or Date to a Pacific Time string
+ * @param date The date to format (can be Firestore Timestamp, Date, or null/undefined)
+ * @returns Formatted date string in Pacific Time or 'N/A' if invalid
+ */
+export function formatPST(date: any): string {
+  if (!date) return 'N/A';
+  try {
+    const d = date.toDate ? date.toDate() : new Date(date);
+    if (isNaN(d.getTime())) return 'Invalid Date';
+    return d.toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }) + ' PT';
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Invalid Date';
+  }
+}
+
+// Force redeploy to apply IAM changes.
