@@ -226,7 +226,10 @@ export enum AvEndpointCategory {
     QUOTES = 'quotes',
     
     /** Economic indicators and metrics */
-    ECONOMIC_INDICATORS = 'economic-indicators'
+    ECONOMIC_INDICATORS = 'economic-indicators',
+    
+    /** Symbol search */
+    SEARCH = 'search'
   }
 
 /**
@@ -373,4 +376,24 @@ export interface AlphaVantageSymbolMatch {
  */
 export interface AlphaVantageSymbolSearchResponse {
     bestMatches: AlphaVantageSymbolMatch[];
+}
+
+/**
+ * Transformed symbol data that's saved to Firestore
+ * This is a cleaned-up version of AlphaVantageSymbolMatch without numbered prefixes
+ */
+export interface SymbolData {
+    symbol: string;
+    name: string;
+    type: string;
+    region: string;
+    marketOpen: string;
+    marketClose: string;
+    timezone: string;
+    currency: string;
+    matchScore: string;
+    isActive: boolean;
+    refreshEnabled: boolean;
+    createdAt: Date;
+    lastUpdated: Date;
 }

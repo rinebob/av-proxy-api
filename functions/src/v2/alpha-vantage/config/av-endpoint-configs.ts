@@ -420,19 +420,19 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     },
   },
   
-  // Symbol Search (doesn't require a symbol)
+  // Search symbols
   [AlphaVantageEndpoint.SYMBOL_SEARCH]: {
     id: AlphaVantageEndpoint.SYMBOL_SEARCH,
     name: 'Symbol Search',
     provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.TIME_SERIES,
+    category: AvEndpointCategory.SEARCH,
     apiEndpoint: '/query',
     method: HttpMethod.GET,
-    description: 'Returns best matching symbols and market information based on keywords of your choice.',
-    ttl: 7 * 24 * 60 * 60 * 52 * 100, // 100 years (effectively never expires)
+    description: 'Search for symbols and companies based on keywords',
+    ttl: 30 * 24 * 60 * 60, // 30 days in seconds
     requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: FirestoreCollection.DO_NOT_IMPLEMENT,
+    firestorePath: FirestoreCollection.DATA_POINTS,
     documentationUrl: 'https://www.alphavantage.co/documentation/#symbolsearch',
     parameters: {
       keywords: {
