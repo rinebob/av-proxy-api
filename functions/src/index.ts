@@ -7,17 +7,34 @@ export { cleanupInactiveSymbols } from './symbol-manager/cleanupInactive.js';
 export { cleanupOldSyncRequests } from './symbol-manager/cleanupOldRequests.js';
 
 // Alpha Vantage API Gateway
-export { alphaVantageApi } from './api/alpha-vantage/alpha-vantage-gateway';
+// export { alphaVantageApi } from './api/alpha-vantage/alpha-vantage-gateway';
+
+// // Benzinga endpoints
+// export { benzingaApi } from './api/benzinga/benzinga-gateway';
+
+// // New AlphaVantage Data Refresher
+// export { refreshAlphaVantageData } from './data-refresher/av-refresh-manager.js';
+
+// // New Benzinga Data Refresher
+// export { refreshBenzingaData } from './data-refresher/bz-calendar-refresh-manager.js';
+
+// // New News Data Refresher
+// export { refreshNewsEndpoints } from './data-refresher/bz-news-refresh-manager.js';
+
+
+///////////////////// MIGRATED V2 FUNCTIONS ////////////////////////////////
+
+// Alpha Vantage API Gateway
+export { alphaVantageApiV2 } from './v2/alpha-vantage/alpha-vantage-gateway';
 
 // Benzinga endpoints
-export { benzingaApi } from './api/benzinga/benzinga-gateway';
+export { benzingaApiV2 } from './v2/benzinga/benzinga-gateway';
 
 // New AlphaVantage Data Refresher
-export { refreshAlphaVantageData } from './data-refresher/av-refresh-manager.js';
+export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-refresh-manager.js';
 
 // New Benzinga Data Refresher
-export { refreshBenzingaData } from './data-refresher/bz-calendar-refresh-manager.js';
+export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager.js';
 
 // New News Data Refresher
-export { refreshNewsEndpoints } from './data-refresher/bz-news-refresh-manager.js';
-
+export { refreshBenzingaNewsEndpointsV2 } from './v2/benzinga/data-refresher/bz-news-refresh-manager.js';
