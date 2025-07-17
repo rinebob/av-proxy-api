@@ -4,6 +4,7 @@ import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { AlphaVantageEndpoint } from '../../common/common-av';
 import { db } from '../../../firebase-admin-init';
 import { FirestoreCollection } from '../../common/firestore-collections';
+import { DAILY_TIME_SERIES_UPDATE_SCHEDULE } from '../../common/function-schedules';
 
 // Helper function to update daily time series with latest quote
 async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> {
@@ -82,14 +83,9 @@ async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> 
 }
 
 /**
- * Scheduled function that runs daily at 4:20 PM ET to update all tracked symbols
- * with the latest trading data from the global quote endpoint.
+ * Core handler function that can be called directly or via the scheduled function
  */
-export const updateDailyTimeSeries = onSchedule({
-  schedule: '20 20 * * *', // 4:20 PM ET (20:20 UTC during EDT, 21:20 UTC during EST)
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
+export async function updateDailyTimeSeriesHandler() {
   console.log('============ START DAILY DATA UPDATE ======================');
   console.log('--- dTSU uDTS Daily Time Series Update Started ---');
   const batchStart = Date.now();
@@ -112,11 +108,14 @@ export const updateDailyTimeSeries = onSchedule({
     
     for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
       const batch = symbols.slice(i, i + BATCH_SIZE);
+      console.log(`dTSU uDTS Processing batch ${i / BATCH_SIZE + 1} of ${Math.ceil(symbols.length / BATCH_SIZE)}`);
+      
+      // Process batch in parallel
       const results = await Promise.allSettled(
         batch.map(symbol => updateDailyTimeSeriesWithQuote(symbol))
       );
 
-      // Log results
+      // Process results
       results.forEach((result, index) => {
         const symbol = batch[index];
         if (result.status === 'fulfilled' && result.value === true) {
@@ -140,4 +139,14 @@ export const updateDailyTimeSeries = onSchedule({
     console.log(`dTSU uDTS --- Update completed in ${Date.now() - batchStart}ms ---`);
     console.log('dTSU uDTS ============ END DAILY DATA UPDATE ===================================');
   }
-});
+}
+
+/**
+ * Scheduled function that runs daily to update all tracked symbols
+ * with the latest trading data from the global quote endpoint.
+ */
+export const updateDailyTimeSeries = onSchedule({
+  schedule: DAILY_TIME_SERIES_UPDATE_SCHEDULE,
+  timeZone: 'America/New_York',
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, updateDailyTimeSeriesHandler);

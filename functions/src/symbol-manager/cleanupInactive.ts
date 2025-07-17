@@ -1,9 +1,10 @@
 import { onSchedule, ScheduleOptions } from 'firebase-functions/v2/scheduler';
 import { symbolManagerService } from './symbolManager.service';
+import { INACTIVE_SYMBOL_CLEANUP_SCHEDULE } from '../v2/common/function-schedules';
 
 // Define schedule options
 const DAILY_SCHEDULE: ScheduleOptions = {
-  schedule: '0 0 * * *', // Every day at midnight
+  schedule: INACTIVE_SYMBOL_CLEANUP_SCHEDULE,
   timeZone: 'America/Los_Angeles',
   timeoutSeconds: 540, // 9 minutes
   memory: '1GiB'

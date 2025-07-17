@@ -13,6 +13,7 @@ import { EndpointSymbolUsage } from '../../common/common-fn';
 import { BenzingaHandlerFactory } from '../../benzinga/benzinga-factory';
 import type { HandlerKey } from '../../benzinga/benzinga-factory';
 import { BZ_CALENDAR_REQUEST_CONFIGS } from '../../benzinga/request-configs/bz-calendar-request-configs';
+import { BZ_CALENDAR_REFRESH_SCHEDULE } from '../../common/function-schedules';
 
 // Firestore utilities
 import { 
@@ -31,7 +32,7 @@ function logBZDM(message: string, ...args: any[]) {
 // Main scheduled function for refreshing Benzinga data
 export const refreshBenzingaCalendarDataV2 = onSchedule(
     {
-        schedule: '*/1 * * * *', // Every minute using standard cron syntax
+        schedule: BZ_CALENDAR_REFRESH_SCHEDULE,
         timeZone: 'America/Los_Angeles', // Explicit timezone for the schedule
         secrets: ['BENZINGA_CALENDAR_API_KEY'],
     },

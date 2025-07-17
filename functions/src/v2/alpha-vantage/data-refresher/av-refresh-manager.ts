@@ -13,6 +13,7 @@ import { ApiProvider } from '../../common/data-providers';
 import { FirestoreCollection } from '../../common/firestore-collections';
 import { formatPST } from '../../../utils/utils';
 import { resolveFirestorePath, resolveRefreshHistoryPath, getRefreshEventDocId } from '../../utils/firestore-utils';
+import { AV_REFRESH_MANAGER_SCHEDULE } from '../../common/function-schedules';
 
 // Logging helper
 const pr = true;
@@ -26,7 +27,7 @@ function logDM(message: string, ...args: any[]) {
  */
 export const refreshAlphaVantageDataV2 = onSchedule(
   {
-    schedule: 'every 15 minutes',
+    schedule: AV_REFRESH_MANAGER_SCHEDULE,
     secrets: ['ALPHAVANTAGE_API_KEY'],
   },
   async () => {

@@ -4,6 +4,7 @@ import { FirestoreCollection } from '../../common/firestore-collections';
 import { AlphaVantageEndpoint } from '../../common/common-av';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { AlphaVantageBulkQuotesResponse } from '../handlers/av-bulk-quote.handler';
+import { BULK_QUOTE_UPDATE_SCHEDULE } from '../../common/function-schedules';
 
 const BATCH_SIZE = 100; // Max symbols per batch for bulk quotes
 const BATCH_DELAY_MS = 1000; // 1 second delay between batches to respect rate limits
@@ -13,7 +14,7 @@ const BATCH_DELAY_MS = 1000; // 1 second delay between batches to respect rate l
  * This is a scheduled function that runs periodically
  */
 export const _updateAllDailyTimeSeriesBulk = onSchedule({
-  schedule: '20 20 * * *', // 4:20 PM ET (20:20 UTC during EDT, 21:20 UTC during EST)
+  schedule: BULK_QUOTE_UPDATE_SCHEDULE,
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {

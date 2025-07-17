@@ -3,6 +3,7 @@ import { onSchedule, ScheduleOptions } from 'firebase-functions/v2/scheduler';
 import type { ScheduledEvent } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
 import { FirestoreCollection } from '../common/firestore-collections';
+import { OLD_SYNC_REQUEST_CLEANUP_SCHEDULE } from '../v2/common/function-schedules';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -11,7 +12,7 @@ if (!admin.apps.length) {
 
 // Define schedule options
 const SCHEDULE_OPTIONS: ScheduleOptions = {
-  schedule: '0 0 * * 0', // Every Sunday at midnight
+  schedule: OLD_SYNC_REQUEST_CLEANUP_SCHEDULE,
   timeZone: 'America/Los_Angeles',
   timeoutSeconds: 540, // 9 minutes
   memory: '1GiB' as const

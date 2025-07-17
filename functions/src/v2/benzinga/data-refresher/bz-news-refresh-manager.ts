@@ -7,6 +7,7 @@ import { BenzingaNewsParameter, BenzingaNewsRequestConfig, BenzingaRequestId, Sv
 import { RequestConfig } from '../../common/types';
 
 import { FirestoreCollection } from '../../common/firestore-collections';
+import { BZ_NEWS_REFRESH_SCHEDULE } from '../../common/function-schedules';
 
 const BZ_NEWS_REQUEST_CONFIG: BenzingaNewsRequestConfig = BZ_NEWS_REQUEST_CONFIGS[SvtBzNewsRequest.BZ_NEWS] as BenzingaNewsRequestConfig;
 
@@ -345,7 +346,7 @@ async function updateFirestoreMetadata(db: admin.firestore.Firestore, newsArray:
 
 export const refreshBenzingaNewsEndpointsV2 = onSchedule(
     {
-        schedule: 'every 1 minutes',
+        schedule: BZ_NEWS_REFRESH_SCHEDULE,
         secrets: ['BENZINGA_WIIM_API_KEY'],
     },
     async () => {
