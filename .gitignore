@@ -69,3 +69,5 @@ functions/.env.alpha-vantage-proxy-api
 # Ignore compiled files in src/app/common
 src/app/common/*.js
 src/app/common/*.js.map
+desktop.ini
+functions/emulator-export/**/*
