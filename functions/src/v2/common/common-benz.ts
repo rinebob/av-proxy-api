@@ -96,6 +96,17 @@ export enum BenzingaNewsParameter {
   NEWS_ID = 'newsId',
 }
 
+export enum BzEndpointCategory {
+    STOCK_TIME_SERIES = 'stock-time-series',
+    FUNDAMENTAL_DATA = 'fundamental-data',
+    FOREX = 'forex',
+    CRYPTO = 'cryptocurrency',
+    TECHNICAL_INDICATORS = 'technical-indicators',
+    BENZINGA_CALENDAR = 'benzinga-calendar',
+    BENZINGA_NEWS = 'benzinga-news'
+}
+  
+
 /**
  * Type for Benzinga endpoints that are specifically news-related (NEWS, NEWS_BY_ID)
  */

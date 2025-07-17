@@ -1,5 +1,6 @@
 import { ApiProvider } from '../../../common/data-providers';
-import { EndpointCategory, HttpMethod } from '../../common/enums';
+import { HttpMethod } from '../../common/enums';
+import { BzEndpointCategory } from '../../common/common-benz';
 import { FirestoreCollection } from '../../../common/firestore-collections';
 import {
     BenzingaEndpoint,
@@ -103,7 +104,7 @@ export function getBzCalendarParams(keys: BenzingaCalendarParameter[]): Record<s
 const BASE_CALENDAR_REQUEST_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> & { apiKeyEnv: string } = {
     apiKeyEnv: 'BENZINGA_CALENDAR_API_KEY',
     provider: ApiProvider.BENZINGA,
-    category: EndpointCategory.BENZINGA_CALENDAR,
+    category: BzEndpointCategory.BENZINGA_CALENDAR,
     method: HttpMethod.GET,
     ttl: 2 * 60, // 2 minutes
     requiresSymbol: true,

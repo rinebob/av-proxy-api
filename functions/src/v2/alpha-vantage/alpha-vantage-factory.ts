@@ -1,4 +1,4 @@
-import { AlphaVantageEndpoint } from '../../common/common-av';
+import { AlphaVantageEndpoint } from '../common/common-av';
 import { EndpointConfig } from '../common/types';
 import { AlphaVantageBaseHandler } from './handlers/alpha-vantage-base.handler';
 import { AvDailyTimeSeriesHandler } from './handlers/av-daily-time-series.handler';

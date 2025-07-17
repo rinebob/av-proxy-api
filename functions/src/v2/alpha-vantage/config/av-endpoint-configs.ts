@@ -1,12 +1,12 @@
 import { 
   HttpMethod 
 } from '../../common/enums';
-import { AlphaVantageEndpoint, OutputSize } from '../../../common/common-av';
-import { EndpointSymbolUsage } from '../../../common/common-fn';
+import { AlphaVantageEndpoint, OutputSize } from '../../common/common-av';
+import { EndpointSymbolUsage } from '../../common/common-fn';
 import { EndpointConfig } from '../../common/types';
-import { FirestoreCollection } from '../../../common/firestore-collections';
-import { AvEndpointCategory } from '../../../common/alpha-vantage/av-endpoint-category.enum';
-import { ApiProvider } from '../../../common/data-providers';
+import { FirestoreCollection } from '../../common/firestore-collections';
+import { AvEndpointCategory } from '../../common/common-av';
+import { ApiProvider } from '../../common/data-providers';
 
 /**
  * Base configurations for Alpha Vantage API endpoints

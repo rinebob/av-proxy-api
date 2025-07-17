@@ -1,16 +1,17 @@
-import { ApiProvider } from '../../../common/data-providers';
-import { EndpointCategory, HttpMethod } from '../../common/enums';
-import { FirestoreCollection } from '../../../common/firestore-collections';
+import { ApiProvider } from '../../common/data-providers';
+import { HttpMethod } from '../../common/enums';
+import { BzEndpointCategory } from '../../common/common-benz';
+import { FirestoreCollection } from '../../common/firestore-collections';
 import { 
   BenzingaEndpoint,
   BenzingaNewsRequestConfig,
   SvtBzNewsRequest,
-} from '../../../common/common-benz';
+} from '../../common/common-benz';
 import { RequestConfig } from '../../common/types';
 import { BzNewsChannel } from './bz-news-channels';
 
 // Benzinga-specific endpoint config interface
-import { EndpointSymbolUsage } from '../../../common/common-fn';
+import { EndpointSymbolUsage } from '../../common/common-fn';
 
 /**
  * Benzing News Endpoint docs:
@@ -152,7 +153,7 @@ export function getBzNewsParams(keys: BenzingaNewsParameter[]): Record<string, a
 // Base configuration that can be extended by specific requests
 const BASE_NEWS_REQUEST_CONFIG: Omit<RequestConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> = {
     provider: ApiProvider.BENZINGA,
-    category: EndpointCategory.BENZINGA_NEWS,
+    category: BzEndpointCategory.BENZINGA_NEWS,
     method: HttpMethod.GET,
     ttl: 2 * 60, // 2 minutes
     requiresSymbol: false,

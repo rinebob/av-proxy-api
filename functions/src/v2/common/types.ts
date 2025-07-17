@@ -1,21 +1,11 @@
 import { 
-  AlphaVantageEndpoint
-} from '../../common/common-av';
-import { EndpointSymbolUsage } from '../../common/common-fn';
-
-import { 
-  BenzingaEndpoint,
-  BzCalendarType,
-
-} from '../../common/common-benz';
-
-import { 
   HttpMethod 
 } from './enums';
 
-import { ApiProvider } from '../../common/data-providers';
+import { ApiProvider } from './data-providers';
 
-import { AvEndpointCategory } from '../../common/alpha-vantage/av-endpoint-category.enum';
+import { AvEndpointCategory } from './common-av';
+import { EndpointSymbolUsage } from './common-fn';
 
 export interface EndpointParameter {
   type: 'string' | 'number' | 'boolean' | 'date';
@@ -25,13 +15,11 @@ export interface EndpointParameter {
   enum?: string[];
 }
 
-/////////// DO NOT EDIT
-// Legacy support for AV. Migrate to new RequestConfig as soon as possible
-export interface EndpointConfig {
-  id: AlphaVantageEndpoint | BenzingaEndpoint | BzCalendarType;
+export interface EndpointConfig<TId extends string = string> {
+  id: TId;
   name: string;
   provider: ApiProvider;
-  category: AvEndpointCategory | string;  // Allow string for backward compatibility
+  category: AvEndpointCategory | string;
   apiEndpoint: string;
   method: HttpMethod;
   description: string;
@@ -50,11 +38,11 @@ export interface EndpointConfig {
 }
 
 // TODO: Update all Alpha Vantage (AV) usage to use RequestConfig instead of EndpointConfig
-export interface RequestConfig<TId = string> {
+export interface RequestConfig<TId = string, TCategory = string> {
   id: TId;
   name: string;
   provider: ApiProvider;
-  category: AvEndpointCategory | string;  // Allow string for backward compatibility
+  category: TCategory;
   apiEndpoint: string;
   method: HttpMethod;
   description: string;
