@@ -1,7 +1,7 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { AlphaVantageEndpoint, OutputSize, TimeSeriesDocument, DailyTimeSeriesDataTwo } from '../../common/common-av';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
-import { admin, db, FieldValue } from '../../../firebase-admin-init';
+import { db, FieldValue } from '../../../firebase-admin-init';
 import { FirestoreCollection } from '../../../common/firestore-collections';
 import { ApiProvider, DATA_PROVIDERS } from '../../common/data-providers';
 import { TimeSeriesInterval } from '../../common/common-fn';
