@@ -71,3 +71,4 @@ src/app/common/*.js
 src/app/common/*.js.map
 desktop.ini
 functions/emulator-export/**/*
+functions/scripts/script-env-vars.txt
