@@ -7,6 +7,7 @@ const PROD_URLS = {
   // Alpha Vantage
   [AlphaVantageFunctionName.GET_DAILY_STOCK_DATA_SIMPLE]: 'https://getdailystockdatasimple-lsluydmucq-uc.a.run.app',
   [AlphaVantageFunctionName.GET_GLOBAL_QUOTE]: 'https://getglobalquote-lsluydmucq-uc.a.run.app',
+  [AlphaVantageFunctionName.SYMBOL_SEARCH]: 'https://symbolsearch-lsluydmucq-uc.a.run.app',
   
   // Benzinga
   [BenzingaFunctionName.GET_CALENDAR]: 'https://getbenzingacalendar-lsluydmucq-uc.a.run.app',
@@ -61,6 +62,12 @@ export const AlphaVantageFunctions = {
     'Global Quote',
     'Get Quote',
     'GET_GLOBAL_QUOTE'
+  ),
+  SYMBOL_SEARCH: createFunctionInfo(
+    AlphaVantageFunctionName.SYMBOL_SEARCH,
+    'Symbol Search',
+    'Search Symbols',
+    'SYMBOL_SEARCH'
   )
 } as const;
 

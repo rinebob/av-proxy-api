@@ -103,6 +103,8 @@ export class SymbolManagerComponent implements OnInit {
       this.store.clearSyncResults();
       
       if (result) {
+        this.store.symbolSelected(false);
+        
         // Refresh the symbols list if symbols were added
         this.store.listSymbols();
       }

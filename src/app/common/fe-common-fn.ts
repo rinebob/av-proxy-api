@@ -6,6 +6,7 @@
 export enum AlphaVantageFunctionName {
   GET_DAILY_STOCK_DATA_SIMPLE = 'getDailyStockDataSimple',
   GET_GLOBAL_QUOTE = 'getGlobalQuote',
+  SYMBOL_SEARCH = 'symbolSearch'
 }
 
 export enum BenzingaFunctionName {

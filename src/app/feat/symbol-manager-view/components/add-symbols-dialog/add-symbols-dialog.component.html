@@ -74,6 +74,14 @@
         <mat-icon>add</mat-icon>
         <span>Add Symbols</span>
       </button>
+
+      <button mat-raised-button 
+              color="primary" 
+              (click)="searchSymbols()"
+              [disabled]="!symbolsToAdd.trim() || loading">
+        <mat-icon>search</mat-icon>
+        <span>Search Symbols</span>
+      </button>
     }
   </div>
 </mat-dialog-actions>

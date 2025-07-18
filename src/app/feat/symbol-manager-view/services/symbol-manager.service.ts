@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, catchError, from, map, of, tap } from 'rxjs';
+import { Observable, catchError, finalize, from, map, of, tap } from 'rxjs';
 import { processTimestamps } from '../../../shared/utils/date-utils';
 import { 
   DataMaintainerFunctionName, 
@@ -10,8 +10,10 @@ import {
   SyncSymbolsRequest, 
   SyncSymbolsResponse,
   TrackedSymbol,
+  AvSymbolSearchResult,
   getDataMaintainerFunctionUrl
 } from '../../data-maintainer-view/common/fe-common-dm-api';
+import { AlphaVantageFunctions } from '../../../common/fe-common-app';
 
 /**
  * Service responsible for managing stock symbols in the data maintainer system.
@@ -324,6 +326,40 @@ export class SymbolManagerService {
           removedCount: 0,
           totalTracked: 0
         });
+      })
+    );
+  }
+
+  /**
+   * Searches for symbols using the deployed symbol search Cloud Function
+   * @param keywords The search keywords (e.g., 'microsoft')
+   * @returns Observable with the search results
+   */
+  searchSymbols(keywords: string): Observable<AvSymbolSearchResult> {
+    if (!keywords?.trim()) {
+      return of({ bestMatches: [] });
+    }
+
+    console.log('========== START SYMBOL SEARCH ==========');
+    console.log('sMSvc sS searching symbols with keyword:', keywords);
+
+    const url = AlphaVantageFunctions.SYMBOL_SEARCH.url;
+    console.log('sMSvc sS using endpoint url:', url);
+    
+    // Use GET with query parameters instead of POST
+    const params = new URLSearchParams();
+    params.set('keywords', keywords.trim());
+    
+    return this.http.get<{ data: AvSymbolSearchResult }>(
+      `${url}?${params.toString()}`
+    ).pipe(
+      map(response => response.data || { bestMatches: [] }),
+      catchError(error => {
+        console.error('sMSvc sS Error searching symbols:', error);
+        return of({ bestMatches: [] });
+      }),
+      finalize(() => {
+        console.log('========== END SYMBOL SEARCH ==========');
       })
     );
   }

@@ -1,5 +1,5 @@
 import { Component, Inject, DestroyRef, effect, inject, Injector } from '@angular/core';
-import { SyncSymbolsResponse } from '../../../../feat/data-maintainer-view/common/fe-common-dm-api';
+import { AvSymbolSearchResult, SyncSymbolsResponse } from '../../../../feat/data-maintainer-view/common/fe-common-dm-api';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -39,7 +39,7 @@ export class AddSymbolsDialogComponent {
     @Inject(MAT_DIALOG_DATA) public data: { store: any },
     private destroyRef: DestroyRef
   ) {
-
+    // Listen for sync results
     this.data.store.syncResults$.pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe((syncResults: SyncSymbolsResponse | null) => {
@@ -47,11 +47,23 @@ export class AddSymbolsDialogComponent {
         this.syncResults = syncResults;
         if (syncResults.success) {
           console.log('aSD ctor eff closing dialog with sync results: ', syncResults);
-          // Close the dialog on success
-          this.dialogRef.close({ success: true })
+          this.dialogRef.close({ success: true });
         }
       }
     });
+
+    // Listen for search results
+    this.data.store.symbolSelected$.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((symbolSelected: boolean) => {
+      if (symbolSelected) {
+        console.log('aSD ctor symbol selected, closing dialog');
+        this.dialogRef.close({ 
+          success: true,
+        });
+      }
+    });
+
     // Subscribe to store changes
     effect(() => {
       // const syncResults = this.data.store.syncResults();
@@ -132,6 +144,44 @@ export class AddSymbolsDialogComponent {
       complete: () => {
         console.log('aSD aS Completed addSymbols');
         this.loading = false;
+      }
+    });
+  }
+
+  searchSymbols(): void {
+    console.log('aSD sS searchSymbols called with input:', this.symbolsToAdd);
+    
+    if (!this.symbolsToAdd.trim()) {
+      console.warn('aSD sS No search query entered');
+      return;
+    }
+
+    // Clear any previous results and errors
+    this.data.store.clearSyncResults();
+    this.loading = true;
+    this.error = null;
+
+    console.log('aSD sS Starting symbol search process');
+    
+    // Get the search query
+    const searchQuery = this.symbolsToAdd.trim();
+    console.log('aSD sS Search query:', searchQuery);
+
+    console.log('aSD sS Calling store.searchSymbols with query:', searchQuery);
+    
+    this.data.store.searchSymbols(searchQuery).subscribe({
+      next: () => {
+        console.log('aSD sS Search completed successfully');
+        this.loading = false;
+      },
+      error: (error: unknown) => {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to search symbols';
+        console.error('aSD sS Error searching symbols:', errorMessage);
+        this.error = errorMessage;
+        this.loading = false;
+      },
+      complete: () => {
+        console.log('aSD sS Search subscription completed');
       }
     });
   }

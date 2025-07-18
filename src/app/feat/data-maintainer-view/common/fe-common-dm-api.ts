@@ -47,9 +47,9 @@ export function getDataMaintainerFunctionUrl(functionName: DataMaintainerFunctio
 /////////////////////////////// INTERFACES /////////////////////////
 
 /**
- * Represents a symbol search result from Alpha Vantage SYMBOL_SEARCH endpoint
+ * Represents a symbol search match result from Alpha Vantage SYMBOL_SEARCH endpoint
  */
-export interface AvSymbolSearchResult {
+export interface AvSymbolSearchMatchResult {
   symbol: string;
   name: string;
   type: string;
@@ -59,6 +59,10 @@ export interface AvSymbolSearchResult {
   timezone: string;
   currency: string;
   matchScore: string;
+}
+
+export interface AvSymbolSearchResult {
+    bestMatches: AvSymbolSearchMatchResult[];
 }
 
 /**

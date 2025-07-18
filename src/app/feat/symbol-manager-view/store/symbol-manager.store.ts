@@ -7,6 +7,7 @@ import { Observable, map, tap, catchError, of, pipe, switchMap } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SyncSymbolsRequest, SyncSymbolsResponse, TrackedSymbol, ListSymbolsResponse, SymbolDetailsResponse } from '../../../feat/data-maintainer-view/common/fe-common-dm-api';
+import { AvSymbolSearchResult } from '../../../feat/data-maintainer-view/common/fe-common-dm-api';
 
 export type ActiveTab = 'list' | 'add' | 'sync' | 'details';
 
@@ -17,10 +18,12 @@ interface SymbolManagerState {
   symbols: TrackedSymbol[];
   symbolDetails: TrackedSymbol | null;
   syncResults: SyncSymbolsResponse | null;
+  searchResults: AvSymbolSearchResult | undefined;
   clientId: string;
   clientName: string;
   newSymbol: string;
   symbolsToSync: string;
+  symbolSelected: boolean;
 }
 
 const initialState: SymbolManagerState = {
@@ -30,10 +33,12 @@ const initialState: SymbolManagerState = {
   symbols: [],
   symbolDetails: null,
   syncResults: null,
+  searchResults: undefined,
   clientId: 'web-client',
   clientName: 'Web Client',
   newSymbol: '',
-  symbolsToSync: ''
+  symbolsToSync: '',
+  symbolSelected: false
 };
 
 export const SymbolManagerStore = signalStore(
@@ -42,6 +47,7 @@ export const SymbolManagerStore = signalStore(
   withProps(store => ({
     symbols$: toObservable(store.symbols),
     syncResults$: toObservable(store.syncResults),
+    symbolSelected$: toObservable(store.symbolSelected),
   })),
   withMethods((store, symbolService = inject(SymbolManagerService), snackBar = inject(MatSnackBar)) => ({
     // Clear sync results and reset related state
@@ -256,5 +262,54 @@ export const SymbolManagerStore = signalStore(
         map(() => undefined)
       );
     },
+
+    /**
+     * Search for symbols using keywords
+     * @param keywords The search keywords (e.g., 'microsoft')
+     * @returns Observable with the search results
+     */
+    searchSymbols(keywords: string): Observable<AvSymbolSearchResult> {
+      if (!keywords?.trim()) {
+        return of({ bestMatches: [] });
+      }
+
+      patchState(store, { loading: true, error: null, searchResults: undefined });
+      
+      return symbolService.searchSymbols(keywords).pipe(
+        tapResponse(
+          (response) => {
+            console.log('sMSto sS Search results:', response);
+            patchState(store, { 
+              loading: false, 
+              searchResults: response,
+              symbolSelected: true,
+            });
+          },
+          (error: unknown) => {
+            console.error('sMSto sS Error searching symbols:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to search symbols';
+            patchState(store, { 
+              loading: false,
+              error: errorMessage,
+              searchResults: { bestMatches: [] },
+              symbolSelected: false,
+            });
+            snackBar.open(errorMessage, 'Close', { 
+              duration: 5000,
+              panelClass: 'error-snackbar'
+            });
+          }
+        )
+      );
+    },
+
+    /**
+     * Updated by SymbolDialog component to support dialog open/closed state
+     * @param symbolSelected setting to true will close the dialog; the dialog 
+     * will update this to false when it is closed
+     */
+    symbolSelected(symbolSelected   : boolean) {
+        patchState(store, {symbolSelected})
+    }
   }))
 );
