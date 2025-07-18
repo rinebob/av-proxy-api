@@ -37,6 +37,16 @@ export enum OutputSize {
   COMPACT = 'compact',
   FULL = 'full'
 }
+
+/**
+ * Time series interval for financial data (daily, weekly, monthly)
+ */
+export enum TimeSeriesInterval {
+  DAILY = 'daily',
+  WEEKLY = 'weekly',
+  MONTHLY = 'monthly'
+}
+
 // Interface for authentication and validation result
 export interface AuthValidationResult<T = any> {
   decodedToken: any;

@@ -1,28 +1,16 @@
 import { db } from '../../firebase-admin-init';
 import { FirestoreCollection } from '../../common/firestore-collections';
-import { FieldValue } from 'firebase-admin/firestore';
-import { AlphaVantageEndpoint } from '../../common/common-av';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { 
+  AlphaVantageEndpoint, 
+  DocumentMetadata, 
+  DocumentType, 
+  SaveConfig, 
+  StoredAvData, 
+  SymbolMetadata,
+} from '../common/common-av';
 
-export interface StoredAvData {
-  data: any;
-  metadata: {
-    symbol: string;
-    endpoint: AlphaVantageEndpoint;
-    lastUpdated: FirebaseFirestore.FieldValue;
-    nextRefreshAt: FirebaseFirestore.Timestamp;
-    ttlSeconds: number;
-  };
-}
-
-export interface SymbolMetadata {
-  symbol: string;
-  endpoints: AlphaVantageEndpoint[]; // List of endpoints that have data for this symbol
-  lastUpdatedBy: AlphaVantageEndpoint; // Track which endpoint last updated this symbol
-  lastUpdatedAt: FirebaseFirestore.FieldValue; // When this symbol was last updated
-  nextRefreshAt: FirebaseFirestore.Timestamp; // When this symbol should be refreshed
-  nextRefreshedBy: AlphaVantageEndpoint; // Which endpoint will handle the next refresh
-  ttlSeconds: number;
-}
+import { TimeSeriesInterval } from '../common/common-fn';
 
 /**
  * Saves Alpha Vantage data to Firestore with TTL and updates symbol metadata
@@ -31,66 +19,93 @@ export async function saveAvData(
   data: any,
   symbol: string,
   endpoint: AlphaVantageEndpoint,
-  ttlSeconds: number,
-  config: { firestorePath?: string }
+  config: SaveConfig = {}
 ): Promise<void> {
+  const {
+    firestorePath,
+    documentType = DocumentType.STANDARD,
+    ttlSeconds = 24 * 60 * 60, // Default 24 hours
+    interval = TimeSeriesInterval.DAILY
+  } = config;
+  
   const batch = db.batch();
   const now = new Date();
-  const nextRefreshAt = new Date(now.getTime() + ttlSeconds * 1000);
+  const nextRefresh = new Date(now.getTime() + ttlSeconds * 1000);
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   
   try {
-    // 1. Prepare the main data document
-    const docData: StoredAvData = {
-      data,
-      metadata: {
-        symbol,
-        endpoint,
-        lastUpdated: FieldValue.serverTimestamp(),
-        nextRefreshAt: {
-          _seconds: Math.floor(nextRefreshAt.getTime() / 1000),
-          _nanoseconds: 0
-        } as unknown as FirebaseFirestore.Timestamp,
-        ttlSeconds
-      }
-    };
+    // 1. Prepare the document data based on document type
+    let docData: { data: any; metadata: DocumentMetadata };
+    
+    if (documentType === DocumentType.TIME_SERIES) {
+      docData = {
+        data,
+        metadata: {
+          symbol,
+          interval,
+          lastUpdate: FieldValue.serverTimestamp(),
+          nextRefreshAt: tomorrow,
+          quoteDataPoints: 0,
+          firstQuoteDate: Timestamp.fromDate(tomorrow),
+          histDataPoints: Array.isArray(data) ? data.length : 0,
+          histStartDate: Array.isArray(data) && data.length > 0 && data[data.length - 1]?.date
+            ? Timestamp.fromDate(new Date(data[data.length - 1].date))
+            : Timestamp.now(),
+          histEndDate: Array.isArray(data) && data.length > 0 && data[0]?.date
+            ? Timestamp.fromDate(new Date(data[0].date))
+            : Timestamp.now(),
+          ttlSeconds
+        } as DocumentMetadata
+      };
+    } else {
+      // Original StoredAvData for other endpoints
+      docData = {
+        data,
+        metadata: {
+          symbol,
+          endpoint,
+          lastUpdated: FieldValue.serverTimestamp(),
+          nextRefreshAt: Timestamp.fromDate(nextRefresh),
+          ttlSeconds
+        }
+      };
+    }
 
     // 2. Get the document path and save the main data
-    const docPath = config.firestorePath?.replace('{symbol}', symbol) || 
-                   `${FirestoreCollection.MARKET_DATA}/${symbol}/${FirestoreCollection.DATA_POINTS}/${endpoint}`;
-    
-    if (!config.firestorePath) {
-      console.warn(`No firestorePath configured for endpoint: ${endpoint}, using default path`);
+    if (!firestorePath) {
+      throw new Error(`No firestorePath configured for endpoint: ${endpoint}. A firestorePath must be provided.`);
     }
     
-    const docRef = db.doc(docPath);
+    const docPath = firestorePath.replace('{symbol}', symbol);
+    const docRef = db.doc(documentType === DocumentType.TIME_SERIES 
+      ? `${FirestoreCollection.TIME_SERIES}/${symbol}/${FirestoreCollection.DAILY}/${endpoint}`
+      : docPath
+    );
+    
     batch.set(docRef, docData, { merge: true });
     
-    // 3. Create/update the symbol metadata document
-    const symbolPath = docPath.split('/').slice(0, 2).join('/'); // Gets path up to symbol
-    const symbolRef = db.doc(symbolPath);
+    // 3. Create/update the symbol metadata document if not a time series document
+    if (documentType !== DocumentType.TIME_SERIES) {
+      const symbolPath = docPath.split('/').slice(0, 2).join('/');
+      const symbolRef = db.doc(symbolPath);
     
-    // Update the symbol metadata with this endpoint
-    const symbolUpdate: Partial<SymbolMetadata> = {
-      symbol,
-      lastUpdatedBy: endpoint, // Track which endpoint made this update
-      lastUpdatedAt: FieldValue.serverTimestamp(), // When this update occurred
-      nextRefreshAt: {
-        _seconds: Math.floor(nextRefreshAt.getTime() / 1000),
-        _nanoseconds: 0
-      } as unknown as FirebaseFirestore.Timestamp,
-      nextRefreshedBy: endpoint, // This endpoint will handle the next refresh
-      ttlSeconds,
-      // Use arrayUnion to add this endpoint if not already present
-      endpoints: FieldValue.arrayUnion(endpoint) as any
-    };
+      const symbolUpdate: Partial<SymbolMetadata> = {
+        symbol,
+        lastUpdatedBy: endpoint,
+        lastUpdatedAt: FieldValue.serverTimestamp(),
+        nextRefreshAt: Timestamp.fromDate(nextRefresh),
+        nextRefreshedBy: endpoint,
+        ttlSeconds,
+        endpoints: FieldValue.arrayUnion(endpoint) as any
+      };
     
-    batch.set(symbolRef, symbolUpdate, { merge: true });
+      batch.set(symbolRef, symbolUpdate, { merge: true });
+    }
     
     // 4. Commit the batch
     await batch.commit();
     
-    console.log(`Saved data for ${symbol}/${endpoint} to Firestore at path: ${docPath}`);
-    console.log(`Updated symbol metadata at path: ${symbolPath}`);
+    console.log(`Saved ${documentType} data for ${symbol}/${endpoint} at path: ${docPath}`);
   } catch (error) {
     console.error('Error saving data to Firestore:', error);
     throw error;
@@ -149,10 +164,7 @@ export async function updateRefreshTime(
     .set(
       {
         'metadata.lastUpdated': FieldValue.serverTimestamp(),
-        'metadata.nextRefreshAt': {
-          _seconds: Math.floor(nextRefreshAt.getTime() / 1000),
-          _nanoseconds: 0
-        },
+        'metadata.nextRefreshAt': Timestamp.fromDate(nextRefreshAt),
         'metadata.ttlSeconds': ttlSeconds
       },
       { merge: true }

@@ -1,6 +1,6 @@
 import { onRequest } from 'firebase-functions/v2/https';
-import { AlphaVantageHandlerFactory } from './alpha-vantage-factory';
-import { AlphaVantageEndpoint } from '../common/common-av';
+import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
+import { AlphaVantageEndpoint } from '../../common/common-av';
 import { logger } from 'firebase-functions';
 
 /**

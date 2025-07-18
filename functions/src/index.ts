@@ -1,4 +1,3 @@
-
 // Symbol Management
 export { listSymbols } from './symbol-manager/listSymbols.js';
 export { syncSymbols } from './symbol-manager/syncSymbols.js';
@@ -38,6 +37,9 @@ export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-c
 
 // New News Data Refresher
 export { refreshBenzingaNewsEndpointsV2 } from './v2/benzinga/data-refresher/bz-news-refresh-manager.js';
+
+// Symbol Tracking Triggers
+export { onSymbolAdded } from './v2/alpha-vantage/triggers/on-symbol-added.function.js';
 
 // In the V2 section of index.ts
 export { updateDailyTimeSeries } from './v2/alpha-vantage';

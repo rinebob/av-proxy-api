@@ -62,8 +62,29 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       const response = await this.apiClient.get('', config);
       
       // 3. Transform the response
-      console.log(`aVB.H fetch [${this.requestId}] Transforming response data. response: ${JSON.stringify(response.data)}`);
-      const transformedData = this.transformResponse(response.data);
+      const responseData = response.data;
+      let logData = { ...responseData };
+      
+      // If the response has a time series, take only the first 5 entries
+      if (responseData && typeof responseData === 'object') {
+        const timeSeriesKey = Object.keys(responseData).find(key => 
+          key.toLowerCase().includes('time series') || 
+          key.toLowerCase().includes('timeseries')
+        );
+        
+        if (timeSeriesKey && Array.isArray(responseData[timeSeriesKey])) {
+          logData[timeSeriesKey] = responseData[timeSeriesKey].slice(0, 5);
+        } else if (timeSeriesKey && typeof responseData[timeSeriesKey] === 'object') {
+          const timeSeries = responseData[timeSeriesKey];
+          const entries = Object.entries(timeSeries);
+          logData[timeSeriesKey] = Object.fromEntries(entries.slice(0, 5));
+        }
+      }
+      
+      console.log(`aVB.H fetch [${this.requestId}] Transforming response data. response: ${
+        JSON.stringify(logData, null, 2)
+      }`);
+      const transformedData = this.transformResponse(responseData);
       
       // 4. Save to Firestore if we have a symbol
       const symbol = params.symbol;
@@ -73,16 +94,21 @@ export abstract class AlphaVantageBaseHandler<T = any> {
         }
         
         try {
-          console.log(`aVB.H fetch [${this.requestId}] Saving data to Firestore. transformedData: ${JSON.stringify(transformedData)}`);
+          console.log(`aVB.H fetch [${this.requestId}] Saving data to Firestore. transformedData: ${
+            JSON.stringify(Array.isArray(transformedData) 
+              ? [...transformedData].slice(0, 5) 
+              : transformedData, 
+            null, 2)
+          }`);
           // Ensure we're working with an AlphaVantageEndpoint before saving
           if (Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)) {
             await saveAvData(
               transformedData,
               symbol,
               endpoint as AlphaVantageEndpoint,
-              this.config.ttl,
               {
-                firestorePath: this.config.firestorePath
+                firestorePath: this.config.firestorePath,
+                ttlSeconds: this.config.ttl
               }
             );
           } else {

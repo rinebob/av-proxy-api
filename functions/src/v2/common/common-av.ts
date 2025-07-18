@@ -1,5 +1,6 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { DataMaintainerEndpoint } from './common-dm';
+import { TimeSeriesInterval } from './common-fn';
 
 /////////// ENUMS ///////////////////////
 // Define output size options for API responses
@@ -250,8 +251,6 @@ export interface AlphaVantageParams {
   outputsize: OutputSize;
 }
 
-
-
 /**
  * Alpha Vantage Company Overview types
  */
@@ -396,4 +395,101 @@ export interface SymbolData {
     refreshEnabled: boolean;
     createdAt: Date;
     lastUpdated: Date;
+}
+
+/**
+ * Document shape for a AV non-time series document in Firestore
+ */
+export interface StoredAvData {
+  data: any;
+  metadata: {
+    symbol: string;
+    endpoint: AlphaVantageEndpoint;
+    lastUpdated: FirebaseFirestore.FieldValue;
+    nextRefreshAt: FirebaseFirestore.Timestamp;
+    ttlSeconds: number;
+  };
+}
+
+export interface SymbolMetadata {
+  symbol: string;
+  endpoints: AlphaVantageEndpoint[]; // List of endpoints that have data for this symbol
+  lastUpdatedBy: AlphaVantageEndpoint; // Track which endpoint last updated this symbol
+  lastUpdatedAt: FirebaseFirestore.FieldValue; // When this symbol was last updated
+  nextRefreshAt: FirebaseFirestore.Timestamp; // When this symbol should be refreshed
+  nextRefreshedBy: AlphaVantageEndpoint; // Which endpoint will handle the next refresh
+  ttlSeconds: number;
+}
+
+/**
+ * Metadata for a time series document in Firestore
+ */
+export interface TimeSeriesDocumentMetadata {
+  /** First date in the historical data */
+  histStartDate: Date | Timestamp | FieldValue;
+  
+  /** Most recent date in the historical data */
+  histEndDate: Date | Timestamp | FieldValue;
+  
+  /** Number of historical data points */
+  histDataPoints: number;
+  
+  /** Date of the first quote in the dataset */
+  firstQuoteDate: Date | Timestamp | FieldValue;
+  
+  /** When this document was last updated */
+  lastUpdate: Date | Timestamp | FieldValue;
+  
+  /** When this document should be refreshed */
+  nextRefreshAt: Date | Timestamp | FieldValue;
+  
+  /** Number of quote data points */
+  quoteDataPoints: number;
+  
+  /** Time interval between data points */
+  interval: TimeSeriesInterval;
+  
+  /** Stock symbol this data represents */
+  symbol: string;
+}
+
+/**
+ * Structure of a time series document in Firestore
+ */
+export interface TimeSeriesDocument<T = any> {
+  /** Array of time series data points */
+  data: T[];
+  
+  /** Metadata about the time series data */
+  metadata: TimeSeriesDocumentMetadata;
+}
+
+/** Document type discriminator */
+export enum DocumentType {
+  TIME_SERIES = 'TIME_SERIES',
+  STANDARD = 'STANDARD'
+}
+
+/** Base metadata interface */
+interface BaseMetadata {
+  symbol: string;
+  lastUpdated: FirebaseFirestore.FieldValue | FirebaseFirestore.Timestamp;
+  ttlSeconds: number;
+}
+
+/** Standard metadata for non-time series documents */
+export interface StandardMetadata extends BaseMetadata {
+  endpoint: AlphaVantageEndpoint;
+  nextRefreshAt: FirebaseFirestore.Timestamp;
+}
+
+/** Union type for all possible metadata */
+export type DocumentMetadata = TimeSeriesDocumentMetadata | StandardMetadata;
+
+/** Configuration for saving data */
+export interface SaveConfig {
+  firestorePath?: string;
+  documentType?: DocumentType;
+  ttlSeconds?: number;
+  interval?: TimeSeriesInterval;
 }

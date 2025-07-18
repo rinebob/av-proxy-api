@@ -1,5 +1,5 @@
 import { getApp, App } from 'firebase-admin/app';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getFirestore, Firestore, FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin SDK
@@ -30,6 +30,7 @@ if (process.env.FUNCTIONS_EMULATOR === 'true') {
   }
 }
 
+// Initialize Firestore
 app = getApp();
 db = getFirestore(app);
 db.settings({ ignoreUndefinedProperties: true });
@@ -50,4 +51,5 @@ if (process.env.FUNCTIONS_EMULATOR === 'true') {
 
 console.log('Firebase Admin SDK initialized successfully.');
 
-export { app, db, admin };
+// Export the initialized instances
+export { admin, db, FieldValue };
