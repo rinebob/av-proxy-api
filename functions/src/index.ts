@@ -44,5 +44,7 @@ export { onSymbolAdded } from './v2/alpha-vantage/triggers/on-symbol-added.funct
 // In the V2 section of index.ts
 export { updateDailyTimeSeries } from './v2/alpha-vantage';
 
+export { symbolSearch } from './v2/alpha-vantage/endpoints/av-symbol-search-endpoint.js';
+
 // Remove the underscore from the function name then uncomment the next line to export it
 // export { updateAllDailyTimeSeriesBulk } from './v2/alpha-vantage';

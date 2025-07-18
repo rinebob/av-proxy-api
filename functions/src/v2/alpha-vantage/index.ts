@@ -1,5 +1,6 @@
 export * from './handlers/alpha-vantage-base.handler';
 export * from './handlers/av-global-quote.handler';
+export * from './handlers/av-symbol-search.handler';
 export * from '../common/types';
 export * from '../common/enums';
 export { 
