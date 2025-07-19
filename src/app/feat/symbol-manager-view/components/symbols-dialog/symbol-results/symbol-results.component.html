@@ -1,0 +1,64 @@
+<h2 mat-dialog-title>Select a Symbol</h2>
+
+<mat-dialog-content>
+  <div class="symbol-results">
+    @if (loading) {
+      <div class="loading-spinner">
+        <mat-spinner diameter="40"></mat-spinner>
+        <p>Searching for symbols...</p>
+      </div>
+    } @else if (error) {
+      <div class="error-message">
+        <mat-icon>error_outline</mat-icon>
+        <span>{{ error }}</span>
+      </div>
+    } @else if (matches.length === 0) {
+      <div class="no-results">
+        <mat-icon>search_off</mat-icon>
+        <p>No matching symbols found</p>
+      </div>
+    } @else {
+      <p class="dialog-description">
+        We found multiple matches for your search. Please select the correct symbol:
+      </p>
+      
+      <mat-selection-list>
+        @for (match of matches; track match.symbol) {
+          <mat-list-option 
+            [selected]="selectedSymbol?.symbol === match.symbol"
+            (click)="onSelectSymbol(match)"
+            [class.selected]="selectedSymbol?.symbol === match.symbol">
+            <div class="symbol-option">
+              <div class="symbol-header">
+                <span class="symbol">{{ match.symbol }}</span>
+                <span class="type">{{ match.type }}</span>
+                <span class="match-score">{{ match.matchScore | number:'1.2-2' }} match</span>
+              </div>
+              <div class="symbol-name">{{ match.name }}</div>
+              <div class="symbol-details">
+                <span>{{ match.region }}</span>
+                <span class="divider">•</span>
+                <span>{{ match.currency }}</span>
+              </div>
+            </div>
+          </mat-list-option>
+        }
+      </mat-selection-list>
+    }
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="onBack()">
+    <mat-icon>arrow_back</mat-icon>
+    Back
+  </button>
+  <button 
+    mat-raised-button 
+    color="primary" 
+    (click)="onAddSymbol()"
+    [disabled]="!selectedSymbol || loading">
+    <mat-icon>add</mat-icon>
+    Add Symbol
+  </button>
+</mat-dialog-actions>

@@ -37,6 +37,10 @@
           <mat-icon>add</mat-icon>
           Add Symbols
         </button>
+        <button mat-raised-button color="accent" (click)="openSymbolsDialog()" [disabled]="store.loading()">
+            <mat-icon>search</mat-icon>
+            Search keywords
+          </button>
       </div>
     </div>
 

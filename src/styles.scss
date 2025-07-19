@@ -42,6 +42,19 @@ html, body {
   text-align: center;
 }
 
+// Dialog container styles
+.symbols-dialog-container {
+  .mat-mdc-dialog-container .mdc-dialog__surface {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .mat-mdc-dialog-content {
+    max-height: 70vh;
+    padding: 0;
+  }
+}
+
 // Responsive helpers
 @mixin mobile {
   @media (max-width: 599px) { @content; }

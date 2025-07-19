@@ -1,0 +1,90 @@
+@use '@angular/material' as mat;
+
+:host {
+  display: block;
+  position: relative;
+}
+
+.symbols-dialog {
+  min-width: 500px;
+  max-width: 800px;
+  padding: 0;
+
+  .dialog-description {
+    margin: 0 0 16px;
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .loading-spinner,
+  .no-results {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+    color: rgba(0, 0, 0, 0.6);
+
+    mat-icon {
+      width: 48px;
+      height: 48px;
+      font-size: 48px;
+      margin-bottom: 1rem;
+      opacity: 0.7;
+    }
+  }
+
+  .error-message {
+    display: flex;
+    align-items: center;
+    color: #d32f2f;
+    background-color: #fdecea;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+
+    mat-icon {
+      margin-right: 8px;
+    }
+  }
+
+  .global-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.8);
+    z-index: 10;
+  }
+
+  mat-dialog-actions {
+    padding: 16px 0 0;
+    margin: 0;
+    border-top: 1px solid #e0e0e0;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+}
+
+.global-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  color: #d32f2f;
+  
+  mat-icon {
+    color: #d32f2f;
+  }
+}
+
+mat-spinner {
+  margin: 0 auto;
+}

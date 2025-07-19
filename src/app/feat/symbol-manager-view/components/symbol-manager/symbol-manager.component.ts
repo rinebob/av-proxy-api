@@ -20,6 +20,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AddSymbolsDialogComponent } from '../add-symbols-dialog/add-symbols-dialog.component';
 import { SymbolManagerStore } from '../../store/symbol-manager.store';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { SymbolsDialogComponent } from '../symbols-dialog/symbols-dialog.component';
 
 @Component({
   selector: 'app-symbol-manager',
@@ -103,7 +104,31 @@ export class SymbolManagerComponent implements OnInit {
       this.store.clearSyncResults();
       
       if (result) {
-        this.store.symbolSelected(false);
+        this.store.setSymbolSelected(false);
+        
+        // Refresh the symbols list if symbols were added
+        this.store.listSymbols();
+      }
+    });
+  }
+
+  openSymbolsDialog(): void {
+    const dialogRef = this.dialog.open(SymbolsDialogComponent, {
+      width: '800px',
+      maxWidth: '95vw',
+      maxHeight: '90vh',
+      panelClass: 'symbols-dialog-container',
+      data: {
+        store: this.store
+      }
+    });
+
+    dialogRef.afterClosed().subscribe((result) => {
+      // Always clear sync results when dialog is closed
+      this.store.clearSyncResults();
+      
+      if (result) {
+        this.store.setSymbolSelected(false);
         
         // Refresh the symbols list if symbols were added
         this.store.listSymbols();
