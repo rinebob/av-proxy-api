@@ -47,7 +47,7 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     const startTime = Date.now();
     const endpoint = this.config.id;
     
-    console.log(`aVB.H fetch [${this.requestId}] Starting fetch for ${endpoint}`, { symbol: params.symbol });
+    console.log(`aVB.H fetch [${this.requestId}] Starting fetch for ${endpoint}`, { params });
     
     try {
       // 1. Validate parameters

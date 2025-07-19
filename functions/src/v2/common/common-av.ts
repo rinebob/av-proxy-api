@@ -378,6 +378,21 @@ export interface AlphaVantageSymbolSearchResponse {
 }
 
 /**
+ * Represents a single symbol match from Alpha Vantage SYMBOL_SEARCH endpoint
+ */
+export interface SvtAvSymbolMatch {
+    symbol: string;
+    name: string;
+    type: string;
+    region: string;
+    marketOpen: string;
+    marketClose: string;
+    timezone: string;
+    currency: string;
+    matchScore: string;
+}
+
+/**
  * Transformed symbol data that's saved to Firestore
  * This is a cleaned-up version of AlphaVantageSymbolMatch without numbered prefixes
  */

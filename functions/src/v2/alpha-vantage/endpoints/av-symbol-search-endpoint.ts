@@ -76,6 +76,8 @@ export const symbolSearch = onRequest(
         keywords: Array.isArray(keywords) ? keywords[0] : keywords
       });
 
+      console.log('aSSE sS endppoint result from handler: ', result)
+
       // Log successful response
       logger.info(`[${requestId}] [SYMBOL_SEARCH] Search completed`, {
         keywords,
@@ -86,7 +88,7 @@ export const symbolSearch = onRequest(
       // Return the search results as JSON
       res.status(200).json({
         success: true,
-        data: result.data,
+        data: result,
         metadata: {
           ...result.metadata,
           requestId,
