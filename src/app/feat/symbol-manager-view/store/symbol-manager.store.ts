@@ -1,13 +1,12 @@
 import { inject } from '@angular/core';
-import { signalStore, withState, withComputed, withMethods, patchState, withProps } from '@ngrx/signals';
+import { signalStore, withState, withMethods, patchState, withProps } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { SymbolManagerService } from '../services/symbol-manager.service';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { Observable, map, tap, catchError, of, pipe, switchMap } from 'rxjs';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { Observable, map, tap, of, pipe, switchMap } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { SyncSymbolsRequest, SyncSymbolsResponse, TrackedSymbol, ListSymbolsResponse, SymbolDetailsResponse } from '../../../feat/data-maintainer-view/common/fe-common-dm-api';
-import { AvSymbolSearchResult } from '../../../feat/data-maintainer-view/common/fe-common-dm-api';
+import { SyncSymbolsResponse, TrackedSymbol, SvtAvSymbolMatch } from '../../../feat/data-maintainer-view/common/fe-common-dm-api';
 
 export type ActiveTab = 'list' | 'add' | 'sync' | 'details';
 
@@ -18,7 +17,7 @@ interface SymbolManagerState {
   symbols: TrackedSymbol[];
   symbolDetails: TrackedSymbol | null;
   syncResults: SyncSymbolsResponse | null;
-  searchResults: AvSymbolSearchResult | undefined;
+  searchResults: SvtAvSymbolMatch[] | undefined;
   clientId: string;
   clientName: string;
   newSymbol: string;
@@ -47,6 +46,7 @@ export const SymbolManagerStore = signalStore(
   withProps(store => ({
     symbols$: toObservable(store.symbols),
     syncResults$: toObservable(store.syncResults),
+    searchResults$: toObservable(store.searchResults),
     symbolSelected$: toObservable(store.symbolSelected),
   })),
   withMethods((store, symbolService = inject(SymbolManagerService), snackBar = inject(MatSnackBar)) => ({
@@ -268,21 +268,21 @@ export const SymbolManagerStore = signalStore(
      * @param keywords The search keywords (e.g., 'microsoft')
      * @returns Observable with the search results
      */
-    searchSymbols(keywords: string): Observable<AvSymbolSearchResult> {
+    searchSymbols(keywords: string):void {
       if (!keywords?.trim()) {
-        return of({ bestMatches: [] });
+        return;
       }
+      console.log('sMSto sS searchSymbols called with keywords:', keywords);
 
       patchState(store, { loading: true, error: null, searchResults: undefined });
       
-      return symbolService.searchSymbols(keywords).pipe(
+      symbolService.searchSymbols(keywords).pipe(
         tapResponse(
-          (response) => {
+          (response: SvtAvSymbolMatch[]) => {
             console.log('sMSto sS Search results:', response);
             patchState(store, { 
               loading: false, 
               searchResults: response,
-              symbolSelected: true,
             });
           },
           (error: unknown) => {
@@ -291,8 +291,7 @@ export const SymbolManagerStore = signalStore(
             patchState(store, { 
               loading: false,
               error: errorMessage,
-              searchResults: { bestMatches: [] },
-              symbolSelected: false,
+              searchResults: [],
             });
             snackBar.open(errorMessage, 'Close', { 
               duration: 5000,
@@ -300,7 +299,7 @@ export const SymbolManagerStore = signalStore(
             });
           }
         )
-      );
+      ).subscribe();
     },
 
     /**
@@ -308,7 +307,7 @@ export const SymbolManagerStore = signalStore(
      * @param symbolSelected setting to true will close the dialog; the dialog 
      * will update this to false when it is closed
      */
-    symbolSelected(symbolSelected   : boolean) {
+    setSymbolSelected(symbolSelected   : boolean) {
         patchState(store, {symbolSelected})
     }
   }))

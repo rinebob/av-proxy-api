@@ -14,6 +14,7 @@ import {
   getDataMaintainerFunctionUrl
 } from '../../data-maintainer-view/common/fe-common-dm-api';
 import { AlphaVantageFunctions } from '../../../common/fe-common-app';
+import { SvtAvSymbolMatch } from '../../data-maintainer-view/common/fe-common-dm-api';
 
 /**
  * Service responsible for managing stock symbols in the data maintainer system.
@@ -335,9 +336,9 @@ export class SymbolManagerService {
    * @param keywords The search keywords (e.g., 'microsoft')
    * @returns Observable with the search results
    */
-  searchSymbols(keywords: string): Observable<AvSymbolSearchResult> {
+  searchSymbols(keywords: string): Observable<SvtAvSymbolMatch[]> {
     if (!keywords?.trim()) {
-      return of({ bestMatches: [] });
+      return of([]);
     }
 
     console.log('========== START SYMBOL SEARCH ==========');
@@ -346,17 +347,44 @@ export class SymbolManagerService {
     const url = AlphaVantageFunctions.SYMBOL_SEARCH.url;
     console.log('sMSvc sS using endpoint url:', url);
     
-    // Use GET with query parameters instead of POST
     const params = new URLSearchParams();
     params.set('keywords', keywords.trim());
     
-    return this.http.get<{ data: AvSymbolSearchResult }>(
-      `${url}?${params.toString()}`
+    return this.http.get<any>(
+      `${url}?${params.toString()}`,
+      { observe: 'response' }
     ).pipe(
-      map(response => response.data || { bestMatches: [] }),
+      tap(response => {
+        console.log('sMSvc sS Full HTTP response:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+          body: response.body
+        });
+      }),
+      map(response => {
+        const body = response.body;
+        console.log('sMSvc sS Response body:', body);
+        
+        if (Array.isArray(body)) {
+          return body as SvtAvSymbolMatch[];
+        } else if (body && Array.isArray(body.data)) {
+          return body.data as SvtAvSymbolMatch[];
+        } else if (body && body.bestMatches) {
+          return body.bestMatches as SvtAvSymbolMatch[];
+        }
+        
+        console.warn('sMSvc sS Unexpected response format:', body);
+        return [];
+      }),
       catchError(error => {
-        console.error('sMSvc sS Error searching symbols:', error);
-        return of({ bestMatches: [] });
+        console.error('sMSvc sS Error searching symbols:', {
+          error,
+          status: error.status,
+          statusText: error.statusText,
+          errorDetails: error.error
+        });
+        return of([]);
       }),
       finalize(() => {
         console.log('========== END SYMBOL SEARCH ==========');
