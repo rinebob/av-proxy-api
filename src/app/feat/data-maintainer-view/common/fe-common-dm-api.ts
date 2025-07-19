@@ -66,6 +66,23 @@ export interface AvSymbolSearchResult {
 }
 
 /**
+ * Represents a single symbol match from Alpha Vantage SYMBOL_SEARCH endpoint
+ * Must match same interface in functions/src/common/common-av.ts
+ */
+export interface SvtAvSymbolMatch {
+    symbol: string;
+    name: string;
+    type: string;
+    region: string;
+    marketOpen: string;
+    marketClose: string;
+    timezone: string;
+    currency: string;
+    matchScore: string;
+}
+
+
+/**
  * Interface for the Alpha Vantage company overview data payload.
  */
 export interface AvCompanyOverview {
