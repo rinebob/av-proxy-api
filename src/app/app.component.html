@@ -1,48 +1,50 @@
 <div class="app-container">
   <mat-toolbar color="primary">
-    <span class="logo" routerLink="/stock-data">Savant API</span>
+    <span class="logo" routerLink="/admin">Savant API</span>
     
-    <nav class="nav-links" *ngIf="currentUser()">
-      <a mat-button 
-         routerLink="/stock-data" 
-         routerLinkActive="active" 
-         [routerLinkActiveOptions]="{exact: true}">
-        <mat-icon>show_chart</mat-icon>
-        <span>Stock Data</span>
-      </a>
-      <a mat-button 
-         routerLink="/calendars" 
-         routerLinkActive="active">
-        <mat-icon>event</mat-icon>
-        <span>Calendars</span>
-      </a>
-      <a mat-button 
-         routerLink="/data-maintainer" 
-         routerLinkActive="active">
-        <mat-icon>storage</mat-icon>
-        <span>Data Maintainer</span>
-      </a>
-      <a mat-button 
-         routerLink="/symbol-manager" 
-         routerLinkActive="active">
-        <mat-icon>list_alt</mat-icon>
-        <span>Symbol Manager</span>
-      </a>      
-      <a mat-button 
-         routerLink="/logos" 
-         routerLinkActive="active">
-        <mat-icon>image</mat-icon>
-        <span>Company Logos</span>
-      </a>
-      @if (isAdmin()) {
+    @if (currentUser()) {
+      <nav class="nav-links">
         <a mat-button 
-           routerLink="/fs-debug" 
-           routerLinkActive="active">
-          <mat-icon>bug_report</mat-icon>
-          <span>Debug</span>
+           routerLink="/admin" 
+           routerLinkActive="active" 
+           [routerLinkActiveOptions]="{exact: true}">
+          <mat-icon>show_chart</mat-icon>
+          <span>Admin</span>
         </a>
-      }
-    </nav>
+        <a mat-button 
+           routerLink="/calendars" 
+           routerLinkActive="active">
+          <mat-icon>event</mat-icon>
+          <span>Calendars</span>
+        </a>
+        <a mat-button 
+           routerLink="/data-maintainer" 
+           routerLinkActive="active">
+          <mat-icon>storage</mat-icon>
+          <span>Data Maintainer</span>
+        </a>
+        <a mat-button 
+           routerLink="/symbol-manager" 
+           routerLinkActive="active">
+          <mat-icon>list_alt</mat-icon>
+          <span>Symbol Manager</span>
+        </a>
+        <a mat-button 
+           routerLink="/logos" 
+           routerLinkActive="active">
+          <mat-icon>image</mat-icon>
+          <span>Company Logos</span>
+        </a>
+        @if (isAdmin()) {
+          <a mat-button 
+             routerLink="/fs-debug" 
+             routerLinkActive="active">
+            <mat-icon>bug_report</mat-icon>
+            <span>Debug</span>
+          </a>
+        }
+      </nav>
+    }
     
     <span class="spacer"></span>
     

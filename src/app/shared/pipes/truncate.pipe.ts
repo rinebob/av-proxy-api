@@ -5,8 +5,20 @@ import { Pipe, PipeTransform } from '@angular/core';
   standalone: true
 })
 export class TruncatePipe implements PipeTransform {
-  transform(value: string, limit: number = 100, trail: string = '...'): string {
+  transform(value: string, limit: number = 100, completeWords: boolean = false, ellipsis: string = '...'): string {
     if (!value) return '';
-    return value.length > limit ? value.substring(0, limit) + trail : value;
+    
+    if (value.length <= limit) {
+      return value;
+    }
+
+    if (completeWords) {
+      limit = value.substr(0, limit).lastIndexOf(' ');
+      if (limit === -1) {
+        return value;
+      }
+    }
+
+    return `${value.substr(0, limit)}${ellipsis}`;
   }
 }
