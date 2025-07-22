@@ -1,11 +1,77 @@
-.collection-name, .subcollection-name {
-  margin-left: 8px;
-}
-
-.subcollection-item {
-  padding-left: 16px;
-}
-
-.active {
-  background-color: rgba(0, 0, 0, 0.04);
+.collection-list {
+  .mat-mdc-list-item {
+    height: auto;
+    min-height: 48px;
+    padding: 12px 16px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    color: #333;
+    border-bottom: 1px solid #f0f0f0;
+    
+    .collection-name, .subcollection-name {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 14px;
+      color: #333;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin: 0;
+    }
+    
+    &:hover {
+      background-color: #f8f9fa;
+    }
+    
+    &.active {
+      background-color: #f1f8ff;
+      border-left: 3px solid #1976d2;
+      padding-left: 13px; // 16px - 3px border
+      
+      .collection-name, .subcollection-name {
+        color: #1976d2;
+      }
+    }
+  }
+  
+  .sublist {
+    padding-top: 0;
+    padding-bottom: 0;
+    
+    .mat-mdc-list-item {
+      padding-left: 32px; // Indent subcollections
+      font-size: 13px;
+      
+      &:before {
+        content: '↳';
+        margin-right: 8px;
+        color: #666;
+      }
+    }
+  }
+  
+  /* Dark theme support */
+  :host-context(.dark-theme) {
+    .mat-mdc-list-item {
+      color: #e0e0e0;
+      border-bottom-color: #424242;
+      
+      .collection-name, .subcollection-name {
+        color: #e0e0e0;
+      }
+      
+      &:hover {
+        background-color: #2a2a2a;
+      }
+      
+      &.active {
+        background-color: #0d47a1;
+        border-left-color: #90caf9;
+        
+        .collection-name, .subcollection-name {
+          color: #fff;
+        }
+      }
+    }
+  }
 }

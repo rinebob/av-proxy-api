@@ -1,24 +1,23 @@
-<mat-nav-list>
-  @for (collection of store.collections(); track collection.id) {
-    <a mat-list-item 
-       [class.active]="store.currentCollectionPath() === collection.id"
-       (click)="navigateToCollection(collection.id)">
-      <mat-icon>folder</mat-icon>
-      <span class="collection-name">{{ collection.name }}</span>
-    </a>
-    
-    @if (store.currentCollectionPath() === collection.id && store.subcollections().length > 0) {
-      <mat-nav-list>
-        @for (subcollection of store.subcollections(); track subcollection) {
-          <div class="subcollection-item">
+<div class="collection-list">
+  <mat-nav-list>
+    @for (collection of store.collections(); track collection.id) {
+      <a mat-list-item 
+         [class.active]="store.currentCollectionPath() === collection.id"
+         (click)="navigateToCollection(collection.id)">
+        <span class="collection-name">{{ collection.name }}</span>
+      </a>
+      
+      @if (store.currentCollectionPath() === collection.id && store.subcollections().length > 0) {
+        <mat-nav-list class="sublist">
+          @for (subcollection of store.subcollections(); track subcollection) {
             <a mat-list-item 
+               class="subcollection-item"
                (click)="navigateToSubcollection(subcollection)">
-              <mat-icon>folder_special</mat-icon>
               <span class="subcollection-name">{{ subcollection }}</span>
             </a>
-          </div>
-        }
-      </mat-nav-list>
+          }
+        </mat-nav-list>
+      }
     }
-  }
-</mat-nav-list>
+  </mat-nav-list>
+</div>
