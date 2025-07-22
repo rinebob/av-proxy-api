@@ -2,45 +2,17 @@
   <mat-toolbar color="primary">
     <span class="logo" routerLink="/admin">Savant API</span>
     
-    @if (currentUser()) {
+    @if (isAuthenticated()) {
       <nav class="nav-links">
-        <a mat-button 
-           routerLink="/admin" 
-           routerLinkActive="active" 
-           [routerLinkActiveOptions]="{exact: true}">
-          <mat-icon>show_chart</mat-icon>
-          <span>Admin</span>
-        </a>
-        <a mat-button 
-           routerLink="/calendars" 
-           routerLinkActive="active">
-          <mat-icon>event</mat-icon>
-          <span>Calendars</span>
-        </a>
-        <a mat-button 
-           routerLink="/data-maintainer" 
-           routerLinkActive="active">
-          <mat-icon>storage</mat-icon>
-          <span>Data Maintainer</span>
-        </a>
-        <a mat-button 
-           routerLink="/symbol-manager" 
-           routerLinkActive="active">
-          <mat-icon>list_alt</mat-icon>
-          <span>Symbol Manager</span>
-        </a>
-        <a mat-button 
-           routerLink="/logos" 
-           routerLinkActive="active">
-          <mat-icon>image</mat-icon>
-          <span>Company Logos</span>
-        </a>
-        @if (isAdmin()) {
+        @for (item of filteredNavItems(); track item.route) {
           <a mat-button 
-             routerLink="/fs-debug" 
-             routerLinkActive="active">
-            <mat-icon>bug_report</mat-icon>
-            <span>Debug</span>
+             [routerLink]="item.route" 
+             routerLinkActive="active" 
+             [routerLinkActiveOptions]="{exact: item.exact}"
+             [matTooltip]="item.tooltip"
+             matTooltipPosition="below">
+            <mat-icon>{{item.iconName}}</mat-icon>
+            <span>{{item.displayName}}</span>
           </a>
         }
       </nav>
@@ -48,9 +20,9 @@
     
     <span class="spacer"></span>
     
-    @if (currentUser(); as user) {
+    @if (isAuthenticated()) {
       <div class="user-info">
-        <span class="welcome-text">Welcome, {{ user.email || 'User' }}</span>
+        <span class="welcome-text">Welcome, {{ currentUser()?.email || 'User' }}</span>
         <button mat-raised-button color="accent" (click)="handleLogout()" class="logout-button">
           <mat-icon>logout</mat-icon>
           <span>Logout</span>

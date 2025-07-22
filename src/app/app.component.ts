@@ -10,6 +10,9 @@ import { AuthService } from './core/auth/auth.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { User } from 'firebase/auth';
 import { environment } from '../environments/environment';
+import { NAV_ITEMS } from './core/config/nav-menu-items';
+import { NavItem } from './core/models/nav-item.model';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 @Component({
   selector: 'app-root',
@@ -21,7 +24,8 @@ import { environment } from '../environments/environment';
     MatButtonModule, 
     MatIconModule, 
     RouterLink, 
-    RouterLinkActive
+    RouterLinkActive,
+    MatTooltipModule
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss']
@@ -32,14 +36,24 @@ export class AppComponent {
   private snackBar = inject(MatSnackBar);
   private titleService = inject(Title);
 
+  // Navigation items from config
+  readonly navItems = NAV_ITEMS;
+
   // Signals
   currentUser = toSignal<User | null>(this.authService.user$);
   isAuthenticated = computed(() => !!this.currentUser());
-
-  isAdmin(): boolean {
+  isAdmin = computed<boolean>(() => {
     const userEmail = this.currentUser()?.email;
     return userEmail ? environment.adminEmails.includes(userEmail) : false;
-  }
+  });
+  
+  filteredNavItems = computed<NavItem[]>(() => {
+    return this.navItems.filter(item => {
+      // Show all items for admin, only non-admin items for regular users
+      if (this.isAdmin()) return true;
+      return item.requiredRole === 'user' && !item.isDebug;
+    });
+  });
 
   ngOnInit(): void {
     this.titleService.setTitle('Savant API');
