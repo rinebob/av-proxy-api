@@ -22,16 +22,22 @@
 
 html, body {
   height: 100%;
+  width: 100%;
   margin: 0;
+  padding: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
   background-color: var(--background);
   color: var(--text-primary);
+  overflow-x: hidden;
 }
 
 .app-container {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 mat-toolbar {
@@ -243,4 +249,26 @@ mat-toolbar {
 .route-transition-active {
   opacity: 1;
   transform: translateY(0);
+}
+
+router-outlet {
+  display: none;
+}
+
+app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+}
+
+mat-sidenav-container {
+  width: 100%;
+  height: calc(100vh - var(--header-height));
+}
+
+.mat-drawer-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }

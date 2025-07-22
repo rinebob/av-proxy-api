@@ -3,6 +3,9 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
   background-color: #f5f5f5;
 }
@@ -11,7 +14,8 @@
 .content {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  width: 100%;
   overflow: hidden;
   padding-top: 16px;
 }
@@ -20,9 +24,11 @@
 .content-container {
   display: flex;
   flex: 1;
+  width: 100%;
   gap: 16px;
   padding: 0 16px 16px;
-  overflow: hidden;
+  overflow: auto;
+  box-sizing: border-box;
   
   /* Make panels take equal width initially */
   .collections-panel,
@@ -31,9 +37,17 @@
     flex: 1;
   }
   
-  /* But allow documents panel to take more space when needed */
+  /* Adjust documents panel to be narrower than before but still wider than collections */
   .documents-panel {
+    flex: 1.5;
+    min-width: 300px;
+    max-width: 350px;
+  }
+  
+  /* Let details panel take remaining space */
+  .details-panel {
     flex: 2;
+    min-width: 350px;
   }
   
   /* Ensure details panel doesn't get too narrow */
@@ -134,8 +148,6 @@
   
   /* Documents panel (middle) */
   .documents-panel {
-    flex: 2;
-    min-width: 300px;
     display: flex;
     flex-direction: column;
     
@@ -192,9 +204,18 @@
     
     .mat-mdc-list-item {
       height: 40px;
-      font-family: 'Roboto', sans-serif;
-      font-size: 14px;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
       color: #333;
+      
+      .subcollection-name {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       
       &:hover {
         background-color: #f5f5f5;
@@ -209,9 +230,6 @@
   
   /* Details panel */
   .details-panel {
-    flex: 1;
-    min-width: 350px;
-    max-width: 600px;
     display: flex;
     flex-direction: column;
     
@@ -325,7 +343,7 @@
 }
 
 /* Responsive adjustments */
-@media (max-width: 1599px) {
+@media (max-width: 1199px) {
   .content-container {
     flex-wrap: wrap;
   }
