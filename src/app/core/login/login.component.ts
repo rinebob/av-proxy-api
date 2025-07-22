@@ -48,7 +48,7 @@ export class LoginComponent {
       } else {
         await this.authService.signup(email, password);
       }
-      this.router.navigate(['/stock-data']);
+      this.router.navigate(['/admin']);
     } catch (error: any) {
       this.authError.set(this.getErrorMessage(error.code || 'auth/error'));
     } finally {
@@ -61,7 +61,7 @@ export class LoginComponent {
     this.authError.set(null);
     try {
       await this.authService.signInWithGoogle();
-      this.router.navigate(['/stock-data']);
+      this.router.navigate(['/admin']);
     } catch (error: any) {
       this.authError.set(this.getErrorMessage(error.code || 'auth/error'));
     } finally {
