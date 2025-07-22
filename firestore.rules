@@ -1,73 +1,52 @@
+// TODO: Implement dynamic collection loading from a TypeScript configuration file
+// See scripts/generate-rules.ts for the script that will generate these rules
+// from a TypeScript configuration file for better maintainability
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Test collection - allow all authenticated users to read/write for debugging
-    match /test_collection/{document=**} {
-      allow read, write: if request.auth != null;
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
-    // Tracked symbols collection (updated to use hyphen)
-    match /tracked-symbols/{document=**} {
-      // Allow read for any authenticated user
-      allow read: if request.auth != null;
-      
-      // Allow create/update/delete only for:
-      // 1. The symbol's owner (clientId matches auth.uid)
-      // 2. Admin users (using a custom claim)
-      // 3. Backend Cloud Functions
-      allow create, update, delete: if request.auth != null && (
-        // Allow if the document's clientId matches the authenticated user's ID
-        resource.data.clientId == request.auth.uid ||
-        // OR if the user has an admin claim
-        request.auth.token.admin == true ||
-        // OR if the request is from a Cloud Function
+    function isBackend() {
+      return isAuthenticated() && (
         request.auth.token.firebase.sign_in_provider == 'function' ||
-        // OR if it's a debug request (for local development)
         (request.query.debug == true && request.auth.token.firebase.sign_in_provider == 'debug')
       );
     }
-    
-    // Market data collection (updated to use hyphen)
-    match /market-data/{symbol} {
-      // Allow read for any authenticated user
-      allow read: if request.auth != null;
-      
-      // Allow write only for Cloud Functions
-      allow write: if request.auth != null 
-        && (request.auth.token.firebase.sign_in_provider == 'function' ||
-            (request.query.debug == true && request.auth.token.firebase.sign_in_provider == 'debug'));
-      
-      // Data points subcollection
-      match /data-points/{endpoint} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null 
-          && (request.auth.token.firebase.sign_in_provider == 'function' ||
-              (request.query.debug == true && request.auth.token.firebase.sign_in_provider == 'debug'));
-      }
-      
-      // Company overview subcollection
-      match /company-overview/{document=**} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null 
-          && (request.auth.token.firebase.sign_in_provider == 'function' ||
-              (request.query.debug == true && request.auth.token.firebase.sign_in_provider == 'debug'));
-      }
-      
-      // Refresh events subcollection
-      match /refresh-events/{document=**} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null 
-          && (request.auth.token.firebase.sign_in_provider == 'function' ||
-              (request.query.debug == true && request.auth.token.firebase.sign_in_provider == 'debug'));
-      }
-      
-      // Refresh history subcollection
-      match /refresh-history/{document=**} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null 
-          && (request.auth.token.firebase.sign_in_provider == 'function' ||
-              (request.query.debug == true && request.auth.token.firebase.sign_in_provider == 'debug'));
-      }
+
+    // List of top-level collections that follow the standard access pattern
+    function getStandardCollections() {
+      return [
+        'company-data',
+        'market-data',
+        'tracked-symbols',
+        'economics',
+        'news',
+        'time-series'
+        // Add any other top-level collections here
+      ];
     }
+
+    // Apply standard access rules to all collections in the list
+    function isStandardCollection(collection) {
+      return getStandardCollections().hasAny([collection]);
+    }
+
+    // Standard access pattern for all top-level collections
+    match /{collection}/{document=**} {
+      allow read: if isAuthenticated() && isStandardCollection(collection);
+      allow write: if isBackend() && isStandardCollection(collection);
+    }
+
+    // Test collection - more permissive rules for debugging
+    match /test_collection/{document} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Keep any existing specific rules that need special handling below
+    // For example, if any collection needs custom rules, add them here
   }
 }
