@@ -46,5 +46,7 @@ export { updateDailyTimeSeries } from './v2/alpha-vantage';
 
 export { symbolSearch } from './v2/alpha-vantage/endpoints/av-symbol-search-endpoint.js';
 
+export { listCollections } from './v2/common/functions/list-collections.js';
+
 // Remove the underscore from the function name then uncomment the next line to export it
 // export { updateAllDailyTimeSeriesBulk } from './v2/alpha-vantage';
