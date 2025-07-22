@@ -1,0 +1,19 @@
+<div class="document-list">
+  <h3>Documents ({{ store.documents().length }})</h3>
+  
+  <mat-nav-list>
+    @for (doc of store.documents(); track doc.id) {
+      <a mat-list-item 
+         [class.active]="store.selectedDocument()?.id === doc.id"
+         (click)="selectDocument(doc)"
+         [matTooltip]="doc.id">
+        <mat-icon>description</mat-icon>
+        <span class="document-id">{{ doc.id }}</span>
+      </a>
+    } @empty {
+      <p class="no-documents">
+        No documents found in this collection
+      </p>
+    }
+  </mat-nav-list>
+</div>

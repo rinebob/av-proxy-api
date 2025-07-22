@@ -1,0 +1,14 @@
+<div class="breadcrumb-container">
+  <div class="breadcrumb">
+    @for (item of breadcrumbItems(); track item.name; let last = $last) {
+      <span 
+        [class.active]="last"
+        (click)="!last && item.path !== null && navigateToCollection(item.path)">
+        {{ item.name }}
+        @if (!last) {
+          <span class="separator">/</span>
+        }
+      </span>
+    }
+  </div>
+</div>
