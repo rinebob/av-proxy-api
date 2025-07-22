@@ -1,142 +1,149 @@
-<div class="dashboard-container">
-  <!-- Sidebar -->
-  <mat-sidenav-container class="sidenav-container">
-    <mat-sidenav #sidenav mode="side" opened>
-      <mat-nav-list>
-        <!-- Collections List -->
-        <h3 class="sidebar-header">Collections</h3>
-        @for (collection of store.collections(); track collection.id) {
-          <mat-list-item 
-            [class.active]="store.currentCollection().id === collection.id"
-            (click)="selectCollection(collection.id)"
-          >
-            <mat-icon matListItemIcon>folder</mat-icon>
-            <div matListItemTitle>{{ collection.name }}</div>
-          </mat-list-item>
-        }
-      </mat-nav-list>
-      
-      <!-- Subcollections List -->
-      @if (store.subcollections().length > 0) {
-        <mat-nav-list>
-          <h3 class="sidebar-header">Subcollections</h3>
-          @for (sub of store.subcollections(); track sub) {
-            <mat-list-item (click)="selectSubcollection(sub)">
-              <mat-icon matListItemIcon>folder_special</mat-icon>
-              <div matListItemTitle>{{ sub }}</div>
-            </mat-list-item>
-          }
-        </mat-nav-list>
-      }
-    </mat-sidenav>
+<div class="admin-dashboard">
+  <!-- Header -->
+  <mat-toolbar color="primary" class="header-toolbar">
+    <button mat-icon-button (click)="sidenav.toggle()" class="menu-button">
+      <mat-icon>menu</mat-icon>
+    </button>
+    <span class="header-title">Firestore Admin</span>
+    <span class="spacer"></span>
+    
+    <!-- Search Bar -->
+    <mat-form-field appearance="outline" class="search-bar">
+      <mat-label>Search documents</mat-label>
+      <input matInput placeholder="Search..." #searchInput>
+      <button mat-icon-button matSuffix>
+        <mat-icon>search</mat-icon>
+      </button>
+    </mat-form-field>
+    
+    <button mat-icon-button [disabled]="store.loading()" (click)="refresh()" matTooltip="Refresh">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </mat-toolbar>
 
-    <!-- Main Content -->
-    <mat-sidenav-content class="content">
-      <!-- Toolbar -->
-      <mat-toolbar color="primary">
-        <button mat-icon-button (click)="sidenav.toggle()">
-          <mat-icon>menu</mat-icon>
-        </button>
-        
+  <div class="dashboard-content">
+    <!-- Sidebar Navigation -->
+    <mat-sidenav-container class="sidenav-container">
+      <mat-sidenav #sidenav mode="side" opened class="sidenav">
         <!-- Breadcrumb -->
-        <nav class="breadcrumb">
-          @for (item of breadcrumbItems; track item.path; let last = $last) {
-            <span class="breadcrumb-item" 
-                  [class.active]="last"
-                  (click)="!last && navigateToBreadcrumb($index)">
-              {{ item.name }}
-              @if (!last) {
-                <mat-icon>chevron_right</mat-icon>
-              }
-            </span>
-          }
-        </nav>
-        
-        <span class="spacer"></span>
-        <button mat-icon-button (click)="refresh()" [disabled]="store.loading()">
-          <mat-icon>refresh</mat-icon>
-        </button>
-      </mat-toolbar>
-
-      <!-- Loading Indicator -->
-      @if (store.loading()) {
-        <div class="loading-overlay">
-          <mat-spinner></mat-spinner>
-          <p>Loading...</p>
+        <div class="breadcrumb-container">
+          <mat-chip-listbox class="breadcrumb">
+            @for (item of breadcrumbItems(); track item.path; let last = $last) {
+              <mat-chip-option 
+                [selected]="last"
+                (click)="!last && navigateToBreadcrumb($index)">
+                {{ item.name }}
+              </mat-chip-option>
+            }
+          </mat-chip-listbox>
         </div>
-      }
 
-      <!-- Error Message -->
-      @if (store.error()) {
-        <mat-card class="error-card">
-          <mat-card-header>
-            <mat-icon mat-card-avatar color="warn">error</mat-icon>
-            <mat-card-title>Error</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <p>{{ store.error() }}</p>
-          </mat-card-content>
-        </mat-card>
-      }
+        <!-- Collections Tree -->
+        <mat-accordion class="collections-tree" multi>
+          @for (collection of store.collections(); track collection.id) {
+            <mat-expansion-panel [expanded]="store.currentCollection().id === collection.id">
+              <mat-expansion-panel-header (click)="selectCollection(collection.id)">
+                <mat-panel-title>
+                  <mat-icon>folder</mat-icon>
+                  <span>{{ collection.name }}</span>
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              
+              @if (store.currentCollection().id === collection.id && store.subcollections().length > 0) {
+                <mat-nav-list>
+                  @for (sub of store.subcollections(); track sub) {
+                    <mat-list-item (click)="selectSubcollection(sub)">
+                      <mat-icon matListItemIcon>folder</mat-icon>
+                      <div matListItemTitle>{{ sub }}</div>
+                    </mat-list-item>
+                  }
+                </mat-nav-list>
+              }
+            </mat-expansion-panel>
+          }
+        </mat-accordion>
+      </mat-sidenav>
 
-      <!-- Documents List -->
-      <div class="documents-container">
-        <div class="documents-list">
-          <h3>Documents</h3>
+      <!-- Main Content -->
+      <mat-sidenav-content class="content">
+        <!-- Loading Indicator -->
+        @if (store.loading()) {
+          <div class="loading-overlay">
+            <mat-spinner diameter="48"></mat-spinner>
+            <p>Loading data...</p>
+          </div>
+        }
+
+        <!-- Error Message -->
+        @if (store.error()) {
+          <mat-card class="error-card">
+            <mat-card-header>
+              <mat-icon mat-card-avatar color="warn">error_outline</mat-icon>
+              <mat-card-title>Error</mat-card-title>
+              <button mat-icon-button class="close-button" (click)="clearError()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </mat-card-header>
+            <mat-card-content>
+              <p>{{ store.error() }}</p>
+            </mat-card-content>
+          </mat-card>
+        }
+
+        <!-- Documents Grid -->
+        <div class="documents-container">
+          <div class="documents-header">
+            <h2>Documents</h2>
+            <span class="documents-count">{{ store.documents().length }} items</span>
+          </div>
+          
           @if (store.documents().length > 0) {
-            <mat-list>
+            <div class="documents-grid">
               @for (doc of store.documents(); track doc.id) {
-                <mat-list-item 
+                <mat-card 
+                  class="document-card"
                   [class.selected]="store.selectedDocument()?.id === doc.id"
                   (click)="selectDocument(doc)">
-                  <mat-icon matListItemIcon>
-                    {{ store.subcollections().length > 0 ? 'folder' : 'insert_drive_file' }}
-                  </mat-icon>
-                  <div matListItemTitle>{{ doc.id }}</div>
-                </mat-list-item>
+                  <mat-card-header>
+                    <mat-card-title>
+                      <mat-icon>insert_drive_file</mat-icon>
+                      {{ doc.id }}
+                    </mat-card-title>
+                  </mat-card-header>
+                </mat-card>
               }
-            </mat-list>
+            </div>
           } @else {
-            <p class="no-docs">No documents found</p>
+            <div class="no-documents">
+              <mat-icon class="empty-icon">folder_open</mat-icon>
+              <h3>No documents found</h3>
+              <p>This collection is empty</p>
+            </div>
           }
         </div>
 
-        <!-- Document Details -->
-        <div class="document-details">
-          @if (store.selectedDocument()) {
-            <div class="document-header">
-              <h3>{{ store.selectedDocument()?.id }}</h3>
-              
-              <!-- Subcollections -->
-              @if (store.subcollections().length > 0) {
-                <div class="subcollections">
-                  <h4>Subcollections:</h4>
-                  <div class="subcollection-buttons">
-                    @for (subcol of store.subcollections(); track subcol) {
-                      <button mat-stroked-button 
-                              (click)="selectSubcollection(subcol)">
-                        <mat-icon>folder</mat-icon>
-                        {{ subcol }}
-                      </button>
-                    }
+        <!-- Document Viewer -->
+        @if (store.selectedDocumentData()) {
+          <div class="document-viewer">
+            <mat-tab-group>
+              <mat-tab label="Data">
+                <pre class="document-json">{{ store.selectedDocumentData() | json }}</pre>
+              </mat-tab>
+              <mat-tab label="Metadata">
+                <div class="metadata-container">
+                  <div class="metadata-item">
+                    <span class="metadata-label">Document ID:</span>
+                    <span class="metadata-value">{{ store.selectedDocument()?.id }}</span>
+                  </div>
+                  <div class="metadata-item">
+                    <span class="metadata-label">Last Updated:</span>
                   </div>
                 </div>
-              }
-            </div>
-            
-            <!-- Document Data -->
-            <div class="document-data">
-              <h4>Data:</h4>
-              <pre>{{ store.selectedDocumentData() | json }}</pre>
-            </div>
-          } @else {
-            <div class="no-selection">
-              <mat-icon>info</mat-icon>
-              <p>Select a document to view details</p>
-            </div>
-          }
-        </div>
-      </div>
-    </mat-sidenav-content>
-  </mat-sidenav-container>
+              </mat-tab>
+            </mat-tab-group>
+          </div>
+        }
+      </mat-sidenav-content>
+    </mat-sidenav-container>
+  </div>
 </div>
