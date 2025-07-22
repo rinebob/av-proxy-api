@@ -4,45 +4,7 @@
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-}
-
-/* Sidenav container */
-.sidenav-container {
-  flex: 1;
-  height: 100%;
-}
-
-/* Sidenav styles */
-.sidenav {
-  width: 280px;
-  border-right: 1px solid #e0e0e0;
-  background-color: #fafafa;
-  
-  .sidenav-header {
-    padding: 12px 16px;
-    border-bottom: 1px solid #e0e0e0;
-    background-color: #f5f5f5;
-    
-    h3 {
-      margin: 0;
-      font-size: 15px;
-      font-weight: 500;
-      color: #666;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      
-      &::before {
-        content: '';
-        display: inline-block;
-        width: 4px;
-        height: 16px;
-        background-color: #3f51b5;
-        border-radius: 2px;
-        margin-right: 8px;
-        vertical-align: middle;
-      }
-    }
-  }
+  background-color: #f5f5f5;
 }
 
 /* Main content area */
@@ -50,23 +12,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: #f5f5f5;
-  
-  .toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    
-    .toolbar-title {
-      margin-left: 16px;
-      font-size: 16px;
-    }
-    
-    .spacer {
-      flex: 1 1 auto;
-    }
-  }
+  overflow: hidden;
+  padding-top: 16px;
 }
 
 /* Content container for panels */
@@ -74,7 +21,7 @@
   display: flex;
   flex: 1;
   gap: 16px;
-  padding: 16px;
+  padding: 0 16px 16px;
   overflow: hidden;
   
   /* Make panels take equal width initially */
@@ -183,19 +130,12 @@
         }
       }
     }
-    
-    .panel-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-    }
   }
   
-  /* Documents panel (left) */
+  /* Documents panel (middle) */
   .documents-panel {
     flex: 2;
     min-width: 300px;
-    max-width: 400px;
     display: flex;
     flex-direction: column;
     
@@ -210,14 +150,6 @@
         font-size: 13px;
         color: #333;
         
-        .mat-icon {
-          font-size: 18px;
-          height: 18px;
-          width: 18px;
-          margin-right: 12px;
-          color: #666;
-        }
-        
         .document-id {
           white-space: nowrap;
           overflow: hidden;
@@ -231,22 +163,12 @@
         &.active {
           background-color: #e3f2fd;
           color: #1976d2;
-          
-          .mat-icon {
-            color: #1976d2;
-          }
         }
       }
     }
-    
-    .panel-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-    }
   }
   
-  /* Subcollections panel (middle) */
+  /* Subcollections panel (right) */
   .subcollections-panel {
     flex: 1;
     min-width: 220px;
@@ -264,49 +186,97 @@
       }
     }
     
-    .panel-content {
-      padding: 0;
+    .mat-nav-list {
+      padding-top: 0;
     }
     
     .mat-mdc-list-item {
-      height: auto;
-      min-height: 48px;
-      padding: 12px 16px;
-      font-family: 'Roboto Mono', monospace;
-      font-size: 13px;
+      height: 40px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
       color: #333;
-      border-bottom: 1px solid #f0f0f0;
-      
-      .subcollection-name {
-        font-family: 'Roboto Mono', monospace;
-        font-size: 14px;
-        color: #333;
-        font-weight: 500;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
       
       &:hover {
-        background-color: #f8f9fa;
+        background-color: #f5f5f5;
       }
       
       &.active {
-        background-color: #f1f8ff;
-        border-left: 3px solid #1976d2;
-        padding-left: 13px; // 16px - 3px border
+        background-color: #e3f2fd;
+        color: #1976d2;
+      }
+    }
+  }
+  
+  /* Details panel */
+  .details-panel {
+    flex: 1;
+    min-width: 350px;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    
+    .mat-card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      
+      mat-card-header {
+        flex-shrink: 0;
+        padding: 16px 16px 0;
         
-        .subcollection-name {
-          color: #1976d2;
+        mat-card-title {
+          font-size: 16px;
+          font-weight: 500;
+          margin: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+      
+      mat-card-content {
+        flex: 1;
+        overflow: auto;
+        margin: 0;
+        padding: 16px;
+        
+        pre {
+          margin: 0;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          font-family: 'Roboto Mono', monospace;
+          font-size: 13px;
+          line-height: 1.5;
+        }
+      }
+    }
+  }
+  
+  /* Dark theme support */
+  :host-context(.dark-theme) {
+    .panel {
+      background-color: #2d2d2d;
+      color: #e0e0e0;
+      
+      .panel-header {
+        background-color: #303030;
+        border-bottom-color: #424242;
+        
+        h3 {
+          color: #e0e0e0;
+          
+          &::before {
+            background-color: #8c9eff;
+          }
         }
       }
     }
     
-    // Dark theme support
-    :host-context(.dark-theme) {
-      .mat-mdc-list-item {
+    .documents-panel, 
+    .subcollections-panel {
+      .mat-list-item {
         color: #e0e0e0;
-        border-bottom-color: #424242;
         
         &:hover {
           background-color: #2a2a2a;
@@ -314,93 +284,18 @@
         
         &.active {
           background-color: #0d47a1;
-          border-left-color: #90caf9;
-          
-          .subcollection-name {
-            color: #fff;
-          }
+          color: #fff;
         }
       }
     }
-  }
-  
-  /* Details panel (right) */
-  .details-panel {
-    flex: 2;
-    min-width: 400px;
     
-    mat-card-title {
-      font-family: 'Roboto Mono', monospace;
-      font-size: 14px;
-      color: #333;
-      padding: 12px 0;
-      margin: 0;
-    }
-    
-    pre {
-      font-family: 'Roboto Mono', monospace;
-      font-size: 13px;
-      line-height: 1.5;
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-all;
-      background-color: #f8f9fa;
-      padding: 12px;
-      border-radius: 4px;
-      border: 1px solid #e9ecef;
-    }
-  }
-  
-  /* Dark theme adjustments for details panel */
-  :host-context(.dark-theme) {
     .details-panel {
-      mat-card-title {
-        color: #e0e0e0;
-      }
-      
-      pre {
-        background-color: #2a2a2a;
-        border-color: #424242;
-        color: #e0e0e0;
-      }
-    }
-  }
-  
-  /* Dark theme support for panel headers */
-  :host-context(.dark-theme) {
-    .panel-header {
-      background-color: #303030;
-      border-bottom-color: #424242;
-      
-      h3 {
+      mat-card {
+        background-color: #2d2d2d;
         color: #e0e0e0;
         
-        &::before {
-          background-color: #8c9eff;
-        }
-      }
-    }
-  }
-  
-  /* Dark theme adjustments for document list */
-  :host-context(.dark-theme) {
-    .documents-panel {
-      .document-list {
-        .mat-list-item {
+        mat-card-title {
           color: #e0e0e0;
-          
-          &:hover {
-            background-color: #2a2a2a;
-          }
-          
-          &.active {
-            background-color: #0d47a1;
-            color: #fff;
-            
-            .mat-icon {
-              color: #fff;
-            }
-          }
         }
       }
     }
@@ -408,12 +303,21 @@
 }
 
 /* Loading and error states */
-.loading-container,
-.error-message {
+.loading-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 32px;
+  height: 100%;
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  color: #d32f2f;
+  background-color: #fde7e7;
+  border-radius: 4px;
+  margin: 16px;
   
   mat-icon {
     margin-right: 8px;
@@ -421,70 +325,16 @@
 }
 
 /* Responsive adjustments */
-@media (max-width: 1280px) {
+@media (max-width: 1599px) {
   .content-container {
     flex-wrap: wrap;
   }
   
   .collections-panel,
-  .documents-panel {
-    min-width: 100% !important;
-    max-width: 100% !important;
-    height: 300px;
-  }
-  
-  .subcollections-panel {
-    min-width: calc(50% - 8px) !important;
-  }
-  
-  .details-panel {
-    min-width: calc(50% - 8px) !important;
-    max-width: 100% !important;
-  }
-}
-
-@media (max-width: 960px) {
+  .documents-panel,
   .subcollections-panel,
   .details-panel {
     min-width: 100% !important;
-    height: 300px;
-  }
-}
-
-/* Dark theme support */
-:host-context(.dark-theme) {
-  .sidenav {
-    background-color: #303030;
-    border-right-color: #424242;
-    
-    .sidenav-header {
-      border-bottom-color: #424242;
-      
-      h3 {
-        color: #e0e0e0;
-      }
-    }
-  }
-  
-  .content {
-    background-color: #303030;
-  }
-  
-  .panel {
-    background-color: #424242;
-    border-color: #616161;
-    
-    .panel-header {
-      background-color: #303030;
-      border-bottom-color: #616161;
-      
-      h3 {
-        color: #e0e0e0;
-      }
-    }
-    
-    pre {
-      color: #e0e0e0;
-    }
+    max-width: 100% !important;
   }
 }

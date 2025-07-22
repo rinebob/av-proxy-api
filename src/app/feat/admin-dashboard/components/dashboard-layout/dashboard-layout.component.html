@@ -1,101 +1,78 @@
 <div class="dashboard-container">
-    <mat-sidenav-container class="sidenav-container">
-        <!-- Sidebar -->
-        <mat-sidenav #sidenav mode="side" opened class="sidenav">
-            <div class="sidenav-header">
-                <h3>Collections</h3>
+    <!-- Main content -->
+    <div class="content">
+        <!-- Breadcrumb -->
+        <app-breadcrumb />
+
+        @if (store.loading()) {
+            <div class="loading-container">
+                <mat-spinner diameter="40"></mat-spinner>
             </div>
-            <app-collection-list />
-        </mat-sidenav>
-
-        <!-- Main content -->
-        <mat-sidenav-content class="content">
-            <mat-toolbar color="primary" class="toolbar">
-                <button mat-icon-button (click)="sidenav.toggle()" class="menu-button">
-                    <mat-icon>menu</mat-icon>
-                </button>
-                <span class="toolbar-title">
-                    {{ store.currentCollection()?.name || 'Firestore Admin' }}
-                </span>
-                <span class="spacer"></span>
-                <button mat-icon-button (click)="refresh()" [disabled]="store.loading()">
-                    <mat-icon>refresh</mat-icon>
-                </button>
-            </mat-toolbar>
-
-            <!-- Breadcrumb -->
-            <app-breadcrumb />
-
-            @if (store.loading()) {
-                <div class="loading-container">
-                    <mat-spinner diameter="40"></mat-spinner>
+        } @else if (store.error()) {
+            <div class="error-message">
+                <mat-icon color="warn">error_outline</mat-icon>
+                <span>{{ store.error() }}</span>
+            </div>
+        } @else {
+            <div class="content-container">
+                <!-- Collections Panel -->
+                <div class="panel collections-panel">
+                    <div class="panel-header">
+                        <h3>Collections</h3>
+                    </div>
+                    <div class="panel-content">
+                        <app-collection-list />
+                    </div>
                 </div>
-            } @else if (store.error()) {
-                <div class="error-message">
-                    <mat-icon color="warn">error_outline</mat-icon>
-                    <span>{{ store.error() }}</span>
+
+                <!-- Documents List Panel -->
+                <div class="panel documents-panel">
+                    <div class="panel-header">
+                        <h3>Documents {{ store.documents() ? '(' + store.documents().length + ')' : '' }}</h3>
+                    </div>
+                    <div class="panel-content">
+                        <app-document-list />
+                    </div>
                 </div>
-            } @else {
-                <div class="content-container">
-                    <!-- Collections Panel -->
-                    <div class="panel collections-panel">
-                        <div class="panel-header">
-                            <h3>Collections</h3>
-                        </div>
-                        <div class="panel-content">
-                            <app-collection-list />
-                        </div>
-                    </div>
 
-                    <!-- Documents List Panel -->
-                    <div class="panel documents-panel">
-                        <div class="panel-header">
-                            <h3>Documents {{ store.documents() ? '(' + store.documents().length + ')' : '' }}</h3>
-                        </div>
-                        <div class="panel-content">
-                            <app-document-list />
-                        </div>
+                <!-- Subcollections Panel -->
+                @if (store.subcollections().length > 0) {
+                <div class="panel subcollections-panel">
+                    <div class="panel-header">
+                        <h3>Subcollections {{ store.subcollections() ? '(' + store.subcollections().length + ')' : '' }}</h3>
                     </div>
-
-                    <!-- Subcollections Panel -->
-                    @if (store.subcollections().length > 0) {
-                    <div class="panel subcollections-panel">
-                        <div class="panel-header">
-                            <h3>Subcollections {{ store.subcollections() ? '(' + store.subcollections().length + ')' : '' }}</h3>
-                        </div>
-                        <div class="panel-content">
-                            <mat-nav-list>
-                                @for (subcollection of store.subcollections(); track subcollection) {
-                                <a mat-list-item 
-                                   (click)="$event.stopPropagation(); navigateToSubcollection(subcollection)">
-                                    <span class="subcollection-name">{{ subcollection }}</span>
-                                </a>
-                                }
-                            </mat-nav-list>
-                        </div>
+                    <div class="panel-content">
+                        <mat-nav-list>
+                            @for (subcollection of store.subcollections(); track subcollection) {
+                            <a mat-list-item 
+                               (click)="$event.stopPropagation(); navigateToSubcollection(subcollection)">
+                                <span class="subcollection-name">{{ subcollection }}</span>
+                            </a>
+                            }
+                        </mat-nav-list>
                     </div>
-                    }
-
-                    <!-- Document Details Panel -->
-                    @if (store.selectedDocument()) {
-                    <div class="panel details-panel">
-                        <div class="panel-header">
-                            <h3>Document Details</h3>
-                        </div>
-                        <div class="panel-content">
-                            <mat-card>
-                                <mat-card-header>
-                                    <mat-card-title>{{ store.selectedDocument()?.id }}</mat-card-title>
-                                </mat-card-header>
-                                <mat-card-content>
-                                    <pre>{{ store.selectedDocument()?.data | json }}</pre>
-                                </mat-card-content>
-                            </mat-card>
-                        </div>
-                    </div>
-                    }
                 </div>
-            }
-        </mat-sidenav-content>
-    </mat-sidenav-container>
+                }
+
+                <!-- Document Details Panel -->
+                @if (store.selectedDocument()) {
+                <div class="panel details-panel">
+                    <div class="panel-header">
+                        <h3>Document Details</h3>
+                    </div>
+                    <div class="panel-content">
+                        <mat-card>
+                            <mat-card-header>
+                                <mat-card-title>{{ store.selectedDocument()?.id }}</mat-card-title>
+                            </mat-card-header>
+                            <mat-card-content>
+                                <pre>{{ store.selectedDocument()?.data | json }}</pre>
+                            </mat-card-content>
+                        </mat-card>
+                    </div>
+                </div>
+                }
+            </div>
+        }
+    </div>
 </div>

@@ -1,6 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -26,7 +25,6 @@ import { DocumentListComponent } from '../document-list/document-list.component'
   standalone: true,
   imports: [
     CommonModule,
-    MatSidenavModule,
     MatToolbarModule,
     MatButtonModule,
     MatIconModule,
@@ -42,7 +40,7 @@ import { DocumentListComponent } from '../document-list/document-list.component'
     CollectionListComponent,
     BreadcrumbComponent,
     DocumentListComponent
-],
+  ],
   templateUrl: './dashboard-layout.component.html',
   styleUrls: ['./dashboard-layout.component.scss']
 })
