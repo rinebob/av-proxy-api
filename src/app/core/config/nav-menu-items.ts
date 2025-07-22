@@ -2,11 +2,11 @@ import { NavItem } from '../models/nav-item.model';
 
 export const NAV_ITEMS: NavItem[] = [
   {
-    displayName: 'Admin',
-    iconName: 'show_chart',
+    displayName: 'Data Collections',
+    iconName: 'admin_panel_settings',
     route: '/admin',
-    exact: true,
-    requiredRole: 'user', // Basic user role can access
+    exact: false,
+    requiredRole: 'user',
     tooltip: 'Admin Dashboard'
   },
   {
