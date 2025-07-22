@@ -77,6 +77,23 @@
   padding: 16px;
   overflow: hidden;
   
+  /* Make panels take equal width initially */
+  .collections-panel,
+  .documents-panel,
+  .subcollections-panel {
+    flex: 1;
+  }
+  
+  /* But allow documents panel to take more space when needed */
+  .documents-panel {
+    flex: 2;
+  }
+  
+  /* Ensure details panel doesn't get too narrow */
+  .details-panel {
+    min-width: 350px;
+  }
+  
   /* Base panel styles */
   .panel {
     display: flex;
@@ -125,19 +142,52 @@
     }
   }
   
-  /* Dark theme support for panel headers */
-  :host-context(.dark-theme) {
-    .panel-header {
-      background-color: #303030;
-      border-bottom-color: #424242;
-      
-      h3 {
-        color: #e0e0e0;
+  /* Collections panel (left) */
+  .collections-panel {
+    flex: 1;
+    min-width: 250px;
+    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    
+    .mat-nav-list {
+      padding-top: 0;
+    }
+    
+    .collection-list {
+      .mat-list-item {
+        height: 40px;
+        font-family: 'Roboto', sans-serif;
+        font-size: 14px;
+        color: #333;
         
-        &::before {
-          background-color: #8c9eff;
+        .mat-icon {
+          font-size: 18px;
+          height: 18px;
+          width: 18px;
+          margin-right: 12px;
+          color: #666;
+        }
+        
+        &:hover {
+          background-color: #f5f5f5;
+        }
+        
+        &.active {
+          background-color: #e3f2fd;
+          color: #1976d2;
+          
+          .mat-icon {
+            color: #1976d2;
+          }
         }
       }
+    }
+    
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
     }
   }
   
@@ -196,35 +246,23 @@
     }
   }
   
-  /* Dark theme adjustments for document list */
-  :host-context(.dark-theme) {
-    .documents-panel {
-      .document-list {
-        .mat-list-item {
-          color: #e0e0e0;
-          
-          &:hover {
-            background-color: #2a2a2a;
-          }
-          
-          &.active {
-            background-color: #0d47a1;
-            color: #fff;
-            
-            .mat-icon {
-              color: #fff;
-            }
-          }
-        }
-      }
-    }
-  }
-  
   /* Subcollections panel (middle) */
   .subcollections-panel {
     flex: 1;
-    min-width: 200px;
+    min-width: 220px;
     max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    
+    .panel-header {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      
+      h3 {
+        min-width: 140px;
+      }
+    }
     
     .panel-content {
       padding: 0;
@@ -327,6 +365,46 @@
       }
     }
   }
+  
+  /* Dark theme support for panel headers */
+  :host-context(.dark-theme) {
+    .panel-header {
+      background-color: #303030;
+      border-bottom-color: #424242;
+      
+      h3 {
+        color: #e0e0e0;
+        
+        &::before {
+          background-color: #8c9eff;
+        }
+      }
+    }
+  }
+  
+  /* Dark theme adjustments for document list */
+  :host-context(.dark-theme) {
+    .documents-panel {
+      .document-list {
+        .mat-list-item {
+          color: #e0e0e0;
+          
+          &:hover {
+            background-color: #2a2a2a;
+          }
+          
+          &.active {
+            background-color: #0d47a1;
+            color: #fff;
+            
+            .mat-icon {
+              color: #fff;
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 /* Loading and error states */
@@ -348,6 +426,7 @@
     flex-wrap: wrap;
   }
   
+  .collections-panel,
   .documents-panel {
     min-width: 100% !important;
     max-width: 100% !important;
