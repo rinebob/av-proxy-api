@@ -29,7 +29,7 @@ export class BreadcrumbComponent {
     const items: BreadcrumbItem[] = [];
     
     // Add home as the first item
-    items.push({ name: 'Home', path: '', isCollection: true });
+    items.push({ name: 'Collections', path: '', isCollection: true });
     
     // Add path segments
     let currentPath = '';
