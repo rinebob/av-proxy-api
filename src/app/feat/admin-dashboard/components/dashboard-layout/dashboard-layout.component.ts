@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
@@ -15,6 +15,11 @@ import { RouterModule } from '@angular/router';
 import { AdminDashboardStore } from '../../store/admin-dashboard.store';
 import { FirestoreDocument } from '../../../../common/fe-common-fs';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { JsonPipe } from '@angular/common';
+import { CollectionListComponent } from '../collection-list/collection-list.component';
+import { MatDividerModule } from '@angular/material/divider';
+import { BreadcrumbComponent } from "../breadcrumb/breadcrumb.component";
+import { DocumentListComponent } from '../document-list/document-list.component';
 
 @Component({
   selector: 'app-dashboard-layout',
@@ -22,66 +27,28 @@ import { toSignal } from '@angular/core/rxjs-interop';
   imports: [
     CommonModule,
     MatSidenavModule,
-    MatListModule,
-    MatIconModule,
-    MatButtonModule,
     MatToolbarModule,
-    MatExpansionModule,
+    MatButtonModule,
+    MatIconModule,
+    MatListModule,
     MatCardModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
     MatChipsModule,
+    MatDividerModule,
+    MatProgressSpinnerModule,
     MatTooltipModule,
-    RouterModule
-  ],
+    MatSnackBarModule,
+    JsonPipe,
+    RouterModule,
+    CollectionListComponent,
+    BreadcrumbComponent,
+    DocumentListComponent
+],
   templateUrl: './dashboard-layout.component.html',
   styleUrls: ['./dashboard-layout.component.scss']
 })
 export class DashboardLayoutComponent implements OnInit {
   protected readonly store = inject(AdminDashboardStore);
   private snackBar = inject(MatSnackBar);
-
-  // Computed breadcrumb items
-  protected readonly breadcrumbItems = computed(() => {
-    const path = this.store.currentCollectionPath();
-    const selectedDoc = this.store.selectedDocument();
-    
-    if (!path) return [];
-    
-    const segments = path.split('/').filter(Boolean);
-    const items = [];
-    
-    // Add home as the first item
-    items.push({ name: 'Home', path: '' });
-    
-    // Add path segments
-    let currentPath = '';
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      const isDocument = i % 2 === 1; // Documents are at odd indices (0-based)
-      
-      // Update current path
-      currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-      
-      // Add the segment to breadcrumb
-      items.push({
-        name: segment,
-        path: isDocument ? null : currentPath, // Only make collections clickable
-        isCollection: !isDocument
-      });
-    }
-    
-    // Add selected document to the breadcrumb if it exists and we're at a collection level
-    if (selectedDoc && segments.length % 2 === 1) {
-      items.push({
-        name: selectedDoc.id,
-        path: null, // Document is not clickable
-        isCollection: false
-      });
-    }
-    
-    return items;
-  });
 
   ngOnInit(): void {
     // Show error messages in a snackbar
