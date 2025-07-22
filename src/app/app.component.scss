@@ -1,37 +1,3 @@
-/* Global styles */
-:root {
-  --header-height: 64px;
-  --footer-height: 48px;
-  --sidenav-width: 250px;
-  
-  /* Color variables */
-  --primary-color: #3f51b5;
-  --accent-color: #ff4081;
-  --warn-color: #f44336;
-  --text-primary: rgba(0, 0, 0, 0.87);
-  --text-secondary: rgba(0, 0, 0, 0.6);
-  --background: #f5f5f5;
-  --card-background: #ffffff;
-  --divider: rgba(0, 0, 0, 0.12);
-  --sidenav-bg: #fafafa;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html, body {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  font-family: Roboto, "Helvetica Neue", sans-serif;
-  background-color: var(--background);
-  color: var(--text-primary);
-  overflow-x: hidden;
-}
 
 .app-container {
   display: flex;
@@ -52,15 +18,134 @@ mat-sidenav-container {
 }
 
 mat-sidenav {
-  width: 250px;
+  width: var(--sidenav-width);
   height: 100%;
   overflow-y: auto;
+  background-color: var(--sidenav-bg);
+  border-right: 1px solid var(--sidenav-border);
+  box-shadow: 1px 0 10px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  
+  &.mat-drawer-side {
+    border-right: 1px solid var(--sidenav-border);
+  }
+}
+
+mat-nav-list {
+  padding: 1rem;
+  
+  .mdc-list-item__primary-text {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-weight: 500 !important;
+    letter-spacing: -0.01em !important;
+    font-size: 1.078rem !important;
+  }
+  
+  .mat-mdc-list-item {
+    --mdc-list-list-item-container-color: transparent;
+    --mdc-list-list-item-hover-container-color: rgba(63, 81, 181, 0.08);
+    --mdc-list-list-item-focus-container-color: rgba(63, 81, 181, 0.08);
+    
+    margin: 0.25rem 0;
+    padding: 0;
+    height: 48px;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    &.nav-item {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      color: #3c4043;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 1.078rem !important;
+      font-weight: 500 !important;
+      letter-spacing: -0.01em !important;
+      line-height: 1.25 !important;
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      
+      .nav-icon {
+        margin-right: 16px;
+        color: #5f6368;
+        width: 20px;
+        height: 20px;
+        font-size: 20px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .nav-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #3c4043;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        line-height: 1.25rem;
+      }
+      
+      &:hover {
+        background-color: rgba(60, 64, 67, 0.08) !important;
+        
+        .nav-icon {
+          color: #3c4043;
+          transform: translateX(2px);
+        }
+        
+        .nav-label {
+          color: #202124;
+        }
+      }
+      
+      &.active {
+        background-color: #e8f0fe !important;
+        
+        .nav-icon {
+          color: #1a73e8;
+        }
+        
+        .nav-label {
+          color: #1a73e8;
+          font-weight: 600;
+        }
+        
+        &::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 8px;
+          bottom: 8px;
+          width: 3px;
+          background-color: #1a73e8;
+          border-radius: 0 4px 4px 0;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        &:hover {
+          background-color: #e1e8f7 !important;
+          
+          &::before {
+            background-color: #0d5bbc;
+            height: calc(100% - 16px);
+          }
+        }
+      }
+    }
+  }
+  
+  .mat-divider {
+    margin: 12px 16px;
+    border-top-color: rgba(0, 0, 0, 0.06);
+  }
 }
 
 mat-sidenav-content {
   height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  background-color: var(--background);
 }
 
 :host {
@@ -153,19 +238,16 @@ mat-toolbar {
   }
 }
 
-// Responsive adjustments
-@media (max-width: 599px) {
-  mat-toolbar {
-    padding: 0 8px;
-    
-    .logo {
-      font-size: 1.25rem;
-    }
-    
-    .user-info {
-      .welcome-text {
-        display: none;
-      }
+/* Responsive adjustments */
+@media (max-width: 959px) {
+  :root {
+    --sidenav-width: 280px;
+  }
+  
+  mat-sidenav {
+    &.mat-drawer-side {
+      border-right: none;
+      box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
     }
   }
 }
@@ -190,26 +272,64 @@ mat-toolbar {
 .mb-4 { margin-bottom: 32px; }
 
 /* Dark theme overrides */
-.dark-theme {
-  background-color: #303030;
-  color: rgba(255, 255, 255, 0.87);
-  
-  .mat-mdc-card {
-    background-color: #424242;
-    color: rgba(255, 255, 255, 0.87);
-  }
-  
-  .mat-mdc-card-subtitle {
-    color: rgba(255, 255, 255, 0.6);
-  }
-  
-  .mat-mdc-form-field {
-    --mdc-filled-text-field-container-color: #424242;
-    --mdc-filled-text-field-input-text-color: rgba(255, 255, 255, 0.87);
-    --mdc-filled-text-field-label-text-color: rgba(255, 255, 255, 0.6);
-    --mdc-filled-text-field-caret-color: #90caf9;
-    --mdc-filled-text-field-focus-active-indicator-color: #90caf9;
-    --mdc-filled-text-field-focus-label-text-color: #90caf9;
+:host-context(.dark-theme) {
+  mat-nav-list {
+    .mat-mdc-list-item {
+      --mdc-list-list-item-hover-container-color: rgba(232, 234, 237, 0.08);
+      --mdc-list-list-item-focus-container-color: rgba(232, 234, 237, 0.08);
+      
+      .nav-item {
+        color: #e8eaed;
+        
+        .nav-icon {
+          color: #9aa0a6;
+        }
+        
+        .nav-label {
+          color: #e8eaed;
+        }
+        
+        &:hover {
+          background-color: rgba(232, 234, 237, 0.08) !important;
+          
+          .nav-icon {
+            color: #e8eaed;
+          }
+          
+          .nav-label {
+            color: #ffffff;
+          }
+        }
+        
+        &.active {
+          background-color: #3c4043 !important;
+          
+          .nav-icon {
+            color: #8ab4f8;
+          }
+          
+          .nav-label {
+            color: #8ab4f8;
+          }
+          
+          &::before {
+            background-color: #8ab4f8;
+          }
+          
+          &:hover {
+            background-color: #424548 !important;
+            
+            &::before {
+              background-color: #a8c7fa;
+            }
+          }
+        }
+      }
+    }
+    
+    .mat-divider {
+      border-top-color: rgba(255, 255, 255, 0.1);
+    }
   }
 }
 

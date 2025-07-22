@@ -30,16 +30,16 @@
                 [opened]="!isHandset$ || isSidenavOpen"
                 (closed)="isSidenavOpen = false"
                 class="sidenav">
-    
       <mat-nav-list>
         @for (item of filteredNavItems(); track item.route) {
           <a mat-list-item 
              [routerLink]="item.route" 
              routerLinkActive="active"
              [routerLinkActiveOptions]="{exact: item.exact}"
-             (click)="onNavItemClick()">
-            <mat-icon matListItemIcon>{{item.iconName}}</mat-icon>
-            <span matListItemTitle>{{item.displayName}}</span>
+             (click)="onNavItemClick()"
+             class="nav-item">
+            <mat-icon matListItemIcon class="nav-icon">{{item.iconName}}</mat-icon>
+            <span matListItemTitle class="nav-label">{{item.displayName}}</span>
           </a>
         }
       </mat-nav-list>
