@@ -1,61 +1,36 @@
-import { Injectable, inject } from '@angular/core';
-import { signalStore, withState, withMethods, patchState, withHooks } from '@ngrx/signals';
+import { signalStore, withState, withMethods, patchState, withHooks, withProps } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap, catchError, of } from 'rxjs';
-import { Firestore, collection, collectionData, doc, docData } from '@angular/fire/firestore';
-import { orderBy, limit, query } from 'firebase/firestore';
+import { pipe, switchMap, tap, catchError, of, from, map, Observable } from 'rxjs';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { inject } from '@angular/core';
+import { FirestoreCollection } from '../../../core/config/firestore-collection-enum';
+import { FirestoreService } from '../../../core/services/firestore.service';
+import { NgZone } from '@angular/core';
+import { CollectionInfo, FirestoreDocument } from '../../../common/fe-common-fs';
+import { TOP_LEVEL_COLLECTIONS } from '../../../common/fe-common-fs';
 
-export interface RefreshHistory {
-  id?: string;
-  timestamp: any;
-  durationMs: number;
-  status: 'success' | 'error';
-  vendor?: string;
-  error?: string;
-  endpoint: string;
-}
-
-export interface EndpointData {
-  data?: any;
-  lastRefreshEvent?: any;
-  metadata?: any;
-}
-
-interface CollectionInfo {
-  id: string;
-  name: string;
-  description: string;
-}
-
-export const COLLECTIONS: CollectionInfo[] = [
-  { id: 'company-data', name: 'Company Data', description: 'Company information and fundamentals' },
-  { id: 'economics', name: 'Economics', description: 'Economic indicators and metrics' },
-  { id: 'market-data', name: 'Market Data', description: 'Market prices and trading data' },
-  { id: 'news', name: 'News', description: 'Financial news and articles' },
-  { id: 'time-series', name: 'Time Series', description: 'Historical time series data' },
-  { id: 'tracked-symbols', name: 'Tracked Symbols', description: 'List of tracked financial instruments' }
-];
 
 interface AdminDashboardState {
   collections: CollectionInfo[];
-  selectedCollection: string | null;
-  endpoints: string[];
-  selectedEndpoint: string | null;
-  endpointData: EndpointData | null;
-  refreshHistory: RefreshHistory[];
-  failedRefreshes: RefreshHistory[];
+  currentPath: string;
+  currentCollection: CollectionInfo;
+  subcollections: string[];
+  documents: FirestoreDocument[];
+  selectedDocument: FirestoreDocument | null;
+  selectedDocumentData: any | null;
   loading: boolean;
   error: string | null;
 }
 
+
 const initialState: AdminDashboardState = {
-  collections: COLLECTIONS,
-  selectedCollection: null,
-  endpoints: [],
-  selectedEndpoint: null,
-  endpointData: null,
-  refreshHistory: [],
-  failedRefreshes: [],
+  collections: TOP_LEVEL_COLLECTIONS,
+  currentPath: TOP_LEVEL_COLLECTIONS[0]?.id || '',
+  currentCollection: TOP_LEVEL_COLLECTIONS[0],
+  subcollections: [],
+  documents: [],
+  selectedDocument: null,
+  selectedDocumentData: null,
   loading: false,
   error: null
 };
@@ -63,34 +38,68 @@ const initialState: AdminDashboardState = {
 export const AdminDashboardStore = signalStore(
   { providedIn: 'root' },
   withState(initialState),
-  withMethods((store, firestore = inject(Firestore)) => ({
-    // Load all endpoints for the selected collection
-    loadEndpoints: rxMethod<string | null>(
+  withProps((store) => ({
+    currentPath$: toObservable(store.currentPath),
+    currentCollection$: toObservable(store.currentCollection),
+    subcollections$: toObservable(store.subcollections),
+    documents$: toObservable(store.documents),
+    selectedDocument$: toObservable(store.selectedDocument),
+    selectedDocumentData$: toObservable(store.selectedDocumentData),
+    loading$: toObservable(store.loading),
+    error$: toObservable(store.error)
+  })),
+  withMethods((store, firestoreService = inject(FirestoreService), ngZone = inject(NgZone)) => ({
+    setCurrentCollection: (collection: CollectionInfo) => {
+      patchState(store, { currentCollection: collection });
+    },
+    
+    // Helper function to load document data
+    loadDocumentData: (path: string) => {
+        if (!path) return of(null);
+        
+        console.log(`[INFO] [AdminDashboardStore] Loading document data for path: ${path}`);
+        return firestoreService.getDocument(path);
+      },
+    
+    getSubcollections: rxMethod<string>(
       pipe(
-        tap(collectionId => {
-          patchState(store, { 
-            selectedCollection: collectionId,
-            loading: true, 
-            error: null,
-            endpoints: []
-          });
+        tap((path) => {
+          if (!path) {
+            console.log('[INFO] [AdminDashboardStore] No path provided, clearing subcollections');
+            patchState(store, { subcollections: [] });
+            return;
+          }
+          patchState(store, { loading: true });
         }),
-        switchMap((collectionId) => {
-          if (!collectionId) return of([]);
+        switchMap(path => {
+          if (!path) return of([]);
           
-          const ref = collection(firestore, collectionId);
-          return collectionData(ref, { idField: 'id' }).pipe(
-            tap((endpoints: any[]) => {
-              patchState(store, {
-                endpoints: endpoints.map(e => e.id),
-                loading: false
-              });
+          return firestoreService.listCollections(path).pipe(
+            tap({
+              next: (collections) => {
+                console.log(`[INFO] [AdminDashboardStore] Found ${collections.length} subcollections for ${path}`, { collections });
+                console.log(`Collections: ${collections}`);
+                patchState(store, { 
+                  subcollections: collections,
+                  loading: false 
+                });
+              },
+              error: (error) => {
+                const errorMsg = `Error getting subcollections for ${path}: ${error.message}`;
+                console.error(`[ERROR] [AdminDashboardStore] ${errorMsg}`, { error });
+                patchState(store, { 
+                  error: errorMsg,
+                  loading: false,
+                  subcollections: [] 
+                });
+              }
             }),
             catchError(error => {
-              console.error(`Error loading endpoints for collection ${collectionId}:`, error);
-              patchState(store, {
-                error: `Failed to load endpoints for ${collectionId}`,
-                loading: false
+              console.error('[ERROR] [AdminDashboardStore] Error in getSubcollections:', error);
+              patchState(store, { 
+                error: 'Failed to load subcollections',
+                loading: false,
+                subcollections: [] 
               });
               return of([]);
             })
@@ -98,105 +107,337 @@ export const AdminDashboardStore = signalStore(
         })
       )
     ),
-    
-    // Select an endpoint and load its data
-    selectEndpoint: rxMethod<{collectionId: string, endpoint: string}>(
+  })),
+  withMethods((store, firestoreService = inject(FirestoreService), ngZone = inject(NgZone)) => ({
+    loadDocument: rxMethod<string>(
       pipe(
-        tap(({ collectionId, endpoint }) => {
+        tap((path) => {
+          if (!path) {
+            patchState(store, { selectedDocument: null, selectedDocumentData: null });
+            return;
+          }
+          console.log(`[INFO] [AdminDashboardStore] loadDocument: Loading document from path: ${path}`);
+          patchState(store, { 
+            loading: true,
+            currentPath: path // Ensure currentPath is updated
+          });
+        }),
+        switchMap(path => {
+          if (!path) return of(null);
+          
+          // First, load the document data
+          return store.loadDocumentData(path).pipe(
+            switchMap(docSnap => {
+              if (!docSnap?.exists()) {
+                console.log(`[WARN] [AdminDashboardStore] Document not found at path: ${path}`);
+                return of(null);
+              }
+              
+              const docData = { id: docSnap.id, ...docSnap.data() };
+              const docPath = docSnap.ref.path;
+              
+              console.log(`[INFO] [AdminDashboardStore] Loaded document:`, { id: docSnap.id, path: docPath });
+              
+              // Update the store with the document data
+              patchState(store, {
+                selectedDocument: { 
+                  id: docSnap.id, 
+                  data: docData, 
+                  path: docPath 
+                },
+                selectedDocumentData: docData,
+                currentPath: docPath, // Ensure currentPath is in sync
+                loading: false,
+                error: null
+              });
+              
+              // Load subcollections for this document
+              console.log(`[INFO] [AdminDashboardStore] Loading subcollections for path: ${docPath}`);
+              store.getSubcollections(docPath);
+              
+              return of(docData);
+            }),
+            catchError(error => {
+              const errorMsg = `Error loading document at ${path}: ${error.message}`;
+              console.error(`[ERROR] [AdminDashboardStore] ${errorMsg}`, { error });
+              patchState(store, { 
+                error: errorMsg,
+                loading: false,
+                selectedDocument: null,
+                selectedDocumentData: null
+              });
+              return of(null);
+            })
+          );
+        })
+      )
+    ),
+  })),
+  withMethods((store, firestoreService = inject(FirestoreService)) => ({
+    loadCollection: rxMethod<string>(
+      pipe(
+        tap(() => patchState(store, { loading: true })),
+        switchMap(collectionPath => {
+          if (!collectionPath) return of([]);
+          
+          console.log(`[INFO] [AdminDashboardStore] aDSto lC: Loading collection from path: ${collectionPath}`);
+          
+          // First, load the subcollections for this path
+          store.getSubcollections(collectionPath);
+          
+          return firestoreService.getDocuments(collectionPath).pipe(
+            tap(documents => {
+              console.log(`[INFO] [AdminDashboardStore] aDSto lC: Successfully loaded ${documents.length} documents from ${collectionPath}`);
+              
+              // Update the documents in the store
+              patchState(store, { 
+                documents,
+                loading: false,
+                selectedDocument: null,
+                selectedDocumentData: null
+              });
+              
+              // If we have documents, load the first one
+              if (documents.length > 0) {
+                const firstDoc = documents[0];
+                // Construct the full document path
+                const docPath = firstDoc.path || `${collectionPath}/${firstDoc.id}`;
+                
+                console.log(`[INFO] [AdminDashboardStore] aDSto lC: Loading first document from path: ${docPath}`);
+                store.loadDocument(docPath);
+              } else {
+                console.log(`[INFO] [AdminDashboardStore] aDSto lC: No documents found in collection`);
+                patchState(store, { 
+                  selectedDocument: null,
+                  selectedDocumentData: null,
+                  loading: false
+                });
+              }
+            }),
+            catchError(error => {
+              const errorMsg = `aDSto lC: Error loading collection at ${collectionPath}: ${error.message}`;
+              console.error(`[ERROR] [AdminDashboardStore] ${errorMsg}`, { error });
+              patchState(store, { 
+                error: errorMsg,
+                loading: false,
+                documents: [] 
+              });
+              return of([]);
+            })
+          );
+        })
+      )
+    )
+  })),
+  withMethods((store, firestoreService = inject(FirestoreService), ngZone = inject(NgZone)) => ({
+    // Navigate to a collection
+    navigateToCollection: rxMethod<string | FirestoreCollection>(
+      pipe(
+        tap(collectionId => {
           if (!collectionId) return;
           
+          const collectionIdStr = typeof collectionId === 'string' ? collectionId : collectionId;
+          console.log(`[INFO] [AdminDashboardStore] aDSto nTC: Navigating to collection: ${collectionIdStr}`);
+          
+          // Find the collection in the predefined list
+          const collection = TOP_LEVEL_COLLECTIONS.find(c => c.id === collectionIdStr);
+          if (!collection) {
+            console.error(`[ERROR] [AdminDashboardStore] aDSto nTC: Collection not found: ${collectionIdStr}`);
+            return;
+          }
+          
+          // Reset state for the new collection
           patchState(store, {
-            selectedEndpoint: endpoint,
+            currentPath: collectionIdStr,
+            currentCollection: collection,
+            documents: [],
+            selectedDocument: null,
+            selectedDocumentData: null,
+            subcollections: [],
             loading: true,
             error: null
           });
           
-          // Load endpoint data
-          const docRef = doc(firestore, collectionId, endpoint);
-          docData(docRef).pipe(
-            tap((data: any) => {
-              patchState(store, {
-                endpointData: data || null
-              });
-            }),
-            catchError(error => {
-              console.error(`Error loading data for ${collectionId}/${endpoint}:`, error);
-              patchState(store, {
-                error: `Failed to load data for ${endpoint}`,
-                loading: false
-              });
-              return of(null);
-            })
-          ).subscribe();
-          
-          // Load refresh history
-          const historyRef = collection(firestore, `${collectionId}/${endpoint}/refresh-history`);
-          const q = query(historyRef, orderBy('timestamp', 'desc'), limit(50));
-          
-          collectionData(q, { idField: 'id' }).pipe(
-            tap((history: any[]) => {
-              patchState(store, {
-                refreshHistory: history as RefreshHistory[],
-                loading: false
-              });
-            }),
-            catchError(error => {
-              console.error(`Error loading refresh history for ${collectionId}/${endpoint}:`, error);
-              patchState(store, {
-                error: `Failed to load history for ${endpoint}`,
-                loading: false,
-                refreshHistory: []
-              });
-              return of([]);
-            })
-          ).subscribe();
+          // Load the collection data
+          store.loadCollection(collectionIdStr);
         })
       )
     ),
-    
-    // Load failed refreshes across all endpoints
-    loadFailedRefreshes: rxMethod<void>(
+
+    // Navigate to a document or subcollection
+    navigateTo: rxMethod<string>(
       pipe(
-        tap(() => patchState(store, { loading: true, error: null })),
-        switchMap(() => of([])), // Placeholder for Cloud Function
-        tap({
-          next: (failedRefreshes: RefreshHistory[]) => {
+        tap(segment => {
+          if (!segment) return;
+          
+          const currentPath = store.currentPath();
+          if (!currentPath) return;
+          
+          // Check if we're at a collection or document
+          const pathSegments = currentPath.split('/').filter(Boolean);
+          const isAtCollection = pathSegments.length % 2 === 1; // Collection has odd number of segments
+
+          console.log(`[INFO] [AdminDashboardStore] navigateTo segment: ${segment}`);
+          console.log(`[INFO] [AdminDashboardStore] navigateTo currentPath: ${currentPath}`);
+          console.log(`[INFO] [AdminDashboardStore] navigateTo isAtCollection: ${isAtCollection}`);
+          
+          let newPath: string;
+          
+          if (isAtCollection) {
+            // At a collection, so next is a document
+            // Format: collection/document
+            newPath = `${currentPath}/${segment}`;
+
+            console.log(`[INFO] [AdminDashboardStore] navigateTo newPath: ${newPath}`);
+            
+            // Update the store and load the document
             patchState(store, {
-              failedRefreshes,
-              loading: false
+              loading: true,
+              error: null
             });
-          },
-          error: (error) => {
-            console.error('Error loading failed refreshes:', error);
+            store.loadDocument(newPath);
+          } else {
+            // At a document, so next is a subcollection
+            // The current path already includes the symbol (e.g., "company-data/NVDA")
+            // We just need to append the subcollection name
+            newPath = `${currentPath}/${segment}`;
+
+            console.log(`[INFO] [AdminDashboardStore] navigateTo newPath: ${newPath}`);            
+            // For subcollections, update the path and load the collection
             patchState(store, {
-              error: 'Failed to load failed refreshes',
-              loading: false
+              currentPath: newPath,
+              currentCollection: {
+                id: segment,
+                name: segment
+                  .split(/[-_]/)
+                  .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(' '),
+                description: `Subcollection: ${segment}`,
+                isSubcollection: true
+              },
+              documents: [],
+              selectedDocument: null,
+              selectedDocumentData: null,
+              subcollections: [],
+              loading: true,
+              error: null
             });
+            
+            store.loadCollection(newPath);
           }
+          
+          console.log(`[INFO] [AdminDashboardStore] aDSto nT: Navigating to: ${newPath}`);
+        })
+      )
+    ),
+
+    // Select a document and update the path
+    selectDocument: rxMethod<FirestoreDocument>(
+      pipe(
+        tap((document) => {
+          if (!document) {
+            console.log('[INFO] [AdminDashboardStore] No document provided to selectDocument');
+            return;
+          }
+          
+          // Calculate the new path
+          const currentPath = store.currentPath();
+          const newPath = document.path || `${currentPath}/${document.id}`;
+          
+          console.log(`[INFO] [AdminDashboardStore] Selecting document:`, { 
+            documentId: document.id, 
+            currentPath,
+            newPath 
+          });
+          
+          // Update the store state
+          patchState(store, {
+            currentPath: newPath,
+            selectedDocument: document,
+            selectedDocumentData: null,
+            loading: true
+          });
+          
+          // Load the document data
+          store.loadDocument(newPath);
+        })
+      )
+    ),
+  })),
+  withMethods((store) => ({
+    // Navigate up one level
+    navigateUp: rxMethod<void>(
+      pipe(
+        tap(() => {
+          const currentPath = store.currentPath();
+          if (!currentPath) return;
+          
+          // Split the path and remove the last segment
+          const pathSegments = currentPath.split('/').filter(Boolean);
+          if (pathSegments.length <= 1) return; // Already at root
+          
+          pathSegments.pop(); // Remove the last segment
+          const newPath = pathSegments.join('/');
+          
+          console.log(`[INFO] [AdminDashboardStore] aDSto nU: Navigating up to: ${newPath}`);
+          
+          // If we're going back to a top-level collection, use navigateToCollection
+          if (pathSegments.length === 1) {
+            store.navigateToCollection(newPath);
+            return;
+          }
+          
+          // For subcollections, update the path and load the collection
+          patchState(store, {
+            currentPath: newPath,
+            documents: [],
+            selectedDocument: null,
+            selectedDocumentData: null,
+            subcollections: [],
+            loading: true,
+            error: null
+          });
+          
+          store.loadCollection(newPath);
+        })
+      )
+    ),
+
+    // Navigate to root
+    navigateToRoot: rxMethod<void>(
+      pipe(
+        tap(() => {
+          console.log('[INFO] [AdminDashboardStore] aDSto nTR: Navigating to root');
+          
+          const rootCollection = TOP_LEVEL_COLLECTIONS[0];
+          if (!rootCollection) {
+            console.error('[ERROR] [AdminDashboardStore] aDSto nTR: No root collection available');
+            return;
+          }
+          
+          // Use navigateToCollection to ensure proper collection handling
+          store.navigateToCollection(rootCollection.id);
         })
       )
     ),
     
-    // Refresh a specific endpoint
-    refreshEndpoint: rxMethod<{collectionId: string, endpoint: string}>(
+    // Clear current selection
+    clearSelection: rxMethod<void>(
       pipe(
-        tap(({ collectionId, endpoint }) => {
-          if (!collectionId) return;
-          
-          patchState(store, { loading: true, error: null });
-          // Implementation would call a Cloud Function to trigger a refresh
-          console.log(`Refreshing ${collectionId}/${endpoint}`);
-          setTimeout(() => {
-            patchState(store, { loading: false });
-          }, 1000);
+        tap(() => {
+          patchState(store, {
+            selectedDocument: null,
+            selectedDocumentData: null,
+            subcollections: []
+          });
         })
       )
     )
   })),
   withHooks({
-    onInit({ loadEndpoints }) {
-      // Optionally load the first collection by default
-      // loadEndpoints(COLLECTIONS[0]?.id || null);
+    onInit(store) {
+      // Load the initial collection using the current collection's ID
+      store.loadCollection(store.currentCollection().id);
     }
   })
 );
