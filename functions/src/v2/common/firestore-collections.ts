@@ -2,6 +2,9 @@
 // Extend this enum as new collections are added
 
 export enum FirestoreCollection {
+
+    ////////////// COPY ALL COLLECTIONS TO FRONTEND START HERE ////////////////
+
   // Core Collections
   TRACKED_SYMBOLS = "tracked-symbols",
   COMPANY_DATA = "company-data",
@@ -96,4 +99,7 @@ export enum FirestoreCollection {
   // For disabling / not implementing an endpoint
   DISABLED = 'disabled',
   DO_NOT_IMPLEMENT = 'do-not-implement',
+
+
+  /////////////// END COPY REGION ///////////////////////////
 }
