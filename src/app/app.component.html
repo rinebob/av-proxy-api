@@ -1,6 +1,6 @@
 <div class="app-container">
   <mat-toolbar color="primary" class="app-toolbar">
-    <button mat-icon-button (click)="toggleSidenav()" class="menu-button">
+    <button mat-icon-button (click)="sidenav.toggle()" class="menu-button">
       <mat-icon>menu</mat-icon>
     </button>
     
@@ -24,19 +24,15 @@
     }
   </mat-toolbar>
 
-  <mat-sidenav-container class="sidenav-container" [hasBackdrop]="isHandset$ | async">
-    <mat-sidenav #sidenav 
-                [mode]="(isHandset$ | async) ? 'over' : 'side'" 
-                [opened]="!isHandset$ || isSidenavOpen"
-                (closed)="isSidenavOpen = false"
-                class="sidenav">
+  <mat-sidenav-container class="sidenav-container" autosize>
+    <mat-sidenav #sidenav class="sidenav" mode="side">
       <mat-nav-list>
         @for (item of filteredNavItems(); track item.route) {
           <a mat-list-item 
              [routerLink]="item.route" 
              routerLinkActive="active"
              [routerLinkActiveOptions]="{exact: item.exact}"
-             (click)="onNavItemClick()"
+             (click)="sidenav.toggle()"
              class="nav-item">
             <mat-icon matListItemIcon class="nav-icon">{{item.iconName}}</mat-icon>
             <span matListItemTitle class="nav-label">{{item.displayName}}</span>

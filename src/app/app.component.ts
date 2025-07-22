@@ -1,10 +1,10 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatSidenavModule, MatSidenav } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
@@ -37,6 +37,8 @@ import { map, shareReplay } from 'rxjs/operators';
   styleUrls: ['./app.component.scss']
 })
 export class AppComponent {
+  @ViewChild('sidenav') sidenav!: MatSidenav;
+  
   private authService = inject(AuthService);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
@@ -54,13 +56,6 @@ export class AppComponent {
     );
   isSidenavOpen = true;
 
-  // Add this method to handle navigation item clicks
-  onNavItemClick() {
-    if (this.breakpointObserver.isMatched(Breakpoints.Handset)) {
-      this.isSidenavOpen = false;
-    }
-  }
-
   // Signals
   currentUser = toSignal<User | null>(this.authService.user$);
   isAuthenticated = computed(() => !!this.currentUser());
@@ -69,10 +64,6 @@ export class AppComponent {
     return userEmail ? environment.adminEmails.includes(userEmail) : false;
   });
   
-  toggleSidenav() {
-    this.isSidenavOpen = !this.isSidenavOpen;
-  }
-
   filteredNavItems = computed<NavItem[]>(() => {
     return this.navItems.filter(item => {
       // Show all items for admin, only non-admin items for regular users
@@ -92,6 +83,16 @@ export class AppComponent {
     } catch (error: unknown) {
       console.error('Logout failed in AppComponent:', error);
       // Consider showing a user-friendly error message here
+    }
+  }
+
+  toggleSidenav() {
+    this.sidenav.toggle();
+  }
+
+  onNavItemClick() {
+    if (this.breakpointObserver.isMatched(Breakpoints.Handset)) {
+      this.sidenav.close();
     }
   }
 }
