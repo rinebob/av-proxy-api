@@ -2,6 +2,7 @@
 :root {
   --header-height: 64px;
   --footer-height: 48px;
+  --sidenav-width: 250px;
   
   /* Color variables */
   --primary-color: #3f51b5;
@@ -12,6 +13,7 @@
   --background: #f5f5f5;
   --card-background: #ffffff;
   --divider: rgba(0, 0, 0, 0.12);
+  --sidenav-bg: #fafafa;
 }
 
 * {
@@ -34,10 +36,38 @@ html, body {
 .app-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+}
+
+mat-sidenav-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+mat-sidenav {
+  width: 250px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+mat-sidenav-content {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
 }
 
 mat-toolbar {
@@ -46,54 +76,22 @@ mat-toolbar {
   z-index: 2;
   display: flex;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 16px;
+  height: var(--header-height);
+  
+  .menu-button {
+    margin-right: 8px;
+  }
   
   .logo {
+    font-size: 1.5rem;
     font-weight: 500;
-    font-size: 1.25rem;
     cursor: pointer;
     display: flex;
     align-items: center;
-    margin-right: 24px;
     
     &:hover {
       opacity: 0.9;
-    }
-  }
-  
-  .nav-links {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-right: 16px;
-    
-    a {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: white;
-      text-decoration: none;
-      padding: 0 16px;
-      height: 64px;
-      font-size: 0.875rem;
-      font-weight: 500;
-      letter-spacing: 0.5px;
-      transition: background-color 0.2s;
-      border-radius: 4px;
-      
-      &:hover {
-        background-color: rgba(255, 255, 255, 0.1);
-      }
-      
-      &.active {
-        background-color: rgba(255, 255, 255, 0.2);
-      }
-      
-      mat-icon {
-        font-size: 1.25rem;
-        width: 1.25rem;
-        height: 1.25rem;
-      }
     }
   }
   
@@ -105,91 +103,70 @@ mat-toolbar {
     display: flex;
     align-items: center;
     gap: 16px;
-    height: 64px;
-    padding-right: 4px;
     
     .welcome-text {
       font-size: 0.875rem;
       opacity: 0.9;
-      line-height: 64px;
-      display: flex;
-      align-items: center;
+      white-space: nowrap;
     }
     
     .logout-button {
+      min-width: 110px;
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 8px;
-      height: 40px;
-      min-width: 110px;
-      margin-left: 0.5rem;
-      margin-top: 0;
-      margin-bottom: 0;
+      margin-left: 8px;
       padding: 0 16px;
-      box-sizing: border-box;
-      border-radius: 4px;
-      font-size: 1rem;
+      height: 36px;
       font-weight: 500;
       
-      mat-icon {
-        font-size: 1.25rem;
-        width: 1.25rem;
-        height: 1.25rem;
+      .mat-icon {
         margin-right: 4px;
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
       }
-    }
-  }
-  
-  .login-button {
-    color: white;
-    
-    mat-icon {
-      margin-right: 4px;
     }
   }
 }
 
 .main-content {
   flex: 1;
-  background-color: #f5f5f5;
-  
-  @media (max-width: 600px) {
-    padding: 16px;
-  }
+  width: 100%;
+  min-height: 0; /* Allows the content to shrink below its minimum content size */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .footer {
   background-color: #f5f5f5;
   padding: 16px 24px;
   text-align: center;
-  border-top: 1px solid #e0e0e0;
-  margin-top: auto;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--divider);
   
   .container {
     max-width: 1200px;
     margin: 0 auto;
-    font-size: 0.875rem;
-    color: #666;
-  }
-  
-  @media (max-width: 600px) {
-    padding: 12px 16px;
-    font-size: 0.75rem;
   }
 }
 
-/* Responsive adjustments */
-@media (max-width: 600px) {
-  :root {
-    --header-height: 56px;
-  }
-  
-  .main-content {
-    padding: calc(var(--header-height) + 1rem) 0.5rem 1rem;
-  }
-  
-  .welcome-text {
-    display: none;
+// Responsive adjustments
+@media (max-width: 599px) {
+  mat-toolbar {
+    padding: 0 8px;
+    
+    .logo {
+      font-size: 1.25rem;
+    }
+    
+    .user-info {
+      .welcome-text {
+        display: none;
+      }
+    }
   }
 }
 
@@ -260,11 +237,6 @@ app-root {
   flex-direction: column;
   min-height: 100vh;
   width: 100%;
-}
-
-mat-sidenav-container {
-  width: 100%;
-  height: calc(100vh - var(--header-height));
 }
 
 .mat-drawer-content {

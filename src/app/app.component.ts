@@ -4,6 +4,8 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatListModule } from '@angular/material/list';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
 import { AuthService } from './core/auth/auth.service';
@@ -13,6 +15,8 @@ import { environment } from '../environments/environment';
 import { NAV_ITEMS } from './core/config/nav-menu-items';
 import { NavItem } from './core/models/nav-item.model';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
+import { map, shareReplay } from 'rxjs/operators';
 
 @Component({
   selector: 'app-root',
@@ -23,6 +27,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     MatToolbarModule, 
     MatButtonModule, 
     MatIconModule, 
+    MatSidenavModule,
+    MatListModule,
     RouterLink, 
     RouterLinkActive,
     MatTooltipModule
@@ -35,9 +41,25 @@ export class AppComponent {
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
   private titleService = inject(Title);
+  private breakpointObserver = inject(BreakpointObserver);
 
   // Navigation items from config
   readonly navItems = NAV_ITEMS;
+  
+  // Sidenav state
+  isHandset$ = this.breakpointObserver.observe(Breakpoints.Handset)
+    .pipe(
+      map(result => result.matches),
+      shareReplay()
+    );
+  isSidenavOpen = true;
+
+  // Add this method to handle navigation item clicks
+  onNavItemClick() {
+    if (this.breakpointObserver.isMatched(Breakpoints.Handset)) {
+      this.isSidenavOpen = false;
+    }
+  }
 
   // Signals
   currentUser = toSignal<User | null>(this.authService.user$);
@@ -47,6 +69,10 @@ export class AppComponent {
     return userEmail ? environment.adminEmails.includes(userEmail) : false;
   });
   
+  toggleSidenav() {
+    this.isSidenavOpen = !this.isSidenavOpen;
+  }
+
   filteredNavItems = computed<NavItem[]>(() => {
     return this.navItems.filter(item => {
       // Show all items for admin, only non-admin items for regular users

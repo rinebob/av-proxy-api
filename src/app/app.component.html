@@ -1,22 +1,10 @@
 <div class="app-container">
-  <mat-toolbar color="primary">
-    <span class="logo" routerLink="/admin">Savant API</span>
+  <mat-toolbar color="primary" class="app-toolbar">
+    <button mat-icon-button (click)="toggleSidenav()" class="menu-button">
+      <mat-icon>menu</mat-icon>
+    </button>
     
-    @if (isAuthenticated()) {
-      <nav class="nav-links">
-        @for (item of filteredNavItems(); track item.route) {
-          <a mat-button 
-             [routerLink]="item.route" 
-             routerLinkActive="active" 
-             [routerLinkActiveOptions]="{exact: item.exact}"
-             [matTooltip]="item.tooltip"
-             matTooltipPosition="below">
-            <mat-icon>{{item.iconName}}</mat-icon>
-            <span>{{item.displayName}}</span>
-          </a>
-        }
-      </nav>
-    }
+    <span class="logo" routerLink="/admin">Savant API</span>
     
     <span class="spacer"></span>
     
@@ -36,13 +24,37 @@
     }
   </mat-toolbar>
 
-  <main class="main-content">
-    <router-outlet></router-outlet>
-  </main>
+  <mat-sidenav-container class="sidenav-container" [hasBackdrop]="isHandset$ | async">
+    <mat-sidenav #sidenav 
+                [mode]="(isHandset$ | async) ? 'over' : 'side'" 
+                [opened]="!isHandset$ || isSidenavOpen"
+                (closed)="isSidenavOpen = false"
+                class="sidenav">
+    
+      <mat-nav-list>
+        @for (item of filteredNavItems(); track item.route) {
+          <a mat-list-item 
+             [routerLink]="item.route" 
+             routerLinkActive="active"
+             [routerLinkActiveOptions]="{exact: item.exact}"
+             (click)="onNavItemClick()">
+            <mat-icon matListItemIcon>{{item.iconName}}</mat-icon>
+            <span matListItemTitle>{{item.displayName}}</span>
+          </a>
+        }
+      </mat-nav-list>
+    </mat-sidenav>
 
-  <footer class="footer">
-    <div class="container">
-      <span> 2025 Savant API. All rights reserved.</span>
-    </div>
-  </footer>
+    <mat-sidenav-content class="content">
+      <main class="main-content">
+        <router-outlet></router-outlet>
+      </main>
+
+      <footer class="footer">
+        <div class="container">
+          <span> 2025 Savant API. All rights reserved.</span>
+        </div>
+      </footer>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
 </div>

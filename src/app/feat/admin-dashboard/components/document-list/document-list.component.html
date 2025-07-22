@@ -4,7 +4,10 @@
       <a mat-list-item 
          [class.active]="store.selectedDocument()?.id === doc.id"
          (click)="selectDocument(doc)"
-         [matTooltip]="doc.id">
+         [matTooltip]="isTextEllipsis() ? doc.id : null"
+         matTooltipPosition="right"
+         (mouseenter)="updateHoveredElement($event.currentTarget)"
+         (mouseleave)="updateHoveredElement(null)">
         <span class="document-id">{{ doc.id }}</span>
       </a>
     } @empty {
