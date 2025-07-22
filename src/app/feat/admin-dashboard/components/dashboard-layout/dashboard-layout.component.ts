@@ -1,156 +1,122 @@
-import { Component, inject, signal, computed, OnDestroy } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
-import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatCardModule } from '@angular/material/card';
+import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatCardModule } from '@angular/material/card';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { AdminDashboardStore } from '../../store/admin-dashboard.store';
-import { CollectionInfo } from '../../../../common/fe-common-fs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { debounceTime, distinctUntilChanged, Subject } from 'rxjs';
-
-interface BreadcrumbItem {
-  name: string;
-  path: string;
-}
+import { FirestoreDocument } from '../../../../common/fe-common-fs';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-dashboard-layout',
   standalone: true,
   imports: [
     CommonModule,
-    RouterModule,
-    FormsModule,
     MatSidenavModule,
     MatListModule,
     MatIconModule,
-    MatToolbarModule,
     MatButtonModule,
-    MatProgressSpinnerModule,
-    MatCardModule,
+    MatToolbarModule,
     MatExpansionModule,
+    MatCardModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule,
     MatChipsModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatTabsModule,
-    MatTooltipModule
+    MatTooltipModule,
+    RouterModule
   ],
   templateUrl: './dashboard-layout.component.html',
   styleUrls: ['./dashboard-layout.component.scss']
 })
-export class DashboardLayoutComponent implements OnDestroy {
+export class DashboardLayoutComponent implements OnInit {
   protected readonly store = inject(AdminDashboardStore);
-  
-  // Search functionality
-  private searchSubject = new Subject<string>();
-  searchQuery = signal('');
-  
-  // Breadcrumb navigation
-  breadcrumbItems = signal<BreadcrumbItem[]>([]);
-  
-  constructor() {
-    // Initialize breadcrumb
-    this.updateBreadcrumb();
+  private snackBar = inject(MatSnackBar);
+
+  // Computed breadcrumb items
+  protected readonly breadcrumbItems = computed(() => {
+    const path = this.store.currentCollectionPath();
+    const selectedDoc = this.store.selectedDocument();
     
-    // Subscribe to path changes to update breadcrumb
-    this.store.currentPath$
-      .pipe(takeUntilDestroyed())
-      .subscribe(() => this.updateBreadcrumb());
+    if (!path) return [];
     
-    // Setup search with debounce
-    this.searchSubject.pipe(
-      debounceTime(300),
-      distinctUntilChanged(),
-      takeUntilDestroyed()
-    ).subscribe(query => {
-      this.searchQuery.set(query);
-      // TODO: Implement search functionality in store
-    });
-  }
-  
-  ngOnDestroy() {
-    this.searchSubject.complete();
-  }
-  
-  // Update breadcrumb based on current path
-  private updateBreadcrumb() {
-    const path = this.store.currentPath();
-    if (!path) {
-      this.breadcrumbItems.set([{ name: 'Home', path: '' }]);
-      return;
-    }
+    const segments = path.split('/').filter(Boolean);
+    const items = [];
     
-    const segments = path.split('/').filter(segment => segment);
-    const items: BreadcrumbItem[] = [{ name: 'Home', path: '' }];
+    // Add home as the first item
+    items.push({ name: 'Home', path: '' });
     
+    // Add path segments
     let currentPath = '';
-    segments.forEach((segment, index) => {
-      currentPath += `${index > 0 ? '/' : ''}${segment}`;
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const isDocument = i % 2 === 1; // Documents are at odd indices (0-based)
+      
+      // Update current path
+      currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+      
+      // Add the segment to breadcrumb
       items.push({
         name: segment,
-        path: currentPath
+        path: isDocument ? null : currentPath, // Only make collections clickable
+        isCollection: !isDocument
       });
-    });
-    
-    this.breadcrumbItems.set(items);
-  }
-  
-  // Navigation methods
-  selectCollection(collectionId: string) {
-    this.store.navigateToCollection(collectionId);
-  }
-  
-  selectSubcollection(subcollection: string) {
-    this.store.navigateToCollection(subcollection);
-  }
-  
-  selectDocument(document: any) {
-    this.store.selectDocument(document);
-  }
-  
-  navigateToBreadcrumb(index: number) {
-    const item = this.breadcrumbItems()[index];
-    if (index === 0) {
-      this.store.navigateToRoot();
-    } else {
-      // TODO: Implement navigation to specific breadcrumb level
-      console.log('Navigate to:', item.path);
     }
+    
+    // Add selected document to the breadcrumb if it exists and we're at a collection level
+    if (selectedDoc && segments.length % 2 === 1) {
+      items.push({
+        name: selectedDoc.id,
+        path: null, // Document is not clickable
+        isCollection: false
+      });
+    }
+    
+    return items;
+  });
+
+  ngOnInit(): void {
+    // Show error messages in a snackbar
+    this.store.error$.subscribe(error => {
+      if (error) {
+        this.snackBar.open(error, 'Dismiss', { duration: 5000 });
+      }
+    });
   }
-  
-  // Search handler
-  onSearchInput(event: Event) {
-    const value = (event.target as HTMLInputElement).value;
-    this.searchSubject.next(value);
+
+  // Navigate to a collection
+  navigateToCollection(path: string): void {
+    this.store.navigateToCollection(path);
   }
-  
-  // Refresh data
-  refresh() {
-    this.store.loadCollection(this.store.currentCollection().id);
+
+  // Select a document
+  selectDocument(doc: FirestoreDocument): void {
+    this.store.selectDocument(doc);
   }
-  
-  // Clear error message
-  clearError() {
-    // this.store.clearError();
+
+  // Navigate to a subcollection
+  navigateToSubcollection(collectionName: string): void {
+    const currentPath = this.store.currentCollectionPath();
+    const selectedDoc = this.store.selectedDocument();
+    
+    if (!currentPath || !selectedDoc) return;
+    
+    // The path should be: currentPath/selectedDoc.id/collectionName
+    const newPath = `${currentPath}/${selectedDoc.id}/${collectionName}`;
+    console.log(`[Dashboard] Navigating to subcollection: ${newPath}`);
+    this.navigateToCollection(newPath);
   }
-  
-  // Track by functions for ngFor
-  trackByCollectionId(index: number, collection: CollectionInfo): string {
-    return collection.id;
-  }
-  
-  trackByDocumentId(index: number, doc: any): string {
-    return doc.id;
+
+  // Refresh the current view
+  refresh(): void {
+    this.store.refresh();
   }
 }
