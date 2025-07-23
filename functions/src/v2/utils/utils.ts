@@ -300,4 +300,33 @@ export function formatPST(date: any): string {
   }
 }
 
+/**
+ * Converts a duration in seconds to a human-readable string.
+ * Examples: 3600 -> '1 hour', 90000 -> '1 day 1 hour'
+ * @param {number} seconds The total seconds to format.
+ * @returns {string} The formatted human-readable string.
+ */
+export function formatTtlSeconds(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+  }
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  const parts: string[] = [];
+  if (days > 0) {
+    parts.push(`${days} day${days > 1 ? 's' : ''}`);
+  }
+  if (hours > 0) {
+    parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+  }
+  if (minutes > 0) {
+    parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+  }
+
+  return parts.join(' ') || '0 seconds';
+}
+
 // Force redeploy to apply IAM changes.

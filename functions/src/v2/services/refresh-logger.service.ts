@@ -1,112 +1,53 @@
-import * as admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
-import { DocumentPathOptions, RefreshEvent, RefreshMetadata } from '../common/refresh.types';
-import { getDocumentPath, getRefreshHistoryPath } from '../common/firestore-paths';
+import { db } from '../../firebase-admin-init';
+import { Timestamp } from 'firebase-admin/firestore';
+import { DocumentPathOptions, RefreshEvent } from '../common/refresh.types';
+import { getDocumentPath } from '../common/firestore-paths';
 
 export class RefreshLoggerService {
-  private db: FirebaseFirestore.Firestore;
-  private batch: FirebaseFirestore.WriteBatch;
-  private batchSize: number;
-  private batchCount: number;
-  private maxBatchSize = 500; // Firestore batch limit
-
-  constructor() {
-    this.db = getFirestore();
-    this.batch = this.db.batch();
-    this.batchSize = 0;
-    this.batchCount = 0;
-  }
-
   /**
    * Logs a refresh event and updates the parent document's metadata
    */
   public async logRefreshEvent(
-    event: Omit<RefreshEvent, 'timestamp' | 'instanceId' | 'region'>,
-    options: DocumentPathOptions
+    pathOptions: DocumentPathOptions,
+    event: Omit<RefreshEvent, 'eventId' | 'refreshedAt' | 'nextRefreshAt' | 'ttlHuman' | 'nextRefreshBy'>
   ): Promise<void> {
+    const docRef = db.doc(getDocumentPath(pathOptions));
+    const now = Timestamp.now();
+
+    const refreshEvent: Partial<RefreshEvent> = {
+      eventId: this.createEventId(pathOptions, now),
+      refreshedAt: now,
+      status: event.status,
+      triggeredBy: event.triggeredBy,
+      refreshedBy: 'api-request', // Or determine dynamically
+      durationMs: event.durationMs,
+      errorDetails: event.errorDetails || null,
+      httpStatus: event.httpStatus,
+    };
+
     try {
-      const timestamp = admin.firestore.Timestamp.now();
-      const docPath = getDocumentPath(options);
-      const docRef = this.db.doc(docPath);
-      const refreshEvent: RefreshEvent = {
-        ...event,
-        timestamp,
-        instanceId: process.env.FUNCTION_INSTANCE || 'unknown',
-        region: process.env.FUNCTION_REGION || 'unknown',
-      };
+      await db.runTransaction(async (transaction) => {
+        const doc = await transaction.get(docRef);
+        const existingHistory = doc.data()?.refreshHistory || [];
+        
+        // Prepend the new event and cap the history
+        const newHistory = [refreshEvent, ...existingHistory].slice(0, 10);
 
-      // Add refresh history document
-      const historyRef = this.db.doc(getRefreshHistoryPath(options, timestamp));
-      this.batch.set(historyRef, refreshEvent);
-      this.batchSize++;
-
-      // Update parent document metadata
-      const metadata: RefreshMetadata = {
-        lastUpdated: timestamp,
-        nextRefreshAt: admin.firestore.Timestamp.fromMillis(
-          timestamp.toMillis() + (event.endpointParams?.ttlSeconds || 3600) * 1000
-        ),
-        ttlSeconds: event.endpointParams?.ttlSeconds || 3600,
-        vendor: options.vendor,
-        endpoint: options.endpoint,
-        ...(options.symbol && { symbol: options.symbol }),
-        lastRefreshEvent: {
-          timestamp,
-          status: event.status,
-          durationMs: event.durationMs,
-          error: event.error || null,
-        },
-      };
-
-      // Use set with merge to update only the metadata and lastRefreshEvent fields
-      this.batch.set(
-        docRef,
-        { metadata },
-        { merge: true }
-      );
-      this.batchSize++;
-
-      // Commit batch if we're approaching the limit
-      if (this.batchSize >= this.maxBatchSize - 10) { // Leave some room
-        await this.commitBatch();
-      }
+        transaction.set(docRef, { 
+          refreshHistory: newHistory 
+        }, { merge: true });
+      });
     } catch (error) {
       console.error('Error logging refresh event:', error);
-      throw error;
     }
   }
 
-  /**
-   * Commits the current batch and starts a new one
-   */
-  public async commitBatch(): Promise<void> {
-    if (this.batchSize === 0) return;
-
-    try {
-      await this.batch.commit();
-      this.batchCount++;
-      console.log(`Committed batch ${this.batchCount} with ${this.batchSize} operations`);
-      
-      // Start a new batch
-      this.batch = this.db.batch();
-      this.batchSize = 0;
-    } catch (error) {
-      console.error('Error committing batch:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Gets a singleton instance of the RefreshLoggerService
-   */
-  private static instance: RefreshLoggerService;
-  public static getInstance(): RefreshLoggerService {
-    if (!RefreshLoggerService.instance) {
-      RefreshLoggerService.instance = new RefreshLoggerService();
-    }
-    return RefreshLoggerService.instance;
+  private createEventId(pathOptions: DocumentPathOptions, timestamp: Timestamp): string {
+    const { vendor, endpoint, symbol } = pathOptions;
+    const dateStr = timestamp.toDate().toISOString().replace(/[:.]/g, '-');
+    return `${vendor}-${endpoint}-${symbol || 'market'}-${dateStr}`;
   }
 }
 
 // Export a singleton instance
-export const refreshLogger = RefreshLoggerService.getInstance();
+export const refreshLogger = new RefreshLoggerService();

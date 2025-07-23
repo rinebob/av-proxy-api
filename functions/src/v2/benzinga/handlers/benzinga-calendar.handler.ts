@@ -30,7 +30,6 @@ export class BenzingaCalendarHandler extends BenzingaBaseHandler<CalendarEvent[]
     // Ensure required parameters have proper defaults
     if (!preparedParams.page) preparedParams.page = '0';
     if (!preparedParams.pagesize) preparedParams.pagesize = '20';
-    if (!preparedParams.type) preparedParams.type = 'earnings';
     
     // Convert array parameters to comma-separated strings if needed
     if (preparedParams.tickers && Array.isArray(preparedParams.tickers)) {

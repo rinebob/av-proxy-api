@@ -97,31 +97,23 @@ export abstract class BenzingaBaseHandler<T = any> {
     // Prepare request parameters
     const finalParams = this.prepareRequestParams(params);
 
+    // TODO: Remove this line after debugging
+    console.log(`bB.H pRB [${this.requestId}] [HANDLER] Final request params:`, finalParams);
+
     // Make API request
     const startTime = Date.now();
-    const response = await this.apiClient.request({
+    const fullUrl = this.apiClient.getUri({ url: this.config.apiEndpoint || '', params: finalParams });
+    console.log(`bB.H pRB [${this.requestId}] [HANDLER] Full request URL: ${fullUrl}`);
+
+    const response = await this.apiClient.request<T>({
       method: this.config.method || 'GET',
       url: this.config.apiEndpoint || '',
-      params: finalParams
+      params: finalParams,
     });
 
     const duration = Date.now() - startTime;
-    
-    // Transform and return response
-    const result: ApiResponse<T> = {
-      data: this.transformResponse(response.data),
-      metadata: {
-        timestamp: new Date(),
-        endpoint: this.config.id,
-        symbol: params.symbol,
-        ttl: this.config.ttl,
-        requestId: this.requestId,
-        processingTimeMs: duration
-      }
-    };
-
     console.log(`bB.H processRequestBase [${this.requestId}] Request completed successfully in ${duration}ms`);
-    return result.data;
+    return this.transformResponse(response.data);
   }
 
   constructor(config: BenzingaRequestConfig) {
@@ -204,11 +196,11 @@ export abstract class BenzingaBaseHandler<T = any> {
           token: this.apiKey
         };
         
-        console.log(`bB.H ctor [${this.requestId}] Sending request to: ${config.url}`, {
-          method: config.method?.toUpperCase(),
-          params: config.params,
-          headers: config.headers
-        });
+        // console.log(`bB.H ctor [${this.requestId}] Sending request to: ${config.url}`, {
+        //   method: config.method?.toUpperCase(),
+        //   params: config.params,
+        //   headers: config.headers
+        // });
         return config;
       },
       (error: AxiosError) => {
@@ -220,11 +212,11 @@ export abstract class BenzingaBaseHandler<T = any> {
     // Add response interceptor for logging
     this.apiClient.interceptors.response.use(
       (response) => {
-        console.log(`bB.H ctor [${this.requestId}] Received response from Benzinga:`, {
-          status: response.status,
-          statusText: response.statusText,
-          data: response.data ? '[...data]' : 'No data'
-        });
+        // console.log(`bB.H ctor [${this.requestId}] Received response from Benzinga:`, {
+        //   status: response.status,
+        //   statusText: response.statusText,
+        //   data: '[...data]',
+        // });
         return response;
       },
       (error: AxiosError) => {
@@ -254,7 +246,6 @@ export abstract class BenzingaBaseHandler<T = any> {
       // Process the request
       return await this.processRequest(params);
     } catch (error) {
-      console.error(`bB.H handleRequest [${requestId}] Error processing request:`, error);
       throw this.normalizeError(error);
     }
   }
