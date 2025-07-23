@@ -105,14 +105,6 @@ export const onSymbolAdded = onDocumentCreated(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`oSA.f oSA: Error processing time series for ${symbol}: ${errorMessage}`);
-    
-    // Log additional context for debugging
-    if (error instanceof Error && 'response' in error) {
-      const response = (error as any).response;
-      console.error(`oSA.f oSA: API Error Details: ${JSON.stringify(response)}`);
-    }
-    
-    // Re-throw to trigger retry (Firebase will handle retries with exponential backoff)
-    throw error;
+    return { success: false, symbol, error: errorMessage };
   }
 });

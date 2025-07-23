@@ -18,6 +18,7 @@ export abstract class AlphaVantageBaseHandler<T = any> {
   protected readonly config: EndpointConfig;
   protected readonly apiClient: AxiosInstance;
   protected readonly requestId: string;
+  protected readonly baseParams: any;
   
   constructor(config: EndpointConfig) {
     console.log('==============================');
@@ -26,21 +27,22 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     this.config = config;
     this.requestId = Math.random().toString(36).substring(2, 10);
     
+    this.baseParams = {
+      apikey: getAlphaVantageApiKey(),
+      function: this.config.id,
+      datatype: API_CONSTANTS.ALPHA_VANTAGE.RESPONSE_TYPE
+    };
+    
     this.apiClient = axios.create({
       baseURL: API_CONSTANTS.ALPHA_VANTAGE.BASE_URL,
-      params: {
-        apikey: getAlphaVantageApiKey(),
-        function: this.config.id,
-        datatype: API_CONSTANTS.ALPHA_VANTAGE.RESPONSE_TYPE
-      },
       timeout: API_CONSTANTS.ALPHA_VANTAGE.DEFAULT_TIMEOUT_MS
     });
    
-    console.log('aVB.H ctor request params:', this.apiClient.defaults.params);
+    console.log('aVB.H ctor request params:', this.baseParams);
     console.log('aVB.H ctor base URL:', this.apiClient.defaults.baseURL);
   }
 
-  public async fetch(params: Record<string, any> = {}): Promise<ApiResponse<T>> {
+  public async fetch(params: any = {}): Promise<ApiResponse<T>> {
     
     console.log('----------------------------------------');
     console.log(' --- START AlphaVantageBaseHandler.fetch ---');
@@ -59,8 +61,12 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       const requestParams = this.prepareRequestParams(params);
       const config: AxiosRequestConfig = { params: requestParams };
       
+      const fullUrl = `${this.apiClient.defaults.baseURL}?${Object.keys(config.params).map(key => `${key}=${config.params[key]}`).join('&')}`;
+      console.log(`aVB.H fetch [${this.requestId}] Fetching from API. URL: ${fullUrl}`);
+
       const response = await this.apiClient.get('', config);
-      
+      console.log(`aVB.H fetch [${this.requestId}] Raw API response`, { data: response.data });
+
       // 3. Transform the response
       const responseData = response.data;
       let logData = { ...responseData };
@@ -183,12 +189,10 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     }
   }
 
-  protected prepareRequestParams(params: Record<string, any>): Record<string, any> {
-    console.log(`aVB.H prepareRequestParams [${this.requestId}] Preparing request params`);
-    // Filter out undefined parameters
-    return Object.fromEntries(
-      Object.entries(params).filter(([_, value]) => value !== undefined)
-    );
+  protected prepareRequestParams(params: any): any {
+    const newParams = { ...params, ...this.baseParams };
+    console.log(`aVB.H pRP [${this.requestId}] Prepared request params`, { newParams });
+    return newParams;
   }
 
   protected handleError(error: any): ApiError {
