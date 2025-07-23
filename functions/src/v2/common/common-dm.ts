@@ -113,10 +113,16 @@ export interface TrackedSymbol {
   matchScore: string;
   
   // System fields
-  isActive: boolean;
+  isActive?: boolean;
   refreshEnabled?: boolean;  // If true, AV data will be refreshed for this symbol
-  lastUpdated: admin.firestore.Timestamp | Date;
-  createdAt: admin.firestore.Timestamp | Date;
+  lastUpdated?: admin.firestore.Timestamp | Date;
+  createdAt?: admin.firestore.Timestamp | Date;
+}
+
+export interface TrackedSymbolMetadata {
+    createdAt: admin.firestore.Timestamp;
+    isActive: boolean;
+    refreshEnabled: boolean;
 }
 
 /**

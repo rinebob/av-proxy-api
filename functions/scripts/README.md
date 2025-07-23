@@ -83,3 +83,52 @@ For each section, you'll see:
 - Test script automatically handles symbol deduplication
 - Results are cached based on TTL
 - Firestore writes are idempotent
+
+---
+
+## test-save-tracked-symbol.ts
+
+Tests the `saveTrackedSymbol` callable function by sending a test symbol object and verifying that it is correctly saved to Firestore. This script is designed to run against the local Firebase emulator.
+
+### Key Features
+
+-   Tests the `saveTrackedSymbol` cloud function directly.
+-   Uses `axios` to simulate a client-side request to the local function emulator.
+-   Constructs a sample `TrackedSymbol` object for the test.
+-   Verifies that the data is successfully written to the Firestore emulator.
+-   Provides clear logging for the function call and the Firestore verification step.
+
+### Prerequisites
+
+The prerequisites are the same as for `test-symbol-search.ts`. Ensure you have Node.js, Firebase CLI, and a configured `.env.alpha-vantage-proxy-api` file.
+
+### Setup
+
+Setup is the same as for `test-symbol-search.ts`.
+
+### Usage
+
+The script requires a symbol to be passed as a command-line argument.
+
+```bash
+# Basic usage (runs against the emulator)
+npx ts-node scripts/test-save-tracked-symbol.ts GOOGL
+
+# With debug flag (currently for logging purposes)
+npx ts-node scripts/test-save-tracked-symbol.ts MSFT --debug
+```
+
+**Note:** The `--prod` flag is recognized but not implemented for this script. It will default to running against the emulator.
+
+### Output
+
+The script provides the following output:
+
+1.  **Function Response**: The JSON response from the `saveTrackedSymbol` function call.
+2.  **Firestore Verification**: A confirmation message and the full document data as it was saved in Firestore.
+
+### Troubleshooting
+
+-   **Connection Refused**: Ensure the Firebase emulators (especially Functions and Firestore) are running. You can start them with `firebase emulators:start`.
+-   **Authentication Errors**: The script sends a mock `Authorization` header. If your function's security rules are stricter, you may need to provide a valid test token.
+-   **Document Not Found**: Check the Firestore emulator UI to see if any data was written and verify the collection/document names match.

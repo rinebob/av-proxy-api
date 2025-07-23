@@ -48,5 +48,7 @@ export { symbolSearch } from './v2/alpha-vantage/endpoints/av-symbol-search-endp
 
 export { listCollections } from './v2/common/functions/list-collections.js';
 
+export { saveTrackedSymbol } from './v2/common/functions/save-tracked-symbol.function.js';
+
 // Remove the underscore from the function name then uncomment the next line to export it
 // export { updateAllDailyTimeSeriesBulk } from './v2/alpha-vantage';
