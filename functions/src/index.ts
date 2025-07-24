@@ -50,5 +50,7 @@ export { listCollections } from './v2/common/functions/list-collections.js';
 
 export { saveTrackedSymbol } from './v2/common/functions/save-tracked-symbol.function.js';
 
+export { requestBenzingaNews } from './v2/benzinga/data-refresher/bz-news-request-manager.js';
+
 // Remove the underscore from the function name then uncomment the next line to export it
 // export { updateAllDailyTimeSeriesBulk } from './v2/alpha-vantage';

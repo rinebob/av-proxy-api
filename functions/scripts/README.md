@@ -132,3 +132,58 @@ The script provides the following output:
 -   **Connection Refused**: Ensure the Firebase emulators (especially Functions and Firestore) are running. You can start them with `firebase emulators:start`.
 -   **Authentication Errors**: The script sends a mock `Authorization` header. If your function's security rules are stricter, you may need to provide a valid test token.
 -   **Document Not Found**: Check the Firestore emulator UI to see if any data was written and verify the collection/document names match.
+
+---
+
+## Testing Scripts for Cloud Functions
+
+This directory contains scripts for testing various Cloud Functions locally.
+
+## Testing with the Firebase Shell
+
+The Firebase Functions shell provides an interactive environment to test your functions without deploying them.
+
+**Starting the Shell:**
+
+```bash
+firebase functions:shell
+```
+
+**Important Note on Environment Variables:**
+
+The Firebase shell can be inconsistent when loading environment variables from `.env` files (e.g., `.env.alpha-vantage-proxy-api`). Even if the shell reports that it has loaded the file, the variables may not be available within the `process.env` object of your function's runtime.
+
+If you encounter errors related to missing API keys, you must set the environment variable manually within the shell session.
+
+**Example: Testing the Benzinga News Refresh Function**
+
+The following steps detail how to manually trigger the `fetchAndPersistBenzingaNews` function.
+
+1.  **Start the Shell**:
+    ```bash
+    firebase functions:shell
+    ```
+
+2.  **Set the API Key**: Manually set the required API key in the shell's environment. **The quotes around the key are critical.**
+
+    ```javascript
+    // In the firebase > prompt
+    process.env.BENZINGA_WIIM_API_KEY = "your_actual_benzinga_api_key"
+    ```
+
+3.  **Load the Function Module**: Use `require` to load the compiled JavaScript module for the function you want to test.
+
+    ```javascript
+    // In the firebase > prompt
+    const bzNews = require("../lib/v2/benzinga/data-refresher/bz-news-request-manager")
+    ```
+    The shell will respond with `undefined`, which indicates the module was loaded successfully.
+
+4.  **Execute the Function**: Call the desired function using `await`.
+
+    ```javascript
+    // In the firebase > prompt
+    await bzNews.fetchAndPersistBenzingaNews()
+    ```
+
+    You should now see the function's log output, and if successful, the corresponding data will be written to the Firestore emulator.
