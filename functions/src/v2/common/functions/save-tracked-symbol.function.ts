@@ -3,20 +3,9 @@ import { db } from '../../../firebase-admin-init';
 
 import { onCall } from 'firebase-functions/v2/https';
 import { FirestoreCollection } from '../firestore-collections';
-import { TrackedSymbol, TrackedSymbolMetadata } from '../common-dm';
+import { TrackedSymbol } from '../common-dm';
 import { Timestamp } from 'firebase-admin/firestore';
-
-interface SaveTrackedSymbolResponse {
-  success: boolean;
-  symbol: string;
-  message?: string;
-  error?: string;
-}
-
-interface TrackedSymbolDocument {
-  data: TrackedSymbol;
-  metadata: TrackedSymbolMetadata;
-}
+import { SaveTrackedSymbolResponse, TrackedSymbolDocument } from '../common-av';
 
 /**
  * HTTP Cloud Function to save a tracked symbol to Firestore.

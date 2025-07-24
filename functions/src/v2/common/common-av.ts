@@ -1,5 +1,5 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { DataMaintainerEndpoint } from './common-dm';
+import { DataMaintainerEndpoint, TrackedSymbol, TrackedSymbolMetadata } from './common-dm';
 import { TimeSeriesInterval } from './common-fn';
 
 /////////// ENUMS ///////////////////////
@@ -507,4 +507,16 @@ export interface SaveConfig {
   documentType?: DocumentType;
   ttlSeconds?: number;
   interval?: TimeSeriesInterval;
+}
+
+export interface SaveTrackedSymbolResponse {
+  success: boolean;
+  symbol: string;
+  message?: string;
+  error?: string;
+}
+
+export interface TrackedSymbolDocument {
+  data: TrackedSymbol;
+  metadata: TrackedSymbolMetadata;
 }

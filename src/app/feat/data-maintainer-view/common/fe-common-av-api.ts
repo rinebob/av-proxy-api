@@ -131,3 +131,30 @@ export interface CompanyOverviewData {
   Industry: string;
   // Add more fields as needed from Alpha Vantage's company overview
 }
+
+/**
+ * Request to save a tracked symbol.
+ * Matches the backend Omit<TrackedSymbol, 'createdAt' | 'lastUpdated'>
+ */
+export interface SaveTrackedSymbolRequest {
+    symbol: string;
+    name: string;
+    type?: string;
+    region?: string;
+    marketOpen?: string;
+    marketClose?: string;
+    timezone?: string;
+    currency?: string;
+    matchScore?: string | number;
+    // Add any other fields from your TrackedSymbol interface except createdAt/lastUpdated
+  }
+
+/**
+ * Response from saveTrackedSymbol cloud function.
+ */
+export interface SaveTrackedSymbolResponse {
+    success: boolean;
+    symbol: string;
+    message?: string;
+    error?: string;
+  }
