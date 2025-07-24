@@ -72,3 +72,5 @@ src/app/common/*.js.map
 desktop.ini
 functions/emulator-export/**/*
 functions/scripts/script-env-vars.txt
+functions/src/v2/benzinga/data-refresher/bz-news-refresh-manager.copy_0723-1624.ts
+src/assets/misc/prompts.txt
