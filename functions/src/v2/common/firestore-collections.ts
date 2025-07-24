@@ -5,24 +5,25 @@ export enum FirestoreCollection {
 
     ////////////// COPY ALL COLLECTIONS TO FRONTEND START HERE ////////////////
 
-  // Core Collections
+  // Top-level Collections
   TRACKED_SYMBOLS = "tracked-symbols",
   COMPANY_DATA = "company-data",
   MARKET_DATA = "market-data",
-  ECONOMIC_INDICATORS = "economic-indicators",
   ECONOMICS = 'economics',
-
+  NEWS = 'news',
+  SYSTEM_INFO = 'system-info',
+  TIME_SERIES = 'time-series',
+  
   // LEGACY - refactor to use above core collections
+  ECONOMIC_INDICATORS = "economic-indicators",
   DATA_POINTS = "data-points",
   
-  // Refresh Tracking
+  // Refresh Tracking - now deprecated
   REFRESH_EVENTS = "refresh-events",
   REFRESH_HISTORY = "refresh-history",
   
   //////// ALPHA VANTAGE APIS USED AS COLLECTION NAMES ///////////////////
-
   // Time series data
-  TIME_SERIES = 'time-series',
   INTRADAY = 'intraday',
   DAILY = 'daily',
   DAILY_ADJUSTED = 'daily-adjusted',
@@ -86,7 +87,7 @@ export enum FirestoreCollection {
   FDA = 'fda',
   MERGERS_ACQUISITIONS = 'mergers-acquisitions',
 
-  NEWS = 'news',
+  
   // Why Is It Moving?
   WIIM = 'wiim',
   METADATA = '_metadata',

@@ -179,7 +179,7 @@ export const BZ_NEWS_REQUEST_CONFIGS: Record<SvtBzNewsRequest, BenzingaNewsReque
       BenzingaNewsParameter.DATE,
       BenzingaNewsParameter.DATE_FROM,
       BenzingaNewsParameter.DATE_TO,
-      BenzingaNewsParameter.UPDATED_SINCE, // Maintained as per API docs, but not currently used in requests
+      BenzingaNewsParameter.UPDATED_SINCE,
       BenzingaNewsParameter.PUBLISHED_SINCE,
       BenzingaNewsParameter.SORT,
       BenzingaNewsParameter.ISIN,

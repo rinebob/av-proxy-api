@@ -1,6 +1,7 @@
 import { RequestConfig } from '../common/types';
 import { EndpointSymbolUsage } from '../common/common-fn';
 import { BzNewsChannel } from '../benzinga/request-configs/bz-news-channels';
+import { Timestamp } from 'firebase-admin/firestore';
 /**
  * Benzinga API Types and Enums (Backend)
  * Consolidated types for Benzinga API integration
@@ -244,7 +245,7 @@ export interface BenzingaRatingItem extends BenzingaCalendarItemBase {
   prior?: string | null;
 }
 
-// News specific fields
+// Bz News request object shape (matches API response)
 export interface BenzingaNewsItem {
   id: number;
   author: string;
@@ -258,6 +259,22 @@ export interface BenzingaNewsItem {
   channels: Array<{ name: string }>;
   stocks: Array<{ name: string }>;
   tags: Array<{ name: string }>;
+}
+
+export interface SvtBenzingaNewsItem {
+    id: string;
+    author: string;
+    title: string;
+    teaser: string;
+    body: string;
+    url: string;
+    imageUrls: Record<string, string>;
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+    savedAt: Timestamp;
+    stocks: string[];
+    channels: string[];
+    tags: string[];
 }
 
 /**

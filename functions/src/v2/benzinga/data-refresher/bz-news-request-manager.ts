@@ -1,93 +1,183 @@
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { admin, db } from "../../../firebase-admin-init";
+import { db } from "../../../firebase-admin-init";
 import { BenzingaHandlerFactory } from "../benzinga-factory";
-import { BenzingaNewsParameter, SvtBzNewsRequest } from "../../common/common-benz";
+import { BenzingaNewsItem, BenzingaNewsRequestConfig, SvtBenzingaNewsItem, SvtBzNewsRequest } from "../../common/common-benz";
 import { BZ_NEWS_REFRESH_SCHEDULE } from "../../common/function-schedules";
+import { Timestamp } from "firebase-admin/firestore";
+import { FirestoreCollection } from "../../common/firestore-collections";
+
+// Document name for tracking bz news requests
+const BZ_NEWS_REQUEST_TRACKING = 'bz-news-request-tracking';
 
 /**
- * Provides a consistent logging prefix for this manager.
- * @param {string} message The log message.
- * @param {any[]} args Additional arguments to log.
+ * Fetches all pages of news from the Benzinga API for a given endpoint configuration.
+ *
+ * @param {any} handler The Benzinga API handler instance.
+ * @param {BenzingaNewsRequestConfig} endpointConfig The configuration for the news endpoint.
+ * @param {Record<string, any>} initialApiParams The initial set of parameters for the API request.
+ * @param {number} mostRecentArticleId The most recently fetched article ID.
+ * @returns {Promise<any[]>} A promise that resolves to an array containing all fetched news articles.
  */
-function logNewsRequest(message: string, ...args: any[]) {
-    logger.info(`[bNRM] ${message}`, ...args);
+async function fetchAllNewsPages(handler: any, endpointConfig: BenzingaNewsRequestConfig, initialApiParams: Record<string, any>, mostRecentArticleId: number): Promise<any[]> {
+    let allNewsItems: any[] = [];
+    let currentPage = 0;
+    const pageSize = parseInt(endpointConfig.parameters.pageSize?.default || 100, 10);
+    const maxPages = 100; // Benzinga has a 100-page limit.  this will freeze the emulators though. Set at 5-10 for testing
+    let hasMorePages = true;
+
+    console.log(`bNRM fANP: Starting paginated fetch for endpoint. Page size: ${pageSize}`);
+
+    while (hasMorePages && currentPage < maxPages) { 
+        const finalApiParams = { ...initialApiParams, page: currentPage };
+        const requestId = `news-refresh-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+        try {
+            console.log(`bNRM fANP: Fetching page ${currentPage}...`);
+            const apiResponse = await handler.handleRequest(finalApiParams, requestId);
+            const newsItems = Array.isArray(apiResponse) ? apiResponse : [];
+
+            if (newsItems.length > 0) {
+                // Check if we have encountered an article ID that we have already processed.
+                const oldestArticleInBatch = Math.min(...newsItems.map((item) => item.id));
+                if (mostRecentArticleId > 0 && oldestArticleInBatch <= mostRecentArticleId) {
+                    const newItems = newsItems.filter((item) => item.id > mostRecentArticleId);
+                    allNewsItems.push(...newItems);
+                    console.log(`bNRM fANP: Found previously fetched article. Halting pagination. Added ${newItems.length} new articles from this page.`);
+                    hasMorePages = false; // Stop the loop
+                } else {
+                    allNewsItems.push(...newsItems);
+                }
+            } else {
+                // No more items are available from the API.
+                hasMorePages = false;
+            }
+
+            if (hasMorePages) {
+                console.log(`bNRM fANP: Fetched ${newsItems.length} items from page ${currentPage}. Total items so far: ${allNewsItems.length}`);
+                currentPage++;
+            } else if (newsItems.length === 0) {
+                console.log(`bNRM fANP: No more items found on page ${currentPage}. Halting pagination.`);
+            }
+        } catch (error) {
+            logger.error(`bNRM fANP: Error fetching page ${currentPage}. Aborting pagination.`, { error, finalApiParams });
+            hasMorePages = false; // Stop on error to prevent infinite loops
+        }
+    }
+
+    console.log(`bNRM fANP: Paginated fetch complete. Total items fetched: ${allNewsItems.length}`);
+    return allNewsItems;
 }
 
 /**
  * Transforms and saves an array of Benzinga news items to Firestore using a batch write.
  *
- * @param {any[]} newsItems An array of news articles from the Benzinga API response.
- * @returns {Promise<number>} A promise that resolves with the number of items successfully processed.
+ * @param {BenzingaNewsItem[]} newsItems An array of news items from the Benzinga API.
+ * @returns {Promise<number>} A promise that resolves to the total number of articles processed and saved.
  */
-async function transformAndSaveNews(newsItems: any[]): Promise<number> {
-  if (!newsItems || newsItems.length === 0) {
-    logNewsRequest("bNRM taSN: No news items to save.");
-    return 0;
-  }
+async function transformAndSaveNews(newsItems: BenzingaNewsItem[]): Promise<number> {
+    const batchSize = 450; // Keep well below the 500-operation limit for Firestore batches
+    let totalProcessedCount = 0;
 
-  const batch = db.batch();
-  const newsCollection = db.collection("news");
+    for (let i = 0; i < newsItems.length; i += batchSize) {
+        const chunk = newsItems.slice(i, i + batchSize);
+        const batch = db.batch();
+        let chunkProcessedCount = 0;
 
-  for (const item of newsItems) {
-    if (!item.id) {
-      logNewsRequest("bNRM taSN: Skipping news item with no ID:", item);
-      continue;
+        chunk.forEach((item) => {
+            // The API returns the ID as a number, so we validate for that and convert to string for Firestore.
+            if (!item || typeof item.id !== 'number') {
+                console.warn('bNRM taSN: Skipping news item with missing or invalid numeric ID.', { item });
+                return; // Skip this item
+            }
+
+            console.log(`bNRM taSN: Processing news item ${item.id}`);
+
+            const docRef = db.collection(FirestoreCollection.NEWS).doc(item.id.toString());
+
+            // Construct the new object explicitly for clarity and to define a clean Firestore schema.
+            const transformedItem: SvtBenzingaNewsItem = {
+                id: item.id.toString(),
+                author: item.author,
+                title: item.title,
+                teaser: item.teaser,
+                body: item.body,
+                url: item.url,
+                imageUrls: item.image?.reduce((acc: Record<string, string>, img: { size: string, url: string }) => {
+                    if (img.size && img.url) {
+                        acc[img.size] = img.url;
+                    }
+                    return acc;
+                }, {}) ?? {},
+                createdAt: item.created ? Timestamp.fromDate(new Date(item.created)) : Timestamp.now(),
+                updatedAt: item.updated ? Timestamp.fromDate(new Date(item.updated)) : Timestamp.now(),
+                savedAt: Timestamp.now(),
+                stocks: item.stocks?.map((s: { name: string }) => s.name) ?? [],
+                channels: item.channels?.map((c: { name: string }) => c.name) ?? [],
+                tags: item.tags?.map((t: { name: string }) => t.name) ?? [],
+            };
+            batch.set(docRef, transformedItem, { merge: true });
+            chunkProcessedCount++;
+        });
+
+        if (chunkProcessedCount > 0) {
+            try {
+                await batch.commit();
+                console.log(`bNRM taSN: Successfully committed batch of ${chunkProcessedCount} news articles.`);
+                totalProcessedCount += chunkProcessedCount;
+            } catch (error) {
+                console.error(`bNRM taSN: Error committing batch of ${chunkProcessedCount} articles:`, error);
+                // Depending on requirements, you might want to stop or continue. For now, we'll log and continue.
+            }
+        }
     }
 
-    console.log("bNRM taSN: Processing news item:", item);
-
-    const docRef = newsCollection.doc(item.id.toString());
-
-    const transformedItem = {
-      ...item,
-      vendor: "benzinga",
-      created: admin.firestore.Timestamp.fromDate(new Date(item.created)),
-      stockSymbols: item.stocks?.map((s: { name: string }) => s.name) ?? [],
-      channelNames: item.channels?.map((c: { name: string }) => c.name) ?? [],
-      tagNames: item.tags?.map((t: { name: string }) => t.name) ?? [],
-      stocks: admin.firestore.FieldValue.delete(),
-      channels: admin.firestore.FieldValue.delete(),
-      tags: admin.firestore.FieldValue.delete(),
-    };
-
-    batch.set(docRef, transformedItem, { merge: true });
-  }
-
-  try {
-    await batch.commit();
-    const savedCount = newsItems.length;
-    logNewsRequest(`bNRM taSN: Successfully committed batch of ${savedCount} bz news articles.`);
-    return savedCount;
-  } catch (error) {
-    logNewsRequest(`bNRM taSN: Batch write failed:`, error);
-    throw error;
-  }
+    return totalProcessedCount;
 }
 
 /**
- * Fetches the latest news from Benzinga, transforms it, and saves it to Firestore.
+ * Main function to fetch and persist Benzinga news.
  */
-async function fetchAndPersistBenzingaNews(): Promise<void> {
-    logNewsRequest('Starting Benzinga news fetch and persist process...');
-    const handler = BenzingaHandlerFactory.createHandler(SvtBzNewsRequest.BZ_NEWS);
+export async function fetchAndPersistBenzingaNews() {
+    console.log('==================== START BZ_NEWS ===============================');
+    console.log('bNRM faPBN: --- Benzinga News Refresh Cycle Starting ---');
+    const endpointId = SvtBzNewsRequest.BZ_NEWS;
+    const endpointConfig = BenzingaHandlerFactory.getEndpointConfig(endpointId) as BenzingaNewsRequestConfig;
+    const handler = BenzingaHandlerFactory.createHandler(endpointId);
+
+    const systemInfoRef = db.collection(FirestoreCollection.SYSTEM_INFO).doc(BZ_NEWS_REQUEST_TRACKING);
+    const systemInfoDoc = await systemInfoRef.get();
+    const systemInfo = systemInfoDoc.data();
+
+    const lastRefreshTimestamp = systemInfo?.lastRefreshTimestamp?.toMillis() || 0;
+    const mostRecentArticleId = systemInfo?.mostRecentArticleId ?? 0;
+
+    console.log(`bNRM faPBN: Fetching news updated since ${Math.floor(lastRefreshTimestamp / 1000)}`);
 
     const apiParams = {
-        [BenzingaNewsParameter.PAGE_SIZE]: 100,
-        [BenzingaNewsParameter.DISPLAY_OUTPUT]: "full",
+        updated_since: Math.floor(lastRefreshTimestamp / 1000),
     };
-    const requestId = `news-refresh-${Date.now()}`;
-    const apiResponse = await handler.handleRequest(apiParams, requestId);
-    const newsArray = Array.isArray(apiResponse) ? apiResponse : apiResponse?.data ?? [];
 
-    if (newsArray.length === 0) {
-        logNewsRequest(`bNRM faSN: No news items returned from API. Ending process.`);
+    const allNewsItems = await fetchAllNewsPages(handler, endpointConfig, apiParams, mostRecentArticleId);
+
+    if (allNewsItems.length === 0) {
+        console.log('bNRM faPBN: No new news items to process.');
         return;
     }
 
-    const savedCount = await transformAndSaveNews(newsArray);
+    const processedCount = await transformAndSaveNews(allNewsItems);
 
-    logNewsRequest(`bNRM faSN: Benzinga news process complete. Saved ${savedCount} articles.`);
+    // Update the last refresh timestamp and the most recent article ID
+    const newMostRecentArticleId = Math.max(...allNewsItems.map((item) => item.id));
+    await systemInfoRef.set({
+        lastRefreshTimestamp: Timestamp.now(),
+        mostRecentArticleId: newMostRecentArticleId,
+    }, { merge: true });
+
+    console.log(`bNRM faPBN: Processed and saved ${processedCount} news items.`);
+    console.log('bNRM faPBN: Successfully updated news refresh timestamp and most recent article ID.');
+    console.log('bNRM faPBN: --- Benzinga News Refresh Cycle Complete ---');
+    console.log('==================== END BZ_NEWS ===============================');
 }
 
 /**
@@ -99,18 +189,12 @@ export const requestBenzingaNews = onSchedule(
         secrets: ['BENZINGA_WIIM_API_KEY'],
     },
     async () => {
-        logger.info('bNRM faSN: Benzinga News Request Manager triggered by schedule.');
+        logger.info('bNRM rBN: Benzinga News Request Manager triggered by schedule.');
         try {
             await fetchAndPersistBenzingaNews();
         } catch (error) {
-            logger.error(`bNRM faSN: An unhandled error occurred in the news refresh scheduler:`, error);
+            logger.error(`bNRM rBN: An unhandled error occurred in the news refresh scheduler:`, error);
         }
-        logger.info('bNRM faSN: Benzinga News Request Manager finished.');
+        logger.info('bNRM rBN: Benzinga News Request Manager finished.');
     }
 );
-
-// Explicitly export for testing in the shell
-module.exports = {
-    requestBenzingaNews,
-    fetchAndPersistBenzingaNews,
-};
