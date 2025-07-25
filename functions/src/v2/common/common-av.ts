@@ -1,5 +1,5 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { DataMaintainerEndpoint, TrackedSymbol, TrackedSymbolMetadata } from './common-dm';
+import { AvSymbol, DataMaintainerEndpoint } from './common-dm';
 import { TimeSeriesInterval } from './common-fn';
 
 /////////// ENUMS ///////////////////////
@@ -516,7 +516,22 @@ export interface SaveTrackedSymbolResponse {
   error?: string;
 }
 
+export interface TrackedSymbolMetadata {
+  // System fields. _ prefix to allow flattening without mixing with AV fields
+  createdAt: Timestamp | Date;
+  lastUpdated?: Timestamp | Date;
+
+  // Is currently on at least one users personal symbol watchlist
+  // This is used to determine if a symbol should be included in the list of symbols to refresh
+  isActive: boolean;
+
+  // Explicit dev-only flag to specifically enable data refreshing
+  // If true, AV data will be regularly refreshed for this symbol
+  // Be careful about request limits
+  refreshEnabled: boolean;  
+}
+
 export interface TrackedSymbolDocument {
-  data: TrackedSymbol;
+  data: AvSymbol;
   metadata: TrackedSymbolMetadata;
 }

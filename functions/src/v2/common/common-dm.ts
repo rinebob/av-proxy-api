@@ -78,17 +78,6 @@ export enum DataMaintainerEndpoint {
   TIME_SERIES = 'time-series',
 }
 
-// Symbol Management Types
-// Note: These types are now defined below with more complete definitions
-
-export interface ListSymbolsResponse {
-  symbols: TrackedSymbol[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-// Symbol Management Types
 export interface ClientSource {
   clientId: string;
   firstSeen: admin.firestore.Timestamp;
@@ -100,29 +89,58 @@ export interface ClientSource {
  * Represents a symbol from Alpha Vantage SYMBOL_SEARCH endpoint
  * This is the canonical shape for all symbol data in the system
  */
-export interface TrackedSymbol {
-  // AV SYMBOL_SEARCH fields
-  symbol: string;
-  name: string;
-  type: string;
-  region: string;
-  marketOpen: string;
-  marketClose: string;
-  timezone: string;
-  currency: string;
-  matchScore: string;
-  
-  // System fields
-  isActive?: boolean;
-  refreshEnabled?: boolean;  // If true, AV data will be refreshed for this symbol
-  lastUpdated?: admin.firestore.Timestamp | Date;
-  createdAt?: admin.firestore.Timestamp | Date;
+export interface AvSymbol {
+    // AV SYMBOL_SEARCH response object fields
+    symbol: string;
+    name: string;
+    type: string;
+    region: string;
+    marketOpen: string;
+    marketClose: string;
+    timezone: string;
+    currency: string;
+    matchScore: string;
 }
 
-export interface TrackedSymbolMetadata {
-    createdAt: admin.firestore.Timestamp;
-    isActive: boolean;
-    refreshEnabled: boolean;
+/**
+ * Represents a symbol from Alpha Vantage SYMBOL_SEARCH endpoint
+ * This is the canonical shape for all symbol data in the system
+ */
+export interface TrackedSymbolV2 extends AvSymbol {
+  // System fields. _ prefix to allow flattening without mixing with AV fields
+  _createdAt: admin.firestore.Timestamp | Date;
+  _lastUpdated: admin.firestore.Timestamp | Date;
+
+  // Is currently on at least one users personal symbol watchlist
+  // This is used to determine if a symbol should be included in the list of symbols to refresh
+  _isActive: boolean;
+
+  // Explicit dev-only flag to specifically enable data refreshing
+  // If true, AV data will be regularly refreshed for this symbol
+  // Be careful about request limits
+  _refreshEnabled: boolean;  
+}
+
+export interface ListSymbolsV2Response {
+    symbols: TrackedSymbolV2[];
+    total: number;
+    limit: number;
+    offset: number;
+}
+
+/**
+ * Converts Firestore Timestamp fields in TrackedSymbolV2 objects to ISO strings for serialization.
+ */
+export function serializeTrackedSymbols(symbols: any[]): any[] {
+  return (symbols || []).map(symbol => ({
+    ...symbol,
+    _createdAt: symbol._createdAt && typeof symbol._createdAt.toDate === 'function'
+      ? symbol._createdAt.toDate().toISOString()
+      : symbol._createdAt,
+    _lastUpdated: symbol._lastUpdated && typeof symbol._lastUpdated.toDate === 'function'
+      ? symbol._lastUpdated.toDate().toISOString()
+      : symbol._lastUpdated,
+  }));
 }
 
 /**
@@ -155,24 +173,6 @@ export interface SymbolSyncRequest {
 }
 
 /**
- * Response from a symbol sync operation
- */
-export interface SymbolSyncResponse {
-  success: boolean;
-  message?: string;
-  added: number;
-  removed: number;
-  totalActive: number;
-  timestamp: admin.firestore.Timestamp | Date;
-  // Symbol data from SYMBOL_SEARCH for the first symbol
-  symbolData?: TrackedSymbol;
-  // For backward compatibility
-  addedCount?: number;
-  removedCount?: number;
-  totalTracked?: number;
-}
-
-/**
  * Options for listing symbols
  */
 export interface ListSymbolsOptions {
@@ -183,16 +183,6 @@ export interface ListSymbolsOptions {
   sortBy?: 'symbol' | 'lastUpdated';
   sortDirection?: 'asc' | 'desc';
 
-}
-
-/**
- * Response from listing symbols
- */
-export interface ListSymbolsResponse {
-  symbols: TrackedSymbol[];
-  total: number;
-  limit: number;
-  offset: number;
 }
 
 /**
