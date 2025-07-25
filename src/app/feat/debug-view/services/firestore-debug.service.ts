@@ -306,11 +306,6 @@ export class FirestoreDebugService {
               timezone: data['timezone'] || 'America/New_York',
               currency: data['currency'] || 'USD',
               matchScore: data['matchScore']?.toString() || '1',
-              isActive: data['isActive'] !== undefined ? data['isActive'] : (data['active'] !== undefined ? data['active'] : true),
-              refreshEnabled: data['refreshEnabled'] !== undefined ? data['refreshEnabled'] : false,
-              lastUpdated: safeDate(data['lastUpdated'], 'medium'),
-              createdAt: safeDate(data['createdAt'], 'medium'),
-              clientId: data['clientId'] || 'debug-client'
             };
             
             return trackedSymbol;
