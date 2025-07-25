@@ -59,6 +59,7 @@ export const listSymbolsV2 = onRequest({
     
     res.status(200).json({
       ...result,
+      symbols
     });
   } catch (error: any) {
     console.error('lSV2 Error in listSymbolsV2:', {

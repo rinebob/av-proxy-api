@@ -468,6 +468,7 @@ export class SymbolManagerService {
         };
         // console.log('sMSvc lSV2 fs snapshot docData: ', docData);
         // console.log('sMSvc lSV2 fs snapshot docData.data: ', docData.data);
+        // console.log('sMSvc lSV2 fs snapshot docData.metadata: ', docData.metadata);
         return trackedSymbol;
       });
 
