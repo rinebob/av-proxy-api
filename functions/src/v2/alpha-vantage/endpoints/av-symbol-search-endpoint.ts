@@ -4,6 +4,9 @@ import { AlphaVantageEndpoint } from '../../common/common-av';
 import { logger } from 'firebase-functions';
 
 /**
+ * DEPRECATED - MARK FOR DELETE
+ * FRONTEND NOW POINTS TO alpha-vantage-api-v2
+ * 
  * HTTP endpoint for searching symbols using Alpha Vantage's SYMBOL_SEARCH endpoint
  * 
  * GET /v2/alpha-vantage/symbol-search?keywords=:keywords
