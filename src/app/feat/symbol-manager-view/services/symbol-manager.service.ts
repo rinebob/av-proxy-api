@@ -456,7 +456,7 @@ export class SymbolManagerService {
    * @param offset Number of symbols to skip (for pagination, default: 0)
    * @returns Observable with the list of tracked symbols
    */
-  listSymbolsV2(activeOnly: boolean = false, limit: number = 100, offset: number = 0): Observable<ListSymbolsV2Response> {
+  listSymbolsV2(activeOnly: boolean = true, limit: number = 100, offset: number = 0): Observable<ListSymbolsV2Response> {
     const params = new URLSearchParams({
       activeOnly: String(activeOnly),
       limit: String(limit),

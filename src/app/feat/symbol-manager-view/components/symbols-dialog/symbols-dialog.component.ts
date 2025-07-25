@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { SymbolInputFormComponent } from './symbol-input-form/symbol-input-form.component';
 import { SymbolManagerStore } from '../../store/symbol-manager.store';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { SvtAvSymbolMatch } from '../../../data-maintainer-view/common/fe-common-dm-api';
+import { TrackedSymbolV2 } from '../../../data-maintainer-view/common/fe-common-av-api-v2';
 
 @Component({
   selector: 'app-symbols-dialog',
@@ -27,7 +27,7 @@ export class SymbolsDialogComponent {
   destroyRef = inject(DestroyRef);
   
   // Dialog state
-  selectedSymbol = signal<SvtAvSymbolMatch | undefined>(undefined);
+  selectedSymbol = signal<TrackedSymbolV2 | undefined>(undefined);
  
   constructor() {
     this.store.symbolSelected$.pipe(
@@ -42,12 +42,15 @@ export class SymbolsDialogComponent {
       });
   }
 
-  onSymbolSelected(selectedSymbol: SvtAvSymbolMatch): void {
+  onSymbolSelected(selectedSymbol: TrackedSymbolV2): void {
     this.selectedSymbol.set(selectedSymbol);
   }
 
   onAddSymbol(): void {
-    // TODO: Add store method to receive selected symbol and trigger add to database
+    const symbol = this.selectedSymbol();
+    if (symbol) {
+      this.store.addSymbolFromSearch(symbol);
+    }
     this.dialogRef.close();
   }
 

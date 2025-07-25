@@ -1,4 +1,4 @@
-import { Component, OnInit, Output, EventEmitter, inject, signal } from '@angular/core';
+import { Component, OnInit, Output, EventEmitter, inject, signal, DestroyRef } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { MatAutocompleteSelectedEvent, MatAutocomplete, MatAutocompleteModule } from '@angular/material/autocomplete';
 import { startWith, debounceTime, distinctUntilChanged } from 'rxjs/operators';
@@ -11,8 +11,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialogContent } from "@angular/material/dialog";
 import { MaterialModule } from "../../../../../shared/material.module";
-import { SvtAvSymbolMatch } from '../../../../data-maintainer-view/common/fe-common-dm-api';
-import { SYMBOL_SEARCH_RESULTS } from '../../../../../../assets/data/symbol-search-results';
+import { TrackedSymbolV2 } from '../../../../data-maintainer-view/common/fe-common-av-api-v2';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-symbol-input-form',
@@ -33,21 +33,17 @@ import { SYMBOL_SEARCH_RESULTS } from '../../../../../../assets/data/symbol-sear
   styleUrls: ['./symbol-input-form.component.scss']
 })
 export class SymbolInputFormComponent implements OnInit {
-  @Output() symbolSelected = new EventEmitter<SvtAvSymbolMatch>();
+    destroyRef = inject(DestroyRef);
+  @Output() symbolSelected = new EventEmitter<TrackedSymbolV2>();
 
   symbolManagerStore = inject(SymbolManagerStore);
 
   searchControl = new FormControl();
 
-  searchResults = signal<SvtAvSymbolMatch[]>([]);
+  searchResults = signal<TrackedSymbolV2[]>([]);
   
   ngOnInit(): void {
-    this.initializeDevMode();
     this.setupAutocomplete();
-  }
-
-  initializeDevMode() {
-    this.searchResults.set(SYMBOL_SEARCH_RESULTS);
   }
 
   private setupAutocomplete(): void {
@@ -60,12 +56,12 @@ export class SymbolInputFormComponent implements OnInit {
       (value) => {
         console.log('sIF sA setupAutocomplete valueChanges: ', value);
         if (typeof value === 'string' && value.trim().length > 1) {
-        //   this.symbolManagerStore.searchSymbols(value);
+          this.symbolManagerStore.searchSymbols(value);
         }
       }
     );
 
-    this.symbolManagerStore.searchResults$.subscribe(
+    this.symbolManagerStore.v2Symbols$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(
       (results) => {
         console.log('sIF sA autocomplete searchResults: ', results);
         if (results) this.searchResults.set(results);
@@ -73,12 +69,12 @@ export class SymbolInputFormComponent implements OnInit {
     );
   }
 
-  displayFn(match: SvtAvSymbolMatch): string {
+  displayFn(match: TrackedSymbolV2): string {
     return match ? `${match.symbol} - ${match.name} - ${match.matchScore}` : '';
   }
 
   onSymbolSelected(event: MatAutocompleteSelectedEvent): void {
-    const selected = event.option.value as SvtAvSymbolMatch;
+    const selected = event.option.value as TrackedSymbolV2;
     this.symbolSelected.emit(selected);
   }
 }

@@ -56,14 +56,9 @@ export class SymbolManagerComponent implements OnInit {
   @ViewChild(MatTabGroup) tabGroup!: MatTabGroup;
 
   // Table configuration
-  displayedColumns: string[] = [
-    'symbol', 
-    'name', 
-    'type',
-    'marketHours',
-    'refreshEnabled',
-    'lastUpdated',
-    'actions'
+  displayedV2Columns = [
+    'symbol', 'name', 'type', 'region', 'timezone', 'currency', 'matchScore',
+    '_createdAt', '_lastUpdated', '_isActive', '_refreshEnabled'
   ];
   pageSize = 10;
   pageIndex = 0;
@@ -79,10 +74,15 @@ export class SymbolManagerComponent implements OnInit {
   constructor() {}
 
   ngOnInit(): void {
-    this.store.listSymbols();
-    this.store.symbols$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => this.showResult('Symbols loaded successfully'),
-      error: (err: Error) => this.showError(`Error loading symbols: ${err.message}`)
+    // this.store.listSymbols();
+    // this.store.symbols$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    //     next: () => this.showResult('Symbols loaded successfully'),
+    //     error: (err: Error) => this.showError(`Error loading symbols: ${err.message}`)
+    // });
+    
+    this.store.listSymbolsV2();
+    this.store.v2Symbols$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(v2Symbols => {
+        console.log('sM ngOI v2Symbols sub:', v2Symbols);
     });
   }
 
@@ -107,7 +107,8 @@ export class SymbolManagerComponent implements OnInit {
         this.store.setSymbolSelected(false);
         
         // Refresh the symbols list if symbols were added
-        this.store.listSymbols();
+        // this.store.listSymbols();
+        this.store.listSymbolsV2();
       }
     });
   }
