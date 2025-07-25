@@ -18,7 +18,7 @@ export const listSymbolsV2 = onRequest({
     console.log('=============== START BE listSymbolsV2 ==============================');
 
     const options: ListSymbolsOptions = {
-      activeOnly: req.query.activeOnly !== 'false',
+      activeOnly: req.query.activeOnly === undefined ? true : req.query.activeOnly === 'true',
       limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 100,
       offset: req.query.offset ? parseInt(req.query.offset as string, 10) : 0,
       sortBy: (req.query.sortBy as 'symbol' | 'lastUpdated') || 'symbol',

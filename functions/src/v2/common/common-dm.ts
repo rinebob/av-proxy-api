@@ -128,6 +128,43 @@ export interface ListSymbolsV2Response {
     offset: number;
 }
 
+// Centralized Firestore field names for tracked symbols
+export const TRACKED_SYMBOL_V2_FIELDS = {
+  SYMBOL: 'symbol',
+  NAME: 'name',
+  TYPE: 'type',
+  REGION: 'region',
+  MARKET_OPEN: 'marketOpen',
+  MARKET_CLOSE: 'marketClose',
+  TIMEZONE: 'timezone',
+  CURRENCY: 'currency',
+  MATCH_SCORE: 'matchScore',
+  CREATED_AT: '_createdAt',
+  LAST_UPDATED: '_lastUpdated',
+  IS_ACTIVE: '_isActive',
+  REFRESH_ENABLED: '_refreshEnabled',
+};
+
+// Add this function near the top of your file or in a utils module
+export function toTrackedSymbolV2(doc: FirebaseFirestore.DocumentData): TrackedSymbolV2 {
+    // console.log('sMSvc toTrackedSymbolV2 input doc: ', doc);
+    return {
+      symbol: doc[TRACKED_SYMBOL_V2_FIELDS.SYMBOL] ?? '',
+      name: doc[TRACKED_SYMBOL_V2_FIELDS.NAME] ?? '',
+      type: doc[TRACKED_SYMBOL_V2_FIELDS.TYPE] ?? '',
+      region: doc[TRACKED_SYMBOL_V2_FIELDS.REGION] ?? '',
+      marketOpen: doc[TRACKED_SYMBOL_V2_FIELDS.MARKET_OPEN] ?? '',
+      marketClose: doc[TRACKED_SYMBOL_V2_FIELDS.MARKET_CLOSE] ?? '',
+      timezone: doc[TRACKED_SYMBOL_V2_FIELDS.TIMEZONE] ?? '',
+      currency: doc[TRACKED_SYMBOL_V2_FIELDS.CURRENCY] ?? '',
+      matchScore: doc[TRACKED_SYMBOL_V2_FIELDS.MATCH_SCORE] ?? '',
+      _createdAt: doc[TRACKED_SYMBOL_V2_FIELDS.CREATED_AT] ?? null,
+      _lastUpdated: doc[TRACKED_SYMBOL_V2_FIELDS.LAST_UPDATED] ?? null,
+      _isActive: doc[TRACKED_SYMBOL_V2_FIELDS.IS_ACTIVE] ?? false,
+      _refreshEnabled: doc[TRACKED_SYMBOL_V2_FIELDS.REFRESH_ENABLED] ?? false,
+    };
+  }
+
 /**
  * Converts Firestore Timestamp fields in TrackedSymbolV2 objects to ISO strings for serialization.
  */

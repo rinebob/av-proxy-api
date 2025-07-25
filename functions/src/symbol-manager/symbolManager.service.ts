@@ -12,10 +12,10 @@ import {
 } from '../common/common-dm';
 
 import {
-    TrackedSymbolV2,
     ListSymbolsV2Response,
-    AvSymbol
-  } from '../v2/common/common-dm';
+    toTrackedSymbolV2,
+    TRACKED_SYMBOL_V2_FIELDS
+} from '../v2/common/common-dm';
 
 /**
  * Service for managing symbols in the system
@@ -414,77 +414,66 @@ export class SymbolManagerService {
     }
   }
 
-  ////////////////////// V2 METHODS //////////////////////////
-  
-  /**
-   * Lists symbols with pagination and filtering options
-   * @param options - Options for filtering, sorting, and pagination
-   * @returns A promise that resolves to the list of symbols and pagination info
-   * @throws {Error} If an error occurs during the operation
-   */
-  async listSymbolsV2(options: ListSymbolsOptions = {}): Promise<ListSymbolsV2Response> {
-    const { 
-      activeOnly = true, 
-      limit = 100, 
-      offset = 0, 
-      sortBy = 'symbol', 
-      sortDirection = 'asc' 
-    } = options;
+    ////////////////////// V2 METHODS //////////////////////////
 
-    console.log('sMSvc lSV2 begin listSymbolsV2.options: ', options);
+    /**
+     * Lists symbols with pagination and filtering options
+     * @param options - Options for filtering, sorting, and pagination
+     * @returns A promise that resolves to the list of symbols and pagination info
+     * @throws {Error} If an error occurs during the operation
+     */
+    async listSymbolsV2(options: ListSymbolsOptions = {}): Promise<ListSymbolsV2Response> {
+      const {
+        activeOnly = true,
+        limit = 100,
+        offset = 0,
+        sortBy = TRACKED_SYMBOL_V2_FIELDS.SYMBOL,
+        sortDirection = 'asc',
+      } = options;
 
-    try {
-      const collectionRef = db.collection(FirestoreCollection.TRACKED_SYMBOLS);
-      let query: Query<DocumentData> = collectionRef;
-      
-      if (activeOnly) {
-        console.log('sMSvc lSV2 activeOnly: ', activeOnly);
-        query = query.where('metadata.isActive', '==', true);
-      }
-      
-      // Get total count
-      const countSnapshot = await query.count().get();
-      const total = countSnapshot.data().count;
-      
-      // Apply sorting and pagination
-      const paginatedQuery = query
-        .orderBy(`data.${sortBy}`, sortDirection)
-        .offset(offset)
-        .limit(limit);
-      
-      const snapshot = await paginatedQuery.get();
+        console.log('sMSvc lSV2 begin listSymbolsV2.options: ', options);
 
-      const symbols = snapshot.docs.map(doc => {
-        const docData = doc.data();
-        const avSymbol: AvSymbol = docData.data;
+      try {
+        const collectionRef = db.collection(FirestoreCollection.TRACKED_SYMBOLS);
+        let query: Query<DocumentData> = collectionRef;
 
-        // Helper function to convert existing emulator data until it is converted to TrackedSymbolV2
-        const trackedSymbol: TrackedSymbolV2 = {
-          _createdAt: docData.metadata.createdAt,
-          _lastUpdated: docData.metadata.lastUpdated,
-          _isActive: docData.metadata.isActive,
-          _refreshEnabled: docData.metadata.refreshEnabled,
-          ...avSymbol
+        if (activeOnly) {
+          query = query.where(TRACKED_SYMBOL_V2_FIELDS.IS_ACTIVE, '==', true);
+        }
+
+        // Get total count
+        const countSnapshot = await query.count().get();
+        const total = countSnapshot.data().count;
+
+        // Map sortBy (from UI or API) to canonical Firestore field
+        const sortField =
+          Object.values(TRACKED_SYMBOL_V2_FIELDS).includes(sortBy)
+            ? sortBy
+            : TRACKED_SYMBOL_V2_FIELDS.SYMBOL; // fallback to symbol if invalid
+
+        // Apply sorting and pagination
+        const paginatedQuery = query
+          .orderBy(sortField, sortDirection)
+          .offset(offset)
+          .limit(limit);
+
+        const snapshot = await paginatedQuery.get();
+
+        const symbols = snapshot.docs.map(doc => toTrackedSymbolV2(doc.data()));
+
+        console.log('sMSvc lSV2 final symbols: ', symbols);
+
+        return {
+          symbols,
+          total,
+          limit,
+          offset,
         };
-        // console.log('sMSvc lSV2 fs snapshot docData: ', docData);
-        // console.log('sMSvc lSV2 fs snapshot docData.data: ', docData.data);
-        // console.log('sMSvc lSV2 fs snapshot docData.metadata: ', docData.metadata);
-        return trackedSymbol;
-      });
-
-      console.log('sMSvc lSV2 final symbols: ', symbols);
-      
-      return {
-        symbols,
-        total,
-        limit,
-        offset
-      };
-    } catch (error) {
-      console.error('sMSvc lSV2 [SymbolManager] Error listing symbols:', error);
-      throw new Error('Failed to list symbols');
+      } catch (error) {
+        console.error('sMSvc lSV2 [SymbolManager] Error listing symbols:', error);
+        throw new Error('Failed to list symbols');
+      }
     }
-  }
 }
 
 // Create an instance of the service
