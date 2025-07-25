@@ -113,7 +113,7 @@ export class BenzingaApiService {
       }
     }
     
-    console.error('Benzinga API Error:', error);
+    console.error('fe bAScv hE:Benzinga API Error:', error);
     return throwError(() => new Error(errorMessage));
   }
 }

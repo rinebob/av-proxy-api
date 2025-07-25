@@ -40,7 +40,7 @@ function endpointToPath(endpoint: BenzingaEndpoint): string {
  */
 export function getBenzingaEndpointUrl(endpoint: BenzingaEndpoint): string {
   const baseUrl = getBenzingaBaseUrl();
-  const gatewayPath = 'benzingaApi';
+  const gatewayPath = 'benzingaApiV2';
   const endpointPath = 'calendar'; // The path is always 'calendar' for these endpoints.
 
   return `${baseUrl}/${gatewayPath}/${endpointPath}`;
