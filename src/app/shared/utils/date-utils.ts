@@ -87,7 +87,8 @@ export function processTimestamps<T>(obj: T): T {
     const dateFields = [
       'createdAt', 'updatedAt', 'lastRefreshed', 
       'lastSeen', 'firstSeen', 'deactivatedAt',
-      'date', 'timestamp', 'time', 'modifiedAt'
+      'date', 'timestamp', 'time', 'modifiedAt',
+      '_createdAt', '_lastUpdated'
     ];
     
     // Special handling for Firestore document metadata

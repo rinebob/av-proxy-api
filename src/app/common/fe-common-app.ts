@@ -19,7 +19,9 @@ const PROD_URLS = {
   [DataMaintainerFunctionName.CHECK_MOCK_DATA]: 'https://checkmockdata-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.LIST_SYMBOLS]: 'https://listsymbols-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.GET_SYMBOL_DETAILS]: 'https://getsymboldetails-lsluydmucq-uc.a.run.app',
-  [DataMaintainerFunctionName.SYNC_SYMBOLS]: 'https://syncsymbols-lsluydmucq-uc.a.run.app'
+  [DataMaintainerFunctionName.SYNC_SYMBOLS]: 'https://syncsymbols-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.SAVE_TRACKED_SYMBOL]: 'https://savetrackedsymbol-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.LIST_SYMBOLS_V2]: 'https://listsymbolsv2-lsluydmucq-uc.a.run.app',
 } as const;
 
 // Development URL base

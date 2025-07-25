@@ -11,6 +11,8 @@ export enum DataMaintainerFunctionName {
   LIST_SYMBOLS = 'listSymbols',
   GET_SYMBOL_DETAILS = 'getSymbolDetails',
   SYNC_SYMBOLS = 'syncSymbols',
+  SAVE_TRACKED_SYMBOL = 'saveTrackedSymbol',
+  LIST_SYMBOLS_V2 = 'listSymbolsV2',
 }
 
 // Production URLs for each Data Maintainer Cloud Function
@@ -20,6 +22,10 @@ const DM_PROD_URLS = {
   [DataMaintainerFunctionName.LIST_SYMBOLS]: 'https://listsymbols-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.GET_SYMBOL_DETAILS]: 'https://getsymboldetails-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.SYNC_SYMBOLS]: 'https://syncsymbols-lsluydmucq-uc.a.run.app',
+
+  // V2 endpoints
+  [DataMaintainerFunctionName.SAVE_TRACKED_SYMBOL]: 'https://savetrackedsymbol-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.LIST_SYMBOLS_V2]: 'https://listsymbolsv2-lsluydmucq-uc.a.run.app',
 } as const;
 
 // Development URL base
@@ -183,13 +189,8 @@ export interface TrackedSymbol {
   timezone: string;
   currency: string;
   matchScore: string;
-  
-  // System fields
-  isActive: boolean;
-  refreshEnabled?: boolean;  // If true, AV data will be refreshed for this symbol
-  lastUpdated: string | Date;
-  createdAt: string | Date;
-  clientId?: string;
+  createdAt?: string | Date;
+  lastUpdated?: string | Date;
 }
 
 export interface ListSymbolsResponse {
