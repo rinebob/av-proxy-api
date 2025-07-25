@@ -43,18 +43,21 @@ export class SymbolsDialogComponent {
   }
 
   onSymbolSelected(selectedSymbol: TrackedSymbolV2): void {
+    console.log('sD symbolsDialog onSymbolSelected: ', selectedSymbol);
     this.selectedSymbol.set(selectedSymbol);
   }
 
   onAddSymbol(): void {
+    console.log('sD symbolsDialog onAddSymbol called');
     const symbol = this.selectedSymbol();
     if (symbol) {
       this.store.addSymbolFromSearch(symbol);
     }
-    this.dialogRef.close();
   }
 
   onCancel(): void {
-    this.dialogRef.close();
+    this.dialogRef.close({ 
+        result: 'canceled',
+      });
   }
 }

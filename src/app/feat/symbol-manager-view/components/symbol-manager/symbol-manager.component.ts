@@ -88,6 +88,7 @@ export class SymbolManagerComponent implements OnInit {
 
   /**
    * Open the Add Symbols dialog
+   * DEPRECATED
    */
   openAddSymbolsDialog(): void {
     const dialogRef = this.dialog.open(AddSymbolsDialogComponent, {
@@ -107,12 +108,15 @@ export class SymbolManagerComponent implements OnInit {
         this.store.setSymbolSelected(false);
         
         // Refresh the symbols list if symbols were added
-        // this.store.listSymbols();
-        this.store.listSymbolsV2();
+        this.store.listSymbols();
+        
       }
     });
   }
 
+  /**
+   * Open the V2 Symbols dialog
+   */
   openSymbolsDialog(): void {
     const dialogRef = this.dialog.open(SymbolsDialogComponent, {
       width: '800px',
@@ -132,7 +136,8 @@ export class SymbolManagerComponent implements OnInit {
         this.store.setSymbolSelected(false);
         
         // Refresh the symbols list if symbols were added
-        this.store.listSymbols();
+        console.log('sM oSD after closed result: ', result);
+        this.store.listSymbolsV2();
       }
     });
   }

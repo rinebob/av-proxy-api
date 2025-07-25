@@ -65,7 +65,9 @@ export const SymbolManagerStore = signalStore(
       patchState(store, { 
         syncResults: null,
         error: null,
-        loading: false
+        loading: false,
+
+        v2SearchResults: undefined,
       });
     },
     // Update methods
@@ -326,7 +328,12 @@ export const SymbolManagerStore = signalStore(
         symbolService.saveTrackedSymbol(symbol).pipe(
           tap((response) => {
             if (response.success) {
-              patchState(store, { loading: false });
+              patchState(store, { 
+                loading: false,
+                symbolSelected: true,
+                searchResults: undefined,
+                v2SearchResults: undefined 
+            });
               snackBar.open(`Symbol "${symbol.symbol}" added!`, 'Close', { duration: 3000, panelClass: 'success-snackbar' });
               // Optionally refresh symbols list here
             } else {
@@ -345,7 +352,7 @@ export const SymbolManagerStore = signalStore(
 
       listSymbolsV2(): void {
         patchState(store, { loading: true, error: null });
-        
+        console.log('sMSto lSV2 listSymbolsV2 called');
         symbolService.listSymbolsV2().pipe(
           tap({
             next: (response) => {
