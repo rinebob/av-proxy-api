@@ -33,7 +33,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   styleUrls: ['./symbol-input-form.component.scss']
 })
 export class SymbolInputFormComponent implements OnInit {
-    destroyRef = inject(DestroyRef);
+  destroyRef = inject(DestroyRef);
+  
   @Output() symbolSelected = new EventEmitter<TrackedSymbolV2>();
 
   symbolManagerStore = inject(SymbolManagerStore);
@@ -61,7 +62,7 @@ export class SymbolInputFormComponent implements OnInit {
       }
     );
 
-    this.symbolManagerStore.v2Symbols$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(
+    this.symbolManagerStore.v2SearchResults$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(
       (results) => {
         console.log('sIF sA autocomplete searchResults: ', results);
         if (results) this.searchResults.set(results);

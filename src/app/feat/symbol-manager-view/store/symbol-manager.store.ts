@@ -25,6 +25,7 @@ interface SymbolManagerState {
   symbolsToSync: string;
   symbolSelected: boolean;
 
+  v2SearchResults: TrackedSymbolV2[] | undefined;
   v2Symbols: TrackedSymbolV2[];
 }
 
@@ -42,6 +43,7 @@ const initialState: SymbolManagerState = {
   symbolsToSync: '',
   symbolSelected: false,
 
+  v2SearchResults: undefined,
   v2Symbols: [],
 };
 
@@ -54,6 +56,7 @@ export const SymbolManagerStore = signalStore(
     searchResults$: toObservable(store.searchResults),
     symbolSelected$: toObservable(store.symbolSelected),
     
+    v2SearchResults$: toObservable(store.v2SearchResults),
     v2Symbols$: toObservable(store.v2Symbols),
   })),
   withMethods((store, symbolService = inject(SymbolManagerService), snackBar = inject(MatSnackBar)) => ({
@@ -294,6 +297,7 @@ export const SymbolManagerStore = signalStore(
             patchState(store, { 
               loading: false, 
               searchResults: response,
+              v2SearchResults: response as TrackedSymbolV2[],
             });
           },
           (error: unknown) => {
@@ -303,6 +307,7 @@ export const SymbolManagerStore = signalStore(
               loading: false,
               error: errorMessage,
               searchResults: [],
+              v2SearchResults: [],
             });
             snackBar.open(errorMessage, 'Close', { 
               duration: 5000,
