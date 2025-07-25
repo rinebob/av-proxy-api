@@ -29,11 +29,21 @@
       }
       
       @if (hasTicker) {
-        @let meta = BENZINGA_PARAM_META_MAP[BenzingaCalendarParam.TICKERS];
-        <mat-form-field appearance="outline">
-          <mat-label>{{ meta.label }}</mat-label>
-          <input matInput [formControlName]="benzingaCalendarParamFormField.TICKERS" [placeholder]="meta.placeholder ?? ''">
-        </mat-form-field>
+        <mat-slide-toggle
+          [checked]="includeTicker()"
+          (change)="includeTicker.set($event.checked)"
+          class="toggle-ticker"
+        >
+          Include Ticker Symbol
+        </mat-slide-toggle>
+        @let showTicker = hasTicker && includeTicker();
+        @if (showTicker) {
+          @let meta = BENZINGA_PARAM_META_MAP[BenzingaCalendarParam.TICKERS];
+          <mat-form-field appearance="outline">
+            <mat-label>{{ meta.label }}</mat-label>
+            <input matInput [formControlName]="benzingaCalendarParamFormField.TICKERS" [placeholder]="meta.placeholder ?? ''">
+          </mat-form-field>
+        }
       }
       
       <button mat-raised-button color="primary" type="submit" class="search-btn">Search</button>

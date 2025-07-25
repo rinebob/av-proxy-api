@@ -12,7 +12,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { BzCalendarViewBaseComponent } from '../../bz-calendar-view-base.component';
+import { signal } from '@angular/core';
 
 /**
  * Dynamic Benzinga calendar form.
@@ -32,7 +34,8 @@ import { BzCalendarViewBaseComponent } from '../../bz-calendar-view-base.compone
     MatIconModule,
     MatNativeDateModule,
     MatButtonToggleModule,
-    MatSelectModule
+    MatSelectModule,
+    MatSlideToggleModule
   ],
   templateUrl: './bz-calendar-form.component.html',
   styleUrls: ['./bz-calendar-form.component.scss']
@@ -57,7 +60,8 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
   searchForm = new FormGroup({
     // The type of calendar to request (e.g., earnings, dividends)
     type: new FormControl(this.bzCalendarStore.selectedEndpoint(), Validators.required),
-    tickers: new FormControl('', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]),
+    // tickers: new FormControl('', [Validators.required, Validators.pattern('^[A-Za-z]{1,5}$')]),
+    tickers: new FormControl('', [Validators.pattern('^[A-Za-z]{1,5}$')]),
     startDate: new FormControl(this.getDefaultStartDate(), Validators.required),
     endDate: new FormControl(new Date(), Validators.required),
     // Dividend-specific fields (conditionally enabled)
@@ -82,6 +86,9 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
      */
     dateSort: new FormControl('')
   });
+
+  // Add the signal for the toggle
+  includeTicker = signal(false);
 
   ngOnInit() {
     // Sync endpoint with store and adjust fields on endpoint change
@@ -113,10 +120,22 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
   }
 
   onSubmit() {
+    console.log('[BZCalendarForm] onSubmit called');
+    console.log('[BZCalendarForm] includeTicker:', this.includeTicker());
+    console.log('[BZCalendarForm] form value BEFORE ticker clear:', this.searchForm.value);
+
+    if (!this.includeTicker()) {
+      this.searchForm.get('tickers')?.setValue('');
+      console.log('[BZCalendarForm] Ticker cleared, form value AFTER ticker clear:', this.searchForm.value);
+    }
+
     if (this.searchForm.invalid) {
+      console.log('[BZCalendarForm] Form invalid:', this.searchForm.errors, this.searchForm.value);
       this.searchForm.markAllAsTouched();
       return;
     }
+
+    console.log('[BZCalendarForm] Submitting form value:', this.searchForm.value);
     const { type, tickers, startDate, endDate, sort, pagesize, importance, updated, dividendYieldOperation, dividendYield, dateSort } = this.searchForm.value;
     // Defensive: ensure dates are Date objects
     if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
@@ -143,6 +162,7 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
     if (pagesize) params.pagesize = pagesize;
     if (importance !== null && importance !== undefined) params['parameters[importance]'] = importance;
     if (updated) {
+      console.log('[BZCalendarForm] Updated block. updated:', updated);
       // Accepts either a Date or a number (timestamp)
       params['parameters[updated]'] = typeof updated === 'number' ? updated : Math.floor(new Date(updated).getTime() / 1000);
     }
@@ -150,13 +170,16 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
     if (endpointMeta?.params.some(p => p === BenzingaCalendarParam.TICKERS)) {
       params.tickers = tickers?.toUpperCase();
     }
+    console.log('[BZCalendarForm] Updated block. params:', params);
     // If dividends, include dividend-specific params if filled
     if (type === BenzingaEndpoint.DIVIDENDS) {
       if (sort) params.sort = `date:${sort}`;
       if (dividendYieldOperation) params['parameters[dividend_yield_operation]'] = dividendYieldOperation;
       if (dividendYield !== null && dividendYield !== undefined && dividendYield !== '') params['parameters[dividend_yield]'] = dividendYield;
       if (dateSort) params['parameters[date_sort]'] = dateSort;
+      console.log('[BZCalendarForm] dividends block. params:', params);
     }
+    console.log('[BZCalendarForm] searchCalendar params:', params);
     this.bzCalendarStore.searchCalendar(params);
   }
 }
