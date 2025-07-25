@@ -3,10 +3,11 @@ import { signalStore, withState, withMethods, patchState, withProps } from '@ngr
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { SymbolManagerService } from '../services/symbol-manager.service';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { Observable, map, tap, of, pipe, switchMap } from 'rxjs';
+import { Observable, map, tap, of, pipe, switchMap, catchError } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { SyncSymbolsResponse, TrackedSymbol, SvtAvSymbolMatch } from '../../../feat/data-maintainer-view/common/fe-common-dm-api';
+import { SyncSymbolsResponse, TrackedSymbol, } from '../../../feat/data-maintainer-view/common/fe-common-dm-api';
+import { TrackedSymbolV2 } from '../../data-maintainer-view/common/fe-common-av-api-v2';
 
 export type ActiveTab = 'list' | 'add' | 'sync' | 'details';
 
@@ -17,12 +18,14 @@ interface SymbolManagerState {
   symbols: TrackedSymbol[];
   symbolDetails: TrackedSymbol | null;
   syncResults: SyncSymbolsResponse | null;
-  searchResults: SvtAvSymbolMatch[] | undefined;
+  searchResults: TrackedSymbol[] | undefined;
   clientId: string;
   clientName: string;
   newSymbol: string;
   symbolsToSync: string;
   symbolSelected: boolean;
+
+  v2Symbols: TrackedSymbolV2[];
 }
 
 const initialState: SymbolManagerState = {
@@ -37,7 +40,9 @@ const initialState: SymbolManagerState = {
   clientName: 'Web Client',
   newSymbol: '',
   symbolsToSync: '',
-  symbolSelected: false
+  symbolSelected: false,
+
+  v2Symbols: [],
 };
 
 export const SymbolManagerStore = signalStore(
@@ -48,6 +53,8 @@ export const SymbolManagerStore = signalStore(
     syncResults$: toObservable(store.syncResults),
     searchResults$: toObservable(store.searchResults),
     symbolSelected$: toObservable(store.symbolSelected),
+    
+    v2Symbols$: toObservable(store.v2Symbols),
   })),
   withMethods((store, symbolService = inject(SymbolManagerService), snackBar = inject(MatSnackBar)) => ({
     // Clear sync results and reset related state
@@ -122,6 +129,7 @@ export const SymbolManagerStore = signalStore(
       )
     ),
 
+    // LEGACY - USED WITH SYNC SYMBOLS ENDPOINT
     // Add one or more symbols
     addSymbols(symbols: string[]): Observable<void> {
       console.log('sMSto aS addSymbols called with symbols:', symbols);
@@ -263,6 +271,9 @@ export const SymbolManagerStore = signalStore(
       );
     },
 
+    //////////////// V2 IMPLEMENTATION //////////////////////////
+
+    // LATEST IMPLEMENTATION - USED WITH SYMBOL SEARCH ENDPOINT
     /**
      * Search for symbols using keywords
      * @param keywords The search keywords (e.g., 'microsoft')
@@ -278,7 +289,7 @@ export const SymbolManagerStore = signalStore(
       
       symbolService.searchSymbols(keywords).pipe(
         tapResponse(
-          (response: SvtAvSymbolMatch[]) => {
+          (response: TrackedSymbol[]) => {
             console.log('sMSto sS Search results:', response);
             patchState(store, { 
               loading: false, 
@@ -301,6 +312,53 @@ export const SymbolManagerStore = signalStore(
         )
       ).subscribe();
     },
+
+    addSymbolFromSearch(symbol: TrackedSymbol) {
+        patchState(store, { loading: true, error: null });
+      
+        // Adapt TrackedSymbol to SaveTrackedSymbolRequest if needed
+        // (Assuming TrackedSymbol has all the fields required)
+        symbolService.saveTrackedSymbol(symbol).pipe(
+          tap((response) => {
+            if (response.success) {
+              patchState(store, { loading: false });
+              snackBar.open(`Symbol "${symbol.symbol}" added!`, 'Close', { duration: 3000, panelClass: 'success-snackbar' });
+              // Optionally refresh symbols list here
+            } else {
+              patchState(store, { loading: false, error: response.error || 'Failed to add symbol' });
+              snackBar.open(response.error || 'Failed to add symbol', 'Close', { duration: 5000, panelClass: 'error-snackbar' });
+            }
+          }),
+          catchError((error) => {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to add symbol';
+            patchState(store, { loading: false, error: errorMessage });
+            snackBar.open(errorMessage, 'Close', { duration: 5000, panelClass: 'error-snackbar' });
+            return of(null);
+          })
+        ).subscribe();
+      },
+
+      listSymbolsV2(): void {
+        patchState(store, { loading: true, error: null });
+        
+        symbolService.listSymbolsV2().pipe(
+          tap({
+            next: (response) => {
+              patchState(store, {
+                loading: false,
+                v2Symbols: response.symbols || []
+              });
+            },
+            error: (error) => {
+              console.error('Error listing symbols:', error);
+              patchState(store, {
+                loading: false,
+                error: error.message || 'Failed to load symbols'
+              });
+            }
+          }),
+        ).subscribe();
+      },
 
     /**
      * Updated by SymbolDialog component to support dialog open/closed state

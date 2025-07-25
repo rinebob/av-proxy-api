@@ -11,10 +11,12 @@ import {
   SyncSymbolsResponse,
   TrackedSymbol,
   AvSymbolSearchResult,
-  getDataMaintainerFunctionUrl
+  getDataMaintainerFunctionUrl,
+  SvtAvSymbolMatch,
 } from '../../data-maintainer-view/common/fe-common-dm-api';
 import { AlphaVantageFunctions } from '../../../common/fe-common-app';
-import { SvtAvSymbolMatch } from '../../data-maintainer-view/common/fe-common-dm-api';
+import { SaveTrackedSymbolRequest, SaveTrackedSymbolResponse } from '../../data-maintainer-view/common/fe-common-av-api';
+import { ListSymbolsV2Response, TrackedSymbolV2 } from '../../data-maintainer-view/common/fe-common-av-api-v2';
 
 /**
  * Service responsible for managing stock symbols in the data maintainer system.
@@ -31,6 +33,11 @@ export class SymbolManagerService {
   private getSymbolDetailsFn = httpsCallable<{ symbol: string }, { exists: boolean; data?: TrackedSymbol }>(
     this.functions,
     DataMaintainerFunctionName.GET_SYMBOL_DETAILS
+  );
+
+  private saveTrackedSymbolFn = httpsCallable<SaveTrackedSymbolRequest, SaveTrackedSymbolResponse>(
+    this.functions,
+    DataMaintainerFunctionName.SAVE_TRACKED_SYMBOL
   );
 
   /**
@@ -331,6 +338,8 @@ export class SymbolManagerService {
     );
   }
 
+  /////////////////////// V2 METHODS ////////////////////////////////
+
   /**
    * Searches for symbols using the deployed symbol search Cloud Function
    * @param keywords The search keywords (e.g., 'microsoft')
@@ -388,6 +397,104 @@ export class SymbolManagerService {
       }),
       finalize(() => {
         console.log('========== END SYMBOL SEARCH ==========');
+      })
+    );
+  }
+
+  /**
+   * Saves a new symbol to be tracked using a Firebase Callable Function.
+   * @param symbolData The symbol data from the search result.
+   * @returns Observable with the result of the save operation.
+   */
+  saveTrackedSymbol(symbolData: SvtAvSymbolMatch): Observable<SaveTrackedSymbolResponse> {
+    const requestId = Math.random().toString(36).substring(2, 8);
+    console.log(`FE sMS sTS [${requestId}] saveTrackedSymbol called with:`, symbolData);
+
+    if (!symbolData?.symbol) {
+      const errorMsg = 'Invalid symbol data provided for saving.';
+      console.error(`FE sMS sTS [${requestId}] ${errorMsg}`);
+      return of({ success: false, symbol: '', error: errorMsg });
+    }
+
+    // Map the search result to the request format expected by the cloud function.
+    const requestData: SaveTrackedSymbolRequest = {
+      symbol: symbolData.symbol,
+      name: symbolData.name,
+      type: symbolData.type,
+      region: symbolData.region,
+      marketOpen: symbolData.marketOpen,
+      marketClose: symbolData.marketClose,
+      timezone: symbolData.timezone,
+      currency: symbolData.currency,
+      matchScore: symbolData.matchScore,
+    };
+
+    console.log(`FE sMS sTS [${requestId}] Sending request to callable function:`, requestData);
+
+    return from(this.saveTrackedSymbolFn(requestData)).pipe(
+      map(({ data: responseData }) => {
+        console.log(`FE sMS sTS [${requestId}] Response received:`, responseData);
+        return responseData;
+      }),
+      catchError(error => {
+        console.error(`FE sMS sTS [${requestId}] Error saving symbol:`, error);
+        const errorMessage = error.message || 'Failed to save symbol via callable function.';
+        return of({
+          success: false,
+          symbol: requestData.symbol,
+          error: errorMessage,
+          message: errorMessage
+        });
+      })
+    );
+  }
+
+  /**
+   * Lists all tracked symbols with optional filtering and pagination
+   * @param activeOnly Whether to show only active symbols (default: true)
+   * @param limit Maximum number of symbols to return (default: 100)
+   * @param offset Number of symbols to skip (for pagination, default: 0)
+   * @returns Observable with the list of tracked symbols
+   */
+  listSymbolsV2(activeOnly: boolean = false, limit: number = 100, offset: number = 0): Observable<ListSymbolsV2Response> {
+    const params = new URLSearchParams({
+      activeOnly: String(activeOnly),
+      limit: String(limit),
+      offset: String(offset),
+      sortBy: 'symbol',
+      sortDirection: 'asc'
+    });
+
+    const url = `${getDataMaintainerFunctionUrl(DataMaintainerFunctionName.LIST_SYMBOLS_V2)}?${params.toString()}`;
+
+    console.log('*************** FE sMSvc lSV2 *************************');
+    console.log('sMSvc lSV2 listSymbolsV2 url:', url);
+    
+    return this.http.get<ListSymbolsV2Response>(url).pipe(
+      map(response => {
+        if (!response) return { ok: false, error: 'No response', symbols: [] };
+
+        console.log('fe sMSvc lSV2 listSymbolsV2 response:', response);
+        
+        // Process timestamps in the response
+        const processedSymbols = (response.symbols || []).map(symbol => 
+          processTimestamps(symbol) as TrackedSymbolV2
+        );
+        
+        console.log('fe sMSvc lSV2 listSymbolsV2 processedSymbols:', processedSymbols);
+        
+        return {
+          ...response,
+          symbols: processedSymbols
+        };
+      }),
+      catchError(error => {
+        console.error('Error listing symbols:', error);
+        return of({ 
+          ok: false, 
+          error: error.message || 'Failed to fetch symbols', 
+          symbols: [] 
+        });
       })
     );
   }
