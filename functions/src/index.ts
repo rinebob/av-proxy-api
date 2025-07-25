@@ -50,6 +50,8 @@ export { listCollections } from './v2/common/functions/list-collections.js';
 
 export { saveTrackedSymbol } from './v2/common/functions/save-tracked-symbol.function.js';
 
+export { listSymbolsV2 } from './v2/common/functions/listSymbolsV2.js';
+
 export { requestBenzingaNews } from './v2/benzinga/data-refresher/bz-news-request-manager.js';
 
 // Remove the underscore from the function name then uncomment the next line to export it

@@ -3,9 +3,9 @@ import { db } from '../../../firebase-admin-init';
 
 import { onCall } from 'firebase-functions/v2/https';
 import { FirestoreCollection } from '../firestore-collections';
-import { TrackedSymbol } from '../common-dm';
+import { TrackedSymbolV2 } from '../common-dm';
 import { Timestamp } from 'firebase-admin/firestore';
-import { SaveTrackedSymbolResponse, TrackedSymbolDocument } from '../common-av';
+import { SaveTrackedSymbolResponse } from '../common-av';
 
 /**
  * HTTP Cloud Function to save a tracked symbol to Firestore.
@@ -24,7 +24,7 @@ import { SaveTrackedSymbolResponse, TrackedSymbolDocument } from '../common-av';
  * });
  * ```
  */
-export const saveTrackedSymbol = onCall<Omit<TrackedSymbol, 'createdAt' | 'lastUpdated'>, Promise<SaveTrackedSymbolResponse>>(
+export const saveTrackedSymbol = onCall<Omit<TrackedSymbolV2, '_createdAt' | '_lastUpdated'>, Promise<SaveTrackedSymbolResponse>>(
   { cors: true },
   async (request) => {
     const functionName = 'saveTrackedSymbol';
@@ -59,16 +59,13 @@ export const saveTrackedSymbol = onCall<Omit<TrackedSymbol, 'createdAt' | 'lastU
         .doc(symbolData.symbol.toUpperCase());
 
       // Create the document to save with data and metadata
-      const documentToSave: TrackedSymbolDocument = {
-        data: {
-          ...symbolData,
-        },
-        metadata: {
-          createdAt: now,
-          isActive: true,
-          // TODO: Implement initiating refresh for new symbols when AV premium account is activated
-          refreshEnabled: false
-        }
+      const documentToSave: TrackedSymbolV2 = {
+        ...symbolData,
+        _createdAt: now,
+        _lastUpdated: now,
+        _isActive: true,
+        // TODO: Set to true to enable initiate refresh for new symbols when AV premium account is activated
+        _refreshEnabled: false
       };
 
       // Save to Firestore

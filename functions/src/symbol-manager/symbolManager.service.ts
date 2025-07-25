@@ -8,8 +8,14 @@ import {
   SymbolSyncRequest,
   SymbolSyncResponse,
   ListSymbolsOptions,
-  ListSymbolsResponse
+  ListSymbolsResponse,
 } from '../common/common-dm';
+
+import {
+    TrackedSymbolV2,
+    ListSymbolsV2Response,
+    AvSymbol
+  } from '../v2/common/common-dm';
 
 /**
  * Service for managing symbols in the system
@@ -24,6 +30,9 @@ export class SymbolManagerService {
     this.symbolSearchHandler = new AvSymbolSearchHandler();
   }
 
+
+  /////////////////////// V1 METHODS //////////////////////////
+  
   // Batch size for Firestore operations (for future use)
   // private static readonly BATCH_SIZE = 500;
   /**
@@ -102,7 +111,6 @@ export class SymbolManagerService {
         // For addition, first try to get symbol metadata
         let symbolData: Partial<TrackedSymbol> = {
           symbol,
-          isActive: true,
           refreshEnabled: false, // Set default to false for new symbols
           lastUpdated: now,
           createdAt: now,
@@ -403,6 +411,77 @@ export class SymbolManagerService {
     } catch (error) {
       console.error('sMSvc cIS [SymbolManager] Error cleaning up inactive symbols:', error);
       throw new Error('Failed to clean up inactive symbols');
+    }
+  }
+
+  ////////////////////// V2 METHODS //////////////////////////
+  
+  /**
+   * Lists symbols with pagination and filtering options
+   * @param options - Options for filtering, sorting, and pagination
+   * @returns A promise that resolves to the list of symbols and pagination info
+   * @throws {Error} If an error occurs during the operation
+   */
+  async listSymbolsV2(options: ListSymbolsOptions = {}): Promise<ListSymbolsV2Response> {
+    const { 
+      activeOnly = true, 
+      limit = 100, 
+      offset = 0, 
+      sortBy = 'symbol', 
+      sortDirection = 'asc' 
+    } = options;
+
+    console.log('sMSvc lSV2 begin listSymbolsV2.options: ', options);
+
+    try {
+      const collectionRef = db.collection(FirestoreCollection.TRACKED_SYMBOLS);
+      let query: Query<DocumentData> = collectionRef;
+      
+      if (activeOnly) {
+        console.log('sMSvc lSV2 activeOnly: ', activeOnly);
+        query = query.where('metadata.isActive', '==', true);
+      }
+      
+      // Get total count
+      const countSnapshot = await query.count().get();
+      const total = countSnapshot.data().count;
+      
+      // Apply sorting and pagination
+      const paginatedQuery = query
+        .orderBy(`data.${sortBy}`, sortDirection)
+        .offset(offset)
+        .limit(limit);
+      
+      const snapshot = await paginatedQuery.get();
+
+      const symbols = snapshot.docs.map(doc => {
+        const docData = doc.data();
+        const avSymbol: AvSymbol = docData.data;
+
+        // Helper function to convert existing emulator data until it is converted to TrackedSymbolV2
+        const trackedSymbol: TrackedSymbolV2 = {
+          _createdAt: docData.metadata.createdAt,
+          _lastUpdated: docData.metadata.lastUpdated,
+          _isActive: docData.metadata.isActive,
+          _refreshEnabled: docData.metadata.refreshEnabled,
+          ...avSymbol
+        };
+        // console.log('sMSvc lSV2 fs snapshot docData: ', docData);
+        // console.log('sMSvc lSV2 fs snapshot docData.data: ', docData.data);
+        return trackedSymbol;
+      });
+
+      console.log('sMSvc lSV2 final symbols: ', symbols);
+      
+      return {
+        symbols,
+        total,
+        limit,
+        offset
+      };
+    } catch (error) {
+      console.error('sMSvc lSV2 [SymbolManager] Error listing symbols:', error);
+      throw new Error('Failed to list symbols');
     }
   }
 }
