@@ -1,7 +1,7 @@
 import { ApiProvider } from '../../../common/data-providers';
 import { HttpMethod } from '../../common/enums';
 import { BzEndpointCategory } from '../../common/common-benz';
-import { FirestoreCollection } from '../../../common/firestore-collections';
+import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import {
     BenzingaEndpoint,
     BenzingaRequestConfig,

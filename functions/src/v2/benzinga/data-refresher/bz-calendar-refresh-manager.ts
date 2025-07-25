@@ -5,7 +5,7 @@
 import { db } from '../../../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { FirestoreCollection } from '../../common/firestore-collections';
+import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { EndpointSymbolUsage } from '../../common/common-fn';
 
 import { RefreshInfoService } from '../../services/refresh-info.service';

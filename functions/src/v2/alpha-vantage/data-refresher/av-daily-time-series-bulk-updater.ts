@@ -1,6 +1,6 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db } from '../../../firebase-admin-init';
-import { FirestoreCollection } from '../../common/firestore-collections';
+import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { AlphaVantageEndpoint } from '../../common/common-av';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { AlphaVantageBulkQuotesResponse } from '../handlers/av-bulk-quote.handler';

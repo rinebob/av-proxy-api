@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase-admin/firestore';
 import { DataMaintainerEndpoint } from './common-dm';
-import { FirestoreCollection } from './firestore-collections';
+import { FirestoreCollection } from './firestore/firestore-collections';
 
 /**
  * Status of a refresh event

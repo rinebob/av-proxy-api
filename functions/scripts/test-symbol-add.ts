@@ -1,4 +1,4 @@
-import { FirestoreCollection } from '../src/v2/common/firestore-collections';
+import { FirestoreCollection } from '../src/v2/common/firestore/firestore-collections';
 import { TimeSeriesDocument } from '../src/v2/common/common-av';
 import * as dotenv from 'dotenv';
 import * as path from 'path';

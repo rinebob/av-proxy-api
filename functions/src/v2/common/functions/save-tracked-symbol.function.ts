@@ -2,7 +2,7 @@
 import { db } from '../../../firebase-admin-init';
 
 import { onCall } from 'firebase-functions/v2/https';
-import { FirestoreCollection } from '../firestore-collections';
+import { FirestoreCollection } from '../firestore/firestore-collections';
 import { TrackedSymbolV2 } from '../common-dm';
 import { Timestamp } from 'firebase-admin/firestore';
 import { SaveTrackedSymbolResponse } from '../common-av';

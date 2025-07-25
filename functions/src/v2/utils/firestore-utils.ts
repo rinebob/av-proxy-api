@@ -1,5 +1,5 @@
 // Shared Firestore utilities for data refreshers
-import { FirestoreCollection } from '../common/firestore-collections';
+import { FirestoreCollection } from '../common/firestore/firestore-collections';
 import { ApiProvider } from '../common/data-providers';
 import { EndpointSymbolUsage } from '../common/common-fn';
 

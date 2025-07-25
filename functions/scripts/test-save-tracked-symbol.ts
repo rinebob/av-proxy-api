@@ -14,7 +14,7 @@ if (!process.env['NODE_ENV'] || process.env['NODE_ENV'] !== 'production') {
 import { db } from '../src/firebase-admin-init';
 import axios from 'axios';
 import { TrackedSymbol } from '../src/v2/common/common-dm';
-import { FirestoreCollection } from '../src/v2/common/firestore-collections';
+import { FirestoreCollection } from '../src/v2/common/firestore/firestore-collections';
 
 const args = process.argv.slice(2);
 const isProduction = args.includes('--prod');

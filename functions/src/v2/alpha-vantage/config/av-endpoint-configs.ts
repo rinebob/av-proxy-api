@@ -4,7 +4,7 @@ import {
 import { AlphaVantageEndpoint, OutputSize } from '../../common/common-av';
 import { EndpointSymbolUsage } from '../../common/common-fn';
 import { EndpointConfig } from '../../common/types';
-import { FirestoreCollection } from '../../common/firestore-collections';
+import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { AvEndpointCategory } from '../../common/common-av';
 import { ApiProvider } from '../../common/data-providers';
 

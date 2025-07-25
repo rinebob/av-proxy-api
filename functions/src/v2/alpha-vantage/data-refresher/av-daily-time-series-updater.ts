@@ -3,7 +3,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { AlphaVantageEndpoint } from '../../common/common-av';
 import { db } from '../../../firebase-admin-init';
-import { FirestoreCollection } from '../../common/firestore-collections';
+import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { DAILY_TIME_SERIES_UPDATE_SCHEDULE } from '../../common/function-schedules';
 
 // Helper function to update daily time series with latest quote

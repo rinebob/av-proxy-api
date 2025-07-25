@@ -5,7 +5,7 @@ import { BenzingaHandlerFactory } from "../benzinga-factory";
 import { BenzingaNewsItem, BenzingaNewsRequestConfig, SvtBenzingaNewsItem, SvtBzNewsRequest } from "../../common/common-benz";
 import { BZ_NEWS_REFRESH_SCHEDULE } from "../../common/function-schedules";
 import { Timestamp } from "firebase-admin/firestore";
-import { FirestoreCollection } from "../../common/firestore-collections";
+import { FirestoreCollection } from "../../common/firestore/firestore-collections";
 
 // Document name for tracking bz news requests
 const BZ_NEWS_REQUEST_TRACKING = 'bz-news-request-tracking';

@@ -6,7 +6,7 @@ import { BZ_NEWS_REQUEST_CONFIGS } from '../../benzinga/request-configs/bz-news-
 import { BenzingaNewsParameter, BenzingaNewsRequestConfig, BenzingaRequestId, SvtBzNewsRequest } from '../../common/common-benz';
 import { RequestConfig } from '../../common/types';
 
-import { FirestoreCollection } from '../../common/firestore-collections';
+import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { BZ_NEWS_REFRESH_SCHEDULE } from '../../common/function-schedules';
 
 const BZ_NEWS_REQUEST_CONFIG: BenzingaNewsRequestConfig = BZ_NEWS_REQUEST_CONFIGS[SvtBzNewsRequest.BZ_NEWS] as BenzingaNewsRequestConfig;
