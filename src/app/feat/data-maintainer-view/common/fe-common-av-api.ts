@@ -46,7 +46,7 @@ export function getAlphaVantageEndpointUrl(endpoint: AlphaVantageEndpoint): stri
   // For development, use the full path with function name
   return environment.production 
     ? `${baseUrl}/${endpoint}`
-    : `${baseUrl}/alphaVantageApi/${endpoint}`;
+    : `${baseUrl}/alphaVantageApiV2/${endpoint}`;
 }
 
 /////////////////////////////// TYPES /////////////////////////
