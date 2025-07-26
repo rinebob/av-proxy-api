@@ -19,7 +19,13 @@ const corsMiddleware = cors({
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Firebase-AppCheck'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Firebase-AppCheck',
+    'X-Request-ID',
+    'X-Requested-With',
+  ],
 });
 
 // Correct: Returns a handler, NOT an onRequest
