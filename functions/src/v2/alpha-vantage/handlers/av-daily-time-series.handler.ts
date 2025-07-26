@@ -1,4 +1,5 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
+import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 
 export interface DailyTimeSeriesData {
   date: string;
@@ -11,9 +12,7 @@ export interface DailyTimeSeriesData {
 
 export class AvDailyTimeSeriesHandler extends AlphaVantageBaseHandler<DailyTimeSeriesData[]> {
   protected transformResponse(data: any): DailyTimeSeriesData[] {
-    if (data['Error Message']) {
-      throw new Error(`avDTS.H tR: Alpha Vantage API Error: ${data['Error Message']}`);
-    }
+    validateAlphaVantageApiResponse(data);
     // The Alpha Vantage API returns the time series in a nested object with dynamic keys
     const timeSeries = data['Time Series (Daily)'];
     

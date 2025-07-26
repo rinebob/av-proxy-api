@@ -1,4 +1,5 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
+import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 
 export interface GlobalQuoteData {
   symbol: string;
@@ -15,24 +16,15 @@ export interface GlobalQuoteData {
 
 export class AvGlobalQuoteHandler extends AlphaVantageBaseHandler<GlobalQuoteData> {
   protected transformResponse(data: any): GlobalQuoteData {
-    if (!data) {
-      console.error(`aVB.H transformResponse [${this.requestId}] [GLOBAL-QUOTE] No data received in response`);
-      throw new Error('No data received from Alpha Vantage API');
+    validateAlphaVantageApiResponse(data);
+    if (!data["Global Quote"]) {
+      throw new Error("Invalid response format: Missing Global Quote");
     }
 
     console.log(`aVB.H transformResponse [${this.requestId}] [GLOBAL-QUOTE] Starting response transformation`);
     
     const quote = data['Global Quote'];
     
-    if (!quote) {
-      const errorMsg = 'Invalid response format: Missing Global Quote';
-      console.error(`aVB.H transformResponse [${this.requestId}] [GLOBAL-QUOTE] ${errorMsg}`, { 
-        availableKeys: Object.keys(data),
-        dataSample: JSON.stringify(data).substring(0, 200) + '...' 
-      });
-      throw new Error(errorMsg);
-    }
-
     console.log(`aVB.H transformResponse [${this.requestId}] [GLOBAL-QUOTE] Processing quote for symbol: ${quote['01. symbol']}`);
     
     try {

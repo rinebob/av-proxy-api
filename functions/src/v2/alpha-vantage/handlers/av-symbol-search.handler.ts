@@ -6,6 +6,7 @@ import { ApiResponse } from '../../common/types';
 import { AV_ENDPOINT_CONFIGS } from '../config/av-endpoint-configs';
 import { isAxiosError } from 'axios';
 import { AlphaVantageSymbolSearchResponse, SvtAvSymbolMatch } from '../../common/common-av';
+import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 
 /**
  * Handler for Alpha Vantage SYMBOL_SEARCH endpoint
@@ -65,15 +66,12 @@ export class AvSymbolSearchHandler extends AlphaVantageBaseHandler<SvtAvSymbolMa
    * @param response AlphaVantageSymbolSearchResponse
    * @returns Transformed array of symbol matches
    */
-  protected transformResponse(response: AlphaVantageSymbolSearchResponse): SvtAvSymbolMatch[] {
-    if (!Array.isArray(response.bestMatches)) {
-      console.warn('aSS.H tR Expected array but got:', response);
-      return [];
-    }
+  protected transformResponse(data: AlphaVantageSymbolSearchResponse): SvtAvSymbolMatch[] {
+    validateAlphaVantageApiResponse(data);
 
     const result: SvtAvSymbolMatch[] = [];
     
-    for (const match of response.bestMatches) {
+    for (const match of data.bestMatches) {
       if (!match) continue;
       
       try {

@@ -1,5 +1,6 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { ApiResponse } from '../../common/types';
+import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 
 /**
  * Interface for the company overview data structure returned by Alpha Vantage
@@ -110,22 +111,9 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
    * @returns Transformed company overview data
    */
   protected transformResponse(data: any): CompanyOverviewData {
+    validateAlphaVantageApiResponse(data);
     console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Starting response transformation. data: ${JSON.stringify(data)}`);
     
-    // If the API returns an error message in the response
-    if (data['Error Message']) {
-      const errorMsg = `Alpha Vantage API error: ${data['Error Message']}`;
-      console.error(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] ${errorMsg}`);
-      throw new Error(errorMsg);
-    }
-
-    // If no data is returned
-    if (!data || Object.keys(data).length === 0) {
-      const errorMsg = 'No data returned from Alpha Vantage API';
-      console.error(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] ${errorMsg}`);
-      throw new Error(errorMsg);
-    }
-
     console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Processing company overview for symbol: ${data.Symbol || 'unknown'}`);
 
     try {

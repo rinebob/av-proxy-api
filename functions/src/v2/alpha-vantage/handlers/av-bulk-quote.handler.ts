@@ -1,5 +1,6 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { AlphaVantageEndpoint } from '../../common/common-av';
+import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 
 /**
  * Response format for a single quote in the bulk quotes response
@@ -35,19 +36,7 @@ export class AvBulkQuoteHandler extends AlphaVantageBaseHandler<AlphaVantageBulk
    * Transforms the raw API response into a structured format
    */
   protected transformResponse(data: any): AlphaVantageBulkQuotesResponse {
-    if (!data) {
-      throw new Error('No data received in response');
-    }
-
-    // Check for error messages in the response
-    if (data['Error Message']) {
-      throw new Error(data['Error Message']);
-    }
-
-    if (data['Note']) {
-      console.warn(`Rate limit note: ${data['Note']}`);
-      return { quotes: [], note: data['Note'] };
-    }
+    validateAlphaVantageApiResponse(data);
 
     // The bulk quotes endpoint returns an object with symbol keys
     const quotes: BulkQuoteData[] = [];
