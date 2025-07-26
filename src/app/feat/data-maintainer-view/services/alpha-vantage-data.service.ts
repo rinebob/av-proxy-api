@@ -98,17 +98,17 @@ export class AlphaVantageDataService {
           url: error.url,
           error: error.error
         });
-        
-        // Create a more descriptive error message
-        let errorMessage = 'An unknown error occurred';
+
+        // Prefer the backend's error field if present
+        let errorMessage = error.error?.error || 'An unknown error occurred';
         if (error.status === 0) {
           errorMessage = 'Network error - could not connect to the server';
-        } else if (error.status) {
+        } else if (error.status && !error.error?.error) {
           errorMessage = `Server returned ${error.status}: ${error.statusText || 'Unknown error'}`;
         } else if (error.error instanceof ErrorEvent) {
           errorMessage = `Client-side error: ${error.error.message}`;
         }
-        
+
         return throwError(() => ({
           ok: false,
           error: errorMessage,
