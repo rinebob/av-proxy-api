@@ -46,7 +46,6 @@ const alphaVantageApiHandler = async (req: Request, res: Response) => {
 
     // Get the endpoint config and create the appropriate handler
     console.log(`aVG aVA [${requestId}] [GATEWAY] Creating handler for endpoint: ${endpoint}`);
-    const endpointConfig = AlphaVantageHandlerFactory.getEndpointConfig(endpoint as AlphaVantageEndpoint);
     const handler = AlphaVantageHandlerFactory.createHandler(endpoint as AlphaVantageEndpoint);
     
     if (!handler) {
@@ -69,19 +68,8 @@ const alphaVantageApiHandler = async (req: Request, res: Response) => {
     // Use the public fetch method to handle the request
     const response = await handler.fetch(requestParams);
 
-    // Transform the response to match frontend expectations
-    const frontendResponse = {
-      data: response,
-      metadata: {
-        endpoint: endpointConfig.id,
-        timestamp: new Date().toISOString(),
-        requestId,
-        processingTimeMs: Date.now() - startTime
-      }
-    };
-
-    // Send the raw API response
-    res.status(200).json(frontendResponse);
+    // Send the handler's response directly (new structure)
+    res.status(200).json(response);
     
   } catch (error: unknown) {
     // You can add a handleApiError helper if desired
