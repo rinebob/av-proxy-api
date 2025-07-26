@@ -4,7 +4,7 @@ import { BenzingaEndpoint } from '../../../common/fe-common-bz';
 /**
  * Production URL for the Benzinga API Gateway
  */
-const BZ_GATEWAY_PROD_URL = 'https://benzingaapi-lsluydmucq-uc.a.run.app';
+const BZ_GATEWAY_PROD_URL = 'https://benzingaapiv2-lsluydmucq-uc.a.run.app';
 
 /**
  * Development URL base for the Benzinga API Gateway
