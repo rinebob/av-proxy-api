@@ -11,7 +11,10 @@ import { TimeSeriesInterval } from '../../common/common-fn';
  * Fetches the full time series data for the symbol and saves it to the time-series collection.
  */
 export const onSymbolAdded = onDocumentCreated(
-  `${FirestoreCollection.TRACKED_SYMBOLS}/{symbol}`,
+    {
+        document: `${FirestoreCollection.TRACKED_SYMBOLS}/{symbol}`,
+        secrets: ['ALPHAVANTAGE_API_KEY'],
+    },
   async (event) => {
   // Convert symbol to uppercase immediately when we get it
   const symbol = event.params.symbol.toUpperCase();
@@ -39,6 +42,8 @@ export const onSymbolAdded = onDocumentCreated(
       outputsize: OutputSize.FULL,
       datatype: 'json'
     });
+
+    console.log(`oSA.f oSA: Time series response: ${JSON.stringify(timeSeriesResponse)}`);
     
     const providerMeta = DATA_PROVIDERS[ApiProvider.ALPHA_VANTAGE];
 
