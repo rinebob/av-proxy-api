@@ -1,7 +1,7 @@
 import { db } from '../../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
 import { DocumentPathOptions, RefreshEvent } from '../common/refresh.types';
-import { getDocumentPath } from '../common/firestore-paths';
+import { getDocumentPath } from '../common/firestore/firestore-paths';
 
 export class RefreshLoggerService {
   /**
