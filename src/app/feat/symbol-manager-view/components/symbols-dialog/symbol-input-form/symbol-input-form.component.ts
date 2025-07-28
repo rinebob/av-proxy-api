@@ -57,7 +57,7 @@ export class SymbolInputFormComponent implements OnInit {
       (value) => {
         console.log('sIF sA setupAutocomplete valueChanges: ', value);
         if (typeof value === 'string' && value.trim().length > 1) {
-          this.symbolManagerStore.searchSymbols(value);
+          this.symbolManagerStore.searchSymbolsV2(value);
         }
       }
     );

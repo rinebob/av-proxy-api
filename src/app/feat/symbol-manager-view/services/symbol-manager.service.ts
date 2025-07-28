@@ -1,7 +1,7 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, catchError, finalize, from, map, of, tap } from 'rxjs';
+import { Observable, catchError, finalize, from, map, of, tap, throwError } from 'rxjs';
 import { processTimestamps } from '../../../shared/utils/date-utils';
 import { 
   DataMaintainerFunctionName, 
@@ -10,12 +10,12 @@ import {
   SyncSymbolsRequest, 
   SyncSymbolsResponse,
   TrackedSymbol,
-  AvSymbolSearchResult,
   getDataMaintainerFunctionUrl,
   SvtAvSymbolMatch,
 } from '../../data-maintainer-view/common/fe-common-dm-api';
 import { AlphaVantageFunctions } from '../../../common/fe-common-app';
-import { SaveTrackedSymbolRequest, SaveTrackedSymbolResponse } from '../../data-maintainer-view/common/fe-common-av-api';
+import { AlphaVantageEndpoint,  } from '../../../common/fe-common-av';
+import { getAlphaVantageEndpointUrl, AlphaVantageApiResponse, SaveTrackedSymbolRequest, SaveTrackedSymbolResponse } from '../../data-maintainer-view/common/fe-common-av-api';
 import { ListSymbolsV2Response, TrackedSymbolV2 } from '../../data-maintainer-view/common/fe-common-av-api-v2';
 
 /**
@@ -338,7 +338,6 @@ export class SymbolManagerService {
     );
   }
 
-  /////////////////////// V2 METHODS ////////////////////////////////
 
   /**
    * Searches for symbols using the deployed symbol search Cloud Function
@@ -400,6 +399,8 @@ export class SymbolManagerService {
       })
     );
   }
+
+  /////////////////////// V2 METHODS ////////////////////////////////
 
   /**
    * Saves a new symbol to be tracked using a Firebase Callable Function.
@@ -495,6 +496,46 @@ export class SymbolManagerService {
           error: error.message || 'Failed to fetch symbols', 
           symbols: [] 
         });
+      })
+    );
+  }
+
+  /**
+   * Performs a SYMBOL_SEARCH Alpha Vantage request using the alphaVantageApiV2 cloud function.
+   * @param keywords The search keywords (e.g., 'microsoft')
+   * @returns Observable with the API response
+   */
+  searchSymbolsV2(keywords: string): Observable<AlphaVantageApiResponse<any>> {
+    if (!keywords?.trim()) {
+      return throwError(() => new Error('No keywords provided for symbol search'));
+    }
+    const endpoint = AlphaVantageEndpoint.SYMBOL_SEARCH;
+    const baseUrl = getAlphaVantageEndpointUrl(endpoint);
+    const requestId = Math.random().toString(36).substring(2, 9);
+
+    console.group(`🟢 sMSvc sSAV2 [${requestId}] SYMBOL_SEARCH Request`);
+    console.log('Endpoint:', endpoint);
+    console.log('Keywords:', keywords);
+    console.groupEnd();
+
+    // Send keywords as query param in a GET request
+    const params = new URLSearchParams({ keywords: keywords.trim() });
+    const urlWithParams = `${baseUrl}?${params.toString()}`;
+
+    return this.http.get<AlphaVantageApiResponse<any>>(urlWithParams).pipe(
+      tap(response => {
+        const duration = Date.now();
+        console.group(`🟢 sMSvc sSAV2 [${requestId}] SYMBOL_SEARCH Response`);
+        console.log('Status:', response.ok ? 'Success' : 'Error');
+        console.log('Response Data:', response);
+        console.groupEnd();
+      }),
+      catchError((error: HttpErrorResponse) => {
+        const duration = Date.now();
+        console.group(`🔴 sMSvc sSAV2 [${requestId}] SYMBOL_SEARCH Error`);
+        console.error('Error:', error);
+        console.groupEnd();
+        return throwError(() => error);
       })
     );
   }
