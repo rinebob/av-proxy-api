@@ -72,24 +72,27 @@ const alphaVantageApiHandler = async (req: Request, res: Response) => {
     res.status(200).json(response);
     
   } catch (error: unknown) {
-    // You can add a handleApiError helper if desired
+    // Robust error message extraction
     console.error(`aVG aVA [${requestId}] [GATEWAY] Unhandled error:`, error);
     let message = 'An unknown error occurred';
     let code = 'UNKNOWN_ERROR';
     let details: any = {};
     let statusCode = 500;
 
-    if (error instanceof Error) {
-      message = error.message;
-      if ('code' in error && typeof (error as any).code === 'string') {
-        code = (error as any).code;
+    if (typeof error === 'string' && error.trim()) {
+      message = error;
+    } else if (error instanceof Error) {
+      message = error.message || message;
+      if ('code' in error && typeof (error as any).code === 'string') code = (error as any).code;
+      if ('details' in error) details = (error as any).details;
+      if ('statusCode' in error && typeof (error as any).statusCode === 'number') statusCode = (error as any).statusCode;
+    } else if (error && typeof error === 'object') {
+      if ('message' in error && typeof (error as any).message === 'string' && (error as any).message.trim()) {
+        message = (error as any).message;
       }
-      if ('details' in error) {
-        details = (error as any).details;
-      }
-      if ('statusCode' in error && typeof (error as any).statusCode === 'number') {
-        statusCode = (error as any).statusCode;
-      }
+      if ('code' in error && typeof (error as any).code === 'string') code = (error as any).code;
+      if ('details' in error) details = (error as any).details;
+      if ('statusCode' in error && typeof (error as any).statusCode === 'number') statusCode = (error as any).statusCode;
     }
 
     const errorResponse = {
@@ -100,6 +103,7 @@ const alphaVantageApiHandler = async (req: Request, res: Response) => {
       requestId,
       processingTimeMs: Date.now() - startTime
     };
+    console.error('Sending error response to client:', errorResponse);
     res.status(statusCode).json(errorResponse);
   } finally {
     console.log(`aVG aVA [${requestId}] [GATEWAY] Request completed in ${Date.now() - startTime}ms`);
