@@ -39,7 +39,6 @@ const HANDLER_MAP: Record<HandlerKey, new (config: BenzingaRequestConfig) => Ben
   [BzCalendarRequestType.OFFERINGS]: BenzingaCalendarHandler,
   [BzCalendarRequestType.ECONOMICS]: BenzingaCalendarHandler,
   [BzCalendarRequestType.IPOS]: BenzingaCalendarHandler,
-  [BzCalendarRequestType.FDA]: BenzingaCalendarHandler,
   [BzCalendarRequestType.MERGERS_ACQUISITIONS]: BenzingaCalendarHandler,
   
   // News endpoints

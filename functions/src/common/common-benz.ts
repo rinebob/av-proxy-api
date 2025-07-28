@@ -147,7 +147,6 @@ export enum BzCalendarRequestType {
     OFFERINGS = 'offerings',
     ECONOMICS = 'economics',
     IPOS = 'ipos',
-    FDA = 'fda',
     MERGERS_ACQUISITIONS = 'ma' // matches Benzinga API endpoint
 }
 

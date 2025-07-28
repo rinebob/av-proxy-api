@@ -257,19 +257,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
           ...BZ_CALENDAR_COMMON_PARAMS
         ],
       },
-      [BzCalendarRequestType.FDA]: {
-        ...BASE_CALENDAR_REQUEST_CONFIG,
-        id: BzCalendarRequestType.FDA,
-        symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
-        name: 'FDA Calendar',
-        apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.FDA}`,
-        description: 'Returns FDA calendar data',
-        requiresSymbol: false,
-        firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.FDA}`,
-        parameterKeys: [
-          ...BZ_CALENDAR_COMMON_PARAMS
-        ],
-      },
       [BzCalendarRequestType.MERGERS_ACQUISITIONS]: {
         ...BASE_CALENDAR_REQUEST_CONFIG,
         id: BzCalendarRequestType.MERGERS_ACQUISITIONS,
