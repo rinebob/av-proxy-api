@@ -13,6 +13,7 @@ import { BenzingaHandlerFactory } from '../../benzinga/benzinga-factory';
 import type { HandlerKey } from '../../benzinga/benzinga-factory';
 import { BZ_CALENDAR_REQUEST_CONFIGS } from '../../benzinga/request-configs/bz-calendar-request-configs';
 import { BZ_CALENDAR_REFRESH_SCHEDULE } from '../../common/function-schedules';
+import { formatTtlSeconds } from '../../utils/utils';
 
 // Firestore utilities
 import { 
@@ -24,8 +25,6 @@ const pr = true;
 function logBZDM(message: string, ...args: any[]) {
     if (pr) console.log(`${message}`, ...args);
 }
-
-const REFRESH_PROCESS_NAME = 'bz-calendar-refresh-manager';
 
 // Main scheduled function for refreshing Benzinga data
 export const refreshBenzingaCalendarDataV2 = onSchedule(
@@ -187,12 +186,30 @@ export const refreshBenzingaCalendarDataV2 = onSchedule(
                         },
                         {
                             ttlSeconds: ttl,
-                            refreshedBy: REFRESH_PROCESS_NAME,
-                            nextRefreshBy: REFRESH_PROCESS_NAME,
+                            refreshedBy: endpointName,
+                            nextRefreshBy: endpointName,
                         }
                     );
                     logBZDM(`bCRM rBD: Successfully wrote data for ${displayName} ${endpointName} to ${docPath}`);
                     logBZDM(`----------- bCRM rBD: END WRITE TO FIRESTORE FOR [${displayName} ${endpointName}] -------------`);
+
+                    // --- Update company-data/<symbol> metadata fields ---
+                    if (requiresSymbol && symbol) {
+                        const companyDocPath = `company-data/${symbol}`;
+                        const companyDocRef = db.doc(companyDocPath);
+                        // Use the provided local time as the source of truth
+                        const lastRefreshedAt = new Date();
+                        const nextRefreshAt = new Date(lastRefreshedAt.getTime() + ttl * 1000);
+                        
+                        await companyDocRef.set({
+                            lastRefreshedAt,
+                            lastRefreshedBy: endpointName,
+                            nextRefreshAt,
+                            nextRefreshBy: endpointName,
+                            ttlHuman: formatTtlSeconds(ttl),
+                        }, { merge: true });
+                        logBZDM(`bCRM rBD: Updated company-data/${symbol} metadata fields.`);
+                    }
 
                 } catch (error: any) {
                     const durationMs = Date.now() - apiStart;
@@ -212,8 +229,8 @@ export const refreshBenzingaCalendarDataV2 = onSchedule(
                         },
                         {
                             ttlSeconds: ttl,
-                            refreshedBy: REFRESH_PROCESS_NAME,
-                            nextRefreshBy: REFRESH_PROCESS_NAME,
+                            refreshedBy: endpointName,
+                            nextRefreshBy: endpointName,
                         }
                     );
                     logBZDM(`bCRM rBD: Successfully logged failure for ${displayName} ${endpointName} to ${docPath}`);
