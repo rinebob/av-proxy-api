@@ -143,7 +143,7 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
         name: 'Earnings',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.EARNINGS}`,
         description: 'Returns earnings data for companies',
-        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/bz-${FirestoreCollection.EARNINGS}`,
+        firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/bz-${FirestoreCollection.EARNINGS}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS,
           BenzingaCalendarParameter.DATE_SORT,
@@ -158,7 +158,7 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
         name: 'Dividends',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.DIVIDENDS}`,
         description: 'Returns dividend data for companies',
-        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.DIVIDENDS}/bz-${FirestoreCollection.DIVIDENDS}`,
+        firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DIVIDENDS}/bz-${FirestoreCollection.DIVIDENDS}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS,
           BenzingaCalendarParameter.TICKERS,
@@ -172,7 +172,7 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
         name: 'Conference Calls',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.CONFERENCE_CALLS}`,
         description: 'Returns conference call information',
-        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.CONFERENCE_CALLS}/bz-${FirestoreCollection.CONFERENCE_CALLS}`,
+        firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.CONFERENCE_CALLS}/bz-${FirestoreCollection.CONFERENCE_CALLS}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS,
           BenzingaCalendarParameter.TICKERS
@@ -185,7 +185,7 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
         name: 'Analyst Ratings',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.RATINGS}`,
         description: 'Returns analyst ratings for companies',
-        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.RATINGS}/bz-${FirestoreCollection.RATINGS}`,
+        firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.RATINGS}/bz-${FirestoreCollection.RATINGS}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS,
           BenzingaCalendarParameter.TICKERS,
@@ -199,7 +199,7 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
         name: 'Guidance',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.GUIDANCE}`,
         description: 'Returns company guidance',
-        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.GUIDANCE}/bz-${FirestoreCollection.GUIDANCE}`,
+        firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.GUIDANCE}/bz-${FirestoreCollection.GUIDANCE}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS,
           BenzingaCalendarParameter.TICKERS
@@ -212,7 +212,7 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
         name: 'Stock Splits',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.SPLITS}`,
         description: 'Returns stock split information',
-        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.SPLITS}/bz-${FirestoreCollection.SPLITS}`,
+        firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.SPLITS}/bz-${FirestoreCollection.SPLITS}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS,
           BenzingaCalendarParameter.TICKERS
@@ -225,7 +225,7 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
         name: 'Offerings',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.OFFERINGS}`,
         description: 'Returns company offerings',
-        firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.OFFERINGS}/bz-${FirestoreCollection.OFFERINGS}`,
+        firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.OFFERINGS}/bz-${FirestoreCollection.OFFERINGS}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS,
           BenzingaCalendarParameter.TICKERS

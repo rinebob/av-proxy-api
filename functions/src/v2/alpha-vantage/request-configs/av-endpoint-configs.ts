@@ -25,7 +25,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 24 hours
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#daily',
     parameters: {
       symbol: {
@@ -81,7 +81,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 5 * 60, // 5 minutes
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.INTRADAY}/av-${FirestoreCollection.INTRADAY}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.INTRADAY}/av-${FirestoreCollection.INTRADAY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#intraday',
     parameters: {
       symbol: {
@@ -115,7 +115,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 24 hours
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.DAILY_ADJUSTED}/av-${FirestoreCollection.DAILY_ADJUSTED}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY_ADJUSTED}/av-${FirestoreCollection.DAILY_ADJUSTED}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#dailyadj',
     parameters: {
       symbol: {
@@ -143,7 +143,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.WEEKLY}/av-${FirestoreCollection.WEEKLY}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.WEEKLY}/av-${FirestoreCollection.WEEKLY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#weekly',
     parameters: {
       symbol: {
@@ -165,7 +165,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.WEEKLY_ADJUSTED}/av-${FirestoreCollection.WEEKLY_ADJUSTED}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.WEEKLY_ADJUSTED}/av-${FirestoreCollection.WEEKLY_ADJUSTED}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#weeklyadj',
     parameters: {
       symbol: {
@@ -187,7 +187,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 30 * 24 * 60 * 60, // 30 days
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.MONTHLY}/av-${FirestoreCollection.MONTHLY}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.MONTHLY}/av-${FirestoreCollection.MONTHLY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#monthly',
     parameters: {
       symbol: {
@@ -209,7 +209,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 30 * 24 * 60 * 60, // 30 days
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.MONTHLY_ADJUSTED}/av-${FirestoreCollection.MONTHLY_ADJUSTED}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.MONTHLY_ADJUSTED}/av-${FirestoreCollection.MONTHLY_ADJUSTED}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#monthlyadj',
     parameters: {
       symbol: {
@@ -232,7 +232,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 5 * 60, // 5 minutes
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.TIME_SERIES}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#latestprice',
     parameters: {
       symbol: {
@@ -420,28 +420,28 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     },
   },
   
-  // Search symbols
-  [AlphaVantageEndpoint.SYMBOL_SEARCH]: {
-    id: AlphaVantageEndpoint.SYMBOL_SEARCH,
-    name: 'Symbol Search',
-    provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.SEARCH,
-    apiEndpoint: '/query',
-    method: HttpMethod.GET,
-    description: 'Search for symbols and companies based on keywords',
-    ttl: 30 * 24 * 60 * 60, // 30 days in seconds
-    requiresSymbol: false,
-    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
-    firestorePath: FirestoreCollection.DATA_POINTS,
-    documentationUrl: 'https://www.alphavantage.co/documentation/#symbolsearch',
-    parameters: {
-      keywords: {
-        type: 'string',
-        required: true,
-        description: 'A text string of your choice. For example: keywords=microsoft.',
-      },
-    },
-  },
+//   // Search symbols
+//   [AlphaVantageEndpoint.SYMBOL_SEARCH]: {
+//     id: AlphaVantageEndpoint.SYMBOL_SEARCH,
+//     name: 'Symbol Search',
+//     provider: ApiProvider.ALPHA_VANTAGE,
+//     category: AvEndpointCategory.SEARCH,
+//     apiEndpoint: '/query',
+//     method: HttpMethod.GET,
+//     description: 'Search for symbols and companies based on keywords',
+//     ttl: 30 * 24 * 60 * 60, // 30 days in seconds
+//     requiresSymbol: false,
+//     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
+//     firestorePath: FirestoreCollection.DATA_POINTS,
+//     documentationUrl: 'https://www.alphavantage.co/documentation/#symbolsearch',
+//     parameters: {
+//       keywords: {
+//         type: 'string',
+//         required: true,
+//         description: 'A text string of your choice. For example: keywords=microsoft.',
+//       },
+//     },
+//   },
   
   // Economic Indicators (don't require a symbol)
   [AlphaVantageEndpoint.REAL_GDP]: {

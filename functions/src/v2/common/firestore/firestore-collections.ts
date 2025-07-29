@@ -5,104 +5,107 @@ export enum FirestoreCollection {
 
     ////////////// COPY ALL COLLECTIONS TO FRONTEND START HERE ////////////////
 
-  // Top-level Collections
-  TRACKED_SYMBOLS = "tracked-symbols",
-  COMPANY_DATA = "company-data",
-  MARKET_DATA = "market-data",
-  ECONOMICS = 'economics',
-  NEWS = 'news',
-  SYSTEM_INFO = 'system-info',
-  TIME_SERIES = 'time-series',
-  
-  // LEGACY - refactor to use above core collections
-  ECONOMIC_INDICATORS = "economic-indicators",
-  DATA_POINTS = "data-points",
-  
-  // Refresh Tracking - now deprecated
-  REFRESH_EVENTS = "refresh-events",
-  REFRESH_HISTORY = "refresh-history",
-  
-  //////// ALPHA VANTAGE APIS USED AS COLLECTION NAMES ///////////////////
-  // Time series data
-  INTRADAY = 'intraday',
-  DAILY = 'daily',
-  DAILY_ADJUSTED = 'daily-adjusted',
-  WEEKLY = 'weekly',
-  WEEKLY_ADJUSTED = 'weekly-adjusted',
-  MONTHLY = 'monthly',
-  MONTHLY_ADJUSTED = 'monthly-adjusted',
+    // Top-level Collections
+    TRACKED_SYMBOLS = "tracked-symbols",
+    SYMBOL_DATA = "symbol-data",
+    MARKET_DATA = "market-data",
+    ECONOMICS = 'economics',
+    NEWS = 'news',
+    SYSTEM_INFO = 'system-info',
 
-  // AlphaIntelligence Collections
-  // Will be under company-data
-  NEWS_SENTIMENTS = 'news-sentiments',
-  EARNINGS_CALL_TRANSCRIPT = 'earnings-call-transcript',
-  INSIDER_TRANSACTIONS = 'insider-transactions',
-  ALYTICS_FIXED_WINDOW = 'analytics-fixed-window',
-  ALYTICS_SLIDING_WINDOW = 'analytics-sliding-window',
-  // Will be under market data
-  TOP_GAINERS_LOSERS = 'top-gainers-losers',
-  
-  // Fundamental data
-  // Will be under company-data
-  COMPANY_OVERVIEW = 'company-overview',
-  ETF_PROFILE_HOLDINGS = 'etf-profile-holdings',
-  CORPORATE_ACTION_DIVIDENDS = 'corporate-action-dividends',
-  CORPORATE_ACTION_SPLITS = 'corporate-action-splits',
-  INCOME_STATEMENT = 'income-statement',
-  BALANCE_SHEET = 'balance-sheet',
-  CASH_FLOW = 'cash-flow',
-  EARNINGS = 'earnings',
-  LISTING_DELISTING_STATUS = 'listing-delisting-status',
-  EARNINGS_CALENDAR = 'earnings-calendar',
-  IPO_CALENDAR = 'ipo-calendar',
+    // Deprecated
+    COMPANY_DATA = "company-data",
+    TIME_SERIES = 'time-series',
 
-  // Economic Indicators
-  // Will be under economic-indicators
-  REAL_GDP = 'real-gdp',
-  REAL_GDP_PER_CAPITA = 'real-gdp-per-capita',
-  TREASURY_YIELD = 'treasury-yield',
-  FEDERAL_FUNDS_RATE = 'federal-funds-rate',
-  CPI = 'cpi',
-  INFLATION = 'inflation',
-  RETAIL_SALES = 'retail-sales',
-  DURABLE_GOODS_ORDERS = 'durable-goods-orders',
-  UNEMPLOYMENT_RATE = 'unemployment-rate',
-  NONFARM_PAYROLL = 'nonfarm-payroll',
+    // LEGACY - refactor to use above core collections
+    ECONOMIC_INDICATORS = "economic-indicators",
+    // DATA_POINTS = "data-points",
 
-  ///////////// END ALPHA VANTAGE ///////////////
+    // Refresh Tracking - now deprecated
+    REFRESH_EVENTS = "refresh-events",
+    REFRESH_HISTORY = "refresh-history",
 
-  /////////////////// BENZINGA ///////////////////
-  
-  BENZINGA = 'benzinga',
+    //////// ALPHA VANTAGE APIS USED AS COLLECTION NAMES ///////////////////
+    // Time series data
+    INTRADAY = 'intraday',
+    DAILY = 'daily',
+    DAILY_ADJUSTED = 'daily-adjusted',
+    WEEKLY = 'weekly',
+    WEEKLY_ADJUSTED = 'weekly-adjusted',
+    MONTHLY = 'monthly',
+    MONTHLY_ADJUSTED = 'monthly-adjusted',
 
-  DIVIDENDS = 'dividends',
-  CONFERENCE_CALLS = 'conference-calls',
-  RATINGS = 'ratings',
-  GUIDANCE = 'guidance',
-  SPLITS = 'splits',
-  OFFERINGS = 'offerings',
+    // AlphaIntelligence Collections
+    // Will be under company-data
+    NEWS_SENTIMENTS = 'news-sentiments',
+    EARNINGS_CALL_TRANSCRIPT = 'earnings-call-transcript',
+    INSIDER_TRANSACTIONS = 'insider-transactions',
+    ALYTICS_FIXED_WINDOW = 'analytics-fixed-window',
+    ALYTICS_SLIDING_WINDOW = 'analytics-sliding-window',
+    // Will be under market data
+    TOP_GAINERS_LOSERS = 'top-gainers-losers',
 
-  ECONOMIC_CALENDAR = 'economic-calendar',
-  IPOS = 'ipos',
-  FDA = 'fda',
-  MERGERS_ACQUISITIONS = 'mergers-acquisitions',
+    // Fundamental data
+    // Will be under company-data
+    COMPANY_OVERVIEW = 'company-overview',
+    ETF_PROFILE_HOLDINGS = 'etf-profile-holdings',
+    CORPORATE_ACTION_DIVIDENDS = 'corporate-action-dividends',
+    CORPORATE_ACTION_SPLITS = 'corporate-action-splits',
+    INCOME_STATEMENT = 'income-statement',
+    BALANCE_SHEET = 'balance-sheet',
+    CASH_FLOW = 'cash-flow',
+    EARNINGS = 'earnings',
+    LISTING_DELISTING_STATUS = 'listing-delisting-status',
+    EARNINGS_CALENDAR = 'earnings-calendar',
+    IPO_CALENDAR = 'ipo-calendar',
 
-  
-  // Why Is It Moving?
-  WIIM = 'wiim',
-  METADATA = '_metadata',
-  
+    // Economic Indicators
+    // Will be under economic-indicators
+    REAL_GDP = 'real-gdp',
+    REAL_GDP_PER_CAPITA = 'real-gdp-per-capita',
+    TREASURY_YIELD = 'treasury-yield',
+    FEDERAL_FUNDS_RATE = 'federal-funds-rate',
+    CPI = 'cpi',
+    INFLATION = 'inflation',
+    RETAIL_SALES = 'retail-sales',
+    DURABLE_GOODS_ORDERS = 'durable-goods-orders',
+    UNEMPLOYMENT_RATE = 'unemployment-rate',
+    NONFARM_PAYROLL = 'nonfarm-payroll',
+
+    ///////////// END ALPHA VANTAGE ///////////////
+
+    /////////////////// BENZINGA ///////////////////
+
+    BENZINGA = 'benzinga',
+
+    DIVIDENDS = 'dividends',
+    CONFERENCE_CALLS = 'conference-calls',
+    RATINGS = 'ratings',
+    GUIDANCE = 'guidance',
+    SPLITS = 'splits',
+    OFFERINGS = 'offerings',
+
+    ECONOMIC_CALENDAR = 'economic-calendar',
+    IPOS = 'ipos',
+    FDA = 'fda',
+    MERGERS_ACQUISITIONS = 'mergers-acquisitions',
 
 
-  /////////////////// END BENZINGA ///////////////////
-  
-
-  // For disabling / not implementing an endpoint
-  DISABLED = 'disabled',
-  DO_NOT_IMPLEMENT = 'do-not-implement',
+    // Why Is It Moving?
+    WIIM = 'wiim',
+    METADATA = '_metadata',
 
 
-  /////////////// END COPY REGION ///////////////////////////
+
+    /////////////////// END BENZINGA ///////////////////
+
+
+    // For disabling / not implementing an endpoint
+    DISABLED = 'disabled',
+    DO_NOT_IMPLEMENT = 'do-not-implement',
+
+
+    /////////////// END COPY REGION ///////////////////////////
 }
 
 
@@ -115,41 +118,47 @@ export interface CollectionInfo {
 }
 
 export const TOP_LEVEL_COLLECTIONS: CollectionInfo[] = [
-    { 
-      id: FirestoreCollection.COMPANY_DATA, 
-      name: 'Company Data', 
-      description: 'Company information and metrics',
-      isSubcollection: false
+    {
+        id: FirestoreCollection.SYMBOL_DATA,
+        name: 'Company Data',
+        description: 'Company information and metrics',
+        isSubcollection: false
     },
-    { 
-      id: FirestoreCollection.MARKET_DATA, 
-      name: 'Market Data', 
-      description: 'Market prices and trading data',
-      isSubcollection: false
+    {
+        id: FirestoreCollection.COMPANY_DATA,
+        name: 'Company Data',
+        description: 'Company information and metrics',
+        isSubcollection: false
     },
-    { 
-      id: FirestoreCollection.NEWS, 
-      name: 'News', 
-      description: 'News articles and updates',
-      isSubcollection: false
+    {
+        id: FirestoreCollection.MARKET_DATA,
+        name: 'Market Data',
+        description: 'Market prices and trading data',
+        isSubcollection: false
     },
-    { 
-      id: FirestoreCollection.ECONOMICS, 
-      name: 'Economics', 
-      description: 'Economic data and metrics',
-      isSubcollection: false
+    {
+        id: FirestoreCollection.NEWS,
+        name: 'News',
+        description: 'News articles and updates',
+        isSubcollection: false
     },
-    { 
-      id: FirestoreCollection.TIME_SERIES, 
-      name: 'Time Series', 
-      description: 'Time series data',
-      isSubcollection: false
+    {
+        id: FirestoreCollection.ECONOMICS,
+        name: 'Economics',
+        description: 'Economic data and metrics',
+        isSubcollection: false
     },
-    { 
-      id: FirestoreCollection.TRACKED_SYMBOLS, 
-      name: 'Tracked Symbols', 
-      description: 'Symbols being tracked in the system',
-      isSubcollection: false
+    {
+        id: FirestoreCollection.TIME_SERIES,
+        name: 'Time Series',
+        description: 'Time series data',
+        isSubcollection: false
+    },
+    {
+        id: FirestoreCollection.TRACKED_SYMBOLS,
+        name: 'Tracked Symbols',
+        description: 'Symbols being tracked in the system',
+        isSubcollection: false
     }
 ];
 
