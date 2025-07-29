@@ -3,7 +3,7 @@ import {
   AlphaVantageEndpoint, 
 } from '../../common/common-av';
 import { ApiResponse } from '../../common/types';
-import { AV_ENDPOINT_CONFIGS } from '../config/av-endpoint-configs';
+import { AV_ENDPOINT_CONFIGS } from '../request-configs/av-endpoint-configs';
 import { isAxiosError } from 'axios';
 import { AlphaVantageSymbolSearchResponse, SvtAvSymbolMatch } from '../../common/common-av';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';

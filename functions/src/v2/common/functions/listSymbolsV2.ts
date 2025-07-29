@@ -1,6 +1,6 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { ListSymbolsOptions, serializeTrackedSymbols } from "../common-dm";
-import { symbolManagerService } from "../../../symbol-manager/symbolManager.service";
+import { symbolManagerService } from "../../alpha-vantage/services/symbol-manager.service";
 
 /**
  * HTTP endpoint for listing tracked symbols

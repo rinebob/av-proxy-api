@@ -1,17 +1,17 @@
-import { ApiProvider } from '../../../common/data-providers';
+import { ApiProvider } from '../../common/data-providers';
 import { HttpMethod } from '../../common/enums';
-import { BzEndpointCategory } from '../../common/common-benz';
 import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import {
     BenzingaEndpoint,
+    BzEndpointCategory,
     BenzingaRequestConfig,
     BenzingaCalendarParameter,
     BzCalendarRequestType,
-} from '../../../common/common-benz';
+} from '../../common/common-benz';
 import { EndpointConfig } from '../../common/types';
 
 // Benzinga-specific endpoint config interface
-import { EndpointSymbolUsage } from '../../../common/common-fn';
+import { EndpointSymbolUsage } from '../../common/common-fn';
 
 // Shared parameter definitions map
 export const BZ_CALENDAR_PARAMETER_DEFS: Record<BenzingaCalendarParameter, any> = {
@@ -106,7 +106,7 @@ const BASE_CALENDAR_REQUEST_CONFIG: Omit<EndpointConfig, 'id' | 'name' | 'apiEnd
     provider: ApiProvider.BENZINGA,
     category: BzEndpointCategory.BENZINGA_CALENDAR,
     method: HttpMethod.GET,
-    ttl: 2 * 60, // 2 minutes
+    ttl: 60 * 60, // 1 hour
     requiresSymbol: true,
     parameters: {
         [BenzingaCalendarParameter.DATE_FROM]: {

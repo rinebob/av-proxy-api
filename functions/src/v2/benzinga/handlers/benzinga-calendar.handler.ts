@@ -1,4 +1,4 @@
-import { BenzingaRequestConfig } from '../../../common/common-benz';
+import { BenzingaRequestConfig } from '../../common/common-benz';
 import { BenzingaBaseHandler } from './benzinga-base.handler';
 
 export interface CalendarEvent {

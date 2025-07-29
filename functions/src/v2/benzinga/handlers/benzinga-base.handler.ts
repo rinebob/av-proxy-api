@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
 import { ApiResponse, ApiError } from '../../common/types';
-import { BenzingaRequestConfig, BENZINGA_API_BASE_URL } from '../../../common/common-benz';
+import { BenzingaRequestConfig, BENZINGA_API_BASE_URL } from '../../common/common-benz';
 
 export abstract class BenzingaBaseHandler<T = any> {
   protected readonly config: BenzingaRequestConfig;

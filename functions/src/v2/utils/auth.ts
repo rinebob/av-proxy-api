@@ -1,4 +1,5 @@
-import { admin } from '../../firebase-admin-init';
+import * as admin from 'firebase-admin';
+import { admin as centralizedAdmin } from '../../firebase-admin-init';
 
 // Initialize Firebase Admin if not already done
 if (!admin.apps.length) {
@@ -11,7 +12,7 @@ if (!admin.apps.length) {
         credential: admin.credential.applicationDefault(),
         databaseURL: 'http://localhost:8080?ns=alpha-vantage-proxy-api'
       });
-      
+
       // Point to the auth emulator
       process.env.FIREBASE_AUTH_EMULATOR_HOST = 'localhost:9099';
     } else {
@@ -53,7 +54,7 @@ export async function authenticateFirebaseUser(
     console.log(`Auth Emulator Host from env: ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
 
     // verifyIdToken will automatically use the emulator if the host env var is set.
-    const decodedToken = await admin.auth().verifyIdToken(token, true);
+    const decodedToken = await centralizedAdmin.auth().verifyIdToken(token, true);
     console.log('ID token verified successfully. UID:', decodedToken.uid);
     return decodedToken;
 
@@ -62,7 +63,7 @@ export async function authenticateFirebaseUser(
     console.error(`Error Code: ${error.code}`);
     // Provide specific guidance for the most likely error cause.
     if (error.code === 'auth/argument-error') {
-        console.error('Detailed error: The ID token is malformed or has an invalid signature. This can happen if the token is signed with a different project\'s service account, or if the Auth emulator is not configured correctly on the backend.');
+      console.error('Detailed error: The ID token is malformed or has an invalid signature. This can happen if the token is signed with a different project\'s service account, or if the Auth emulator is not configured correctly on the backend.');
     }
     return null;
   }
@@ -79,7 +80,7 @@ export async function validateFirebaseAuth(
   res: any
 ): Promise<admin.auth.DecodedIdToken | null> {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     console.warn('No authorization token found');
     res.status(401).json({ error: 'Unauthorized', message: 'No authentication token provided' });

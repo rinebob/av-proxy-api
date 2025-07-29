@@ -1,8 +1,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { EndpointConfig, ApiResponse, ApiError } from '../../common/types';
 import { saveAvData } from '../av-firestore-helper';
-import { API_CONSTANTS } from '../../../common/api-constants';
-import { AlphaVantageEndpoint } from '../../../common/common-av';
+import { API_CONSTANTS } from '../../common/api-constants';
+import { AlphaVantageEndpoint } from '../../common/common-av';
 
 function getAlphaVantageApiKey(): string {
   if (process.env.FUNCTIONS_EMULATOR === 'true' && process.env.LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY) {

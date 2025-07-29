@@ -137,7 +137,6 @@ export enum BzCompanyDataCalendarType {
 export enum BzMarketDataCalendarType {
   ECONOMICS = 'economics',
   IPOS = 'ipos',
-  FDA = 'fda',
   MERGERS_ACQUISITIONS = 'ma' // matches Benzinga API endpoint
 }
 
@@ -159,7 +158,6 @@ export enum BzCalendarRequestType {
     OFFERINGS = 'offerings',
     ECONOMICS = 'economics',
     IPOS = 'ipos',
-    FDA = 'fda',
     MERGERS_ACQUISITIONS = 'ma' // matches Benzinga API endpoint
 }
 
@@ -296,7 +294,6 @@ export interface BZCalendarResponseMap {
   [BzMarketDataCalendarType.ECONOMICS]: any[];
   [BzMarketDataCalendarType.IPOS]: any[];
   [BzCompanyDataCalendarType.CONFERENCE_CALLS]: BenzingaConferenceCallItem[];
-  [BzMarketDataCalendarType.FDA]: any[];
   [BzMarketDataCalendarType.MERGERS_ACQUISITIONS]: any[];
   [BzCompanyDataCalendarType.RATINGS]: BenzingaRatingItem[];
   [BzCompanyDataCalendarType.GUIDANCE]: any[];

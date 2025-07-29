@@ -1,7 +1,7 @@
 import { ApiProvider } from '../../common/data-providers';
 import { HttpMethod } from '../../common/enums';
 import { BzEndpointCategory } from '../../common/common-benz';
-import { FirestoreCollection } from '../../common/firestore-collections';
+import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { 
   BenzingaEndpoint,
   BenzingaNewsRequestConfig,
@@ -155,7 +155,7 @@ const BASE_NEWS_REQUEST_CONFIG: Omit<RequestConfig, 'id' | 'name' | 'apiEndpoint
     provider: ApiProvider.BENZINGA,
     category: BzEndpointCategory.BENZINGA_NEWS,
     method: HttpMethod.GET,
-    ttl: 2 * 60, // 2 minutes
+    ttl: 60 * 60, // 1 hour
     requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     parameters: {},

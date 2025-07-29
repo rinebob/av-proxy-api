@@ -1,5 +1,5 @@
 import { DocumentPathOptions, VendorType } from '../refresh.types';
-import { FirestoreCollection } from '../../../common/firestore-collections';
+import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 
 /**
  * Generates the document path for a data document

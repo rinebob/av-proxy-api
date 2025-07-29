@@ -7,11 +7,11 @@ import { db } from '../../../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-factory';
-import { AV_ENDPOINT_CONFIGS } from '../../alpha-vantage/config/av-endpoint-configs';
+import { AV_ENDPOINT_CONFIGS } from '../request-configs/av-endpoint-configs';
 import { AV_IMPLEMENTED_ENDPOINTS } from '../../common/common-av';
 import { ApiProvider } from '../../common/data-providers';
 import { FirestoreCollection } from '../../common/firestore/firestore-collections';
-import { formatPST } from '../../../utils/utils';
+import { formatPST } from '../../utils/utils';
 import { resolveFirestorePath, resolveRefreshHistoryPath, getRefreshEventDocId } from '../../utils/firestore-utils';
 import { AV_REFRESH_MANAGER_SCHEDULE } from '../../common/function-schedules';
 

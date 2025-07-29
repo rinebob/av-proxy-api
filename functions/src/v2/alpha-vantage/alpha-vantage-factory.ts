@@ -6,7 +6,7 @@ import { AvGlobalQuoteHandler } from './handlers/av-global-quote.handler';
 import { AvCompanyOverviewHandler } from './handlers/av-company-overview.handler';
 import { AvBulkQuoteHandler } from './handlers/av-bulk-quote.handler';
 import { AvSymbolSearchHandler } from './handlers/av-symbol-search.handler';
-import { AV_ENDPOINT_CONFIGS } from './config/av-endpoint-configs';
+import { AV_ENDPOINT_CONFIGS } from './request-configs/av-endpoint-configs';
 
 type EndpointConfigMap = {
   [K in AlphaVantageEndpoint]?: EndpointConfig;

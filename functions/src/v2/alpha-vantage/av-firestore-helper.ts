@@ -1,5 +1,5 @@
 import { db } from '../../firebase-admin-init';
-import { FirestoreCollection } from '../../common/firestore-collections';
+import { FirestoreCollection } from '../common/firestore/firestore-collections';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { 
   AlphaVantageEndpoint, 

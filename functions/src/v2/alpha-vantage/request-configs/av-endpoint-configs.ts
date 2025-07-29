@@ -252,7 +252,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the company information, financial ratios, and other key metrics for the equity specified.',
-    ttl: 8 * 60 * 60, // 8 hours
+    ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.COMPANY_OVERVIEW}/av-${FirestoreCollection.COMPANY_OVERVIEW}`,

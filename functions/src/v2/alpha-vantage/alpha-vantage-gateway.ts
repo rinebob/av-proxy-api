@@ -1,7 +1,7 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { Request, Response } from 'express';
 import { AlphaVantageHandlerFactory } from './alpha-vantage-factory';
-import { AlphaVantageEndpoint } from '../../common/common-av';
+import { AlphaVantageEndpoint } from '../common/common-av';
 import { withCors } from '../utils/cors-middleware';
 
 /**

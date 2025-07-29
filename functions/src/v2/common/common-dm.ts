@@ -4,26 +4,6 @@
 
 import * as admin from 'firebase-admin';
 
-/**
- * Result of a refresh operation
- */
-export interface RefreshResult {
-  success: boolean;
-  refreshed: number;
-  skipped: number;
-  errors: number;
-  durationMs: number;
-}
-
-/**
- * Represents a document to be processed during refresh
- */
-export interface DocumentToProcess {
-  symbol: string;
-  endpoint: DataMaintainerEndpoint;
-  ttl: number;
-}
-
 // Metadata server URL for fetching identity tokens in Google Cloud
 // This is used for service-to-service authentication
 // https://cloud.google.com/compute/docs/access/authenticate-workloads#applications
@@ -76,13 +56,6 @@ export enum DataMaintainerEndpoint {
   QUOTE_ENDPOINT = 'quote',
   SECTOR_PERFORMANCE = 'sector-performance',
   TIME_SERIES = 'time-series',
-}
-
-export interface ClientSource {
-  clientId: string;
-  firstSeen: admin.firestore.Timestamp;
-  lastSeen: admin.firestore.Timestamp;
-  metadata?: Record<string, any>;
 }
 
 /**
@@ -181,35 +154,6 @@ export function serializeTrackedSymbols(symbols: any[]): any[] {
 }
 
 /**
- * Represents a client site that tracks symbols
- */
-export interface ClientSite {
-  id: string;
-  name: string;
-  apiKey: string;
-  lastActive: admin.firestore.Timestamp | Date;
-  symbolCount: number;
-  metadata?: Record<string, any>;
-  createdAt: admin.firestore.Timestamp | Date;
-  updatedAt: admin.firestore.Timestamp | Date;
-  lastSync?: admin.firestore.Timestamp | Date; // For backward compatibility
-  isActive?: boolean; // For backward compatibility
-}
-
-/**
- * Request to sync symbols from a client site
- */
-export interface SymbolSyncRequest {
-  symbols: string[];
-  timestamp: admin.firestore.Timestamp | Date;
-  /**
-   * If true, the symbols should be removed (marked as inactive) instead of added/updated
-   * @default false
-   */
-  remove?: boolean;
-}
-
-/**
  * Options for listing symbols
  */
 export interface ListSymbolsOptions {
@@ -222,52 +166,6 @@ export interface ListSymbolsOptions {
 
 }
 
-/**
- * TTL configuration in seconds for each endpoint
- * These values should match the TTLs specified in data-maintainer.md
- */
-export const ENDPOINT_TTLS: Record<DataMaintainerEndpoint, number> = {
-  // Benzinga Endpoints (alphabetical order)
-  [DataMaintainerEndpoint.ANALYST_INSIGHTS]: 72 * 60 * 60, // 72 hours
-  [DataMaintainerEndpoint.ANALYST_RATINGS]: 72 * 60 * 60, // 72 hours
-  [DataMaintainerEndpoint.DIVIDENDS]: 24 * 60 * 60, // 24 hours (recent), Indefinite handled in code
-  [DataMaintainerEndpoint.ECONOMIC_CALENDAR]: 24 * 60 * 60, // 24 hours (future), Indefinite handled in code
-  [DataMaintainerEndpoint.FUTURE_EARNINGS]: 4 * 60 * 60, // 4 hours (pre-release), Indefinite handled in code
-  [DataMaintainerEndpoint.INSIDER_TRADES]: 24 * 60 * 60, // 24 hours (recent), 7 days handled in code
-  [DataMaintainerEndpoint.MERGERS_ACQUISITIONS]: 24 * 60 * 60, // 24 hours (minimum, up to 7 days)
-  [DataMaintainerEndpoint.TRENDING_TICKERS]: 15 * 60, // 15 minutes (trading hours)
-  [DataMaintainerEndpoint.UNUSUAL_OPTIONS]: 5 * 60, // 5 minutes (trading hours)
-  
-  // Alpha Vantage Endpoints (alphabetical order)
-  [DataMaintainerEndpoint.BALANCE_SHEET]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
-  [DataMaintainerEndpoint.CASH_FLOW]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
-  [DataMaintainerEndpoint.COMPANY_OVERVIEW]: 8 * 60 * 60, // 8 hours (temporary for production testing)
-  [DataMaintainerEndpoint.ECONOMIC_INDICATORS]: 24 * 60 * 60, // 24 hours (most recent), Indefinite handled in code
-  [DataMaintainerEndpoint.EARNINGS_CALENDAR]: 7 * 24 * 60 * 60, // 7 days
-  [DataMaintainerEndpoint.GLOBAL_QUOTE]: 30, // 30 seconds
-  [DataMaintainerEndpoint.HISTORICAL_EPS]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
-  [DataMaintainerEndpoint.HISTORICAL_OPTIONS]: 30 * 24 * 60 * 60, // 30 days (indefinite in doc, using 30 days as default)
-  [DataMaintainerEndpoint.INCOME_STATEMENT]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
-  [DataMaintainerEndpoint.INSIDER_TRANSACTIONS]: 24 * 60 * 60, // 24 hours (recent), 7 days handled in code
-  [DataMaintainerEndpoint.IPO_CALENDAR]: 24 * 60 * 60, // 24 hours
-  [DataMaintainerEndpoint.NEWS_SENTIMENT]: 15 * 60, // 15 minutes (recent), Indefinite handled in code
-  [DataMaintainerEndpoint.OPTIONS_CHAIN]: 30, // 30 seconds
-  [DataMaintainerEndpoint.SECTOR]: 15 * 60, // 15 minutes (trading hours)
-  [DataMaintainerEndpoint.SYMBOL_SEARCH]: 30 * 24 * 60 * 60, // 30 days (indefinite in doc, using 30 days as default)
-  [DataMaintainerEndpoint.TECHNICAL_INDICATORS]: 5 * 60, // 5 minutes (intraday), 24h handled in code
-  [DataMaintainerEndpoint.TIME_SERIES_DAILY_ADJUSTED]: 24 * 60 * 60, // 24 hours
-  [DataMaintainerEndpoint.TIME_SERIES_INTRADAY]: 5 * 60, // 5 minutes (current day), Indefinite handled in code
-  [DataMaintainerEndpoint.TOP_GAINERS_LOSERS]: 15 * 60, // 15 minutes (trading hours)
-  [DataMaintainerEndpoint.TREASURY_YIELD]: 24 * 60 * 60, // 24 hours
-  
-  // Legacy/Deprecated - keeping these for backward compatibility (alphabetical order)
-  [DataMaintainerEndpoint.EARNINGS]: 24 * 60 * 60, // 24 hours
-  [DataMaintainerEndpoint.LISTING_STATUS]: 7 * 24 * 60 * 60, // 7 days
-  [DataMaintainerEndpoint.OVERVIEW]: 24 * 60 * 60, // 24 hours
-  [DataMaintainerEndpoint.QUOTE_ENDPOINT]: 5 * 60, // 5 minutes
-  [DataMaintainerEndpoint.SECTOR_PERFORMANCE]: 60 * 60, // 1 hour
-  [DataMaintainerEndpoint.TIME_SERIES]: 60 * 60, // 1 hour
-};
 
 /**
  * Set of endpoints that have been implemented and are ready for automatic refresh.
