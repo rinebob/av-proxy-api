@@ -13,12 +13,12 @@ import { BenzingaHandlerFactory } from '../../benzinga/benzinga-factory';
 import type { HandlerKey } from '../../benzinga/benzinga-factory';
 import { BZ_CALENDAR_REQUEST_CONFIGS } from '../../benzinga/request-configs/bz-calendar-request-configs';
 import { BZ_CALENDAR_REFRESH_SCHEDULE } from '../../common/function-schedules';
-import { formatTtlSeconds } from '../../utils/utils';
+import { refreshLogger } from '../../services/refresh-logger.service';
+import { ApiProvider } from '../../common/data-providers';
 
 // Firestore utilities
 import { 
-  resolveFirestorePath, 
-  getRootDocPath
+  resolveFirestorePath
 } from '../../utils/firestore-utils';
 
 // Logging helper
@@ -188,26 +188,33 @@ export async function runBenzingaCalendarRefreshJob() {
                 logBZDM(`bCRM rBD: Successfully wrote data for ${displayName} ${endpointName} to ${docPath}`);
                 logBZDM(`----------- bCRM rBD: END WRITE TO FIRESTORE FOR [${displayName} ${endpointName}] -------------`);
 
-                // --- Update company-data/<symbol> metadata fields ---
+                // --- Update symbol-data/<symbol> metadata fields ---
                 if (requiresSymbol && symbol) {
-                    const symbolDocPath = getRootDocPath({
-                      firestorePath: endpointConfig.firestorePath,
-                      symbolUsage: endpointConfig.symbolUsage,
-                      endpointName
-                    }, symbol);
-                    const symbolDocRef = db.doc(symbolDocPath);
-                    // Use the provided local time as the source of truth
-                    const lastRefreshedAt = new Date();
-                    const nextRefreshAt = new Date(lastRefreshedAt.getTime() + ttl * 1000);
-                    
-                    await symbolDocRef.set({
-                        lastRefreshedAt,
-                        lastRefreshedBy: endpointName,
-                        nextRefreshAt,
-                        nextRefreshBy: endpointName,
-                        ttlHuman: formatTtlSeconds(ttl),
-                    }, { merge: true });
-                    logBZDM(`bCRM rBD: Updated ${symbolDocPath} metadata fields.`);
+                    // Centralized symbol doc metadata update
+                    await refreshLogger.updateSymbolMetadata({
+                        symbol,
+                        endpointName,
+                        now: new Date(),
+                        ttl,
+                    });
+                    logBZDM(`bCRM rBD: Updated minimal metadata fields for symbol ${symbol}.`);
+
+                    // Log the refresh event
+                    await refreshLogger.logRefreshEvent(
+                        {
+                            vendor: ApiProvider.BENZINGA,
+                            endpoint: endpointName,
+                            symbol, // or undefined for global endpoint
+                            ttlSeconds: ttl,
+                        },
+                        {
+                            status: 'SUCCESS',
+                            triggeredBy: 'scheduler',
+                            refreshedBy: endpointName,
+                            durationMs,
+                            errorDetails: null,
+                        }
+                    );
                 }
 
             } catch (error: any) {

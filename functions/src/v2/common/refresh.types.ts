@@ -1,9 +1,8 @@
 import { Timestamp } from 'firebase-admin/firestore';
-
-export type VendorType = 'av' | 'bz';
+import { ApiProvider } from './data-providers';
 
 export interface DocumentPathOptions {
-  vendor: VendorType;
+  vendor: ApiProvider;
   endpoint: string;
   symbol?: string;
 }

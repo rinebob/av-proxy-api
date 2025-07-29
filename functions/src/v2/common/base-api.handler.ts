@@ -1,13 +1,13 @@
 import { Request, Response } from 'express';
 import * as admin from 'firebase-admin';
-import { VendorType } from './refresh.types';
+import { ApiProvider } from './data-providers';
 
 export abstract class BaseApiHandler<T = any> {
-  protected vendor: VendorType;
+  protected vendor: ApiProvider;
   protected endpoint: string;
   protected db: admin.firestore.Firestore;
 
-  constructor(vendor: VendorType, endpoint: string) {
+  constructor(vendor: ApiProvider, endpoint: string) {
     this.vendor = vendor;
     this.endpoint = endpoint;
     this.db = admin.firestore();

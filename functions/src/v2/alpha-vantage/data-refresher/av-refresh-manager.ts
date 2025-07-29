@@ -14,6 +14,7 @@ import { FirestoreCollection } from '../../common/firestore/firestore-collection
 import { formatPST } from '../../utils/utils';
 import { resolveFirestorePath, resolveRefreshHistoryPath, getRefreshEventDocId } from '../../utils/firestore-utils';
 import { AV_REFRESH_MANAGER_SCHEDULE } from '../../common/function-schedules';
+import { refreshLogger } from '../../services/refresh-logger.service';
 
 // Logging helper
 const pr = true;
@@ -162,6 +163,17 @@ export const refreshAlphaVantageDataV2 = onSchedule(
           await docRef.set(updateData, { merge: true });
           logDM(`aDM rAVD: Saved refreshed data for ${symbol} ${endpointName} to Firestore.`);
           logDM(`----------- aDM rAVD: END WRITE TO FIRESTORE FOR ${symbol} ${endpointName} -----------------------`);
+
+          // If you need to update symbol-level metadata after writing endpoint data:
+          if (endpointConfig.symbolUsage && symbol) {
+            await refreshLogger.updateSymbolMetadata({
+              symbol,
+              endpointName,
+              now: now.toDate(), // Convert Firestore Timestamp to JS Date
+              ttl
+            });
+            logDM(`aDM rAVD: Updated minimal metadata fields for symbol ${symbol}.`);
+          }
 
           // 6. Log refresh event to history with human-readable doc ID
           if (!endpointConfig.firestorePath) {
