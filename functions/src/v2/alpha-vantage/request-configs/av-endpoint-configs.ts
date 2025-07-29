@@ -255,7 +255,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.COMPANY_OVERVIEW}/av-${FirestoreCollection.COMPANY_OVERVIEW}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.COMPANY_OVERVIEW}/av-${FirestoreCollection.COMPANY_OVERVIEW}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#company-overview',
     parameters: {
       symbol: {
@@ -277,7 +277,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/av-${FirestoreCollection.EARNINGS}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/av-${FirestoreCollection.EARNINGS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#earnings',
     parameters: {
       symbol: {
@@ -299,7 +299,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.INCOME_STATEMENT}/av-${FirestoreCollection.INCOME_STATEMENT}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.INCOME_STATEMENT}/av-${FirestoreCollection.INCOME_STATEMENT}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#income-statement',
     parameters: {
       symbol: {
@@ -321,7 +321,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.BALANCE_SHEET}/av-${FirestoreCollection.BALANCE_SHEET}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.BALANCE_SHEET}/av-${FirestoreCollection.BALANCE_SHEET}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#balance-sheet',
     parameters: {
       symbol: {
@@ -343,7 +343,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.CASH_FLOW}/av-${FirestoreCollection.CASH_FLOW}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.CASH_FLOW}/av-${FirestoreCollection.CASH_FLOW}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#cash-flow',
     parameters: {
       symbol: {
@@ -365,7 +365,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 7 * 24 * 60 * 60, // 1 week
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.LISTING_DELISTING_STATUS}/av-${FirestoreCollection.LISTING_DELISTING_STATUS}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.LISTING_DELISTING_STATUS}/av-${FirestoreCollection.LISTING_DELISTING_STATUS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#listing-status',
     parameters: {
       symbol: {
@@ -387,7 +387,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     ttl: 24 * 60 * 60, // 1 day
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.OPTIONAL,
-    firestorePath: `${FirestoreCollection.COMPANY_DATA}/{symbol}/${FirestoreCollection.EARNINGS_CALENDAR}/av-${FirestoreCollection.EARNINGS_CALENDAR}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS_CALENDAR}/av-${FirestoreCollection.EARNINGS_CALENDAR}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#earnings-calendar',
     parameters: {
       symbol: {

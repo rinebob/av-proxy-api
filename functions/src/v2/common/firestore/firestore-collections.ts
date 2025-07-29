@@ -14,7 +14,6 @@ export enum FirestoreCollection {
     SYSTEM_INFO = 'system-info',
 
     // Deprecated
-    COMPANY_DATA = "company-data",
     TIME_SERIES = 'time-series',
 
     // LEGACY - refactor to use above core collections
@@ -119,13 +118,12 @@ export interface CollectionInfo {
 
 export const TOP_LEVEL_COLLECTIONS: CollectionInfo[] = [
     {
-        id: FirestoreCollection.SYMBOL_DATA,
-        name: 'Company Data',
-        description: 'Company information and metrics',
+        id: FirestoreCollection.TRACKED_SYMBOLS,
+        name: 'Tracked Symbols',
+        description: 'Symbols being tracked in the system',
         isSubcollection: false
-    },
-    {
-        id: FirestoreCollection.COMPANY_DATA,
+    },{
+        id: FirestoreCollection.SYMBOL_DATA,
         name: 'Company Data',
         description: 'Company information and metrics',
         isSubcollection: false
@@ -148,17 +146,6 @@ export const TOP_LEVEL_COLLECTIONS: CollectionInfo[] = [
         description: 'Economic data and metrics',
         isSubcollection: false
     },
-    {
-        id: FirestoreCollection.TIME_SERIES,
-        name: 'Time Series',
-        description: 'Time series data',
-        isSubcollection: false
-    },
-    {
-        id: FirestoreCollection.TRACKED_SYMBOLS,
-        name: 'Tracked Symbols',
-        description: 'Symbols being tracked in the system',
-        isSubcollection: false
-    }
+   
 ];
 
