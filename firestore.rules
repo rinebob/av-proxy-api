@@ -20,13 +20,11 @@ service cloud.firestore {
     // List of top-level collections that follow the standard access pattern
     function getStandardCollections() {
       return [
-        'company-data',
-        'market-data',
         'tracked-symbols',
+        'symbol-data',
+        'market-data',
         'economics',
         'news',
-        'time-series'
-        // Add any other top-level collections here
       ];
     }
 
@@ -45,8 +43,5 @@ service cloud.firestore {
     match /test_collection/{document} {
       allow read, write: if isAuthenticated();
     }
-    
-    // Keep any existing specific rules that need special handling below
-    // For example, if any collection needs custom rules, add them here
   }
 }
