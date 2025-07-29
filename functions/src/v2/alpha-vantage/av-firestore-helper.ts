@@ -6,7 +6,6 @@ import {
   DocumentMetadata, 
   DocumentType, 
   SaveConfig, 
-  StoredAvData, 
   SymbolMetadata,
 } from '../common/common-av';
 
@@ -58,7 +57,6 @@ export async function saveAvData(
         } as DocumentMetadata
       };
     } else {
-      // Original StoredAvData for other endpoints
       docData = {
         data,
         metadata: {
@@ -110,63 +108,4 @@ export async function saveAvData(
     console.error('Error saving data to Firestore:', error);
     throw error;
   }
-}
-
-/**
- * Retrieves Alpha Vantage data from Firestore if it exists and is not expired
- */
-export async function getAvData(
-  symbol: string,
-  endpoint: AlphaVantageEndpoint
-): Promise<StoredAvData | null> {
-  try {
-    const docPath = `${FirestoreCollection.MARKET_DATA}/${symbol}/${
-      FirestoreCollection.DATA_POINTS
-    }/${endpoint}`;
-    
-    const doc = await db.doc(docPath).get();
-    
-    if (!doc.exists) {
-      return null;
-    }
-    
-    const data = doc.data() as StoredAvData;
-    const now = new Date();
-    
-    // Check if data is expired
-    if (data.metadata.nextRefreshAt.toDate() < now) {
-      return null;
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Error getting data from Firestore:', error);
-    return null;
-  }
-}
-
-/**
- * Updates the refresh timestamp for a data point without changing the data
- */
-export async function updateRefreshTime(
-  symbol: string,
-  endpoint: AlphaVantageEndpoint,
-  ttlSeconds: number
-): Promise<void> {
-  const nextRefreshAt = new Date(Date.now() + ttlSeconds * 1000);
-  
-  await db
-    .doc(
-      `${FirestoreCollection.MARKET_DATA}/${symbol}/${
-        FirestoreCollection.DATA_POINTS
-      }/${endpoint}`
-    )
-    .set(
-      {
-        'metadata.lastUpdated': FieldValue.serverTimestamp(),
-        'metadata.nextRefreshAt': Timestamp.fromDate(nextRefreshAt),
-        'metadata.ttlSeconds': ttlSeconds
-      },
-      { merge: true }
-    );
 }
