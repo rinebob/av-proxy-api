@@ -73,3 +73,16 @@ export function getRefreshEventDocId(
   const base = `${provider}-${endpoint}-${YYYY}${MM}${DD}-${HH}${mm}${ss}`;
   return symbol ? `${base}-${symbol}` : base;
 }
+
+/**
+ * Returns the root document path (e.g., collection/{id}) given an endpoint config and id.
+ * Works for any collection with a top-level doc keyed by an identifier (symbol, vendor, indicator, etc).
+ * Example: If resolveFirestorePath(config, id) returns 'market-data/AV/endpoint/quote', this returns 'market-data/AV'.
+ */
+export function getRootDocPath(config: FirestorePathConfig, id: string): string {
+  const resolvedPath = resolveFirestorePath(config, id);
+  const parts = resolvedPath.split('/');
+  const idIndex = parts.findIndex((part) => part === id);
+  if (idIndex === -1) throw new Error('ID not found in resolved path');
+  return parts.slice(0, idIndex + 1).join('/');
+}
