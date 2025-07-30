@@ -207,6 +207,7 @@ export async function runBenzingaCalendarRefreshJob() {
                             endpoint: endpointName,
                             symbol, // or undefined for global endpoint
                             ttlSeconds: ttl,
+                            docPath, // canonical Firestore path must be provided
                         },
                         {
                             status: 'SUCCESS',

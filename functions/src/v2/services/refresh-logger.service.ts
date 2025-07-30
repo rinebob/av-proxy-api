@@ -1,7 +1,6 @@
 import { db } from '../../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
 import { DocumentPathOptions, RefreshEvent, RefreshStatus, RefreshTrigger } from '../common/refresh.types';
-import { getDocumentPath } from '../common/firestore/firestore-paths';
 import { formatTtlSeconds } from '../utils/utils';
 import type { TimeSeriesInterval } from '../common/common-fn';
 import type { TimeSeriesDocumentMetadata } from '../common/common-av';
@@ -17,6 +16,7 @@ export interface RefreshEventInput {
 
 export interface RefreshLoggerPathOptions extends DocumentPathOptions {
   ttlSeconds: number;
+  docPath: string; // docPath is now required
 }
 
 export interface LogRefreshEventOptions {
@@ -35,11 +35,10 @@ export class RefreshLoggerService {
     event: RefreshEventInput,
     options?: LogRefreshEventOptions
   ): Promise<void> {
-    const parentDocPath = getDocumentPath({
-      vendor: pathOptions.vendor,
-      endpoint: pathOptions.endpoint,
-      symbol: pathOptions.symbol,
-    });
+    if (!pathOptions.docPath) {
+      throw new Error('logRefreshEvent: docPath must be provided in pathOptions. No fallback to internal path construction is allowed.');
+    }
+    const parentDocPath = pathOptions.docPath;
     const docRef = db.doc(parentDocPath);
     const now = Timestamp.now();
     const refreshedAt = options?.refreshedAt ?? now;
