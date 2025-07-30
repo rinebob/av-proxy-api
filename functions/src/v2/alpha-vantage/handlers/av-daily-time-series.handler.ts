@@ -1,26 +1,17 @@
-import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
+import { AlphaVantageTimeSeriesHandlerBase } from './alpha-vantage-timeseries-base.handler';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 
-export interface DailyTimeSeriesData {
-  date: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
-
-export class AvDailyTimeSeriesHandler extends AlphaVantageBaseHandler<DailyTimeSeriesData[]> {
-  protected transformResponse(data: any): DailyTimeSeriesData[] {
+/**
+ * Handler for Alpha Vantage TIME_SERIES_DAILY endpoint.
+ * Implements transformResponse for daily time series normalization.
+ */
+export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<any> {
+  protected transformResponse(data: any): any {
     validateAlphaVantageApiResponse(data);
-    // The Alpha Vantage API returns the time series in a nested object with dynamic keys
     const timeSeries = data['Time Series (Daily)'];
-    
     if (!timeSeries) {
       throw new Error('Invalid response format: Missing Time Series (Daily)');
     }
-
-    // Convert the time series object into an array of data points
     return Object.entries(timeSeries).map(([date, values]: [string, any]) => ({
       date,
       open: parseFloat(values['1. open']),
@@ -29,17 +20,5 @@ export class AvDailyTimeSeriesHandler extends AlphaVantageBaseHandler<DailyTimeS
       close: parseFloat(values['4. close']),
       volume: parseInt(values['5. volume'], 10)
     }));
-  }
-
-  protected prepareRequestParams(params: Record<string, any>): Record<string, any> {
-    // Call the parent's prepareRequestParams first
-    const baseParams = super.prepareRequestParams(params);
-    
-    // Add any additional parameters specific to this endpoint
-    return {
-      ...baseParams,
-      outputsize: params.outputsize || 'compact',
-      datatype: 'json' // Force JSON response
-    };
   }
 }
