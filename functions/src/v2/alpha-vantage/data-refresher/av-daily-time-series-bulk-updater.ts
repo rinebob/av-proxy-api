@@ -6,8 +6,10 @@ import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { AlphaVantageBulkQuotesResponse } from '../handlers/av-bulk-quote.handler';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { BULK_QUOTE_UPDATE_SCHEDULE } from '../../common/function-schedules';
+import { BulkQuoteData } from '../handlers/av-bulk-quote.handler';
+import { ApiProvider } from '../../common/data-providers';
 
-const BATCH_SIZE = 100; // Max symbols per batch for bulk quotes
+const BATCH_SIZE = 50; // Max symbols per batch for bulk quotes
 const BATCH_DELAY_MS = 1000; // 1 second delay between batches to respect rate limits
 
 /**
@@ -59,7 +61,7 @@ export const _updateAllDailyTimeSeriesBulk = onSchedule({
         }
         
         // Process each quote in the batch
-        const updatePromises = quotes.map(quote => 
+        const updatePromises = quotes.map((quote: BulkQuoteData) => 
           updateDailyTimeSeriesWithBulkQuote(quote).catch(error => ({
             symbol: quote.symbol,
             error: error.message
@@ -127,18 +129,7 @@ export const _updateAllDailyTimeSeriesBulk = onSchedule({
  * @param quote The quote data to update with
  * @returns True if the data was updated, false otherwise
  */
-async function updateDailyTimeSeriesWithBulkQuote(quote: {
-  symbol: string;
-  latestTradingDay: string;
-  open: string;
-  high: string;
-  low: string;
-  price: string;
-  volume: string;
-  previousClose: string;
-  change: string;
-  changePercent: string;
-}): Promise<boolean> {
+async function updateDailyTimeSeriesWithBulkQuote(quote: BulkQuoteData): Promise<boolean> {
   const { symbol, latestTradingDay } = quote;
   
   try {
