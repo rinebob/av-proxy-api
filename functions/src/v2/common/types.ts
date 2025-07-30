@@ -5,7 +5,7 @@ import {
 import { ApiProvider } from './data-providers';
 
 import { AvEndpointCategory } from './common-av';
-import { EndpointSymbolUsage } from './common-fn';
+import { EndpointSymbolUsage, TimeSeriesInterval } from './common-fn';
 
 export interface EndpointParameter {
   type: 'string' | 'number' | 'boolean' | 'date';
@@ -60,6 +60,13 @@ export interface RequestConfig<TId = string, TCategory = string> {
   documentationUrl: string;
 }
 
+/**
+ * Extends EndpointConfig for Alpha Vantage time series endpoints.
+ */
+export interface TimeSeriesEndpointConfig extends EndpointConfig {
+  interval: TimeSeriesInterval;
+  // Add other time series–specific config as needed
+}
 
 export interface ApiResponse<T = any> {
   data: T;

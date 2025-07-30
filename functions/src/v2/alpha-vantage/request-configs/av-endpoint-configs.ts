@@ -7,41 +7,44 @@ import { EndpointConfig } from '../../common/types';
 import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { AvEndpointCategory } from '../../common/common-av';
 import { ApiProvider } from '../../common/data-providers';
+import { TimeSeriesInterval } from '../../common/common-fn';
+import type { TimeSeriesEndpointConfig } from '../../common/types';
 
 /**
  * Base configurations for Alpha Vantage API endpoints
  * Using Partial<Record<>> to make all endpoints optional for incremental implementation
  */
 export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointConfig>> = {
-  // Time Series Data
-  [AlphaVantageEndpoint.TIME_SERIES_DAILY]: {
-    id: AlphaVantageEndpoint.TIME_SERIES_DAILY,
-    name: 'Daily Time Series',
+    // Quote Endpoint
+  [AlphaVantageEndpoint.GLOBAL_QUOTE]: {
+    id: AlphaVantageEndpoint.GLOBAL_QUOTE,
+    name: 'Global Quote',
     provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.TIME_SERIES,
+    category: AvEndpointCategory.QUOTES,
     apiEndpoint: '/query',
     method: HttpMethod.GET,
-    description: 'Returns daily time series (date, daily open, daily high, daily low, daily close, daily volume) of the global equity specified.',
-    ttl: 24 * 60 * 60, // 24 hours
+    description: 'Returns realtime and delayed stock quotes for a single symbol.',
+    ttl: 0, // ttl is not used for this endpoint
     requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
-    documentationUrl: 'https://www.alphavantage.co/documentation/#daily',
+    firestorePath: '',  // firestorePath is not used for this endpoint
+    documentationUrl: 'https://www.alphavantage.co/documentation/#latestprice',
     parameters: {
       symbol: {
         type: 'string',
         required: true,
         description: 'The name of the equity of your choice. For example: symbol=IBM',
       },
-      outputsize: {
+      datatype: {
         type: 'string',
         required: false,
-        description: 'By default, outputsize=compact. Strings compact and full are accepted with the following specifications: compact returns only the latest 100 data points in the daily time series; full returns the full-length daily time series.',
-        default: OutputSize.COMPACT,
+        description: 'The format of the output. Default is json.',
+        default: 'json',
       },
     },
   },
   
+  // Bulk Quote Endpoint
   [AlphaVantageEndpoint.REALTIME_BULK_QUOTES]: {
     id: AlphaVantageEndpoint.REALTIME_BULK_QUOTES,
     name: 'Realtime Bulk Quotes',
@@ -66,179 +69,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
         required: false,
         description: 'The format of the output. Default is json.',
         default: 'json',
-      },
-    },
-  },
-  
-  [AlphaVantageEndpoint.TIME_SERIES_INTRADAY]: {
-    id: AlphaVantageEndpoint.TIME_SERIES_INTRADAY,
-    name: 'Intraday Time Series',
-    provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.TIME_SERIES,
-    apiEndpoint: '/query',
-    method: HttpMethod.GET,
-    description: 'Returns intraday time series (timestamp, open, high, low, close, volume) of the equity specified.',
-    ttl: 5 * 60, // 5 minutes
-    requiresSymbol: true,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.INTRADAY}/av-${FirestoreCollection.INTRADAY}`,
-    documentationUrl: 'https://www.alphavantage.co/documentation/#intraday',
-    parameters: {
-      symbol: {
-        type: 'string',
-        required: true,
-        description: 'The name of the equity of your choice. For example: symbol=IBM',
-      },
-      interval: {
-        type: 'string',
-        required: true,
-        description: 'Time interval between two consecutive data points in the time series.',
-        enum: ['1min', '5min', '15min', '30min', '60min'],
-      },
-      outputsize: {
-        type: 'string',
-        required: false,
-        description: 'By default, outputsize=compact. Strings compact and full are accepted.',
-        default: OutputSize.COMPACT,
-      },
-    },
-  },
-  
-  [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]: {
-    id: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
-    name: 'Daily Adjusted Time Series',
-    provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.TIME_SERIES,
-    apiEndpoint: '/query',
-    method: HttpMethod.GET,
-    description: 'Returns daily time series (date, daily open, daily high, daily low, daily close, daily volume, daily adjusted close, and split/dividend events) of the global equity specified.',
-    ttl: 24 * 60 * 60, // 24 hours
-    requiresSymbol: true,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY_ADJUSTED}/av-${FirestoreCollection.DAILY_ADJUSTED}`,
-    documentationUrl: 'https://www.alphavantage.co/documentation/#dailyadj',
-    parameters: {
-      symbol: {
-        type: 'string',
-        required: true,
-        description: 'The name of the equity of your choice. For example: symbol=IBM',
-      },
-      outputsize: {
-        type: 'string',
-        required: false,
-        description: 'By default, outputsize=compact. Strings compact and full are accepted.',
-        default: OutputSize.COMPACT,
-      },
-    },
-  },
-  
-  [AlphaVantageEndpoint.TIME_SERIES_WEEKLY]: {
-    id: AlphaVantageEndpoint.TIME_SERIES_WEEKLY,
-    name: 'Weekly Time Series',
-    provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.TIME_SERIES,
-    apiEndpoint: '/query',
-    method: HttpMethod.GET,
-    description: 'Returns weekly time series (last trading day of each week, weekly open, weekly high, weekly low, weekly close, weekly volume) of the global equity specified.',
-    ttl: 7 * 24 * 60 * 60, // 1 week
-    requiresSymbol: true,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.WEEKLY}/av-${FirestoreCollection.WEEKLY}`,
-    documentationUrl: 'https://www.alphavantage.co/documentation/#weekly',
-    parameters: {
-      symbol: {
-        type: 'string',
-        required: true,
-        description: 'The name of the equity of your choice. For example: symbol=IBM',
-      },
-    },
-  },
-  
-  [AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED]: {
-    id: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
-    name: 'Weekly Adjusted Time Series',
-    provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.TIME_SERIES,
-    apiEndpoint: '/query',
-    method: HttpMethod.GET,
-    description: 'Returns weekly adjusted time series (last trading day of each week, weekly open, weekly high, weekly low, weekly close, weekly adjusted close, weekly volume, weekly dividend) of the equity specified.',
-    ttl: 7 * 24 * 60 * 60, // 1 week
-    requiresSymbol: true,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.WEEKLY_ADJUSTED}/av-${FirestoreCollection.WEEKLY_ADJUSTED}`,
-    documentationUrl: 'https://www.alphavantage.co/documentation/#weeklyadj',
-    parameters: {
-      symbol: {
-        type: 'string',
-        required: true,
-        description: 'The name of the equity of your choice. For example: symbol=IBM',
-      },
-    },
-  },
-  
-  [AlphaVantageEndpoint.TIME_SERIES_MONTHLY]: {
-    id: AlphaVantageEndpoint.TIME_SERIES_MONTHLY,
-    name: 'Monthly Time Series',
-    provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.TIME_SERIES,
-    apiEndpoint: '/query',
-    method: HttpMethod.GET,
-    description: 'Returns monthly time series (last trading day of each month, monthly open, monthly high, monthly low, monthly close, monthly volume) of the global equity specified.',
-    ttl: 30 * 24 * 60 * 60, // 30 days
-    requiresSymbol: true,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.MONTHLY}/av-${FirestoreCollection.MONTHLY}`,
-    documentationUrl: 'https://www.alphavantage.co/documentation/#monthly',
-    parameters: {
-      symbol: {
-        type: 'string',
-        required: true,
-        description: 'The name of the equity of your choice. For example: symbol=IBM',
-      },
-    },
-  },
-  
-  [AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED]: {
-    id: AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
-    name: 'Monthly Adjusted Time Series',
-    provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.TIME_SERIES,
-    apiEndpoint: '/query',
-    method: HttpMethod.GET,
-    description: 'Returns monthly adjusted time series (last trading day of each month, monthly open, monthly high, monthly low, monthly close, monthly adjusted close, monthly volume, monthly dividend) of the equity specified.',
-    ttl: 30 * 24 * 60 * 60, // 30 days
-    requiresSymbol: true,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.MONTHLY_ADJUSTED}/av-${FirestoreCollection.MONTHLY_ADJUSTED}`,
-    documentationUrl: 'https://www.alphavantage.co/documentation/#monthlyadj',
-    parameters: {
-      symbol: {
-        type: 'string',
-        required: true,
-        description: 'The name of the equity of your choice. For example: symbol=IBM',
-      },
-    },
-  },
-  
-  // Quote Endpoint
-  [AlphaVantageEndpoint.GLOBAL_QUOTE]: {
-    id: AlphaVantageEndpoint.GLOBAL_QUOTE,
-    name: 'Global Quote',
-    provider: ApiProvider.ALPHA_VANTAGE,
-    category: AvEndpointCategory.TIME_SERIES,
-    apiEndpoint: '/query',
-    method: HttpMethod.GET,
-    description: 'Returns the latest price and volume information for a security of your choice.',
-    ttl: 5 * 60, // 5 minutes
-    requiresSymbol: true,
-    symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
-    documentationUrl: 'https://www.alphavantage.co/documentation/#latestprice',
-    parameters: {
-      symbol: {
-        type: 'string',
-        required: true,
-        description: 'The name of the equity of your choice. For example: symbol=IBM',
       },
     },
   },
@@ -588,3 +418,174 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     parameters: {},
   },
 } as const;
+
+export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, TimeSeriesEndpointConfig>> = {
+  [AlphaVantageEndpoint.TIME_SERIES_DAILY]: {
+    id: AlphaVantageEndpoint.TIME_SERIES_DAILY,
+    name: 'Daily Time Series',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.TIME_SERIES,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Daily open, high, low, close, and volume for a symbol.',
+    ttl: 60 * 5, // 5 minutes
+    requiresSymbol: true,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/#daily',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Symbol' },
+      outputsize: {
+        type: 'string',
+        required: false,
+        description: 'By default, outputsize=compact. Strings compact and full are accepted.',
+        default: OutputSize.COMPACT
+      }
+    },
+    interval: TimeSeriesInterval.DAILY
+  },
+  [AlphaVantageEndpoint.TIME_SERIES_WEEKLY]: {
+    id: AlphaVantageEndpoint.TIME_SERIES_WEEKLY,
+    name: 'Weekly Time Series',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.TIME_SERIES,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Weekly open, high, low, close, and volume for a symbol.',
+    ttl: 60 * 60, // 1 hour
+    requiresSymbol: true,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.WEEKLY}/av-${FirestoreCollection.WEEKLY}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/#weekly',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Symbol' },
+      outputsize: {
+        type: 'string',
+        required: false,
+        description: 'By default, outputsize=compact. Strings compact and full are accepted.',
+        default: OutputSize.COMPACT
+      }
+    },
+    interval: TimeSeriesInterval.WEEKLY
+  },
+  [AlphaVantageEndpoint.TIME_SERIES_MONTHLY]: {
+    id: AlphaVantageEndpoint.TIME_SERIES_MONTHLY,
+    name: 'Monthly Time Series',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.TIME_SERIES,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Monthly open, high, low, close, and volume for a symbol.',
+    ttl: 60 * 60, // 1 hour
+    requiresSymbol: true,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.MONTHLY}/av-${FirestoreCollection.MONTHLY}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/#monthly',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Symbol' },
+      outputsize: {
+        type: 'string',
+        required: false,
+        description: 'By default, outputsize=compact. Strings compact and full are accepted.',
+        default: OutputSize.COMPACT
+      }
+    },
+    interval: TimeSeriesInterval.MONTHLY
+  },
+  // TODO: Work on this later
+//   [AlphaVantageEndpoint.TIME_SERIES_INTRADAY]: {
+//     id: AlphaVantageEndpoint.TIME_SERIES_INTRADAY,
+//     name: 'Intraday Time Series',
+//     provider: ApiProvider.ALPHA_VANTAGE,
+//     category: 'TIME_SERIES',
+//     apiEndpoint: '/query',
+//     method: HttpMethod.GET,
+//     description: 'Intraday open, high, low, close, and volume for a symbol.',
+//     ttl: 60 * 5, // 5 minutes
+//     requiresSymbol: true,
+//     symbolUsage: EndpointSymbolUsage.REQUIRED,
+//     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.INTRADAY}/av-${FirestoreCollection.INTRADAY}`,
+//     documentationUrl: 'https://www.alphavantage.co/documentation/#intraday',
+//     parameters: {
+//       symbol: { type: 'string', required: true, description: 'Symbol' },
+//       interval: { type: 'string', required: true, description: 'Interval' }
+//     },
+//     interval: TimeSeriesInterval.INTRADAY
+//   },
+  [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]: {
+    id: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
+    name: 'Daily Adjusted Time Series',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.TIME_SERIES,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Daily adjusted open, high, low, close, and volume for a symbol.',
+    ttl: 60 * 60, // 1 hour
+    requiresSymbol: true,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY_ADJUSTED}/av-${FirestoreCollection.DAILY_ADJUSTED}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/#dailyadj',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Symbol' },
+      outputsize: {
+        type: 'string',
+        required: false,
+        description: 'By default, outputsize=compact. Strings compact and full are accepted.',
+        default: OutputSize.COMPACT
+      }
+    },
+    interval: TimeSeriesInterval.DAILY
+  },
+  [AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED]: {
+    id: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
+    name: 'Weekly Adjusted Time Series',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.TIME_SERIES,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Weekly adjusted open, high, low, close, and volume for a symbol.',
+    ttl: 60 * 60, // 1 hour
+    requiresSymbol: true,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.WEEKLY_ADJUSTED}/av-${FirestoreCollection.WEEKLY_ADJUSTED}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/#weeklyadj',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Symbol' },
+      outputsize: {
+        type: 'string',
+        required: false,
+        description: 'By default, outputsize=compact. Strings compact and full are accepted.',
+        default: OutputSize.COMPACT
+      }
+    },
+    interval: TimeSeriesInterval.WEEKLY
+  },
+  [AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED]: {
+    id: AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
+    name: 'Monthly Adjusted Time Series',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.TIME_SERIES,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Monthly adjusted open, high, low, close, and volume for a symbol.',
+    ttl: 60 * 60, // 1 hour
+    requiresSymbol: true,
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.MONTHLY_ADJUSTED}/av-${FirestoreCollection.MONTHLY_ADJUSTED}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/#monthlyadj',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Symbol' },
+      outputsize: {
+        type: 'string',
+        required: false,
+        description: 'By default, outputsize=compact. Strings compact and full are accepted.',
+        default: OutputSize.COMPACT
+      }
+    },
+    interval: TimeSeriesInterval.MONTHLY
+  },
+};
+
+export function isTimeSeriesConfig(config: EndpointConfig): config is TimeSeriesEndpointConfig {
+  return (config as TimeSeriesEndpointConfig).interval !== undefined;
+}
