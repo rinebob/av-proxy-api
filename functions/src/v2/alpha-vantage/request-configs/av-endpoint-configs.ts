@@ -43,7 +43,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
       },
     },
   },
-  
+
   // Bulk Quote Endpoint
   [AlphaVantageEndpoint.REALTIME_BULK_QUOTES]: {
     id: AlphaVantageEndpoint.REALTIME_BULK_QUOTES,
@@ -251,27 +251,27 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
   },
   
 //   // Search symbols
-//   [AlphaVantageEndpoint.SYMBOL_SEARCH]: {
-//     id: AlphaVantageEndpoint.SYMBOL_SEARCH,
-//     name: 'Symbol Search',
-//     provider: ApiProvider.ALPHA_VANTAGE,
-//     category: AvEndpointCategory.SEARCH,
-//     apiEndpoint: '/query',
-//     method: HttpMethod.GET,
-//     description: 'Search for symbols and companies based on keywords',
-//     ttl: 30 * 24 * 60 * 60, // 30 days in seconds
-//     requiresSymbol: false,
-//     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
-//     firestorePath: FirestoreCollection.DATA_POINTS,
-//     documentationUrl: 'https://www.alphavantage.co/documentation/#symbolsearch',
-//     parameters: {
-//       keywords: {
-//         type: 'string',
-//         required: true,
-//         description: 'A text string of your choice. For example: keywords=microsoft.',
-//       },
-//     },
-//   },
+  [AlphaVantageEndpoint.SYMBOL_SEARCH]: {
+    id: AlphaVantageEndpoint.SYMBOL_SEARCH,
+    name: 'Symbol Search',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.SEARCH,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Search for symbols and companies based on keywords',
+    ttl: 30 * 24 * 60 * 60, // 30 days in seconds
+    requiresSymbol: false,
+    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
+    firestorePath: `${FirestoreCollection.TRACKED_SYMBOLS}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/#symbolsearch',
+    parameters: {
+      keywords: {
+        type: 'string',
+        required: true,
+        description: 'A text string of your choice. For example: keywords=microsoft.',
+      },
+    },
+  },
   
   // Economic Indicators (don't require a symbol)
   [AlphaVantageEndpoint.REAL_GDP]: {
