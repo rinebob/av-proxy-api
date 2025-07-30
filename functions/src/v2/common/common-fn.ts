@@ -42,9 +42,10 @@ export enum OutputSize {
  * Time series interval for financial data (daily, weekly, monthly)
  */
 export enum TimeSeriesInterval {
-  DAILY = 'daily',
-  WEEKLY = 'weekly',
-  MONTHLY = 'monthly'
+    INTRADAY = 'intraday',
+    DAILY = 'daily',
+    WEEKLY = 'weekly',
+    MONTHLY = 'monthly'
 }
 
 // Interface for authentication and validation result
