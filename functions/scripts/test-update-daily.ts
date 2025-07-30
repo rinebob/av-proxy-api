@@ -1,12 +1,11 @@
 import { updateDailyTimeSeriesHandler } from '../src/v2/alpha-vantage/data-refresher/av-daily-time-series-updater';
-import { app, db, admin } from '../src/firebase-admin-init';
+import { db, admin } from '../src/firebase-admin-init';
 
 console.log('Script started');
 console.log('Initializing Firebase Admin...');
 
 // Initialize Firebase Admin
 try {
-  app;
   db;
   admin;
   console.log('Firebase Admin initialized successfully');
