@@ -20,6 +20,7 @@ import { ApiProvider } from '../../common/data-providers';
 import { 
   resolveFirestorePath
 } from '../../utils/firestore-utils';
+import { RefreshTrigger } from '../../common/refresh.types';
 
 // Logging helper
 const pr = true;
@@ -176,7 +177,7 @@ export async function runBenzingaCalendarRefreshJob() {
                     {
                         status: 'SUCCESS',
                         durationMs,
-                        triggeredBy: 'scheduler',
+                        triggeredBy: RefreshTrigger.SCHEDULER,
                         errorDetails: null,
                     },
                     {
@@ -209,7 +210,7 @@ export async function runBenzingaCalendarRefreshJob() {
                         },
                         {
                             status: 'SUCCESS',
-                            triggeredBy: 'scheduler',
+                            triggeredBy: RefreshTrigger.SCHEDULER,
                             refreshedBy: endpointName,
                             durationMs,
                             errorDetails: null,
@@ -230,7 +231,7 @@ export async function runBenzingaCalendarRefreshJob() {
                     {
                         status: 'FAILURE',
                         durationMs,
-                        triggeredBy: 'scheduler',
+                        triggeredBy: RefreshTrigger.SCHEDULER,
                         errorDetails: errorMessage,
                     },
                     {

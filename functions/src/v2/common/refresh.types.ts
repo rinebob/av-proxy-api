@@ -8,12 +8,19 @@ export interface DocumentPathOptions {
 }
 
 export type RefreshStatus = 'SUCCESS' | 'FAILURE';
-export type RefreshTrigger = 'scheduler' | 'manual' | 'retry' | 'api' | 'system';
 
 /**
  * A detailed record of a single refresh event, used for both the
  * last refresh and the historical log.
  */
+export enum RefreshTrigger {
+  SCHEDULER = 'scheduler',
+  MANUAL = 'manual',
+  RETRY = 'retry',
+  API = 'api',
+  SYSTEM = 'system'
+}
+
 export interface RefreshEvent {
   eventId: string;
   triggeredBy: RefreshTrigger;
