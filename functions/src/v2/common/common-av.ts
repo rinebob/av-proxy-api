@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { AvSymbol, DataMaintainerEndpoint } from './common-dm';
 import { TimeSeriesInterval } from './common-fn';
+import { RefreshEvent } from './refresh.types';
 
 /////////// ENUMS ///////////////////////
 // Define output size options for API responses
@@ -450,16 +451,10 @@ export interface TimeSeriesDocumentMetadata {
   histDataPoints: number;
   
   /** Date of the first quote in the dataset */
-  firstQuoteDate: Date | Timestamp | FieldValue;
-  
-  /** When this document was last updated */
-  lastUpdate: Date | Timestamp | FieldValue;
-  
-  /** When this document should be refreshed */
-  nextRefreshAt: Date | Timestamp | FieldValue;
+  firstQuoteDate?: Date | Timestamp | FieldValue;
   
   /** Number of quote data points */
-  quoteDataPoints: number;
+  quoteDataPoints?: number;
   
   /** Time interval between data points */
   interval: TimeSeriesInterval;
@@ -477,6 +472,9 @@ export interface TimeSeriesDocument<T = any> {
   
   /** Metadata about the time series data */
   metadata: TimeSeriesDocumentMetadata;
+
+  /** Refresh history */
+  refreshHistory: RefreshEvent[];
 }
 
 /** Document type discriminator */
