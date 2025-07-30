@@ -3,7 +3,8 @@ import { AlphaVantageEndpoint, OutputSize, TimeSeriesDocument, DailyTimeSeriesDa
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { db, FieldValue } from '../../../firebase-admin-init';
 import { FirestoreCollection } from '../../common/firestore/firestore-collections';
-import { ApiProvider, DATA_PROVIDERS } from '../../common/data-providers';
+import { ApiProvider } from '../../common/data-providers';
+import { RefreshLoggerService } from '../../services/refresh-logger.service';
 import { TimeSeriesInterval } from '../../common/common-fn';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 
@@ -46,8 +47,6 @@ export const onSymbolAdded = onDocumentCreated(
 
     console.log(`oSA.f oSA: Time series response: ${JSON.stringify(timeSeriesResponse)}`);
     
-    const providerMeta = DATA_PROVIDERS[ApiProvider.ALPHA_VANTAGE];
-
     // Limit data in non-production environments to prevent emulator issues
     const isProduction = process.env.NODE_ENV === 'production' || process.env.FUNCTIONS_EMULATOR !== 'true';
     const processedData = isProduction 
@@ -66,23 +65,16 @@ export const onSymbolAdded = onDocumentCreated(
     tomorrow.setDate(tomorrow.getDate() + 1);
     
     // Create the document data with proper typing
+    const metadata = RefreshLoggerService.getInitialTimeSeriesMetadata(
+      processedData,
+      symbol,
+      TimeSeriesInterval.DAILY
+    );
+
     const timeSeriesDoc: TimeSeriesDocument<DailyTimeSeriesDataTwo> = {
       data: processedData,
-      metadata: {
-        symbol,
-        interval: TimeSeriesInterval.DAILY,
-        lastUpdate: FieldValue.serverTimestamp(),
-        nextRefreshAt: tomorrow,  
-        quoteDataPoints: 0,
-        firstQuoteDate: tomorrow,
-        histDataPoints: processedData.length,
-        histStartDate: processedData[processedData.length - 1]?.date 
-          ? new Date(processedData[processedData.length - 1].date)
-          : new Date(),
-        histEndDate: processedData[0]?.date 
-          ? new Date(processedData[0].date)
-          : new Date(),
-      }
+      metadata,
+      refreshHistory: []
     };
     
     // Add the time series data to the batch
