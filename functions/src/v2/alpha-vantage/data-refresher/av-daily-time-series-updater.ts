@@ -6,6 +6,9 @@ import { db } from '../../../firebase-admin-init';
 import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { DAILY_TIME_SERIES_UPDATE_SCHEDULE } from '../../common/function-schedules';
+import { ApiProvider } from '../../common/data-providers';
+import { initializeTimeSeriesIfMissing } from '../firestore/av-firestore-helper';
+import { TimeSeriesInterval } from '../../common/common-fn';
 
 // Helper function to update daily time series with latest quote
 async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> {
@@ -28,11 +31,13 @@ async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> 
     }
     
     // 2. Get existing data
-    const dailyDoc = await dailyDataRef.get();
+    let dailyDoc = await dailyDataRef.get();
     
     if (!dailyDoc.exists) {
-      console.log(`dTSU uDTSWQ [${symbol}] No daily time series data found. Initial data should be loaded separately.`);
-      return false;
+      const initialized = await initializeTimeSeriesIfMissing(symbol, TimeSeriesInterval.DAILY, globalQuoteEndpoint);
+      if (!initialized) return false;
+      console.log(`dTSU uDTSWQ [${symbol}] No daily time series data found. Loading initial data.`);
+      dailyDoc = await dailyDataRef.get();
     }
     
     const existingData = dailyDoc.data()?.data || [];
