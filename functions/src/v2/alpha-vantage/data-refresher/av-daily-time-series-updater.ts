@@ -4,6 +4,7 @@ import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { AlphaVantageEndpoint } from '../../common/common-av';
 import { db } from '../../../firebase-admin-init';
 import { FirestoreCollection } from '../../common/firestore/firestore-collections';
+import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { DAILY_TIME_SERIES_UPDATE_SCHEDULE } from '../../common/function-schedules';
 
 // Helper function to update daily time series with latest quote
@@ -11,12 +12,9 @@ async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> 
   const globalQuoteEndpoint = AlphaVantageEndpoint.GLOBAL_QUOTE;
   const now = Timestamp.now();
   
-  // Reference to the daily data document
-  const dailyDataRef = db
-    .collection(FirestoreCollection.TIME_SERIES)
-    .doc(symbol)
-    .collection(FirestoreCollection.DAILY)
-    .doc(`av-${FirestoreCollection.DAILY}`);
+  // Reference to the daily data document (canonical path)
+  const dailyDataDocPath = getSymbolTimeSeriesDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY, ApiProvider.ALPHA_VANTAGE);
+  const dailyDataRef = db.doc(dailyDataDocPath);
   
   try {
     // 1. Fetch latest global quote

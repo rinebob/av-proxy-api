@@ -5,6 +5,7 @@ import { db, FieldValue } from '../../../firebase-admin-init';
 import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { ApiProvider, DATA_PROVIDERS } from '../../common/data-providers';
 import { TimeSeriesInterval } from '../../common/common-fn';
+import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 
 /**
  * Cloud Function that triggers when a new symbol is added to the tracked-symbols collection.
@@ -56,11 +57,9 @@ export const onSymbolAdded = onDocumentCreated(
     // Prepare the time series data for Firestore
     const batch = db.batch();
     
-    // Reference to the time series document
-    const timeSeriesRef = db.collection(FirestoreCollection.TIME_SERIES)
-      .doc(symbol)  // symbol is already in uppercase
-      .collection(FirestoreCollection.DAILY)
-      .doc(`${providerMeta.prefix}-${FirestoreCollection.DAILY}`);
+    // Reference to the time series document (canonical path)
+    const docPath = getSymbolTimeSeriesDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY, ApiProvider.ALPHA_VANTAGE);
+    const timeSeriesRef = db.doc(docPath);
     
     // Calculate tomorrow's date
     const tomorrow = new Date();

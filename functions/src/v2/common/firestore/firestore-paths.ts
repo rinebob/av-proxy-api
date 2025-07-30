@@ -1,20 +1,25 @@
-import { DocumentPathOptions } from '../refresh.types';
 import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { DATA_PROVIDERS } from '../../common/data-providers';
+import { ApiProvider } from '../../common/data-providers';
+
+// ----------- Canonical Time Series Path Utilities -----------
+/**
+ * Canonical doc ID for AV/BZ time series: e.g. "av-daily-adjusted"
+ */
+export function getTimeSeriesDocId(endpoint: string, vendor: ApiProvider): string {
+  const vendorPrefix = DATA_PROVIDERS[vendor].prefix;
+  const endpointName = endpoint
+    .replace(/^TIME_SERIES_/, '')
+    .replace(/_/g, '-')
+    .toLowerCase();
+  return `${vendorPrefix}-${endpointName}`;
+}
 
 /**
- * Generates the document path for a data document
- * @param options Vendor, endpoint, and optional symbol
- * @returns Full Firestore document path
+ * Canonical Firestore doc path for symbol time series.
+ * E.g. symbol-data/AAPL/time-series/av-daily-adjusted
  */
-export function getDocumentPath({ vendor, endpoint, symbol }: DocumentPathOptions): string {
-  const vendorPrefix = DATA_PROVIDERS[vendor].prefix;
-  const sanitizedEndpoint = endpoint.toLowerCase().replace(/\//g, '_');
-  
-  if (symbol) {
-    // Symbol-specific data path: symbol-data/{symbol}/{endpoint}/{vendorPrefix}-{endpoint}
-    return `${FirestoreCollection.SYMBOL_DATA}/${symbol.toUpperCase()}/${sanitizedEndpoint}/${vendorPrefix}-${sanitizedEndpoint}`;
-  }
-  // Market-wide data path: market-data/{vendorPrefix}-{endpoint}
-  return `${FirestoreCollection.MARKET_DATA}/${vendorPrefix}-${sanitizedEndpoint}`;
+export function getSymbolTimeSeriesDocPath(symbol: string, endpoint: string, vendor: ApiProvider): string {
+  const docId = getTimeSeriesDocId(endpoint, vendor);
+  return `${FirestoreCollection.SYMBOL_DATA}/${symbol.toUpperCase()}/${FirestoreCollection.TIME_SERIES}/${docId}`;
 }

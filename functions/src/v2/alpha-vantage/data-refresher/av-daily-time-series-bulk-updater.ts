@@ -4,6 +4,7 @@ import { FirestoreCollection } from '../../common/firestore/firestore-collection
 import { AlphaVantageEndpoint } from '../../common/common-av';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { AlphaVantageBulkQuotesResponse } from '../handlers/av-bulk-quote.handler';
+import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { BULK_QUOTE_UPDATE_SCHEDULE } from '../../common/function-schedules';
 
 const BATCH_SIZE = 100; // Max symbols per batch for bulk quotes
@@ -141,10 +142,9 @@ async function updateDailyTimeSeriesWithBulkQuote(quote: {
   const { symbol, latestTradingDay } = quote;
   
   try {
-    const dailyDataRef = db.collection(FirestoreCollection.TIME_SERIES)
-      .doc(symbol)
-      .collection(FirestoreCollection.DAILY)
-      .doc(`av-${FirestoreCollection.DAILY}`);
+    // Canonical Firestore doc ref for daily time series
+    const docPath = getSymbolTimeSeriesDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY, ApiProvider.ALPHA_VANTAGE);
+    const dailyDataRef = db.doc(docPath);
     
     // Get existing data
     const dailyDoc = await dailyDataRef.get();
