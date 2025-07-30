@@ -34,13 +34,21 @@ export abstract class AlphaVantageStandardHandlerBase<T = any> extends AlphaVant
       const transformedData = this.transformResponse(responseData);
       // Save to Firestore using standard schema
       const symbol = params.symbol;
-      if (symbol && Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)) {
+      // Never save GLOBAL_QUOTE to Firestore (transient-only endpoint)
+      if (
+        symbol &&
+        Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint) &&
+        endpoint !== AlphaVantageEndpoint.GLOBAL_QUOTE
+      ) {
         await saveAvData(
           transformedData,
           symbol,
           endpoint as AlphaVantageEndpoint,
           this.config
         );
+      } else if (endpoint === AlphaVantageEndpoint.GLOBAL_QUOTE) {
+        console.log('[AvGlobalQuoteHandler] Skipping Firestore save for GLOBAL_QUOTE. Logging and returning data only.');
+        console.log('[AvGlobalQuoteHandler] GLOBAL_QUOTE data:', transformedData);
       }
       return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
     } catch (error) {
