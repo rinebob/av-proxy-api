@@ -1,8 +1,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { EndpointConfig, ApiResponse, ApiError } from '../../common/types';
-import { saveAvData } from '../av-firestore-helper';
+import { saveAvData } from '../firestore/av-firestore-helper';
 import { API_CONSTANTS } from '../../common/api-constants';
-import { AlphaVantageEndpoint } from '../../common/common-av';
+import { AlphaVantageEndpoint, AvEndpointCategory } from '../../common/common-av';
 
 function getAlphaVantageApiKey(): string {
   if (process.env.FUNCTIONS_EMULATOR === 'true' && process.env.LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY) {
@@ -19,48 +19,56 @@ export abstract class AlphaVantageBaseHandler<T = any> {
   protected readonly apiClient: AxiosInstance;
   protected readonly requestId: string;
   protected readonly baseParams: any;
-  
+  protected readonly isTimeSeriesBlocked: boolean;
+
   constructor(config: EndpointConfig) {
-    console.log('==============================');
-    console.log(' --- AlphaVantageBaseHandler ---');
-    
     this.config = config;
     this.requestId = Math.random().toString(36).substring(2, 10);
-    
+
+    this.isTimeSeriesBlocked = config.category === AvEndpointCategory.TIME_SERIES;
+    if (this.isTimeSeriesBlocked) {
+      console.warn(
+        `[AlphaVantageBaseHandler] Time series endpoint detected (${config.id}): time series-specific logic will be skipped.`
+      );
+    }
+
     this.baseParams = {
       apikey: getAlphaVantageApiKey(),
       function: this.config.id,
       datatype: API_CONSTANTS.ALPHA_VANTAGE.RESPONSE_TYPE
     };
-    
+
     this.apiClient = axios.create({
       baseURL: API_CONSTANTS.ALPHA_VANTAGE.BASE_URL,
       timeout: API_CONSTANTS.ALPHA_VANTAGE.DEFAULT_TIMEOUT_MS
     });
-   
+
+    console.log('==============================');
+    console.log(' --- AlphaVantageBaseHandler ---');
+
     console.log('aVB.H ctor request params:', this.baseParams);
     console.log('aVB.H ctor base URL:', this.apiClient.defaults.baseURL);
   }
 
   public async fetch(params: any = {}): Promise<ApiResponse<T>> {
-    
+
     console.log('----------------------------------------');
     console.log(' --- START AlphaVantageBaseHandler.fetch ---');
     const startTime = Date.now();
     const endpoint = this.config.id;
-    
+
     console.log(`aVB.H fetch [${this.requestId}] Starting fetch for ${endpoint}`, { params });
-    
+
     try {
       // 1. Validate parameters
       console.log(`aVB.H fetch [${this.requestId}] Validating parameters`);
       this.validateParams(params);
-      
+
       // 2. Prepare and make API request
       console.log(`aVB.H fetch [${this.requestId}] Fetching from API. params: ${JSON.stringify(params)}`);
       const requestParams = this.prepareRequestParams(params);
       const config: AxiosRequestConfig = { params: requestParams };
-      
+
       const fullUrl = `${this.apiClient.defaults.baseURL}?${Object.keys(config.params).map(key => `${key}=${config.params[key]}`).join('&')}`;
       console.log(`aVB.H fetch [${this.requestId}] Fetching from API. URL: ${fullUrl}`);
 
@@ -70,14 +78,14 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       // 3. Transform the response
       const responseData = response.data;
       let logData = { ...responseData };
-      
+
       // If the response has a time series, take only the first 5 entries
       if (responseData && typeof responseData === 'object') {
-        const timeSeriesKey = Object.keys(responseData).find(key => 
-          key.toLowerCase().includes('time series') || 
+        const timeSeriesKey = Object.keys(responseData).find(key =>
+          key.toLowerCase().includes('time series') ||
           key.toLowerCase().includes('timeseries')
         );
-        
+
         if (timeSeriesKey && Array.isArray(responseData[timeSeriesKey])) {
           logData[timeSeriesKey] = responseData[timeSeriesKey].slice(0, 5);
         } else if (timeSeriesKey && typeof responseData[timeSeriesKey] === 'object') {
@@ -86,24 +94,24 @@ export abstract class AlphaVantageBaseHandler<T = any> {
           logData[timeSeriesKey] = Object.fromEntries(entries.slice(0, 5));
         }
       }
-      
+
       console.log(`aVB.H fetch [${this.requestId}] Transforming response data. response: ${
         JSON.stringify(logData, null, 2)
       }`);
       const transformedData = this.transformResponse(responseData);
-      
+
       // 4. Save to Firestore if we have a symbol
       const symbol = params.symbol;
       if (symbol) {
         if (this.config.ttl === undefined) {
           throw new Error(`No TTL configured for endpoint: ${endpoint}`);
         }
-        
+
         try {
           console.log(`aVB.H fetch [${this.requestId}] Saving data to Firestore. transformedData: ${
-            JSON.stringify(Array.isArray(transformedData) 
-              ? [...transformedData].slice(0, 5) 
-              : transformedData, 
+            JSON.stringify(Array.isArray(transformedData) ?
+              [...transformedData].slice(0, 5) :
+              transformedData,
             null, 2)
           }`);
           // Ensure we're working with an AlphaVantageEndpoint before saving
@@ -112,10 +120,7 @@ export abstract class AlphaVantageBaseHandler<T = any> {
               transformedData,
               symbol,
               endpoint as AlphaVantageEndpoint,
-              {
-                firestorePath: this.config.firestorePath,
-                ttlSeconds: this.config.ttl
-              }
+              this.config
             );
           } else {
             console.warn(`aVB.H fetch [${this.requestId}] Skipping Firestore save for non-AlphaVantage endpoint:`, endpoint);
@@ -128,10 +133,10 @@ export abstract class AlphaVantageBaseHandler<T = any> {
 
       console.log(' --- END AlphaVantageBaseHandler.fetch ---');
       console.log('----------------------------------------');
-      
+
       // 5. Return the response
       return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
-      
+
     } catch (error) {
       console.error(`aVB.H fetch [${this.requestId}] Error in fetch:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -142,15 +147,31 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     }
   }
 
+  /**
+   * Guard: Returns true and logs if this is a time series endpoint and logic should be skipped.
+   */
+  protected ensureNotTimeSeries(): boolean {
+    if (this.isTimeSeriesBlocked) {
+      console.warn(`[AlphaVantageBaseHandler] Skipping time series logic for endpoint: ${this.config.id}`);
+      return true;
+    }
+    return false;
+  }
+
+  public someTimeSeriesMethod() {
+    if (this.ensureNotTimeSeries()) return;
+    // ...existing logic...
+  }
+
   protected abstract transformResponse(data: any): T;
 
   protected createSuccessResponse(
-    data: T, 
+    data: T,
     ttlSeconds: number,
     startTime: number
   ): ApiResponse<T> {
     const ttl = ttlSeconds;
-    
+
     const response: ApiResponse<T> = {
       data,
       metadata: {
@@ -167,10 +188,10 @@ export abstract class AlphaVantageBaseHandler<T = any> {
 
   protected validateParams(params: Record<string, any>): void {
     console.log(`aVB.H validateParams [${this.requestId}] Validating parameters:`, params);
-    
+
     for (const [paramName, paramConfig] of Object.entries(this.config.parameters)) {
       const paramValue = params[paramName];
-      
+
       if (paramConfig.required && paramValue === undefined) {
         if (paramConfig.default !== undefined) {
           params[paramName] = paramConfig.default;
@@ -180,7 +201,7 @@ export abstract class AlphaVantageBaseHandler<T = any> {
           throw error;
         }
       }
-      
+
       if (paramValue !== undefined && paramConfig.enum && !paramConfig.enum.includes(paramValue)) {
         const error = new Error(`Invalid value for parameter ${paramName}. Must be one of: ${paramConfig.enum.join(', ')}`);
         console.error(`aVB.H validateParams [${this.requestId}] Validation error:`, error.message);
@@ -193,6 +214,25 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     const newParams = { ...params, ...this.baseParams };
     console.log(`aVB.H pRP [${this.requestId}] Prepared request params`, { newParams });
     return newParams;
+  }
+
+  /**
+   * Logs a request with context for traceability.
+   * @param params - The request parameters
+   * @param caller - String describing who is calling this log (e.g. handler or function name)
+   */
+  protected logRequest(params: any, caller: string = 'unknown'): void {
+    const requestId = (this as any).requestId || 'N/A';
+    const endpoint = this.config?.id || 'unknown-endpoint';
+    console.info(`[AlphaVantageBaseHandler] [${caller}] [${requestId}] Request to endpoint: ${endpoint}`, {
+      params,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  protected normalizeError(error: any): Error {
+    // Optionally implement error normalization here
+    return error instanceof Error ? error : new Error(JSON.stringify(error));
   }
 
   protected handleError(error: any): ApiError {
@@ -214,7 +254,7 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       statusCode = axiosError.response?.status || 500;
       errorCode = axiosError.code || 'API_REQUEST_FAILED';
       message = axiosError.message || 'API request failed';
-      
+
       if (axiosError.response?.data) {
         details = axiosError.response.data;
         if (details['Information'] && typeof details['Information'] === 'string' && details['Information'].includes('rate limit')) {
