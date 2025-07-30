@@ -3,6 +3,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { DocumentPathOptions, RefreshEvent, RefreshStatus, RefreshTrigger } from '../common/refresh.types';
 import { getDocumentPath } from '../common/firestore/firestore-paths';
 import { formatTtlSeconds } from '../utils/utils';
+import type { TimeSeriesInterval } from '../common/common-fn';
+import type { TimeSeriesDocumentMetadata } from '../common/common-av';
 
 export interface RefreshEventInput {
   status: RefreshStatus;
@@ -105,6 +107,53 @@ export class RefreshLoggerService {
     const { vendor, endpoint, symbol } = pathOptions;
     const dateStr = timestamp.toDate().toISOString().replace(/[:.]/g, '-');
     return `${vendor}-${endpoint}-${symbol || 'market'}-${dateStr}`;
+  }
+
+  /**
+   * Build metadata for the initial time series data fetch.
+   * Only sets histDataPoints, histStartDate, histEndDate, symbol, interval.
+   * Does NOT set firstQuoteDate or quoteDataPoints.
+   */
+  static getInitialTimeSeriesMetadata(
+    data: any[],
+    symbol: string,
+    interval: TimeSeriesInterval
+  ): TimeSeriesDocumentMetadata {
+    const histDataPoints = Array.isArray(data) ? data.length : 0;
+    const histStartDate = histDataPoints > 0 && data[histDataPoints - 1]?.date
+      ? Timestamp.fromDate(new Date(data[histDataPoints - 1].date))
+      : Timestamp.now();
+    const histEndDate = histDataPoints > 0 && data[0]?.date
+      ? Timestamp.fromDate(new Date(data[0].date))
+      : Timestamp.now();
+
+    return {
+      symbol,
+      interval,
+      histDataPoints,
+      histStartDate,
+      histEndDate,
+      // firstQuoteDate and quoteDataPoints intentionally omitted for initial load
+    } as TimeSeriesDocumentMetadata;
+  }
+
+  /**
+   * Update metadata with quote info (firstQuoteDate, quoteDataPoints) during quote refresh.
+   */
+  static updateWithQuoteMetadata(
+    metadata: TimeSeriesDocumentMetadata,
+    quoteData: any[]
+  ): TimeSeriesDocumentMetadata {
+    const quoteDataPoints = Array.isArray(quoteData) ? quoteData.length : 0;
+    const firstQuoteDate = quoteDataPoints > 0 && quoteData[0]?.date
+      ? Timestamp.fromDate(new Date(quoteData[0].date))
+      : undefined;
+
+    return {
+      ...metadata,
+      firstQuoteDate,
+      quoteDataPoints
+    };
   }
 }
 
