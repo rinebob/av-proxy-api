@@ -22,8 +22,6 @@ export { onSymbolAdded } from './v2/alpha-vantage/triggers/on-symbol-added.funct
 // In the V2 section of index.ts
 export { updateDailyTimeSeries } from './v2/alpha-vantage';
 
-export { symbolSearch } from './v2/alpha-vantage/endpoints/av-symbol-search-endpoint.js';
-
 export { listCollections } from './v2/common/functions/list-collections.js';
 
 export { saveTrackedSymbol } from './v2/common/functions/save-tracked-symbol.function.js';
