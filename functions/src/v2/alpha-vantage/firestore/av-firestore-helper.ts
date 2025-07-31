@@ -87,7 +87,6 @@ export async function saveAvTimeSeriesData(
   const histEndDate = histDataPoints > 0 && data[0]?.date
     ? Timestamp.fromDate(new Date(data[0].date))
     : Timestamp.now();
-  const firstQuoteDate = histStartDate;
 
   // Canonical doc path for time series
   const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
@@ -111,8 +110,6 @@ export async function saveAvTimeSeriesData(
         histDataPoints,
         histStartDate,
         histEndDate,
-        firstQuoteDate,
-        quoteDataPoints: 0 // update if you have quote data
       },
       refreshHistory // preserve/merge history, or [] for new doc
     };

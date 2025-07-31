@@ -7,6 +7,8 @@ import { ApiProvider } from '../../common/data-providers';
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 import { TimeSeriesInterval } from '../../common/common-fn';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
+import { RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
+import { Timestamp } from 'firebase-admin/firestore';
 
 /**
  * Cloud Function that triggers when a new symbol is added to the tracked-symbols collection.
@@ -72,16 +74,48 @@ export const onSymbolAdded = onDocumentCreated(
       TimeSeriesInterval.DAILY
     );
 
+    console.log(`oSA.f oSA: Time series metadata: ${JSON.stringify(metadata)}`);
+
+    // Augment metadata with refresh tracking fields
+    const now = FieldValue.serverTimestamp();
+    const nextRefreshAt = FieldValue.serverTimestamp();
+
+    // --- Create initial refresh event for refreshHistory ---
+    const initialRefreshEvent = {
+      eventId: `initial-${symbol}-${Date.now()}`,
+      triggeredBy: RefreshTrigger.SYMBOL_ADDED,
+      refreshedAt: Timestamp.now(),
+      refreshedBy: RefreshTrigger.SYMBOL_ADDED,
+      durationMs: 0,
+      nextRefreshAt: Timestamp.now(),
+      nextRefreshBy: '',
+      ttlHuman: '', // Set if you have a TTL string
+      status: RefreshStatus.SUCCESS,
+      errorDetails: null
+    };
+
     const timeSeriesDoc: TimeSeriesDocument<DailyTimeSeriesDataTwo> = {
       data: processedData,
       metadata,
-      refreshHistory: []
+      refreshHistory: [initialRefreshEvent]
     };
     
     // Add the time series data to the batch
     batch.set(timeSeriesRef, timeSeriesDoc, { merge: true });
 
-    console.log(`oSA.f oSA: ------------ save to firestore (${isProduction ? 'production' : 'test'} mode) ------------`);
+    // --- Add refresh metadata as symbol doc properties ---
+    const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+    const symbolMetadata = {
+      nextRefreshAt,
+      nextRefreshBy: '',
+      refreshedAt: now,
+      refreshedBy: RefreshTrigger.SYMBOL_ADDED,
+      ttlHuman: '' // TODO: set human-friendly TTL if needed
+    };
+    console.log(`oSA.f oSA: Symbol metadata: ${JSON.stringify(symbolMetadata)}`);
+    batch.set(symbolDocRef, symbolMetadata, { merge: true });
+
+    console.log(`oSA.f oSA: ------------ save to firestore (${isProduction ? 'production' : 'dev'} mode) ------------`);
     // Commit the batch
     await batch.commit();
 
