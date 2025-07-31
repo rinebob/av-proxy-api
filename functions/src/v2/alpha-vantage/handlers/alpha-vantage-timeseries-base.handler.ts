@@ -49,7 +49,8 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T extends any[] = any[]>
           transformedData,
           symbol,
           endpoint as AlphaVantageEndpoint,
-          this.config.interval
+          this.config.interval,
+          true // Check whether manual firestore write is enabled (for manual data refresh)
         );
       }
       return this.createSuccessResponse(transformedData, this.config.ttl, startTime);

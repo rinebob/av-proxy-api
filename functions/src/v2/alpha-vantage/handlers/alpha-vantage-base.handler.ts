@@ -120,7 +120,8 @@ export abstract class AlphaVantageBaseHandler<T = any> {
               transformedData,
               symbol,
               endpoint as AlphaVantageEndpoint,
-              this.config
+              this.config,
+              true // Check whether manual firestore write is enabled (for manual data refresh)
             );
           } else {
             console.warn(`aVB.H fetch [${this.requestId}] Skipping Firestore save for non-AlphaVantage endpoint:`, endpoint);

@@ -12,17 +12,25 @@ import { RefreshEvent, RefreshStatus, RefreshTrigger } from '../../common/refres
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { AV_TIME_SERIES_ENDPOINT_CONFIGS } from '../request-configs/av-endpoint-configs';
 import { AvDailyTimeSeriesHandler } from '../handlers/av-daily-time-series.handler';
+import { isManualWriteEnabled } from '../../common/firestore/manual-write-toggle';
 
 /**
  * Saves Alpha Vantage STANDARD (non-time-series) data to Firestore and logs refresh event using RefreshLoggerService.
+ * @param data - The data to save
+ * @param symbol - The symbol
+ * @param endpoint - The Alpha Vantage endpoint
+ * @param endpointConfig - The endpoint configuration
+ * @param checkManualWriteEnabled - REQUIRED: must always be set by caller. If true, enforces the manual Firestore write toggle. Pass false for scheduled jobs.
  */
 export async function saveAvData(
   data: any,
   symbol: string,
   endpoint: AlphaVantageEndpoint,
-  endpointConfig: EndpointConfig
+  endpointConfig: EndpointConfig,
+  checkManualWriteEnabled: boolean
 ): Promise<void> {
-    console.log(`aFH sAD saveAvData called. symbol: ${symbol}, endpoint: ${endpoint}`);
+    console.log('================= START aFH sAD saveAvData called =================');
+  console.log(`aFH sAD saveAvData called. symbol: ${symbol}, endpoint: ${endpoint}, checkManualWriteEnabled: ${checkManualWriteEnabled}`);
   const { firestorePath, ttl } = endpointConfig;
 
   if (typeof ttl !== 'number') {
@@ -37,12 +45,24 @@ export async function saveAvData(
       throw new Error(`No firestorePath configured for endpoint: ${endpoint}. A firestorePath must be provided.`);
     }
     const docPath = firestorePath.replace('{symbol}', symbol);
-    const docRef = db.doc(docPath);
 
-    // 2. Write data property only
-    await docRef.set({ data }, { merge: true });
+    // 2. Check manual Firestore write enabled
+    // Note: only requests made from frontend should go through this check.  All other callers especially scheduled jobs
+    // should pass false for checkManualWriteEnabled.  This is just a mechanism to enable a ui initiated data refresh instead
+    // of waiting for the next scheduled job.
+    if (checkManualWriteEnabled) {
+      const enabled = await isManualWriteEnabled();
+      console.log(`[saveAvData] Manual Firestore write toggle enabled?`, enabled);
+      if (!enabled) {
+        console.log('[saveAvData] Manual Firestore write toggle is OFF. Skipping data write and refresh log.');
+        return;
+      }
+    }
 
-    // 3. Log refresh event using RefreshLoggerService
+    // 3. If enabled or bypassed, proceed with Firestore write and refresh event logging
+    await db.doc(docPath).set({ data }, { merge: true });
+
+    // 4. Log refresh event using RefreshLoggerService
     const refreshLogger = new RefreshLoggerService();
     await refreshLogger.logRefreshEvent(
       {
@@ -63,6 +83,7 @@ export async function saveAvData(
     );
 
     console.log(`aFH sAD Saved STANDARD data for ${symbol}/${endpoint} at path: ${docPath}`);
+    console.log('================= END aFH sAD saveAvData called =================');
   } catch (error) {
     console.error('aFH sAD Error saving data to Firestore:', error);
     throw error;
@@ -71,15 +92,22 @@ export async function saveAvData(
 
 /**
  * Saves Alpha Vantage TIME SERIES data to Firestore, using the normalized, non-deprecated schema.
+ * @param data - The time series data array
+ * @param symbol - The symbol
+ * @param endpoint - The Alpha Vantage endpoint
+ * @param interval - The time series interval
+ * @param checkManualWriteEnabled - REQUIRED: must always be set by caller. If true, enforces the manual Firestore write toggle. Pass false for scheduled jobs.
  */
 export async function saveAvTimeSeriesData(
   data: any[],
   symbol: string,
   endpoint: AlphaVantageEndpoint,
-  interval: TimeSeriesInterval
+  interval: TimeSeriesInterval,
+  checkManualWriteEnabled: boolean
 ): Promise<void> {
-    console.log(`aFH sATSD saveAvTimeSeriesData called. symbol: ${symbol}, endpoint: ${endpoint}, interval: ${interval}`);
-  // Compute metadata fields
+    console.log('================= START aFH sATSD saveAvTimeSeriesData called =================');
+  console.log(`aFH sATSD saveAvTimeSeriesData called. symbol: ${symbol}, endpoint: ${endpoint}, interval: ${interval}`);
+  // 1. Compute metadata fields
   const histDataPoints = Array.isArray(data) ? data.length : 0;
   const histStartDate = histDataPoints > 0 && data[histDataPoints - 1]?.date
     ? Timestamp.fromDate(new Date(data[histDataPoints - 1].date))
@@ -88,20 +116,20 @@ export async function saveAvTimeSeriesData(
     ? Timestamp.fromDate(new Date(data[0].date))
     : Timestamp.now();
 
-  // Canonical doc path for time series
+  // 2. Canonical doc path for time series
   const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
   const docRef = db.doc(docPath);
 
   try {
     const startTime = Date.now();
-    // Fetch existing refreshHistory if present
+    // 3. Fetch existing refreshHistory if present
     const existingDoc = await docRef.get();
     let refreshHistory: RefreshEvent[] = [];
     if (existingDoc.exists && Array.isArray(existingDoc.data()?.refreshHistory)) {
       refreshHistory = existingDoc.data()!.refreshHistory;
     }
 
-    // Prepare document data
+    // 4. Prepare document data
     const docData = {
       data,
       metadata: {
@@ -115,16 +143,26 @@ export async function saveAvTimeSeriesData(
     };
 
     console.log(`aFH sATSD Will write to Firestore path: ${docPath}`);
-    await docRef.set(docData, { merge: true });
+    // 5. Check manual Firestore write enabled
+    if (checkManualWriteEnabled) {
+      const enabled = await isManualWriteEnabled();
+      console.log(`[saveAvTimeSeriesData] Manual Firestore write toggle enabled?`, enabled);
+      if (!enabled) {
+        console.log('[saveAvTimeSeriesData] Manual Firestore write toggle is OFF. Skipping data write and refresh log.');
+        return;
+      }
+    }
+    // 6. If enabled or bypassed proceed with Firestore write and refresh event logging
+    await db.doc(docPath).set(docData, { merge: true });
     console.log(`aFH sATSD Saved TIME SERIES data for ${symbol}/${endpoint} at path: ${docPath}`);
-
-    // Log refresh event and update refreshHistory using the canonical service
+    
+    // 7. Log refresh event and update refreshHistory using the canonical service
     const refreshLogger = new RefreshLoggerService();
     // You need the TTL for this endpoint; get it from AV_TIME_SERIES_ENDPOINT_CONFIGS or pass as param
     const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpoint];
     if (!endpointConfig || typeof endpointConfig.ttl !== 'number') {
-        throw new Error(`aFH sATSD TTL (ttlSeconds) must be specified in AV_TIME_SERIES_ENDPOINT_CONFIGS for endpoint: ${endpoint}`);
-      }
+      throw new Error(`aFH sATSD TTL (ttlSeconds) must be specified in AV_TIME_SERIES_ENDPOINT_CONFIGS for endpoint: ${endpoint}`);
+    }
     const ttlSeconds = endpointConfig.ttl;
     await refreshLogger.logRefreshEvent(
       {
@@ -142,6 +180,7 @@ export async function saveAvTimeSeriesData(
         // Optionally add more event fields
       }
     );
+    console.log('================= END aFH sATSD saveAvTimeSeriesData called =================');
   } catch (error) {
     console.error('aFH sATSD Error saving time series data to Firestore:', error);
     throw error;
@@ -158,7 +197,7 @@ export async function initializeTimeSeriesIfMissing(
   interval: TimeSeriesInterval,
   endpoint: AlphaVantageEndpoint,
 ): Promise<boolean> {
-  // Canonical doc path for time series
+  // 1. Canonical doc path for time series
   const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
   const dataRef = db.doc(docPath);
   const doc = await dataRef.get();
@@ -167,7 +206,7 @@ export async function initializeTimeSeriesIfMissing(
   console.log(`[initTSIM] No time series found at path: ${docPath}. Fetching full...`);
   console.log(`[initTSIM] Will write to Firestore path: ${docPath}`);
 
-  // Fetch the full time series from Alpha Vantage using canonical config and handler
+  // 2. Fetch the full time series from Alpha Vantage using canonical config and handler
   const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpoint];
   if (!endpointConfig) {
     throw new Error(`[initTSIM] No time series config found for endpoint: ${endpoint}`);
@@ -198,7 +237,7 @@ export async function initializeTimeSeriesIfMissing(
     console.log(`[initTSIM] Data length after truncation: ${data.length}`);
   }
 
-  // Handler is responsible for saving data and logging refresh event
+  // 3. Handler is responsible for saving data and logging refresh event
   // Do NOT call saveAvTimeSeriesData here!
 
   console.log(`[initTSIM] Initialized time series at path: ${docPath} (${data.length} entries)`);
