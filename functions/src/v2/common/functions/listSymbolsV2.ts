@@ -30,15 +30,12 @@ export const listSymbolsV2 = onRequest({
 
     // Use the helper to serialize symbols
     const symbols = serializeTrackedSymbols(result.symbols);
-
-    console.log('lSV2 listSymbolsV2 result: ', result);
-    console.log('lSV2 listSymbolsV2 symbols: ', symbols);
     
     console.log('lSV2 Successfully retrieved symbols:', { 
       count: symbols?.length, 
       total: result.total,
       hasSymbols: Array.isArray(symbols) && symbols.length > 0,
-      firstFewSymbols: symbols?.slice(0, 3) // Log first few symbols if available
+      firstFewSymbols: symbols?.slice(0, 2) // Log first few symbols if available
     });
     
     if (!symbols || symbols.length === 0) {
@@ -52,8 +49,6 @@ export const listSymbolsV2 = onRequest({
         sortDirection: options.sortDirection
       });
     }
-
-    console.log('lSV2 result:', result);
 
     console.log('=============== END BE listSymbolsV2 ==============================');
     

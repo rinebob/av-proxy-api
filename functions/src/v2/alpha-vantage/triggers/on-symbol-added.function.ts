@@ -45,7 +45,7 @@ export const onSymbolAdded = onDocumentCreated(
       datatype: 'json'
     });
 
-    console.log(`oSA.f oSA: Time series response: ${JSON.stringify(timeSeriesResponse)}`);
+    console.log(`oSA.f oSA: Time series response: ${JSON.stringify(timeSeriesResponse.data.slice(0, 5))}`);
     
     // Limit data in non-production environments to prevent emulator issues
     const isProduction = process.env.NODE_ENV === 'production' || process.env.FUNCTIONS_EMULATOR !== 'true';
@@ -58,6 +58,7 @@ export const onSymbolAdded = onDocumentCreated(
     
     // Reference to the time series document (canonical path)
     const docPath = getSymbolTimeSeriesDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY, ApiProvider.ALPHA_VANTAGE);
+    console.log(`oSA.f oSA: Time series document path: ${docPath}`);
     const timeSeriesRef = db.doc(docPath);
     
     // Calculate tomorrow's date

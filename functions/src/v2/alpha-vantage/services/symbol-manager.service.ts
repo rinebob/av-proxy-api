@@ -201,7 +201,7 @@ export class SymbolManagerService {
 
         const symbols = snapshot.docs.map(doc => toTrackedSymbolV2(doc.data()));
 
-        console.log('sMSvc lSV2 final symbols: ', symbols);
+        console.log('sMSvc lSV2 final symbols slice 2: ', symbols.slice(0, 2));
 
         return {
           symbols,

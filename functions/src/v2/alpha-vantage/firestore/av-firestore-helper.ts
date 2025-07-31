@@ -62,9 +62,9 @@ export async function saveAvData(
       }
     );
 
-    console.log(`Saved STANDARD data for ${symbol}/${endpoint} at path: ${docPath}`);
+    console.log(`aFH sAD Saved STANDARD data for ${symbol}/${endpoint} at path: ${docPath}`);
   } catch (error) {
-    console.error('Error saving data to Firestore:', error);
+    console.error('aFH sAD Error saving data to Firestore:', error);
     throw error;
   }
 }
@@ -78,7 +78,7 @@ export async function saveAvTimeSeriesData(
   endpoint: AlphaVantageEndpoint,
   interval: TimeSeriesInterval
 ): Promise<void> {
-    console.log(`aFH sATSD saveAvTimeSeriesData called. symbol: ${symbol}, endpoint: ${endpoint}, interval: ${interval}\nStack:\n`, new Error().stack);
+    console.log(`aFH sATSD saveAvTimeSeriesData called. symbol: ${symbol}, endpoint: ${endpoint}, interval: ${interval}`);
   // Compute metadata fields
   const histDataPoints = Array.isArray(data) ? data.length : 0;
   const histStartDate = histDataPoints > 0 && data[histDataPoints - 1]?.date
@@ -117,16 +117,16 @@ export async function saveAvTimeSeriesData(
       refreshHistory // preserve/merge history, or [] for new doc
     };
 
-    console.log(`Will write to Firestore path: ${docPath}`);
+    console.log(`aFH sATSD Will write to Firestore path: ${docPath}`);
     await docRef.set(docData, { merge: true });
-    console.log(`Saved TIME SERIES data for ${symbol}/${endpoint} at path: ${docPath}`);
+    console.log(`aFH sATSD Saved TIME SERIES data for ${symbol}/${endpoint} at path: ${docPath}`);
 
     // Log refresh event and update refreshHistory using the canonical service
     const refreshLogger = new RefreshLoggerService();
     // You need the TTL for this endpoint; get it from AV_TIME_SERIES_ENDPOINT_CONFIGS or pass as param
     const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpoint];
     if (!endpointConfig || typeof endpointConfig.ttl !== 'number') {
-        throw new Error(`TTL (ttlSeconds) must be specified in AV_TIME_SERIES_ENDPOINT_CONFIGS for endpoint: ${endpoint}`);
+        throw new Error(`aFH sATSD TTL (ttlSeconds) must be specified in AV_TIME_SERIES_ENDPOINT_CONFIGS for endpoint: ${endpoint}`);
       }
     const ttlSeconds = endpointConfig.ttl;
     await refreshLogger.logRefreshEvent(
@@ -146,7 +146,7 @@ export async function saveAvTimeSeriesData(
       }
     );
   } catch (error) {
-    console.error('Error saving time series data to Firestore:', error);
+    console.error('aFH sATSD Error saving time series data to Firestore:', error);
     throw error;
   }
 }
