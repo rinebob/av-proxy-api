@@ -17,6 +17,8 @@ import { Observable, from, of, throwError } from 'rxjs';
 import { map, switchMap, catchError, take } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { signal } from '@angular/core';
+import { getIdTokenResult } from '@angular/fire/auth';
 
 @Injectable({
   providedIn: 'root'
@@ -36,6 +38,9 @@ export class AuthService {
 
   // Signal for the current user object (User or null)
   readonly user = toSignal(this.user$);
+
+  // Signal for admin status
+  readonly isAdmin = signal<boolean>(false);
 
   // Token refresh in progress flag to prevent multiple refresh attempts
   private refreshInProgress = false;
@@ -57,8 +62,11 @@ export class AuthService {
         
         // Log ID token details
         await this.logTokenDetails(user);
+        const tokenResult = await getIdTokenResult(user);
+        this.isAdmin.set(!!tokenResult.claims['admin']);
       } else {
         console.log('AuthService: No user is currently signed in');
+        this.isAdmin.set(false);
       }
     });
   }

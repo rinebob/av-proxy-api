@@ -1,0 +1,18 @@
+@if (isAdmin()) {
+<div class="toggle-toolbar-row">
+    <span class="toggle-status">
+        @if (enabled()) {
+            Writes Enabled
+        } @else {
+            Writes Disabled
+        }
+    </span>
+    <mat-slide-toggle [checked]="enabled()" (change)="toggleWrite()" color="accent"
+        aria-label="Enable manual Firestore writes">
+        {{ enabled() ? 'Disable' : 'Enable' }}
+    </mat-slide-toggle>
+    @if (error()) {
+        <span class="error">{{ error() }}</span>
+    }
+</div>
+}

@@ -26,6 +26,8 @@ export enum NEWS_COLLECTION {
   BENZINGA = 'benzinga',
 }
 
+export const MANUAL_FIRESTORE_WRITE_ENABLED_DOCUMENT_PATH = 'config/manualFirestoreWriteEnabled';
+
 // Keep only the basic path configurations that might still be used for reference
 export const FirestorePathHelper = {
   // This can be used as a reference for valid collection names

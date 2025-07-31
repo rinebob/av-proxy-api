@@ -17,6 +17,7 @@ import { NavItem } from './core/models/nav-item.model';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { map, shareReplay } from 'rxjs/operators';
+import { ManualFirestoreWriteToggleComponent } from './core/admin/manual-firestore-write-toggle/manual-firestore-write-toggle.component';
 
 @Component({
   selector: 'app-root',
@@ -31,7 +32,8 @@ import { map, shareReplay } from 'rxjs/operators';
     MatListModule,
     RouterLink, 
     RouterLinkActive,
-    MatTooltipModule
+    MatTooltipModule,
+    ManualFirestoreWriteToggleComponent
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss']

@@ -8,6 +8,8 @@
     
     <span class="spacer"></span>
     
+    <app-manual-firestore-write-toggle />
+    
     @if (isAuthenticated()) {
       <div class="user-info">
         <span class="welcome-text">Welcome, {{ currentUser()?.email || 'User' }}</span>
