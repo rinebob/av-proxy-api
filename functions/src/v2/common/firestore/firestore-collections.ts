@@ -13,6 +13,9 @@ export enum FirestoreCollection {
     NEWS = 'news',
     SYSTEM_INFO = 'system-info',
 
+    // For feature control
+    CONFIG = 'config',
+
     // Deprecated
     TIME_SERIES = 'time-series',
 
