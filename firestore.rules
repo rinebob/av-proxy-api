@@ -5,43 +5,49 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isBackend() {
-      return isAuthenticated() && (
-        request.auth.token.firebase.sign_in_provider == 'function' ||
-        (request.query.debug == true && request.auth.token.firebase.sign_in_provider == 'debug')
-      );
+
+    // 1. manualFirestoreWriteEnabled toggle doc: only admin users can read/write
+    match /config/manualFirestoreWriteEnabled {
+      allow read, write: if request.auth.token.admin == true;
     }
 
-    // List of top-level collections that follow the standard access pattern
-    function getStandardCollections() {
-      return [
-        'tracked-symbols',
-        'symbol-data',
-        'market-data',
-        'economics',
-        'news',
-      ];
+    // 2. All other config docs: admin only read/write
+    match /config/{document=**} {
+      allow read, write: if request.auth.token.admin == true;
     }
 
-    // Apply standard access rules to all collections in the list
-    function isStandardCollection(collection) {
-      return getStandardCollections().hasAny([collection]);
+    // 3. Tracked symbols: allow reads, admin can write
+    match /tracked-symbols/{symbol} {
+      allow read: if true;
+      allow write: if request.auth.token.admin == true;
+    }    
+
+    // 4. Symbol data: allow reads, admin can write (including all subcollections)
+    match /symbol-data/{document=**} {
+      allow read: if true;
+      allow write: if request.auth.token.admin == true;
     }
 
-    // Standard access pattern for all top-level collections
-    match /{collection}/{document=**} {
-      allow read: if isAuthenticated() && isStandardCollection(collection);
-      allow write: if isBackend() && isStandardCollection(collection);
+    // 5. MarketData collection: allow reads, admin can write
+    match /market-data/{docId} {
+      allow read: if true;
+      allow write: if request.auth.token.admin == true;
     }
 
-    // Test collection - more permissive rules for debugging
-    match /test_collection/{document} {
-      allow read, write: if isAuthenticated();
+    // 6. News collection: allow reads, deny all writes
+    match /news/{docId} {
+      allow read: if true;
+      allow write: if false;
     }
+    // 7. Economics collection: allow reads, admin can write
+    match /economics/{docId} {
+      allow read: if true;
+      allow write: if request.auth.token.admin == true;
+    }
+
+    // Optional: Default deny for any other collections not explicitly matched
+    // match /{document=**} {
+    //   allow read, write: if false;
+    // }
   }
 }
