@@ -8,7 +8,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import type { EndpointConfig } from '../../common/types';
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 import { ApiProvider } from '../../common/data-providers';
-import { RefreshEvent, RefreshTrigger } from '../../common/refresh.types';
+import { RefreshEvent, RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { AV_TIME_SERIES_ENDPOINT_CONFIGS } from '../request-configs/av-endpoint-configs';
 import { AvDailyTimeSeriesHandler } from '../handlers/av-daily-time-series.handler';
@@ -54,7 +54,7 @@ export async function saveAvData(
       },
       {
         refreshedBy: 'system',
-        status:     'SUCCESS',
+        status: RefreshStatus.SUCCESS,
         triggeredBy: RefreshTrigger.SCHEDULER,
         durationMs: Date.now() - startTime,
         httpStatus: 200
@@ -139,7 +139,7 @@ export async function saveAvTimeSeriesData(
       },
       {
         refreshedBy: 'system',
-        status: 'SUCCESS',
+        status: RefreshStatus.SUCCESS,
         triggeredBy: RefreshTrigger.SCHEDULER,
         durationMs: Date.now() - startTime,
         // Optionally add more event fields

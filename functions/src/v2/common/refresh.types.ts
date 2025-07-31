@@ -7,7 +7,10 @@ export interface DocumentPathOptions {
   symbol?: string;
 }
 
-export type RefreshStatus = 'SUCCESS' | 'FAILURE';
+export enum RefreshStatus {
+  SUCCESS = 'SUCCESS',
+  FAILURE = 'FAILURE'
+}
 
 /**
  * A detailed record of a single refresh event, used for both the
@@ -18,7 +21,8 @@ export enum RefreshTrigger {
   MANUAL = 'manual',
   RETRY = 'retry',
   API = 'api',
-  SYSTEM = 'system'
+  SYSTEM = 'system',
+  SYMBOL_ADDED = 'symbol-added'
 }
 
 export interface RefreshEvent {

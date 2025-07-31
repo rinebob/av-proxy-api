@@ -20,7 +20,7 @@ import { ApiProvider } from '../../common/data-providers';
 import { 
   resolveFirestorePath
 } from '../../utils/firestore-utils';
-import { RefreshTrigger } from '../../common/refresh.types';
+import { RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
 
 // Logging helper
 const pr = true;
@@ -175,7 +175,7 @@ export async function runBenzingaCalendarRefreshJob() {
                     docRef,
                     apiResponse, // The actual data payload
                     {
-                        status: 'SUCCESS',
+                        status: RefreshStatus.SUCCESS,
                         durationMs,
                         triggeredBy: RefreshTrigger.SCHEDULER,
                         errorDetails: null,
@@ -210,7 +210,7 @@ export async function runBenzingaCalendarRefreshJob() {
                             docPath, // canonical Firestore path must be provided
                         },
                         {
-                            status: 'SUCCESS',
+                            status: RefreshStatus.SUCCESS,
                             triggeredBy: RefreshTrigger.SCHEDULER,
                             refreshedBy: endpointName,
                             durationMs,
@@ -230,7 +230,7 @@ export async function runBenzingaCalendarRefreshJob() {
                     docRef,
                     null, // No data to save on failure
                     {
-                        status: 'FAILURE',
+                        status: RefreshStatus.FAILURE,
                         durationMs,
                         triggeredBy: RefreshTrigger.SCHEDULER,
                         errorDetails: errorMessage,
