@@ -24,6 +24,12 @@ export enum BenzingaEndpoint {
   NEWS = 'news',
 }
 
+/** Maximum number of Benzinga news articles to retain in Firestore */
+export const MAX_BENZINGA_NEWS_ARTICLES = 10000;
+
+/** Number of days to retain news articles via Firestore TTL */
+export const BENZINGA_NEWS_TTL_DAYS = 30;
+
 // ===== Shared Benzinga Backend Types (moved from bz-endpoint-configs.ts) =====
 
 /**
@@ -273,6 +279,32 @@ export interface SvtBenzingaNewsItem {
     stocks: string[];
     channels: string[];
     tags: string[];
+
+    /**
+     * [FIRESTORE TTL POLICY]
+     * This field is used by Firestore's automatic TTL (Time-to-Live) deletion policy.
+     * 
+     * When set, Firestore will automatically delete this document after the specified timestamp.
+     * 
+     * Example Firestore TTL policy output:
+     * 
+     * {
+     *   "name": "projects/PROJECT_ID/databases/(default)/collectionGroups/news/fields/ttl",
+     *   "ttlConfig": {
+     *     "state": "ACTIVE"
+     *   }
+     * }
+     * 
+     * $ gcloud firestore fields ttls list --database="(default)" --project="alpha-vantage-proxy-api"
+     * name: projects/alpha-vantage-proxy-api/databases/(default)/collectionGroups/news/fields/ttl
+     * ttlConfig:
+     *   state: ACTIVE
+     * 
+     * https://console.cloud.google.com/firestore/databases/-default-/ttl?chat=true&inv=1&invt=Ab4mxA&project=alpha-vantage-proxy-api
+     * 
+     * @see https://firebase.google.com/docs/firestore/ttl
+     */
+    ttl?: Timestamp;
 }
 
 /**

@@ -6,6 +6,7 @@ import { BenzingaNewsItem, BenzingaNewsRequestConfig, SvtBenzingaNewsItem, SvtBz
 import { BZ_NEWS_REFRESH_SCHEDULE } from "../../common/function-schedules";
 import { Timestamp } from "firebase-admin/firestore";
 import { FirestoreCollection } from "../../common/firestore/firestore-collections";
+import { MAX_BENZINGA_NEWS_ARTICLES, BENZINGA_NEWS_TTL_DAYS } from '../../common/common-benz';
 
 // Document name for tracking bz news requests
 const BZ_NEWS_REQUEST_TRACKING = 'bz-news-request-tracking';
@@ -79,6 +80,24 @@ async function transformAndSaveNews(newsItems: BenzingaNewsItem[]): Promise<numb
     const batchSize = 450; // Keep well below the 500-operation limit for Firestore batches
     let totalProcessedCount = 0;
 
+    // --- LIMIT NEWS COLLECTION SIZE ---
+    const MAX_NEWS_ARTICLES = MAX_BENZINGA_NEWS_ARTICLES;
+    
+    const newsCollection = db.collection(FirestoreCollection.NEWS);
+    const snapshot = await newsCollection.orderBy('createdAt', 'asc').get();
+    if (snapshot.size >= MAX_NEWS_ARTICLES) {
+        const docsToDelete = snapshot.docs.slice(0, snapshot.size - MAX_NEWS_ARTICLES + newsItems.length);
+        if (docsToDelete.length > 0) {
+            const batchDelete = db.batch();
+            docsToDelete.forEach(doc => batchDelete.delete(doc.ref));
+            await batchDelete.commit();
+            console.log(`transformAndSaveNews: Deleted ${docsToDelete.length} oldest news articles to enforce max cap.`);
+        }
+    }
+
+    const ttlDays = BENZINGA_NEWS_TTL_DAYS;
+    const ttlTimestamp = Timestamp.fromDate(new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000));
+
     for (let i = 0; i < newsItems.length; i += batchSize) {
         const chunk = newsItems.slice(i, i + batchSize);
         const batch = db.batch();
@@ -115,6 +134,7 @@ async function transformAndSaveNews(newsItems: BenzingaNewsItem[]): Promise<numb
                 stocks: item.stocks?.map((s: { name: string }) => s.name) ?? [],
                 channels: item.channels?.map((c: { name: string }) => c.name) ?? [],
                 tags: item.tags?.map((t: { name: string }) => t.name) ?? [],
+                ttl: ttlTimestamp, // Add TTL field for Firestore TTL policy
             };
             batch.set(docRef, transformedItem, { merge: true });
             chunkProcessedCount++;
