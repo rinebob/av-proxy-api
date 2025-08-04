@@ -16,9 +16,9 @@ export interface CollectionInfo {
 
 export const TOP_LEVEL_COLLECTIONS: CollectionInfo[] = [
     { 
-      id: FirestoreCollection.COMPANY_DATA, 
-      name: 'Company Data', 
-      description: 'Company information and metrics',
+      id: FirestoreCollection.SYMBOL_DATA, 
+      name: 'Symbol Data', 
+      description: 'Company information and time series data',
       isSubcollection: false
     },
     { 
