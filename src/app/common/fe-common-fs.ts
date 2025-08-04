@@ -40,15 +40,21 @@ export const TOP_LEVEL_COLLECTIONS: CollectionInfo[] = [
       isSubcollection: false
     },
     { 
-      id: FirestoreCollection.TIME_SERIES, 
-      name: 'Time Series', 
-      description: 'Time series data',
-      isSubcollection: false
-    },
-    { 
       id: FirestoreCollection.TRACKED_SYMBOLS, 
       name: 'Tracked Symbols', 
       description: 'Symbols being tracked in the system',
       isSubcollection: false
+    },
+    {
+        id: FirestoreCollection.CONFIG,
+        name: 'Config',
+        description: 'Configuration data',
+        isSubcollection: false
+    },
+    {
+        id: FirestoreCollection.SYSTEM_INFO,
+        name: 'System Info',
+        description: 'System information',
+        isSubcollection: false
     }
 ];
