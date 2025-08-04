@@ -176,6 +176,16 @@ export const AdminDashboardStore = signalStore(
       }
     }
   })),
+  withProps((store) => ({
+    collections$: toObservable(store.collections),
+    currentCollectionPath$: toObservable(store.currentCollectionPath),
+    currentCollection$: toObservable(store.currentCollection),
+    documents$: toObservable(store.documents),
+    selectedDocument$: toObservable(store.selectedDocument),
+    subcollections$: toObservable(store.subcollections),
+    loading$: toObservable(store.loading),
+    error$: toObservable(store.error)
+  })),
   withHooks({
     onInit(store) {
       // Initialize by navigating to the first top-level collection
