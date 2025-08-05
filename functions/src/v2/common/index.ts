@@ -1,11 +1,9 @@
 // Export specific types from common-fn
 export { 
-  AlphaVantageFunctionName, 
   BenzingaFunctionName
 } from './common-fn';
 
 export type { 
-  CloudFunctionName,
   ErrorResponse, 
   AuthValidationResult 
 } from './common-fn';
