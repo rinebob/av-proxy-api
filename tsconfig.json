@@ -20,7 +20,7 @@
     "module": "ES2022",
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["../shared/lib/*"]
+      "@shared/*": ["shared/*"]
     }
   },
   "angularCompilerOptions": {
