@@ -1,7 +1,7 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { saveAvTimeSeriesData } from '../firestore/av-firestore-helper';
-import { AlphaVantageEndpoint } from '../../common/common-av';
-import type { ApiResponse, TimeSeriesEndpointConfig } from '../../common/types';
+import { ApiResponse } from '@shared/core';
+import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval } from '@shared/alpha-vantage';
 
 /**
  * Abstract base handler for Alpha Vantage time series endpoints.
@@ -49,7 +49,7 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T extends any[] = any[]>
           transformedData,
           symbol,
           endpoint as AlphaVantageEndpoint,
-          this.config.interval,
+          this.config.interval as TimeSeriesInterval,
           true // Check whether manual firestore write is enabled (for manual data refresh)
         );
       }

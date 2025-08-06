@@ -1,7 +1,6 @@
-import { BenzingaNewsRequestConfig } from '../../common/common-benz';
+import { BenzingaNewsRequestConfig, BenzingaNewsParameter } from '@shared/benzinga';
 import { BenzingaBaseHandler } from './benzinga-base.handler';
 import { BENZINGA_NEWS_API_BASE_URL } from '../../common/common-benz';
-import { BenzingaNewsParameter } from '../../common/common-benz';
 
 const fetchNewsByIdArticle = false;
 

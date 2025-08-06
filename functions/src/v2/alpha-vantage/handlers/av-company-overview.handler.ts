@@ -1,5 +1,5 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
-import { ApiResponse } from '../../common/types';
+import { ApiResponse } from '@shared/core';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 
 /**

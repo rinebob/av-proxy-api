@@ -1,13 +1,16 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db } from '../../../firebase-admin-init';
-import { FirestoreCollection } from '../../common/firestore/firestore-collections';
-import { AlphaVantageEndpoint } from '../../common/common-av';
+
+import { FirestoreCollection } from '@shared/firestore';
+import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { ApiProvider } from '@shared/core';
+
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { AlphaVantageBulkQuotesResponse } from '../handlers/av-bulk-quote.handler';
+import { BulkQuoteData } from '../handlers/av-bulk-quote.handler';
+
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { BULK_QUOTE_UPDATE_SCHEDULE } from '../../common/function-schedules';
-import { BulkQuoteData } from '../handlers/av-bulk-quote.handler';
-import { ApiProvider } from '../../common/data-providers';
 
 const BATCH_SIZE = 50; // Max symbols per batch for bulk quotes
 const BATCH_DELAY_MS = 1000; // 1 second delay between batches to respect rate limits

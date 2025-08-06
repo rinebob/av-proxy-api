@@ -1,11 +1,10 @@
-import { AlphaVantageEndpoint } from '../common/common-av';
-import { EndpointConfig, TimeSeriesEndpointConfig } from '../common/types';
+import {  AV_ENDPOINT_CONFIGS, AV_TIME_SERIES_ENDPOINT_CONFIGS, AlphaVantageEndpoint, TimeSeriesEndpointConfig } from '@shared/alpha-vantage';
+import type { EndpointConfig } from '@shared/core';
 import { AvDailyTimeSeriesHandler } from './handlers/av-daily-time-series.handler';
 import { AvGlobalQuoteHandler } from './handlers/av-global-quote.handler';
 import { AvCompanyOverviewHandler } from './handlers/av-company-overview.handler';
 import { AvBulkQuoteHandler } from './handlers/av-bulk-quote.handler';
 import { AvSymbolSearchHandler } from './handlers/av-symbol-search.handler';
-import { AV_ENDPOINT_CONFIGS, AV_TIME_SERIES_ENDPOINT_CONFIGS } from './request-configs/av-endpoint-configs';
 
 type HandlerConstructor = new (config: EndpointConfig | TimeSeriesEndpointConfig) => any;
 

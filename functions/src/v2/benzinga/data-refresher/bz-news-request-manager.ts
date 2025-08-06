@@ -1,12 +1,20 @@
-import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { db } from "../../../firebase-admin-init";
-import { BenzingaHandlerFactory } from "../benzinga-factory";
-import { BenzingaNewsItem, BenzingaNewsRequestConfig, SvtBenzingaNewsItem, SvtBzNewsRequest } from "../../common/common-benz";
-import { BZ_NEWS_REFRESH_SCHEDULE } from "../../common/function-schedules";
 import { Timestamp } from "firebase-admin/firestore";
-import { FirestoreCollection } from "../../common/firestore/firestore-collections";
-import { MAX_BENZINGA_NEWS_ARTICLES, BENZINGA_NEWS_TTL_DAYS } from '../../common/common-benz';
+
+import { BenzingaHandlerFactory } from "../benzinga-factory";
+
+import { 
+    MAX_BENZINGA_NEWS_ARTICLES,
+    BENZINGA_NEWS_TTL_DAYS,
+    BenzingaNewsRequestConfig,
+    BenzingaNewsItem,
+    SvtBenzingaNewsItem,
+    SvtBzNewsRequest
+} from "@shared/benzinga";
+import { FirestoreCollection } from "@shared/firestore";
+
+import { BZ_NEWS_REFRESH_SCHEDULE } from "../../common/function-schedules";
 
 // Document name for tracking bz news requests
 const BZ_NEWS_REQUEST_TRACKING = 'bz-news-request-tracking';
@@ -61,7 +69,7 @@ async function fetchAllNewsPages(handler: any, endpointConfig: BenzingaNewsReque
                 console.log(`bNRM fANP: No more items found on page ${currentPage}. Halting pagination.`);
             }
         } catch (error) {
-            logger.error(`bNRM fANP: Error fetching page ${currentPage}. Aborting pagination.`, { error, finalApiParams });
+            console.error(`bNRM fANP: Error fetching page ${currentPage}. Aborting pagination.`, { error, finalApiParams });
             hasMorePages = false; // Stop on error to prevent infinite loops
         }
     }
@@ -209,12 +217,12 @@ export const requestBenzingaNews = onSchedule(
         secrets: ['BENZINGA_WIIM_API_KEY'],
     },
     async () => {
-        logger.info('bNRM rBN: Benzinga News Request Manager triggered by schedule.');
+        console.info('bNRM rBN: Benzinga News Request Manager triggered by schedule.');
         try {
             await fetchAndPersistBenzingaNews();
         } catch (error) {
-            logger.error(`bNRM rBN: An unhandled error occurred in the news refresh scheduler:`, error);
+            console.error(`bNRM rBN: An unhandled error occurred in the news refresh scheduler:`, error);
         }
-        logger.info('bNRM rBN: Benzinga News Request Manager finished.');
+        console.info('bNRM rBN: Benzinga News Request Manager finished.');
     }
 );

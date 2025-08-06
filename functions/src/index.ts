@@ -1,3 +1,6 @@
+import 'module-alias/register';
+
+console.log('Module aliases loaded:', require('module-alias'));
 
 ///////////////////// MIGRATED V2 FUNCTIONS ////////////////////////////////
 

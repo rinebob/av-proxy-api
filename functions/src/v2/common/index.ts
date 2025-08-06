@@ -8,17 +8,6 @@ export type {
   AuthValidationResult 
 } from './common-fn';
 
-// Export specific types from common-benz
-export { 
-  BzCalendarType, 
-  BenzingaOutputFormat 
-} from './common-benz';
-
-export type { 
-  BenzingaCalendarParams,
-  BenzingaCalendarResponse 
-} from './common-benz';
-
 // Export specific types from common-av
 export { 
   OutputSize,

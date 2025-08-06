@@ -1,7 +1,7 @@
 // Shared Firestore utilities for data refreshers
-import { FirestoreCollection } from '../common/firestore/firestore-collections';
-import { ApiProvider } from '../common/data-providers';
-import { EndpointSymbolUsage } from '../common/common-fn';
+import { FirestoreCollection } from '@shared/firestore';
+import { ApiProvider } from '@shared/core';
+import { EndpointSymbolUsage } from '@shared/core';
 
 /**
  * Configuration for resolving Firestore paths
@@ -11,7 +11,7 @@ export interface FirestorePathConfig {
   firestorePath: string;
   
   /** Whether and how this endpoint uses symbols */
-  symbolUsage?: EndpointSymbolUsage;
+  symbolUsage: EndpointSymbolUsage;
   
   /** The endpoint name for logging and identification */
   endpointName: string;

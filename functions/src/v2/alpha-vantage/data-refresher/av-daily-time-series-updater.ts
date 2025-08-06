@@ -1,14 +1,15 @@
+import { db } from '../../../firebase-admin-init';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { Timestamp } from 'firebase-admin/firestore';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
-import { AlphaVantageEndpoint } from '../../common/common-av';
-import { db } from '../../../firebase-admin-init';
-import { FirestoreCollection } from '../../common/firestore/firestore-collections';
-import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
+
+import { AlphaVantageEndpoint, TimeSeriesInterval } from '@shared/alpha-vantage';
+import { FirestoreCollection } from '@shared/firestore';
+import { ApiProvider } from '@shared/core';
+
 import { DAILY_TIME_SERIES_UPDATE_SCHEDULE } from '../../common/function-schedules';
-import { ApiProvider } from '../../common/data-providers';
 import { initializeTimeSeriesIfMissing } from '../firestore/av-firestore-helper';
-import { TimeSeriesInterval } from '../../common/common-fn';
+import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 
 // Helper function to update daily time series with latest quote
 async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> {

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import * as admin from 'firebase-admin';
-import { ApiProvider } from './data-providers';
+import { ApiProvider } from '@shared/core';
 
 export abstract class BaseApiHandler<T = any> {
   protected vendor: ApiProvider;

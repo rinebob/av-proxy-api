@@ -1,6 +1,5 @@
 import { FirestoreCollection } from '../../common/firestore/firestore-collections';
-import { DATA_PROVIDERS } from '../../common/data-providers';
-import { ApiProvider } from '../../common/data-providers';
+import { DATA_PROVIDERS, ApiProvider } from '@shared/core';
 
 // ----------- Canonical Time Series Path Utilities -----------
 /**

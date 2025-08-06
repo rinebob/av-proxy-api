@@ -1,5 +1,5 @@
 import { Request as ExpressRequest } from 'express';
-import { BenzingaEndpoint, BzCompanyDataCalendarType, BzCalendarType, BzMarketDataCalendarType } from '../common/common-benz';
+import { BenzingaEndpoint, BzCompanyDataCalendarType, BzCalendarType, BzMarketDataCalendarType } from '@shared/benzinga';
 import { BenzingaBaseHandler } from './handlers/benzinga-base.handler';
 import { BenzingaHandlerFactory } from './benzinga-factory';
 

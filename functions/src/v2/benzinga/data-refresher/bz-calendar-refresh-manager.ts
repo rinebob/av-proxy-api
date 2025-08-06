@@ -5,16 +5,18 @@
 import { db } from '../../../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { FirestoreCollection } from '../../common/firestore/firestore-collections';
-import { EndpointSymbolUsage } from '../../common/common-fn';
 
-import { RefreshInfoService } from '../../services/refresh-info.service';
+import benzinga from '@shared/benzinga';
+import type { BenzingaRequestConfig } from '@shared/benzinga';
+import { ApiProvider } from '@shared/core/data-providers';
+import { FirestoreCollection } from '@shared/firestore/firestore';
+import { EndpointSymbolUsage } from '@shared/core/types';
+
 import { BenzingaHandlerFactory } from '../../benzinga/benzinga-factory';
 import type { HandlerKey } from '../../benzinga/benzinga-factory';
-import { BZ_CALENDAR_REQUEST_CONFIGS } from '../../benzinga/request-configs/bz-calendar-request-configs';
-import { BZ_CALENDAR_REFRESH_SCHEDULE } from '../../common/function-schedules';
+import { RefreshInfoService } from '../../services/refresh-info.service';
 import { refreshLogger } from '../../services/refresh-logger.service';
-import { ApiProvider } from '../../common/data-providers';
+import { BZ_CALENDAR_REFRESH_SCHEDULE } from '../../common/function-schedules';
 
 // Firestore utilities
 import { 
@@ -41,18 +43,17 @@ export async function runBenzingaCalendarRefreshJob() {
 
     // TODO: Remove this after debugging
     // 2. Combine company and market data requests
-    const calendarRequests = { ...BZ_CALENDAR_REQUEST_CONFIGS };
     // const failingCalendarRequests = {
-    //     [BZ_CALENDAR_REQUEST_CONFIGS.fda.id]: BZ_CALENDAR_REQUEST_CONFIGS.fda,
-    //     [BZ_CALENDAR_REQUEST_CONFIGS.offerings.id]: BZ_CALENDAR_REQUEST_CONFIGS.offerings
+    //     [benzinga.BZ_CALENDAR_REQUEST_CONFIGS.fda.id]: benzinga.BZ_CALENDAR_REQUEST_CONFIGS.fda,
+    //     [benzinga.BZ_CALENDAR_REQUEST_CONFIGS.offerings.id]: benzinga.BZ_CALENDAR_REQUEST_CONFIGS.offerings
     // };
     // const succeedingCalendarRequests = {
-    //     [BZ_CALENDAR_REQUEST_CONFIGS.dividends.id]: BZ_CALENDAR_REQUEST_CONFIGS.dividends,
-    //     [BZ_CALENDAR_REQUEST_CONFIGS.ipos.id]: BZ_CALENDAR_REQUEST_CONFIGS.ipos
+    //     [benzinga.BZ_CALENDAR_REQUEST_CONFIGS.dividends.id]: benzinga.BZ_CALENDAR_REQUEST_CONFIGS.dividends,
+    //     [benzinga.BZ_CALENDAR_REQUEST_CONFIGS.ipos.id]: benzinga.BZ_CALENDAR_REQUEST_CONFIGS.ipos
     // };
     
     // 3. For each implemented Benzinga calendar endpoint
-    for (const [endpointName, endpointConfig] of Object.entries(calendarRequests)) {
+    for (const [endpointName, endpointConfig] of Object.entries(benzinga.BZ_CALENDAR_REQUEST_CONFIGS) as [string, BenzingaRequestConfig][]) {
     // for (const [endpointName, endpointConfig] of Object.entries(succeedingCalendarRequests)) {
 
         logBZDM(`**********************************************************************************`);

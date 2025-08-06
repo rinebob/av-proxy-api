@@ -1,7 +1,7 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { saveAvData } from '../firestore/av-firestore-helper';
-import { AlphaVantageEndpoint } from '../../common/common-av';
-import type { ApiResponse } from '../../common/types';
+import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { ApiResponse } from '@shared/core';
 
 /**
  * Abstract base handler for Alpha Vantage standard (non–time series) endpoints.

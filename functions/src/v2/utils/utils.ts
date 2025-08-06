@@ -1,13 +1,13 @@
 import axios from 'axios';
+import { db } from '../../firebase-admin-init';
 import { defineSecret, defineString } from "firebase-functions/params";
 import * as dotenv from 'dotenv';
-import {
-    ALPHAVANTAGE_BASE_URL,
-    AlphaVantageDailyTimeSeriesResponse,
-    AlphaVantageGlobalQuoteResponse,
-} from '../common/common-av';
-import { db } from '../../firebase-admin-init';
+
 import { authenticateFirebaseUser } from './auth';
+
+import { ALPHAVANTAGE_BASE_URL } from '@shared/alpha-vantage';
+
+import { AlphaVantageDailyTimeSeriesResponse, AlphaVantageGlobalQuoteResponse } from '../common/common-av';
 
 // Create a union type for all possible Alpha Vantage API responses
 export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVantageGlobalQuoteResponse;

@@ -1,11 +1,14 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
-import { AlphaVantageEndpoint, OutputSize, TimeSeriesDocument, DailyTimeSeriesDataTwo } from '../../common/common-av';
-import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { db, FieldValue } from '../../../firebase-admin-init';
-import { FirestoreCollection } from '../../common/firestore/firestore-collections';
-import { ApiProvider } from '../../common/data-providers';
+
+import { TimeSeriesInterval } from '@shared/alpha-vantage';
+import { AlphaVantageEndpoint, OutputSize, DailyTimeSeriesDataTwo } from '@shared/alpha-vantage';
+import { ApiProvider } from '@shared/core';
+import { FirestoreCollection } from '@shared/firestore';
+
+import { TimeSeriesDocument } from 'src/v2/common/common-av';
+import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
-import { TimeSeriesInterval } from '../../common/common-fn';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
 import { Timestamp } from 'firebase-admin/firestore';

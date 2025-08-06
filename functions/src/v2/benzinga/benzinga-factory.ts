@@ -1,9 +1,12 @@
-import { BzCalendarRequestType, BenzingaEndpoint, SvtBzNewsRequest, BenzingaRequestConfig } from '../common/common-benz';
+import { 
+  BzCalendarRequestType, 
+  BenzingaEndpoint, 
+  SvtBzNewsRequest, 
+  BenzingaRequestConfig,
+  BZ_NEWS_REQUEST_CONFIGS,
+  BZ_CALENDAR_REQUEST_CONFIGS
+} from '@shared/benzinga';
 import { BenzingaBaseHandler } from './handlers/benzinga-base.handler';
-
-// Import endpoint configurations
-import { BZ_NEWS_REQUEST_CONFIGS } from './request-configs/bz-news-request-configs';
-import { BZ_CALENDAR_REQUEST_CONFIGS } from './request-configs/bz-calendar-request-configs';
 
 // Import concrete handlers
 import { BenzingaCalendarHandler } from './handlers/benzinga-calendar.handler';

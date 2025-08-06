@@ -1,11 +1,11 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { 
   AlphaVantageEndpoint, 
-} from '../../common/common-av';
-import { ApiResponse } from '../../common/types';
-import { AV_ENDPOINT_CONFIGS } from '../request-configs/av-endpoint-configs';
+  AV_ENDPOINT_CONFIGS
+} from '@shared/alpha-vantage';
+import { ApiResponse } from '@shared/core';
+import { SvtAvSymbolMatch, AlphaVantageSymbolSearchResponse } from '@shared/alpha-vantage';
 import { isAxiosError } from 'axios';
-import { AlphaVantageSymbolSearchResponse, SvtAvSymbolMatch } from '../../common/common-av';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 
 /**

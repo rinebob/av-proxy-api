@@ -2,11 +2,16 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from 'firebase-admin';
 
 import { BenzingaHandlerFactory } from '../../benzinga/benzinga-factory';
-import { BZ_NEWS_REQUEST_CONFIGS } from '../../benzinga/request-configs/bz-news-request-configs';
-import { BenzingaNewsParameter, BenzingaNewsRequestConfig, BenzingaRequestId, SvtBzNewsRequest } from '../../common/common-benz';
-import { RequestConfig } from '../../common/types';
+import {
+    BZ_NEWS_REQUEST_CONFIGS,
+    BenzingaRequestId,
+    BenzingaNewsRequestConfig,
+    BenzingaNewsParameter,
+    SvtBzNewsRequest
+} from '@shared/benzinga';
+import { RequestConfig } from '@shared/core';
+import { FirestoreCollection } from '@shared/firestore';
 
-import { FirestoreCollection } from '../../common/firestore/firestore-collections';
 import { BZ_NEWS_REFRESH_SCHEDULE } from '../../common/function-schedules';
 
 const BZ_NEWS_REQUEST_CONFIG: BenzingaNewsRequestConfig = BZ_NEWS_REQUEST_CONFIGS[SvtBzNewsRequest.BZ_NEWS] as BenzingaNewsRequestConfig;

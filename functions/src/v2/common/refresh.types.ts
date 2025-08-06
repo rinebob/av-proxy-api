@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase-admin/firestore';
-import { ApiProvider } from './data-providers';
+import { ApiProvider } from '@shared/core';
 
 export interface DocumentPathOptions {
   vendor: ApiProvider;

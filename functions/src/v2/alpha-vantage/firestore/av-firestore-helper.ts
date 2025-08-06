@@ -1,18 +1,16 @@
 import { db } from '../../../firebase-admin-init';
-import { 
-  AlphaVantageEndpoint, 
-} from '../../common/common-av';
-import { TimeSeriesInterval } from '../../common/common-fn';
-import { OutputSize } from '../../common/common-av';
 import { Timestamp } from 'firebase-admin/firestore';
-import type { EndpointConfig } from '../../common/types';
+
+import { AlphaVantageEndpoint, AV_TIME_SERIES_ENDPOINT_CONFIGS, OutputSize, TimeSeriesInterval } from '@shared/alpha-vantage';
+import { ApiProvider } from '@shared/core';
+import type { EndpointConfig } from '@shared/core';
+
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
-import { ApiProvider } from '../../common/data-providers';
+import { AvDailyTimeSeriesHandler } from '../handlers/av-daily-time-series.handler';
+
+import { isManualWriteEnabled } from '../../common/firestore/manual-write-toggle';
 import { RefreshEvent, RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
-import { AV_TIME_SERIES_ENDPOINT_CONFIGS } from '../request-configs/av-endpoint-configs';
-import { AvDailyTimeSeriesHandler } from '../handlers/av-daily-time-series.handler';
-import { isManualWriteEnabled } from '../../common/firestore/manual-write-toggle';
 
 /**
  * Saves Alpha Vantage STANDARD (non-time-series) data to Firestore and logs refresh event using RefreshLoggerService.
