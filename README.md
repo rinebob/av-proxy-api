@@ -85,6 +85,58 @@ In the project root:
 ng serve
 ```
 
+## Shared Code Structure and Module Aliasing
+
+### Shared Directory (`/shared`)
+
+This monorepo contains a `shared` directory at the root, which holds all TypeScript code, interfaces, and utilities that are used by both the backend (`functions`) and the frontend (Angular app). This ensures type safety and code reuse across the entire stack.
+
+- **Location:**  
+  ```
+  /shared
+  ```
+- **Compiled Output:**  
+  The shared code is compiled to:
+  ```
+  /shared/lib
+  ```
+
+### How Backend Functions Use Shared Code
+
+The backend Cloud Functions (in `/functions`) import shared code using the `@shared` alias. This is achieved through a combination of:
+
+- **TypeScript `paths` mapping** in `functions/tsconfig.json`:
+  ```json
+  "paths": {
+    "@shared/*": ["../shared/lib/*"]
+  }
+  ```
+- **Runtime aliasing** via [`module-alias`](https://www.npmjs.com/package/module-alias) in `functions/package.json`:
+  ```json
+  "_moduleAliases": {
+    "@shared": "../shared/lib"
+  }
+  ```
+
+**Important:**  
+- Always run and build from the monorepo root.  
+- Never manually override the alias in code—let `module-alias` and the config handle it.
+- If you change the structure of the `shared` directory, update both `tsconfig.json` and `package.json` accordingly.
+
+### Troubleshooting
+
+If you see errors like:
+```
+Cannot find module 'C:\aa\projects\shared\alpha-vantage'
+```
+or
+```
+Cannot find module 'C:\aa\projects\av-proxy-api\functions\C:\aa\projects\av-proxy-api\shared\lib\alpha-vantage'
+```
+- Make sure the `_moduleAliases` path is relative (as above).
+- Rebuild both `shared` and `functions` (`npm run build` from root).
+- Restart the emulator from the monorepo root.
+
 ## API Endpoints
 
 ### Alpha Vantage

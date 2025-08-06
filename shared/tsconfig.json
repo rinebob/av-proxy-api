@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+      "module": "commonjs",
+      "target": "es2020",
+      "declaration": true,
+      "outDir": "lib",
+      "rootDir": ".",
+      "esModuleInterop": true,
+      "strict": true
+    },
+    "include": ["**/*"],
+    "exclude": ["lib", "node_modules", "**/http-proxy.d.ts"]
+  }
