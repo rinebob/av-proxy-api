@@ -31,9 +31,7 @@ export interface EndpointConfig<TId extends string = string> {
     method: HttpMethod | string;
     description: string;
     ttl: number;
-    /** @deprecated Use symbolUsage instead */
-    requiresSymbol?: boolean;
-    symbolUsage?: EndpointSymbolUsage | string;
+    symbolUsage: EndpointSymbolUsage;
     firestorePath?: string;
     documentationUrl?: string;
     parameters: Record<string, EndpointParameter>;
@@ -50,9 +48,7 @@ export interface RequestConfig<TId = string, TCategory = string> {
   method: HttpMethod;
   description: string;
   ttl: number;
-  /** @deprecated Use symbolUsage instead */
-  requiresSymbol?: boolean;
-  symbolUsage?: EndpointSymbolUsage;
+  symbolUsage: EndpointSymbolUsage;
   parameters: Record<string, EndpointParameter>;
   /**
    * The Firestore document path in the format 'collection/doc/collection/doc/...'.
@@ -61,4 +57,22 @@ export interface RequestConfig<TId = string, TCategory = string> {
    */
   firestorePath?: string;
   documentationUrl: string;
+}
+
+export interface ApiResponse<T = any> {
+    data: T;
+    metadata: {
+      timestamp: Date;
+      endpoint: string;
+      symbol?: string;
+      ttl: number;
+      requestId: string;
+      processingTimeMs: number;
+    };
+}
+
+export interface ApiError extends Error {
+    code: string;
+    status: number;
+    details?: any;
 }

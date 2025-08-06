@@ -1,5 +1,18 @@
 // COPIED FROM functions/src/v2/common/common-av.ts. Do not use directly until migration is complete.
 
+// Canonical shared symbol match interface for Alpha Vantage symbol search (normalized keys)
+export interface SvtAvSymbolMatch {
+    symbol: string;
+    name: string;
+    type: string;
+    region: string;
+    marketOpen: string;
+    marketClose: string;
+    timezone: string;
+    currency: string;
+    matchScore: string;
+}
+
 export interface AlphaVantageSymbolMatch {
     "1. symbol": string;
     "2. name": string;

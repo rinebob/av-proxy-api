@@ -1,11 +1,6 @@
 // COPIED FROM functions/src/v2/common/common-av.ts and related files. Do not use directly until migration is complete.
-// NOTE: This file references Firestore types.
-// If using in backend, ensure you have:
-// import { Timestamp, FieldValue } from 'firebase-admin/firestore';
-// or reference as FirebaseFirestore.Timestamp, FirebaseFirestore.FieldValue
 
-import { RefreshEvent } from "../../functions/src/v2/common/refresh.types";
-import { EndpointConfig } from "../types";
+import type { TimestampLike } from '../firestore/timestamp';
 
 export enum TimeSeriesInterval {
   INTRADAY = 'intraday',
@@ -17,24 +12,6 @@ export enum TimeSeriesInterval {
 export enum OutputSize {
   COMPACT = 'compact',
   FULL = 'full'
-}
-
-export interface TimeSeriesMetaData {
-    "1. Information": string;
-    "2. Symbol": string;
-    "3. Last Refreshed": string;
-    "4. Output Size": string;
-    "5. Time Zone": string;
-    "6. Time Zone"?: string;
-}
-
-export interface TimeSeriesMetaDataTwo {
-    information: string;
-    symbol: string;
-    lastRefreshed: string;
-    outputSize: string;
-    timeZone: string;
-    timeZoneAlt?: string;
 }
 
 export interface DailyTimeSeriesData {
@@ -52,22 +29,24 @@ export interface DailyTimeSeriesData {
     "11. change percent"?: string;
 }
 
-export interface AlphaVantageDailyTimeSeriesResponse {
-    "Meta Data": TimeSeriesMetaData;
-    "Time Series (Daily)"?: DailyTimeSeriesData;
-    "Time Series (Daily - Adjusted)"?: DailyTimeSeriesData;
-    "Information"?: string;
-    "Note"?: string;
-    "Error Message"?: string;
-}
 
-export interface AlphaVantageDailyTimeSeriesTwo {
-    metaData: TimeSeriesMetaDataTwo;
-    timeSeriesDaily: DailyTimeSeriesData[];
-    timeSeriesDailyAdjusted?: DailyTimeSeriesData[];
-    information?: string;
-    note?: string;
-    errorMessage?: string;
+// Clean version of DailyTimeSeriesData without numbered keys
+export interface DailyTimeSeriesDataTwo {
+    date: string; // Date string in YYYY-MM-DD format
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    volume: string;
+    // These are specific to TIME_SERIES_DAILY_ADJUSTED
+    adjustedClose?: string;
+    volumeAdjusted?: string;
+    dividendAmount?: string;
+    splitCoefficient?: string;
+    // Calculated fields
+    previousClose?: string;
+    change?: string;
+    changePercent?: string;
 }
 
 export interface QueryParams {
@@ -79,47 +58,6 @@ export enum DocumentType {
   TIME_SERIES = 'TIME_SERIES',
   STANDARD = 'STANDARD'
 }
-
-/**
- * Metadata for a time series document in Firestore
- */
-export interface TimeSeriesDocumentMetadata {
-  /** First date in the historical data */
-  histStartDate: Date | FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
-
-  /** Most recent date in the historical data */
-  histEndDate: Date | FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
-
-  /** Number of historical data points */
-  histDataPoints: number;
-
-  /** Date of the first quote in the dataset */
-  firstQuoteDate?: Date | FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
-
-  /** Number of quote data points */
-  quoteDataPoints?: number;
-
-  /** Time interval between data points */
-  interval: TimeSeriesInterval;
-
-  /** Stock symbol this data represents */
-  symbol: string;
-}
-
-/**
- * Structure of a time series document in Firestore
- */
-export interface TimeSeriesDocument<T = any> {
-  /** Array of time series data points */
-  data: T[];
-
-  /** Metadata about the time series data */
-  metadata: TimeSeriesDocumentMetadata;
-
-  /** Refresh history */
-  refreshHistory: RefreshEvent[];
-}
-
 export interface StandardMetadata extends BaseMetadata {
   endpoint: string;
   nextRefreshAt: any;
@@ -127,8 +65,7 @@ export interface StandardMetadata extends BaseMetadata {
 
 export interface BaseMetadata {
   symbol: string;
-  lastUpdated: FirebaseFirestore.FieldValue | FirebaseFirestore.Timestamp;
+  lastUpdated: TimestampLike;
   ttlSeconds: number;
 }
 
-export type DocumentMetadata = TimeSeriesDocumentMetadata | StandardMetadata;

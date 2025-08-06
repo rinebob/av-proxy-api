@@ -1,6 +1,6 @@
-import { ApiProvider } from '../data-providers';
-import { HttpMethod, EndpointSymbolUsage, RequestConfig } from '../types';
-import { FirestoreCollection } from '../../src/app/core/config/firestore-collection-enum';
+import { ApiProvider } from '../core/data-providers';
+import { HttpMethod, EndpointSymbolUsage } from '../core/types';
+import { FirestoreCollection } from '../firestore/firestore';
 import { BenzingaEndpoint } from './bz-endpoints';
 import { BzNewsChannel } from './bz-news-channels';
 import { BzEndpointCategory, SvtBzNewsRequest } from './bz-endpoints';
@@ -146,14 +146,14 @@ export function getBzNewsParams(keys: BenzingaNewsParameter[]): Record<string, a
 }
 
 // Base configuration that can be extended by specific requests
-const BASE_NEWS_REQUEST_CONFIG: Omit<RequestConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> = {
+const BASE_NEWS_REQUEST_CONFIG: Omit<BenzingaNewsRequestConfig, 'id' | 'name' | 'apiEndpoint' | 'description' | 'apiKeyEnv'> = {
     provider: ApiProvider.BENZINGA,
     category: BzEndpointCategory.BENZINGA_NEWS,
     method: HttpMethod.GET,
     ttl: 60 * 60, // 1 hour
-    requiresSymbol: false,
-    symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
+    symbolUsage: EndpointSymbolUsage.OPTIONAL,
     parameters: {},
+    parameterKeys: [],
     documentationUrl: 'https://docs.benzinga.com/benzinga/newsfeed-v2/newsService-get.html',
 };
 
@@ -213,5 +213,6 @@ export const BZ_NEWS_REQUEST_CONFIGS: Record<SvtBzNewsRequest, BenzingaNewsReque
       BenzingaNewsParameter.NEWS_ID,
       BenzingaNewsParameter.DISPLAY_OUTPUT,
     ],
+    parameters: {},
   },
 }

@@ -1,4 +1,7 @@
-import type { RequestConfig, EndpointSymbolUsage } from '../types';
+// Use a generic type for Firestore timestamps in shared code to avoid backend/frontend conflicts.
+export type FirestoreTimestamp = any;
+
+import type { RequestConfig, EndpointSymbolUsage } from '../core/types';
 import type { SvtBzNewsRequest, BzCalendarRequestType } from './bz-endpoints';
 import type { BzNewsChannel } from './bz-news-channels';
 
@@ -8,7 +11,7 @@ export interface BenzingaRequestConfig extends RequestConfig<BenzingaRequestId> 
   apiKeyEnv: string;
   id: BenzingaRequestId;
   parameterKeys: string[];
-  symbolUsage?: EndpointSymbolUsage;
+  symbolUsage: EndpointSymbolUsage;
 }
 
 export interface BenzingaNewsRequestConfig extends BenzingaRequestConfig {

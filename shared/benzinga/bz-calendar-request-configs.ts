@@ -1,5 +1,5 @@
-import { ApiProvider } from '../data-providers';
-import { HttpMethod } from '../types';
+import { ApiProvider } from '../core/data-providers';
+import { HttpMethod, EndpointSymbolUsage } from '../core/types';
 import { FirestoreCollection } from '../firestore/firestore';
 import {
     BzCalendarRequestType,
@@ -10,10 +10,6 @@ import {
     BenzingaCalendarParameter,
     BenzingaRequestConfig,
 } from './bz-types';
-import { EndpointConfig } from '../types';
-
-// Benzinga-specific endpoint config interface
-import { EndpointSymbolUsage } from '../types';
 
 // Shared parameter definitions map
 export const BZ_CALENDAR_PARAMETER_DEFS: Record<BenzingaCalendarParameter, any> = {
@@ -109,7 +105,7 @@ const BASE_CALENDAR_REQUEST_CONFIG: Omit<BenzingaRequestConfig, 'id' | 'name' | 
     category: BzEndpointCategory.BENZINGA_CALENDAR,
     method: HttpMethod.GET,
     ttl: 60 * 60, // 1 hour
-    requiresSymbol: true,
+    symbolUsage: EndpointSymbolUsage.OPTIONAL,
     parameters: {
         [BenzingaCalendarParameter.DATE_FROM]: {
             type: 'string',
@@ -142,7 +138,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
     [BzCalendarRequestType.EARNINGS]: {
         ...BASE_CALENDAR_REQUEST_CONFIG,
         id: BzCalendarRequestType.EARNINGS,
-        symbolUsage: EndpointSymbolUsage.REQUIRED,
         name: 'Earnings',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.EARNINGS}`,
         description: 'Returns earnings data for companies',
@@ -157,7 +152,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
       [BzCalendarRequestType.DIVIDENDS]: {
         ...BASE_CALENDAR_REQUEST_CONFIG,
         id: BzCalendarRequestType.DIVIDENDS,
-        symbolUsage: EndpointSymbolUsage.REQUIRED,
         name: 'Dividends',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.DIVIDENDS}`,
         description: 'Returns dividend data for companies',
@@ -171,7 +165,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
       [BzCalendarRequestType.CONFERENCE_CALLS]: {
         ...BASE_CALENDAR_REQUEST_CONFIG,
         id: BzCalendarRequestType.CONFERENCE_CALLS,
-        symbolUsage: EndpointSymbolUsage.REQUIRED,
         name: 'Conference Calls',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.CONFERENCE_CALLS}`,
         description: 'Returns conference call information',
@@ -184,7 +177,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
       [BzCalendarRequestType.RATINGS]: {
         ...BASE_CALENDAR_REQUEST_CONFIG,
         id: BzCalendarRequestType.RATINGS,
-        symbolUsage: EndpointSymbolUsage.REQUIRED,
         name: 'Analyst Ratings',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.RATINGS}`,
         description: 'Returns analyst ratings for companies',
@@ -198,7 +190,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
       [BzCalendarRequestType.GUIDANCE]: {
         ...BASE_CALENDAR_REQUEST_CONFIG,
         id: BzCalendarRequestType.GUIDANCE,
-        symbolUsage: EndpointSymbolUsage.REQUIRED,
         name: 'Guidance',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.GUIDANCE}`,
         description: 'Returns company guidance',
@@ -211,7 +202,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
       [BzCalendarRequestType.SPLITS]: {
         ...BASE_CALENDAR_REQUEST_CONFIG,
         id: BzCalendarRequestType.SPLITS,
-        symbolUsage: EndpointSymbolUsage.REQUIRED,
         name: 'Stock Splits',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.SPLITS}`,
         description: 'Returns stock split information',
@@ -224,7 +214,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
       [BzCalendarRequestType.OFFERINGS]: {
         ...BASE_CALENDAR_REQUEST_CONFIG,
         id: BzCalendarRequestType.OFFERINGS,
-        symbolUsage: EndpointSymbolUsage.REQUIRED,
         name: 'Offerings',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.OFFERINGS}`,
         description: 'Returns company offerings',
@@ -241,7 +230,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
         name: 'Economics Calendar',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.ECONOMICS}`,
         description: 'Returns economic calendar data',
-        requiresSymbol: false,
         firestorePath: `${FirestoreCollection.ECONOMICS}/bz-${FirestoreCollection.ECONOMIC_CALENDAR}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS
@@ -254,7 +242,6 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
         name: 'IPOs',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.IPOS}`,
         description: 'Returns IPO calendar data',
-        requiresSymbol: false,
         firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.IPOS}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS
@@ -263,14 +250,13 @@ export const BZ_CALENDAR_REQUEST_CONFIGS: Record<BzCalendarRequestType, Benzinga
       [BzCalendarRequestType.MERGERS_ACQUISITIONS]: {
         ...BASE_CALENDAR_REQUEST_CONFIG,
         id: BzCalendarRequestType.MERGERS_ACQUISITIONS,
-        symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
+        symbolUsage: EndpointSymbolUsage.OPTIONAL,
         name: 'Mergers & Acquisitions',
         apiEndpoint: `/${BenzingaEndpoint.CALENDAR}/${BzCalendarRequestType.MERGERS_ACQUISITIONS}`,
         description: 'Returns M&A activity data',
-        requiresSymbol: false,
         firestorePath: `${FirestoreCollection.MARKET_DATA}/bz-${FirestoreCollection.MERGERS_ACQUISITIONS}`,
         parameterKeys: [
           ...BZ_CALENDAR_COMMON_PARAMS
         ],
       },
-    }
+}

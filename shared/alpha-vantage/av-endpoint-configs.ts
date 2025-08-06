@@ -4,9 +4,9 @@ import {
   HttpMethod,
   EndpointSymbolUsage,
   EndpointConfig,
-} from '../types';
+} from '../core/types';
 
-import { ApiProvider } from '../data-providers';
+import { ApiProvider } from '../core/data-providers';
 import { FirestoreCollection } from '../firestore/firestore';
 
 
@@ -30,7 +30,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns realtime and delayed stock quotes for a single symbol.',
     ttl: 0, // ttl is not used for this endpoint
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: '',  // firestorePath is not used for this endpoint
     documentationUrl: 'https://www.alphavantage.co/documentation/#latestprice',
@@ -59,7 +58,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns realtime and delayed stock quotes for multiple symbols in a single API call.',
     ttl: 0, // ttl is not used for this endpoint
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: '',  // firestorePath is not used for this endpoint
     documentationUrl: 'https://www.alphavantage.co/documentation/#latestprice',
@@ -88,7 +86,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the company information, financial ratios, and other key metrics for the equity specified.',
     ttl: 7 * 24 * 60 * 60, // 1 week
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.COMPANY_OVERVIEW}/av-${FirestoreCollection.COMPANY_OVERVIEW}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#company-overview',
@@ -110,7 +107,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly earnings (EPS) for the company of interest.',
     ttl: 7 * 24 * 60 * 60, // 1 week
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/av-${FirestoreCollection.EARNINGS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#earnings',
@@ -132,7 +128,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly income statements for the company of interest.',
     ttl: 7 * 24 * 60 * 60, // 1 week
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.INCOME_STATEMENT}/av-${FirestoreCollection.INCOME_STATEMENT}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#income-statement',
@@ -154,7 +149,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly balance sheets for the company of interest.',
     ttl: 7 * 24 * 60 * 60, // 1 week
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.BALANCE_SHEET}/av-${FirestoreCollection.BALANCE_SHEET}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#balance-sheet',
@@ -176,7 +170,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly cash flow for the company of interest.',
     ttl: 7 * 24 * 60 * 60, // 1 week
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.CASH_FLOW}/av-${FirestoreCollection.CASH_FLOW}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#cash-flow',
@@ -198,7 +191,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns a list of active or delisted US stocks and ETFs, either as of the latest trading day or at a specific time in history.',
     ttl: 7 * 24 * 60 * 60, // 1 week
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.LISTING_DELISTING_STATUS}/av-${FirestoreCollection.LISTING_DELISTING_STATUS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#listing-status',
@@ -220,7 +212,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the earnings calendar for stocks that report earnings within the next 3 months.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.OPTIONAL,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS_CALENDAR}/av-${FirestoreCollection.EARNINGS_CALENDAR}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#earnings-calendar',
@@ -242,7 +233,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns a list of IPOs expected in the next 3-4 months.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.MARKET_DATA}/av-${FirestoreCollection.IPO_CALENDAR}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#ipo-calendar',
@@ -265,7 +255,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Search for symbols and companies based on keywords',
     ttl: 30 * 24 * 60 * 60, // 30 days in seconds
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.TRACKED_SYMBOLS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#symbolsearch',
@@ -288,7 +277,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly Real GDP of the United States.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.REAL_GDP}/av-${FirestoreCollection.REAL_GDP}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#gdp',
@@ -304,7 +292,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the daily, weekly, and monthly US treasury yield of a given maturity timeline (e.g., 5 year, 10 year, 30 year, etc.)',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.TREASURY_YIELD}/av-${FirestoreCollection.TREASURY_YIELD}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#treasury-yield',
@@ -320,7 +307,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the daily, weekly, and monthly federal funds rate (interest rate) of the United States.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.FEDERAL_FUNDS_RATE}/av-${FirestoreCollection.FEDERAL_FUNDS_RATE}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#federal-funds-rate',
@@ -336,7 +322,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the monthly and semiannual consumer price index (CPI) of the United States.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.CPI}/av-${FirestoreCollection.CPI}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#cpi',
@@ -352,7 +337,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the annual inflation rates (consumer prices) of the United States.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.INFLATION}/av-${FirestoreCollection.INFLATION}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#inflation',
@@ -368,7 +352,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the monthly advance and monthly retail trade report for the United States.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.RETAIL_SALES}/av-${FirestoreCollection.RETAIL_SALES}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#retail-sales',
@@ -384,7 +367,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the monthly advance report on durable goods orders in the United States.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.DURABLE_GOODS_ORDERS}/av-${FirestoreCollection.DURABLE_GOODS_ORDERS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#durable-goods',
@@ -400,7 +382,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the monthly unemployment data of the United States.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.UNEMPLOYMENT_RATE}/av-${FirestoreCollection.UNEMPLOYMENT_RATE}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#unemployment',
@@ -416,7 +397,6 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     method: HttpMethod.GET,
     description: 'Returns the monthly US All Employees: Total Nonfarm Payrolls (NFP) report.',
     ttl: 24 * 60 * 60, // 1 day
-    requiresSymbol: false,
     symbolUsage: EndpointSymbolUsage.NOT_SUPPORTED,
     firestorePath: `${FirestoreCollection.ECONOMIC_INDICATORS}/${FirestoreCollection.NONFARM_PAYROLL}/av-${FirestoreCollection.NONFARM_PAYROLL}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#nonfarm-payroll',
@@ -434,7 +414,6 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
     method: HttpMethod.GET,
     description: 'Daily open, high, low, close, and volume for a symbol.',
     ttl: 60 * 5, // 5 minutes
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY}/av-${FirestoreCollection.DAILY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#daily',
@@ -458,7 +437,6 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
     method: HttpMethod.GET,
     description: 'Weekly open, high, low, close, and volume for a symbol.',
     ttl: 60 * 60, // 1 hour
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.WEEKLY}/av-${FirestoreCollection.WEEKLY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#weekly',
@@ -482,7 +460,6 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
     method: HttpMethod.GET,
     description: 'Monthly open, high, low, close, and volume for a symbol.',
     ttl: 60 * 60, // 1 hour
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.MONTHLY}/av-${FirestoreCollection.MONTHLY}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#monthly',
@@ -526,7 +503,6 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
     method: HttpMethod.GET,
     description: 'Daily adjusted open, high, low, close, and volume for a symbol.',
     ttl: 60 * 60, // 1 hour
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.DAILY_ADJUSTED}/av-${FirestoreCollection.DAILY_ADJUSTED}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#dailyadj',
@@ -550,7 +526,6 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
     method: HttpMethod.GET,
     description: 'Weekly adjusted open, high, low, close, and volume for a symbol.',
     ttl: 60 * 60, // 1 hour
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.WEEKLY_ADJUSTED}/av-${FirestoreCollection.WEEKLY_ADJUSTED}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#weeklyadj',
@@ -574,7 +549,6 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
     method: HttpMethod.GET,
     description: 'Monthly adjusted open, high, low, close, and volume for a symbol.',
     ttl: 60 * 60, // 1 hour
-    requiresSymbol: true,
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.MONTHLY_ADJUSTED}/av-${FirestoreCollection.MONTHLY_ADJUSTED}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#monthlyadj',
