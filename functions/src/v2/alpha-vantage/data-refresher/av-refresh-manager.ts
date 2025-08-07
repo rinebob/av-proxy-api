@@ -9,11 +9,10 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-factory';
 
-import { AV_ENDPOINT_CONFIGS } from '@shared/alpha-vantage';
+import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection } from '@shared/firestore';
 
-import { AV_IMPLEMENTED_ENDPOINTS } from '../../common/common-av';
 import { AV_REFRESH_MANAGER_SCHEDULE } from '../../common/function-schedules';
 
 import { formatPST } from '../../utils/utils';

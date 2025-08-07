@@ -1,14 +1,15 @@
 import * as admin from 'firebase-admin';
 import { db } from '../../../firebase-admin-init';
 import { DocumentData, Query } from 'firebase-admin/firestore';
-import { FirestoreCollection } from '../../common/firestore/firestore-collections';
+import { FirestoreCollection } from '@shared/firestore';
 import {
     ListSymbolsOptions,
     ListSymbolsV2Response,
-    toTrackedSymbolV2,
     TRACKED_SYMBOL_V2_FIELDS,
     TrackedSymbolV2
-} from '../../common/common-dm';
+} from '@shared/alpha-vantage';
+
+import { toTrackedSymbolV2 } from '../../common/common-dm';
 
 /**
  * Service for managing symbols in the system

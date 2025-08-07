@@ -1,4 +1,4 @@
-import { FirestoreCollection } from '../../common/firestore/firestore-collections';
+import { FirestoreCollection } from '@shared/firestore';
 import { DATA_PROVIDERS, ApiProvider } from '@shared/core';
 
 // ----------- Canonical Time Series Path Utilities -----------

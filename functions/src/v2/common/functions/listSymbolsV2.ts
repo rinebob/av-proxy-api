@@ -1,5 +1,6 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { ListSymbolsOptions, serializeTrackedSymbols } from "../common-dm";
+import { ListSymbolsOptions } from "@shared/alpha-vantage";
+import { serializeTrackedSymbols } from "../common-dm";
 import { symbolManagerService } from "../../alpha-vantage/services/symbol-manager.service";
 
 /**

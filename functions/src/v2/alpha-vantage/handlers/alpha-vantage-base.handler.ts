@@ -1,7 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import { ApiResponse, ApiError, EndpointConfig } from '@shared/core';
+import { ApiProvider, ApiResponse, ApiError, DATA_PROVIDERS, EndpointConfig } from '@shared/core';
 import { saveAvData } from '../firestore/av-firestore-helper';
-import { API_CONSTANTS } from '../../common/api-constants';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { AvEndpointCategory } from '@shared/alpha-vantage';
 
@@ -36,12 +35,12 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     this.baseParams = {
       apikey: getAlphaVantageApiKey(),
       function: this.config.id,
-      datatype: API_CONSTANTS.ALPHA_VANTAGE.RESPONSE_TYPE
+      datatype: DATA_PROVIDERS[ApiProvider.ALPHA_VANTAGE].responseType
     };
 
     this.apiClient = axios.create({
-      baseURL: API_CONSTANTS.ALPHA_VANTAGE.BASE_URL,
-      timeout: API_CONSTANTS.ALPHA_VANTAGE.DEFAULT_TIMEOUT_MS
+      baseURL: DATA_PROVIDERS[ApiProvider.ALPHA_VANTAGE].baseUrl,
+      timeout: DATA_PROVIDERS[ApiProvider.ALPHA_VANTAGE].defaultTimeoutMs
     });
 
     console.log('==============================');

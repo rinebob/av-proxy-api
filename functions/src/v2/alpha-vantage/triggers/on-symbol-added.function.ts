@@ -1,17 +1,18 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { db, FieldValue } from '../../../firebase-admin-init';
+import { Timestamp } from 'firebase-admin/firestore';
 
-import { TimeSeriesInterval } from '@shared/alpha-vantage';
-import { AlphaVantageEndpoint, OutputSize, DailyTimeSeriesDataTwo } from '@shared/alpha-vantage';
+import { AlphaVantageEndpoint,
+    OutputSize,
+    DailyTimeSeriesDataTwo,
+    TimeSeriesDocument,
+    TimeSeriesInterval } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
-import { FirestoreCollection } from '@shared/firestore';
+import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
-import { TimeSeriesDocument } from 'src/v2/common/common-av';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
-import { RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
-import { Timestamp } from 'firebase-admin/firestore';
 
 /**
  * Cloud Function that triggers when a new symbol is added to the tracked-symbols collection.

@@ -1,11 +1,11 @@
 // This must be the first import to ensure Firebase is initialized.
 import { db } from '../../../firebase-admin-init';
-
-import { onCall } from 'firebase-functions/v2/https';
-import { FirestoreCollection } from '../firestore/firestore-collections';
-import { TrackedSymbolV2 } from '../common-dm';
 import { Timestamp } from 'firebase-admin/firestore';
-import { SaveTrackedSymbolResponse } from '../common-av';
+import { onCall } from 'firebase-functions/v2/https';
+
+import { FirestoreCollection } from '@shared/firestore';
+import { TrackedSymbolV2 } from '@shared/alpha-vantage';
+import { SaveTrackedSymbolResponse } from '@shared/alpha-vantage';
 
 /**
  * HTTP Cloud Function to save a tracked symbol to Firestore.

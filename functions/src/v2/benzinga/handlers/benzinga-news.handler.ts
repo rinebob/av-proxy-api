@@ -1,6 +1,6 @@
 import { BenzingaNewsRequestConfig, BenzingaNewsParameter } from '@shared/benzinga';
 import { BenzingaBaseHandler } from './benzinga-base.handler';
-import { BENZINGA_NEWS_API_BASE_URL } from '../../common/common-benz';
+import { ApiProvider, DATA_PROVIDERS } from '@shared/core';
 
 const fetchNewsByIdArticle = false;
 
@@ -29,9 +29,9 @@ interface NewsParams {
  */
 export class BenzingaNewsHandler extends BenzingaBaseHandler<any> {
   constructor(config: BenzingaNewsRequestConfig) {
-    super({ ...config, apiEndpoint: BENZINGA_NEWS_API_BASE_URL });
+    super({ ...config, apiEndpoint: DATA_PROVIDERS[ApiProvider.BENZINGA].baseUrl });
     // Override the apiClient baseURL for news endpoint
-    this.apiClient.defaults.baseURL = BENZINGA_NEWS_API_BASE_URL;
+    this.apiClient.defaults.baseURL = DATA_PROVIDERS[ApiProvider.BENZINGA].baseUrl;
     
     // Override paramsSerializer for news endpoint
     this.apiClient.defaults.paramsSerializer = (params: Record<string, any>) => {

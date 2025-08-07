@@ -1,5 +1,5 @@
 import { getFirestore } from 'firebase-admin/firestore';
-import { FirestoreCollection } from './firestore-collections';
+import { FirestoreCollection } from '@shared/firestore';
 
 const MANUAL_WRITE_TOGGLE_DOC_ID = 'manualFirestoreWriteEnabled';
 

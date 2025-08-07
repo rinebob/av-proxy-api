@@ -1,9 +1,10 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { Request, Response } from 'express';
-import { BenzingaEndpoint } from '@shared/benzinga';
+
+import { BenzingaEndpoint, BenzingaFunctionName } from '@shared/benzinga';
+
 import { BenzingaHandlerFactory } from './benzinga-factory';
 import { authenticateRequest, handleApiError } from '../utils/utils';
-import { BenzingaFunctionName } from '../common/common-fn';
 import { withCors } from '../utils/cors-middleware';
 
 /**

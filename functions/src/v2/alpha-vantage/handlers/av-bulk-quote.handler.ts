@@ -1,5 +1,5 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
-import { AlphaVantageEndpoint } from '../../common/common-av';
+import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 
 /**

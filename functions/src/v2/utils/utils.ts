@@ -5,9 +5,7 @@ import * as dotenv from 'dotenv';
 
 import { authenticateFirebaseUser } from './auth';
 
-import { ALPHAVANTAGE_BASE_URL } from '@shared/alpha-vantage';
-
-import { AlphaVantageDailyTimeSeriesResponse, AlphaVantageGlobalQuoteResponse } from '../common/common-av';
+import { AlphaVantageDailyTimeSeriesResponse, AlphaVantageGlobalQuoteResponse, ALPHAVANTAGE_BASE_URL } from '@shared/alpha-vantage';
 
 // Create a union type for all possible Alpha Vantage API responses
 export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVantageGlobalQuoteResponse;

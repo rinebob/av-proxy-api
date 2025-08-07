@@ -1,9 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
-
-import { ApiResponse, ApiError } from '@shared/core';
+import { ApiResponse, ApiError, DATA_PROVIDERS, ApiProvider } from '@shared/core';
 import { BenzingaRequestConfig } from '@shared/benzinga';
-import { BENZINGA_API_BASE_URL } from '../../common/common-benz';
 
 export abstract class BenzingaBaseHandler<T = any> {
   protected readonly config: BenzingaRequestConfig;
@@ -131,11 +129,11 @@ export abstract class BenzingaBaseHandler<T = any> {
     }
 
     this.apiClient = axios.create({
-      baseURL: BENZINGA_API_BASE_URL,
+      baseURL: DATA_PROVIDERS[ApiProvider.BENZINGA].baseUrl,
       headers: {
         'Accept': 'application/json'
       },
-      timeout: 15000, // 15 seconds
+      timeout: DATA_PROVIDERS[ApiProvider.BENZINGA].defaultTimeoutMs, // 15 seconds
       paramsSerializer: (params) => {
         const searchParams = new URLSearchParams();
         for (const key of Object.keys(params)) {

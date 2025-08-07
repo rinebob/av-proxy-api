@@ -1,9 +1,10 @@
 import { db } from '../../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
-import { DocumentPathOptions, RefreshEvent, RefreshStatus, RefreshTrigger } from '../common/refresh.types';
+
+import { DocumentPathOptions, RefreshEvent, RefreshStatus, RefreshTrigger } from '@shared/firestore';
+import type { TimeSeriesDocumentMetadata, TimeSeriesInterval } from '@shared/alpha-vantage';
+
 import { formatTtlSeconds } from '../utils/utils';
-import type { TimeSeriesInterval } from '../common/common-fn';
-import type { TimeSeriesDocumentMetadata } from '../common/common-av';
 
 export interface RefreshEventInput {
   status: RefreshStatus;
