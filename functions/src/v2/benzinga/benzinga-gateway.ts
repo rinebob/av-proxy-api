@@ -13,7 +13,7 @@ import { withCors } from '../utils/cors-middleware';
  * Routes requests to the appropriate handler based on the endpoint.
  */
 const benzingaApiHandler = async (req: Request, res: Response) => {
-  console.log('benzinga-gateway.ts loaded');
+  console.log('------------- benzinga-gateway.ts loaded -----------------');
   const requestId = Math.random().toString(36).substring(2, 10);
   const startTime = Date.now();
 

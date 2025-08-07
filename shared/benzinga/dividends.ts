@@ -3,22 +3,29 @@
 /**
  * Dividends data structure
  */
-export interface DividendsData {
-  date: string;
-  ticker: string;
-  name: string;
-  exchange: string;
-  currency: string;
-  dividend: number;
-  dividend_prior: number;
-  dividend_yield: number;
-  dividend_yield_annual: number;
-  ex_dividend_date: string;
-  pay_date: string;
-  record_date: string;
-  updated: number;
-  frequency: string;
-  status: string;
-  importance?: number;
-  notes?: string;
+/**
+ * Represents a single Benzinga Dividends API response item.
+ * Matches the raw API response shape (all fields as returned by Benzinga).
+ */
+export interface BenzingaDividendApiItem {
+    id: string;
+    date: string; // YYYY-MM-DD
+    notes: string;
+    updated: number;
+    ticker: string;
+    name: string;
+    exchange: string;
+    currency: string;
+    confirmed: boolean;
+    period: string;
+    year: number;
+    frequency: number;
+    dividend: string; // double, but as string in API
+    dividend_prior: string; // double, but as string in API
+    dividend_type: string;
+    dividend_yield: string; // double, but as string in API
+    ex_dividend_date: string;
+    payable_date: string;
+    record_date: string;
+    importance: number;
 }

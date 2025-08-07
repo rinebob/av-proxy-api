@@ -5,7 +5,7 @@ import { BenzingaEndpoint } from "./bz-endpoints";
 /**
  * A single earnings calendar item from Benzinga.
  */
-export interface EarningsItem {
+export interface EarningsData {
     id: string,
     date: string,
     date_confirmed: string,
@@ -53,6 +53,6 @@ export interface BenzingaCalendarParamsBase {
  * Response from the Benzinga earnings calendar endpoint.
  */
 export interface EarningsResponse {
-    earnings: EarningsItem[];
+    earnings: EarningsData[];
 }
 
