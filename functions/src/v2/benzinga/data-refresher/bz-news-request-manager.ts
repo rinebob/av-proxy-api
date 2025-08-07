@@ -8,7 +8,7 @@ import {
     MAX_BENZINGA_NEWS_ARTICLES,
     BENZINGA_NEWS_TTL_DAYS,
     BenzingaNewsRequestConfig,
-    BenzingaNewsItem,
+    BzNewsData,
     SvtBenzingaNewsItem,
     SvtBzNewsRequest
 } from "@shared/benzinga";
@@ -81,10 +81,10 @@ async function fetchAllNewsPages(handler: any, endpointConfig: BenzingaNewsReque
 /**
  * Transforms and saves an array of Benzinga news items to Firestore using a batch write.
  *
- * @param {BenzingaNewsItem[]} newsItems An array of news items from the Benzinga API.
+ * @param {BzNewsData[]} newsItems An array of news items from the Benzinga API.
  * @returns {Promise<number>} A promise that resolves to the total number of articles processed and saved.
  */
-async function transformAndSaveNews(newsItems: BenzingaNewsItem[]): Promise<number> {
+async function transformAndSaveNews(newsItems: BzNewsData[]): Promise<number> {
     const batchSize = 450; // Keep well below the 500-operation limit for Firestore batches
     let totalProcessedCount = 0;
 

@@ -1,43 +1,58 @@
 export * from './bz-calendar-request-configs';
+export * from './bz-calendar';
+export * from './bz-conference-calls';
 export * from './bz-constants';
+export * from './bz-dividends';
+export * from './bz-earnings';
+export * from './bz-economics';
 export * from './bz-endpoints';
+export * from './bz-guidance';
 export * from './bz-news-channels';
+export * from './bz-mergers-acquisitions';
 export * from './bz-news-request-configs';
+export * from './bz-ipos';
+export * from './bz-news';
+export * from './bz-ratings';
+export * from './bz-splits';
 export * from './bz-types';
-export * from './calendar';
-export * from './dividends';
-export * from './earnings';
-export * from './ipos';
-export * from './news';
-export * from './splits';
 
 // Default export: aggregate all named exports into a single object
-import * as bzCalendarRequestConfigs from './bz-calendar-request-configs';
-import * as bzConstants from './bz-constants';
-import * as bzEndpoints from './bz-endpoints';
-import * as bzNewsChannels from './bz-news-channels';
-import * as bzNewsRequestConfigs from './bz-news-request-configs';
-import * as bzTypes from './bz-types';
-import * as calendar from './calendar';
-import * as dividends from './dividends';
-import * as earnings from './earnings';
-import * as ipos from './ipos';
-import * as news from './news';
-import * as splits from './splits';
+import * as calendarRequestConfigs from './bz-calendar-request-configs';
+import * as conferenceCalls from './bz-conference-calls';
+import * as constants from './bz-constants';
+import * as endpoints from './bz-endpoints';
+import * as newsChannels from './bz-news-channels';
+import * as newsRequestConfigs from './bz-news-request-configs';
+import * as calendar from './bz-calendar';
+import * as dividends from './bz-dividends';
+import * as earnings from './bz-earnings';
+import * as economics from './bz-economics';
+import * as guidance from './bz-guidance';
+import * as ipos from './bz-ipos';
+import * as mergersAcquisitions from './bz-mergers-acquisitions';
+import * as news from './bz-news';
+import * as ratings from './bz-ratings';
+import * as splits from './bz-splits';
+import * as types from './bz-types'
 
 const benzinga = {
-  ...bzCalendarRequestConfigs,
-  ...bzConstants,
-  ...bzEndpoints,
-  ...bzNewsChannels,
-  ...bzNewsRequestConfigs,
-  ...bzTypes,
+  ...calendarRequestConfigs,
+  ...conferenceCalls,
   ...calendar,
+  ...constants,
   ...dividends,
   ...earnings,
+  ...economics,
+  ...endpoints,
+  ...guidance,
   ...ipos,
+  ...mergersAcquisitions,
   ...news,
+  ...newsChannels,
+  ...newsRequestConfigs,
+  ...ratings,
   ...splits,
+  ...types,
 };
 
 export default benzinga;

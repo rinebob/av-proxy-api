@@ -3,7 +3,7 @@
 /**
  * IPOs data structure
  */
-export interface IposData {
+export interface BzIposData {
     id: string,
     date: string,
     time: string,
@@ -32,6 +32,6 @@ export interface IposData {
     updated: number
 }
 
-export interface IposResponse {
-    ipos: IposData[]
+export interface BzIposResponse {
+    ipos: BzIposData[]
 }

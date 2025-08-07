@@ -1,4 +1,4 @@
-import { OutputSize, TimeSeriesInterval} from './time-series';
+import { OutputSize, TimeSeriesInterval} from './av-time-series';
 import { AlphaVantageEndpoint, AvEndpointCategory } from './av-endpoints';
 import {
   HttpMethod,

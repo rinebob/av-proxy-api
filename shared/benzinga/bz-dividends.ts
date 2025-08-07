@@ -7,7 +7,7 @@
  * Represents a single Benzinga Dividends API response item.
  * Matches the raw API response shape (all fields as returned by Benzinga).
  */
-export interface BenzingaDividendApiItem {
+export interface BzDividendsData {
     id: string;
     date: string; // YYYY-MM-DD
     notes: string;

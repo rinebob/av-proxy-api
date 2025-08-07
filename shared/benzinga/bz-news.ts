@@ -5,7 +5,7 @@ import { FirestoreTimestamp } from "./bz-types";
 /**
  * News data structure
  */
-export interface BenzingaNewsItem {
+export interface BzNewsData {
   id: number;
   author: string;
   created: string;

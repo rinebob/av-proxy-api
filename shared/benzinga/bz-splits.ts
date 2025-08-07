@@ -3,7 +3,7 @@
 /**
  * Stock splits data structure
  */
-export interface SplitsData {
+export interface BzSplitsData {
   date: string;
   ticker: string;
   name: string;

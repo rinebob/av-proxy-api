@@ -4,24 +4,24 @@ export * from './av-company-overview';
 export * from './av-constants';
 export * from './av-endpoint-configs';
 export * from './av-endpoints';
-export * from './global-quote';
-export * from './symbol-search';
-export * from './time-series';
+export * from './av-global-quote';
+export * from './av-symbol-search';
+export * from './av-time-series';
 
 // Default export: aggregate all named exports into a single object
-import * as avCompanyOverview from './av-company-overview';
-import * as avConstants from './av-constants';
-import * as avEndpointConfigs from './av-endpoint-configs';
-import * as avEndpoints from './av-endpoints';
-import * as globalQuote from './global-quote';
-import * as symbolSearch from './symbol-search';
-import * as timeSeries from './time-series';
+import * as companyOverview from './av-company-overview';
+import * as constants from './av-constants';
+import * as endpointConfigs from './av-endpoint-configs';
+import * as endpoints from './av-endpoints';
+import * as globalQuote from './av-global-quote';
+import * as symbolSearch from './av-symbol-search';
+import * as timeSeries from './av-time-series';
 
 const alphaVantage = {
-  ...avCompanyOverview,
-  ...avConstants,
-  ...avEndpointConfigs,
-  ...avEndpoints,
+  ...companyOverview,
+  ...constants,
+  ...endpointConfigs,
+  ...endpoints,
   ...globalQuote,
   ...symbolSearch,
   ...timeSeries,
