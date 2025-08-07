@@ -78,3 +78,11 @@ export enum AvEndpointCategory {
     /** Symbol search */
     SEARCH = 'search'
 }
+
+/**
+ * Set of endpoints that have been implemented and are ready for automatic refresh.
+ * Add endpoints to this set as they are implemented.
+ */
+export const AV_IMPLEMENTED_ENDPOINTS: Set<AlphaVantageEndpoint> = new Set([
+    AlphaVantageEndpoint.OVERVIEW,
+]);

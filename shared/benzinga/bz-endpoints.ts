@@ -54,3 +54,9 @@ export enum BzCalendarRequestType {
 }
 
 export type BzCalendarType = BzCompanyDataCalendarType | BzMarketDataCalendarType;
+
+export enum BenzingaFunctionName {
+    GET_CALENDAR = 'getBenzingaCalendar',
+    GET_COMPANY_LOGO = 'getCompanyLogo',
+    GET_DYNAMIC_CALENDAR = 'getDynamicCalendar',
+}
