@@ -40,7 +40,5 @@
       <h3>{{ alphaVantageStore.endpoint() }} Data for {{ alphaVantageStore.symbol() }}</h3>
       <pre>{{ alphaVantageStore.currentData() | json }}</pre>
     </div>
-  } @else if (alphaVantageStore.symbol() && !alphaVantageStore.loading()) {
-    <div class="no-data">No data available for {{ alphaVantageStore.symbol() }}. Click Fetch to load.</div>
-  }
+  } 
 </section>
