@@ -1,24 +1,22 @@
 import { Component, inject, OnInit } from '@angular/core';
+import { JsonPipe } from '@angular/common';
 import { CommonModule } from '@angular/common';
-import { MatListModule } from '@angular/material/list';
+import { RouterModule } from '@angular/router';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatExpansionModule } from '@angular/material/expansion';
 import { MatCardModule } from '@angular/material/card';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatListModule } from '@angular/material/list';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatChipsModule } from '@angular/material/chips';
+import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { FirestoreDocument } from '@shared/firestore';
 
 import { AdminDashboardStore } from '../../store/admin-dashboard.store';
-import { FirestoreDocument } from '../../../../common/fe-common-fs';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { JsonPipe } from '@angular/common';
 import { CollectionListComponent } from '../collection-list/collection-list.component';
-import { MatDividerModule } from '@angular/material/divider';
 import { BreadcrumbComponent } from "../breadcrumb/breadcrumb.component";
 import { DocumentListComponent } from '../document-list/document-list.component';
 

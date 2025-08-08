@@ -1,18 +1,20 @@
 import { Component, OnInit, Output, EventEmitter, inject, signal, DestroyRef } from '@angular/core';
-import { FormControl } from '@angular/forms';
-import { MatAutocompleteSelectedEvent, MatAutocomplete, MatAutocompleteModule } from '@angular/material/autocomplete';
-import { startWith, debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import { SymbolManagerStore } from '../../../store/symbol-manager.store';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { startWith, debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { MatAutocompleteSelectedEvent, MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialogContent } from "@angular/material/dialog";
-import { MaterialModule } from "../../../../../shared/material.module";
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+
 import { TrackedSymbolV2 } from '@shared/alpha-vantage';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+import { SymbolManagerStore } from '../../../store/symbol-manager.store';
+
 
 @Component({
   selector: 'app-symbol-input-form',
@@ -25,7 +27,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
     MatButtonModule,
     MatIconModule,
     MatDialogContent,
-    MaterialModule,
+    MatProgressSpinnerModule,
     MatAutocompleteModule,
     ReactiveFormsModule
   ],

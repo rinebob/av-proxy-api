@@ -1,5 +1,8 @@
 import { Component, computed, inject, signal, ViewChild } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { CommonModule } from '@angular/common';
+import { Title } from '@angular/platform-browser';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,16 +10,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSidenavModule, MatSidenav } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Title } from '@angular/platform-browser';
-import { AuthService } from './core/auth/auth.service';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { User } from 'firebase/auth';
+import { map, shareReplay } from 'rxjs/operators';
+
+import { AuthService } from './core/auth/auth.service';
 import { environment } from '../environments/environment';
 import { NAV_ITEMS } from './core/config/nav-menu-items';
 import { NavItem } from './core/models/nav-item.model';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { map, shareReplay } from 'rxjs/operators';
 import { ManualFirestoreWriteToggleComponent } from './core/admin/manual-firestore-write-toggle/manual-firestore-write-toggle.component';
 
 @Component({

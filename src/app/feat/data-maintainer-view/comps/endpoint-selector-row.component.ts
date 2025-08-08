@@ -1,8 +1,9 @@
-import { Component, signal, input } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { inject } from '@angular/core';
-import { AlphaVantageStore } from '../store/alpha-vantage.store';
+
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+
+import { AlphaVantageStore } from '../store/alpha-vantage.store';
 import { DATA_MAINTAINER_ENDPOINTS_METADATA } from '../common/fe-common-dm';
 
 /**

@@ -1,9 +1,10 @@
 import { Component, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { AuthService } from '../auth/auth.service';
-import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../shared/material.module';
+
+import { AuthService } from '../auth/auth.service';
 
 @Component({
   selector: 'app-login',

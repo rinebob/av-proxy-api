@@ -1,12 +1,14 @@
 import { Component, inject, DestroyRef, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+
+import { TrackedSymbolV2 } from '@shared/alpha-vantage';
+
 import { SymbolInputFormComponent } from './symbol-input-form/symbol-input-form.component';
 import { SymbolManagerStore } from '../../store/symbol-manager.store';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { TrackedSymbolV2 } from '@shared/alpha-vantage';
 
 @Component({
   selector: 'app-symbols-dialog',

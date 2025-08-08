@@ -1,7 +1,8 @@
 import { Component, signal, inject } from '@angular/core';
 import { Firestore, docData, doc, updateDoc } from '@angular/fire/firestore';
-import { AuthService } from '../../auth/auth.service';
 import { MatSlideToggle } from "@angular/material/slide-toggle";
+
+import { AuthService } from '../../auth/auth.service';
 import { MANUAL_FIRESTORE_WRITE_ENABLED_DOCUMENT_PATH } from '../../config/firestore-paths';
 
 @Component({

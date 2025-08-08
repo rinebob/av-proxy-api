@@ -1,9 +1,11 @@
 import { Component, inject } from '@angular/core';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { CommonModule } from '@angular/common';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 
-import { BENZINGA_ENDPOINTS_META_MAP, BenzingaEndpoint } from '../../../../common/fe-common-bz';
+import { BzCalendarRequestType } from '@shared/benzinga';
+
 import { BenzingaCalendarStore } from '../../store/bz-calendar.store';
+import { BENZINGA_ENDPOINTS_META_MAP } from 'src/app/common/fe-common-bz';
 
 /**
  * Row of buttons to select Benzinga endpoint.
@@ -24,15 +26,6 @@ import { BenzingaCalendarStore } from '../../store/bz-calendar.store';
  * Binds to selectedEndpoint in the NgRx Signal Store.
  */
 export class BzEndpointSelectorComponent {
-  /**
-   * Endpoints to exclude from selector
-   */
-  excludedEndpoints: BenzingaEndpoint[] = [
-    BenzingaEndpoint.FDA,
-    BenzingaEndpoint.MERGERS_ACQUISITIONS,
-    BenzingaEndpoint.OFFERINGS
-  ];
-  bzCalendarEndpoints = Object.values(BenzingaEndpoint);
   calendarTypeMetadataMap = BENZINGA_ENDPOINTS_META_MAP;
 
   /**

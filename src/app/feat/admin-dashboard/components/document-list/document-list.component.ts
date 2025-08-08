@@ -3,8 +3,10 @@ import { CommonModule } from '@angular/common';
 import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AdminDashboardStore } from '../../store/admin-dashboard.store';
+
 import { FirestoreDocument } from '@shared/firestore';
+
+import { AdminDashboardStore } from '../../store/admin-dashboard.store';
 
 @Component({
   selector: 'app-document-list',

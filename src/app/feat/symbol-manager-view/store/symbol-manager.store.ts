@@ -1,13 +1,16 @@
 import { inject } from '@angular/core';
-import { signalStore, withState, withMethods, patchState, withProps } from '@ngrx/signals';
-import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { SymbolManagerService } from '../services/symbol-manager.service';
 import { toObservable } from '@angular/core/rxjs-interop';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable, map, tap, of, pipe, switchMap, catchError } from 'rxjs';
 import { tapResponse } from '@ngrx/operators';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { SyncSymbolsResponse, TrackedSymbol, } from '../../../feat/data-maintainer-view/common/fe-common-dm-api';
+import { signalStore, withState, withMethods, patchState, withProps } from '@ngrx/signals';
+import { rxMethod } from '@ngrx/signals/rxjs-interop';
+
 import { TrackedSymbolV2 } from '@shared/alpha-vantage';
+
+import { SymbolManagerService } from '../services/symbol-manager.service';
+// TODO: Remove support for legacy TrackedSymbol
+import { SyncSymbolsResponse, TrackedSymbol, } from '../../../feat/data-maintainer-view/common/fe-common-dm-api';
 
 export type ActiveTab = 'list' | 'add' | 'sync' | 'details';
 

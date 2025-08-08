@@ -5,9 +5,7 @@
   aria-label="Calendar Type"
 >
   @for (endpoint of bzCalendarEndpoints; track endpoint) {
-    @if (!excludedEndpoints.includes(endpoint)) {
       <mat-button-toggle [value]="endpoint">{{ calendarTypeMetadataMap[endpoint].displayName }}</mat-button-toggle>
-    }
   }
 </mat-button-toggle-group>
 </div>

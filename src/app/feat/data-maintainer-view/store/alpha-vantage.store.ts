@@ -1,8 +1,10 @@
 import { signalStore, withState, patchState, withMethods, withProps } from '@ngrx/signals';
 import { inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { AlphaVantageDataService } from '../services/alpha-vantage-data.service';
+
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+
+import { AlphaVantageDataService } from '../services/alpha-vantage-data.service';
 import { FetchAlphaVantageParams } from '../common/fe-common-av-api';
 
 export interface AlphaVantageState {

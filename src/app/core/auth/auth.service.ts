@@ -1,6 +1,10 @@
-import { Injectable, inject, NgZone, effect } from '@angular/core';
+import { Injectable, inject, NgZone, effect, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { 
-  Auth, 
+  Auth,
+  getIdTokenResult,
   idToken, 
   authState, 
   User, 
@@ -10,15 +14,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
-  getIdToken
 } from '@angular/fire/auth';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { Observable, from, of, throwError } from 'rxjs';
-import { map, switchMap, catchError, take } from 'rxjs/operators';
-import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { signal } from '@angular/core';
-import { getIdTokenResult } from '@angular/fire/auth';
+import { Observable, from } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'

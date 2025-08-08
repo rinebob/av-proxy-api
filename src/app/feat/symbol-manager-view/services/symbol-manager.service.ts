@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, catchError, finalize, from, map, of, tap, throwError } from 'rxjs';
-import { processTimestamps } from '../../../shared/utils/date-utils';
+
 import { 
     AlphaVantageEndpoint,
     ListSymbolsV2Response, 
@@ -11,7 +11,8 @@ import {
     TrackedSymbolV2,
 } from '@shared/alpha-vantage';
 
-// Legacy support
+import { processTimestamps } from '../../../shared/utils/date-utils';
+
 import { AlphaVantageFunctions } from '../../../common/fe-common-app';
 import { 
     DataMaintainerFunctionName, 

@@ -1,14 +1,15 @@
-import { Component, signal, inject, DestroyRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { JsonPipe } from '@angular/common';
+import { Component, inject, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { CommonModule, JsonPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatDialogModule } from '@angular/material/dialog';
 import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import { AlphaVantageStore } from './store/alpha-vantage.store';
+import { debounceTime } from 'rxjs/operators';
+
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+
+import { AlphaVantageStore } from './store/alpha-vantage.store';
 import { EndpointSelectorRowComponent } from './comps/endpoint-selector-row.component';
-import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-data-maintainer-view',

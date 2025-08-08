@@ -18,6 +18,7 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AddSymbolsDialogComponent } from '../add-symbols-dialog/add-symbols-dialog.component';
+
 import { SymbolManagerStore } from '../../store/symbol-manager.store';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SymbolsDialogComponent } from '../symbols-dialog/symbols-dialog.component';

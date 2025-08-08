@@ -1,10 +1,7 @@
-import { Component, OnInit } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormGroup, FormControl, Validators } from '@angular/forms';
-import { BENZINGA_PARAM_META_MAP, BenzingaCalendarParam, BenzingaCalendarParamFormField } from '../../../../common/fe-common-bz';
-import { BzCalendarRequestType } from '@shared/benzinga';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule, ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -14,8 +11,15 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+
+import { BzCalendarRequestType } from '@shared/benzinga';
+
+import { 
+    BENZINGA_PARAM_META_MAP, 
+    BenzingaCalendarParam, 
+    BenzingaCalendarParamFormField 
+} from '../../../../common/fe-common-bz';
 import { BzCalendarViewBaseComponent } from '../../bz-calendar-view-base.component';
-import { signal } from '@angular/core';
 
 /**
  * Dynamic Benzinga calendar form.

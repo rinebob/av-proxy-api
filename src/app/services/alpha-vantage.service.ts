@@ -2,6 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, switchMap, map } from 'rxjs/operators';
+
+// TODO: Refactor StockData to support V2
 import { DailyStockParams, GlobalQuoteParams } from '../common/fe-common-av';
 import { AuthService } from '../core/auth/auth.service';
 import { StockDataUrl } from '../common/fe-common-app';
