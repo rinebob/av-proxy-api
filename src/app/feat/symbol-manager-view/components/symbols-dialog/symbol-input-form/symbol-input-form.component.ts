@@ -11,7 +11,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialogContent } from "@angular/material/dialog";
 import { MaterialModule } from "../../../../../shared/material.module";
-import { TrackedSymbolV2 } from '../../../../data-maintainer-view/common/fe-common-av-api-v2';
+import { TrackedSymbolV2 } from '@shared/alpha-vantage';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({

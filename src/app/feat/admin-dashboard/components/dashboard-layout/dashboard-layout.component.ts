@@ -10,7 +10,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { RouterModule } from '@angular/router';
+
+import { FirestoreDocument } from '@shared/firestore';
+
 import { AdminDashboardStore } from '../../store/admin-dashboard.store';
 import { FirestoreDocument } from '../../../../common/fe-common-fs';
 import { toSignal } from '@angular/core/rxjs-interop';

@@ -40,6 +40,8 @@ export class BzEndpointSelectorComponent {
    */
   bzCalendarStore = inject(BenzingaCalendarStore);
 
+  bzCalendarEndpoints = Object.values(BzCalendarRequestType);
+
   /**
    * Signal for the currently selected endpoint
    */
@@ -48,8 +50,7 @@ export class BzEndpointSelectorComponent {
   /**
    * Handler for endpoint change
    */
-  onEndpointChange(endpoint: BenzingaEndpoint) {
+  onEndpointChange(endpoint: BzCalendarRequestType) {
     this.bzCalendarStore.setSelectedEndpoint(endpoint);
   }
 }
-

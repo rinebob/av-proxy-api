@@ -19,7 +19,6 @@ import { BzCalendarFormComponent } from './comps/calendar-form/bz-calendar-form.
 import { BzNoResultsComponent } from './comps/bz-no-results/bz-no-results.component';
 import { BzDynamicCalendarTableComponent } from './comps/dynamic-calendar-table/bz-dynamic-calendar-table.component';
 import { BenzingaCalendarStore } from './store/bz-calendar.store';
-import { BenzingaEndpoint } from '../../common/fe-common-bz';
 
 @Component({
   selector: 'bz-calendar-view',
@@ -52,7 +51,6 @@ import { BenzingaEndpoint } from '../../common/fe-common-bz';
 })
 export class BzCalendarViewComponent {
 
-  public BenzingaEndpoint = BenzingaEndpoint;
   bzCalendarStore = inject(BenzingaCalendarStore);
 
   constructor() {}

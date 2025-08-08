@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
-import type { EarningsResponse, EarningsCalendarParams } from '../common/fe-common-bz';
+import type { EarningsResponse } from '../common/fe-common-bz';
 import { BenzingaCalendarParams } from '../common/fe-common-bz';
 import { AuthService } from '../core/auth/auth.service';
 import { StockDataUrl } from '../common/fe-common-app';

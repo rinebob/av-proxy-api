@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, FormControl, Validators } from '@angular/forms';
-import { BenzingaEndpoint, BENZINGA_PARAM_META_MAP, BenzingaCalendarParam, BenzingaCalendarParamFormField } from '../../../../common/fe-common-bz';
+import { BENZINGA_PARAM_META_MAP, BenzingaCalendarParam, BenzingaCalendarParamFormField } from '../../../../common/fe-common-bz';
+import { BzCalendarRequestType } from '@shared/benzinga';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -42,7 +43,7 @@ import { signal } from '@angular/core';
 })
 export class BzCalendarFormComponent extends BzCalendarViewBaseComponent implements OnInit {
   public readonly BENZINGA_PARAM_META_MAP = BENZINGA_PARAM_META_MAP;
-  public readonly BenzingaEndpoint = BenzingaEndpoint;
+  public readonly BenzingaEndpoint = BzCalendarRequestType;
   public readonly BenzingaCalendarParam = BenzingaCalendarParam;
   public readonly BenzingaCalendarParamFormField = BenzingaCalendarParamFormField;
 
@@ -95,7 +96,7 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
     this.bzCalendarStore.selectedEndpointMeta$
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe(endpointMeta => {
-        this.searchForm.get('type')?.setValue(endpointMeta?.name as BenzingaEndpoint | null, { emitEvent: false });
+        this.searchForm.get('type')?.setValue(endpointMeta?.name as BzCalendarRequestType | null, { emitEvent: false });
         this.adjustFormFields();
       });
     // Initial adjustment
@@ -152,7 +153,7 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
     const endpointMeta = this.bzCalendarStore.selectedEndpointMeta();
     const params: any = {
       // Base parameters
-      type: type as BenzingaEndpoint,
+      type: type as BzCalendarRequestType,
       date_from: startDate.toISOString().slice(0, 10),
       date_to: endDate.toISOString().slice(0, 10),
       page: 0,
@@ -172,7 +173,7 @@ export class BzCalendarFormComponent extends BzCalendarViewBaseComponent impleme
     }
     console.log('[BZCalendarForm] Updated block. params:', params);
     // If dividends, include dividend-specific params if filled
-    if (type === BenzingaEndpoint.DIVIDENDS) {
+    if (type === BzCalendarRequestType.DIVIDENDS) {
       if (sort) params.sort = `date:${sort}`;
       if (dividendYieldOperation) params['parameters[dividend_yield_operation]'] = dividendYieldOperation;
       if (dividendYield !== null && dividendYield !== undefined && dividendYield !== '') params['parameters[dividend_yield]'] = dividendYield;

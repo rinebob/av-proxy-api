@@ -4,19 +4,29 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, catchError, finalize, from, map, of, tap, throwError } from 'rxjs';
 import { processTimestamps } from '../../../shared/utils/date-utils';
 import { 
-  DataMaintainerFunctionName, 
-  ListSymbolsResponse, 
-  SymbolDetailsResponse, 
-  SyncSymbolsRequest, 
-  SyncSymbolsResponse,
-  TrackedSymbol,
-  getDataMaintainerFunctionUrl,
-  SvtAvSymbolMatch,
-} from '../../data-maintainer-view/common/fe-common-dm-api';
+    AlphaVantageEndpoint,
+    ListSymbolsV2Response, 
+    SaveTrackedSymbolResponse,
+    SvtAvSymbolMatch,
+    TrackedSymbolV2,
+} from '@shared/alpha-vantage';
+
+// Legacy support
 import { AlphaVantageFunctions } from '../../../common/fe-common-app';
-import { AlphaVantageEndpoint,  } from '../../../common/fe-common-av';
-import { getAlphaVantageEndpointUrl, AlphaVantageApiResponse, SaveTrackedSymbolRequest, SaveTrackedSymbolResponse } from '../../data-maintainer-view/common/fe-common-av-api';
-import { ListSymbolsV2Response, TrackedSymbolV2 } from '../../data-maintainer-view/common/fe-common-av-api-v2';
+import { 
+    DataMaintainerFunctionName, 
+    ListSymbolsResponse, 
+    SymbolDetailsResponse, 
+    SyncSymbolsRequest, 
+    SyncSymbolsResponse,
+    TrackedSymbol,
+    getDataMaintainerFunctionUrl,
+ } from '../../data-maintainer-view/common/fe-common-dm-api';
+import {
+    getAlphaVantageEndpointUrl, 
+    AlphaVantageApiResponse,
+    SaveTrackedSymbolRequest
+ } from '../../data-maintainer-view/common/fe-common-av-api';
 
 /**
  * Service responsible for managing stock symbols in the data maintainer system.
@@ -473,7 +483,9 @@ export class SymbolManagerService {
     
     return this.http.get<ListSymbolsV2Response>(url).pipe(
       map(response => {
-        if (!response) return { ok: false, error: 'No response', symbols: [] };
+        if (!response) {
+          throw new Error('No response from server');
+        }
 
         console.log('fe sMSvc lSV2 listSymbolsV2 response:', response);
         
@@ -490,11 +502,12 @@ export class SymbolManagerService {
         };
       }),
       catchError(error => {
-        console.error('Error listing symbols:', error);
-        return of({ 
-          ok: false, 
-          error: error.message || 'Failed to fetch symbols', 
-          symbols: [] 
+        console.error('fe sMSvc lSV2 listSymbolsV2 Error listing symbols:', error);
+        return of({
+          symbols: [],
+          total: 0,
+          limit: limit,
+          offset: offset
         });
       })
     );

@@ -2,21 +2,14 @@ import { signalStore, withState, withMethods, patchState, withProps, withCompute
 import { computed, inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 
-import { BenzingaEndpoint, BenzingaCalendarParams, BENZINGA_ENDPOINTS_META_MAP } from '../../../common/fe-common-bz';
+import { BzCalendarRequestType } from '@shared/benzinga';
 import { BenzingaApiService } from '../services/benzinga-api.service';
-import type { BenzingaEndpointItemMap, BZCalendarResponseMap } from '../../../common/fe-common-bz';
+import type { BenzingaCalendarParams, BenzingaEndpointItemMap, BZCalendarResponseMap } from '../../../common/fe-common-bz';
+import { BENZINGA_ENDPOINTS_META_MAP } from '../../../common/fe-common-bz';
 
-/**
- * State for Benzinga calendar UI.
- * - selectedEndpoint: BenzingaEndpoint | null
- * - formValues: Record<string, any>
- * - responseData: any
- * - loading: boolean
- * - error: string | null
- */
 
 export interface BenzingaCalendarState {
-    selectedEndpoint: BenzingaEndpoint | null;
+    selectedEndpoint: BzCalendarRequestType | null;
     formValues: Record<string, any>;
     loading: boolean;
     error: string | null;
@@ -30,23 +23,21 @@ export interface BenzingaCalendarState {
 }
 
 const initialState: BenzingaCalendarState = {
-    selectedEndpoint: BenzingaEndpoint.EARNINGS,
+    selectedEndpoint: BzCalendarRequestType.EARNINGS,
     formValues: {},
     loading: false,
     error: null,
     responses: {
-        [BenzingaEndpoint.EARNINGS]: [],
-        [BenzingaEndpoint.DIVIDENDS]: [],
-        [BenzingaEndpoint.ECONOMICS]: [],
-        [BenzingaEndpoint.IPOS]: [],
-        [BenzingaEndpoint.CONFERENCE_CALLS]: [],
-        [BenzingaEndpoint.FDA]: [],
-        [BenzingaEndpoint.MERGERS_ACQUISITIONS]: [],
-        [BenzingaEndpoint.RATINGS]: [],
-        [BenzingaEndpoint.GUIDANCE]: [],
-        [BenzingaEndpoint.SPLITS]: [],
-        [BenzingaEndpoint.OFFERINGS]: [],
-        [BenzingaEndpoint.NEWS]: []
+        [BzCalendarRequestType.EARNINGS]: [],
+        [BzCalendarRequestType.DIVIDENDS]: [],
+        [BzCalendarRequestType.ECONOMICS]: [],
+        [BzCalendarRequestType.IPOS]: [],
+        [BzCalendarRequestType.CONFERENCE_CALLS]: [],
+        [BzCalendarRequestType.MERGERS_ACQUISITIONS]: [],
+        [BzCalendarRequestType.RATINGS]: [],
+        [BzCalendarRequestType.GUIDANCE]: [],
+        [BzCalendarRequestType.SPLITS]: [],
+        [BzCalendarRequestType.OFFERINGS]: [],
     },
     pagination: {
         pageIndex: 0,
@@ -64,7 +55,7 @@ export const BenzingaCalendarStore = signalStore(
     { providedIn: 'root' },
     withState(initialState),
     withComputed((store) => ({
-        earnings: computed(() => store.responses()[BenzingaEndpoint.EARNINGS] ?? []),
+        earnings: computed(() => store.responses()[BzCalendarRequestType.EARNINGS] ?? []),
         currentPagination: computed(() => store.pagination()),
         pageSizeOptions: computed(() => store.pagination().pageSizeOptions),
         minPageSize: computed(() => Math.min(...store.pagination().pageSizeOptions)),
@@ -79,14 +70,14 @@ export const BenzingaCalendarStore = signalStore(
 
         // Total items for the current endpoint
         totalItems: computed(() => {
-            const endpoint = store.selectedEndpoint() ?? BenzingaEndpoint.EARNINGS;
+            const endpoint = store.selectedEndpoint() ?? BzCalendarRequestType.EARNINGS;
             const allResponses = store.responses();
             return (allResponses[endpoint] ?? []).length;
         }),
 
         // Paginated results for the current endpoint
         pagedResults: computed(() => {
-            const endpoint = store.selectedEndpoint() ?? BenzingaEndpoint.EARNINGS;
+            const endpoint = store.selectedEndpoint() ?? BzCalendarRequestType.EARNINGS;
             const allResponses = store.responses();
             console.log('bCSto pagedResults - all responses:', allResponses);
             
@@ -146,7 +137,7 @@ export const BenzingaCalendarStore = signalStore(
         noResultsCondition: computed(() => {
             if (store.loading()) return false;
             if (!store.hasSearched()) return true;
-            const endpoint = store.selectedEndpoint() ?? BenzingaEndpoint.EARNINGS;
+            const endpoint = store.selectedEndpoint() ?? BzCalendarRequestType.EARNINGS;
             const responses = store.responses();
             const endpointData = responses[endpoint] ?? [];
             return endpointData.length === 0;
@@ -161,7 +152,7 @@ export const BenzingaCalendarStore = signalStore(
             patchState(store, { hasSearched: true });
         },
 
-        setSelectedEndpoint(endpoint: BenzingaEndpoint) {
+        setSelectedEndpoint(endpoint: BzCalendarRequestType) {
             console.log('bCSto sE calendar endpoint: ', endpoint);
             patchState(store, {
                 selectedEndpoint: endpoint,
@@ -192,12 +183,12 @@ export const BenzingaCalendarStore = signalStore(
                 return;
             }
 
-            // The form already provides the correct parameter keys, so we can use them directly.
-            const apiParams = { ...formValues };
+            // Ensure type is never undefined and always matches the endpoint
+            const apiParams: BenzingaCalendarParams = { ...formValues, type: endpoint };
 
             console.log('bCSto sC calendar calling benzingaApi.fetchData with:', { endpoint, apiParams });
 
-            benzingaApi.fetchData(endpoint, apiParams).subscribe({
+            benzingaApi.fetchData(apiParams).subscribe({
                 next: (response: any) => {
                     console.log('bCSto sC calendar received response:', response);
 
@@ -277,7 +268,7 @@ export const BenzingaCalendarStore = signalStore(
  * Helper to extract the items array from any Benzinga endpoint response.
  * Uses the responseKey from endpoint metadata if defined, otherwise falls back to the endpoint name.
  */
-function extractCalendarItems<E extends BenzingaEndpoint>(
+function extractCalendarItems<E extends BzCalendarRequestType>(
   endpoint: E,
   response: BZCalendarResponseMap[E]
 ): { items: any[] } {

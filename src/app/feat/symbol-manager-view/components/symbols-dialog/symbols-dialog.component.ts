@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { SymbolInputFormComponent } from './symbol-input-form/symbol-input-form.component';
 import { SymbolManagerStore } from '../../store/symbol-manager.store';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { TrackedSymbolV2 } from '../../../data-maintainer-view/common/fe-common-av-api-v2';
+import { TrackedSymbolV2 } from '@shared/alpha-vantage';
 
 @Component({
   selector: 'app-symbols-dialog',

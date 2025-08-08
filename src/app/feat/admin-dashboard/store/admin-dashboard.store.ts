@@ -3,10 +3,8 @@ import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap, catchError, of, from } from 'rxjs';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { inject } from '@angular/core';
-import { FirestoreCollection } from '../../../core/config/firestore-collection-enum';
 import { FirestoreService } from '../../../core/services/firestore.service';
-import { CollectionInfo, FirestoreDocument } from '../../../common/fe-common-fs';
-import { TOP_LEVEL_COLLECTIONS } from '../../../common/fe-common-fs';
+import { CollectionInfo, FirestoreDocument, TOP_LEVEL_COLLECTIONS } from '@shared/firestore';
 
 interface AdminDashboardState {
   // Available top-level collections

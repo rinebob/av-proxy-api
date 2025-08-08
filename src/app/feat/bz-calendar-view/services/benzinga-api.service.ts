@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Observable, catchError, throwError, switchMap, map, tap } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
-import { BenzingaEndpoint, BenzingaCalendarParams } from '../../../common/fe-common-bz';
+import { BenzingaCalendarParams } from '../../../common/fe-common-bz';
 import { getBenzingaEndpointUrl, BenzingaApiResponse } from '../common/fe-common-bz-api';
 
 @Injectable({
@@ -18,10 +18,10 @@ export class BenzingaApiService {
    * @param params Query parameters for the request
    * @returns Observable with the API response
    */
-  fetchData<T>(endpoint: BenzingaEndpoint, params: BenzingaCalendarParams): Observable<T> {
+  fetchData<T>(params: BenzingaCalendarParams): Observable<T> {
     return this.getAuthHeaders().pipe(
       switchMap(headers => {
-        const url = getBenzingaEndpointUrl(endpoint);
+        const url = getBenzingaEndpointUrl();
         console.log('Making request to:', url, 'with params:', params);
         
         return this.http.get<BenzingaApiResponse<T>>(url, { 
