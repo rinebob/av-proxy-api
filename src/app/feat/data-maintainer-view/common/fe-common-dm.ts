@@ -1,6 +1,6 @@
 // Common frontend Data Maintainer interfaces and constants
 
-import { AlphaVantageEndpoint } from '../../../common/fe-common-av';
+import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 
 /**
  * List of Data Maintainer endpoints for UI selection, with labels and disabled flags.

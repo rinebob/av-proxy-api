@@ -1,5 +1,5 @@
 import { environment } from '../../../../environments/environment';
-import { AlphaVantageEndpoint } from '../../../common/fe-common-av';
+import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 
 /**
  * Production URL for the Alpha Vantage API Gateway

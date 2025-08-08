@@ -1,3 +1,4 @@
+import { AvCompanyOverview } from '@shared/alpha-vantage';
 import { environment } from '../../../../environments/environment';
 
 /**
@@ -54,6 +55,8 @@ export function getDataMaintainerFunctionUrl(functionName: DataMaintainerFunctio
 
 /**
  * Represents a symbol search match result from Alpha Vantage SYMBOL_SEARCH endpoint
+ * TODO: This interface should be replaced with the one from shared/alpha-vantage/av-symbol-search.ts
+ * Remove this interface after migration is complete
  */
 export interface AvSymbolSearchMatchResult {
   symbol: string;
@@ -67,6 +70,8 @@ export interface AvSymbolSearchMatchResult {
   matchScore: string;
 }
 
+// TODO: This interface should be replaced with the one from shared/alpha-vantage/av-symbol-search.ts
+// Remove this interface after migration is complete
 export interface AvSymbolSearchResult {
     bestMatches: AvSymbolSearchMatchResult[];
 }
@@ -74,6 +79,9 @@ export interface AvSymbolSearchResult {
 /**
  * Represents a single symbol match from Alpha Vantage SYMBOL_SEARCH endpoint
  * Must match same interface in functions/src/common/common-av.ts
+ * 
+ * TODO: This interface should be replaced with the one from shared/alpha-vantage/av-symbol-search.ts
+ * Remove this interface after migration is complete
  */
 export interface SvtAvSymbolMatch {
     symbol: string;
@@ -87,67 +95,66 @@ export interface SvtAvSymbolMatch {
     matchScore: string;
 }
 
-
 /**
  * Interface for the Alpha Vantage company overview data payload.
  */
-export interface AvCompanyOverview {
-  Symbol: string;
-  AssetType: string;
-  Name: string;
-  Description: string;
-  CIK: string;
-  Exchange: string;
-  Currency: string;
-  Country: string;
-  Sector: string;
-  Industry: string;
-  Address: string;
-  OfficialSite: string;
-  FiscalYearEnd: string;
-  LatestQuarter: string;
-  MarketCapitalization: string;
-  EBITDA: string;
-  PERatio: string;
-  PEGRatio: string;
-  BookValue: string;
-  DividendPerShare: string;
-  DividendYield: string;
-  EPS: string;
-  RevenuePerShareTTM: string;
-  ProfitMargin: string;
-  OperatingMarginTTM: string;
-  ReturnOnAssetsTTM: string;
-  ReturnOnEquityTTM: string;
-  RevenueTTM: string;
-  GrossProfitTTM: string;
-  DilutedEPSTTM: string;
-  QuarterlyEarningsGrowthYOY: string;
-  QuarterlyRevenueGrowthYOY: string;
-  AnalystTargetPrice: string;
-  AnalystRatingStrongBuy: string;
-  AnalystRatingBuy: string;
-  AnalystRatingHold: string;
-  AnalystRatingSell: string;
-  AnalystRatingStrongSell: string;
-  TrailingPE: string;
-  ForwardPE: string;
-  PriceToSalesRatioTTM: string;
-  PriceToBookRatio: string;
-  EVToRevenue: string;
-  EVToEBITDA: string;
-  Beta: string;
-  "52WeekHigh": string;
-  "52WeekLow": string;
-  "50DayMovingAverage": string;
-  "200DayMovingAverage": string;
-  SharesOutstanding: string;
-  SharesFloat: string;
-  PercentInsiders: string;
-  PercentInstitutions: string;
-  DividendDate: string;
-  ExDividendDate: string;
-}
+// export interface AvCompanyOverview {
+//   Symbol: string;
+//   AssetType: string;
+//   Name: string;
+//   Description: string;
+//   CIK: string;
+//   Exchange: string;
+//   Currency: string;
+//   Country: string;
+//   Sector: string;
+//   Industry: string;
+//   Address: string;
+//   OfficialSite: string;
+//   FiscalYearEnd: string;
+//   LatestQuarter: string;
+//   MarketCapitalization: string;
+//   EBITDA: string;
+//   PERatio: string;
+//   PEGRatio: string;
+//   BookValue: string;
+//   DividendPerShare: string;
+//   DividendYield: string;
+//   EPS: string;
+//   RevenuePerShareTTM: string;
+//   ProfitMargin: string;
+//   OperatingMarginTTM: string;
+//   ReturnOnAssetsTTM: string;
+//   ReturnOnEquityTTM: string;
+//   RevenueTTM: string;
+//   GrossProfitTTM: string;
+//   DilutedEPSTTM: string;
+//   QuarterlyEarningsGrowthYOY: string;
+//   QuarterlyRevenueGrowthYOY: string;
+//   AnalystTargetPrice: string;
+//   AnalystRatingStrongBuy: string;
+//   AnalystRatingBuy: string;
+//   AnalystRatingHold: string;
+//   AnalystRatingSell: string;
+//   AnalystRatingStrongSell: string;
+//   TrailingPE: string;
+//   ForwardPE: string;
+//   PriceToSalesRatioTTM: string;
+//   PriceToBookRatio: string;
+//   EVToRevenue: string;
+//   EVToEBITDA: string;
+//   Beta: string;
+//   "52WeekHigh": string;
+//   "52WeekLow": string;
+//   "50DayMovingAverage": string;
+//   "200DayMovingAverage": string;
+//   SharesOutstanding: string;
+//   SharesFloat: string;
+//   PercentInsiders: string;
+//   PercentInstitutions: string;
+//   DividendDate: string;
+//   ExDividendDate: string;
+// }
 
 export interface ApiResponse<T> {
   ok: boolean;
@@ -158,6 +165,7 @@ export interface ApiResponse<T> {
   timestamp: string;
 }
 
+// TODO: Align this with shared/alpha-vantage/av-company-overview.ts
 export interface AvCompanyOverviewResponse {
   ok: boolean;
   symbol: string;
@@ -167,16 +175,10 @@ export interface AvCompanyOverviewResponse {
   timestamp: string;
 }
 
-export interface ClientSource {
-  clientId: string;
-  firstSeen: string | Date;
-  lastSeen: string | Date;
-  metadata?: Record<string, any>;
-}
-
 /**
  * Represents a tracked symbol in the system
  * Matches the backend TrackedSymbol interface
+ * TODO: Align this with shared/alpha-vantage/av-symbol-search.ts
  */
 export interface TrackedSymbol {
   // AV SYMBOL_SEARCH fields
