@@ -17,7 +17,6 @@ import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { AddSymbolsDialogComponent } from '../add-symbols-dialog/add-symbols-dialog.component';
 
 import { SymbolManagerStore } from '../../store/symbol-manager.store';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -84,34 +83,6 @@ export class SymbolManagerComponent implements OnInit {
     this.store.listSymbolsV2();
     this.store.v2Symbols$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(v2Symbols => {
         console.log('sM ngOI v2Symbols sub:', v2Symbols);
-    });
-  }
-
-  /**
-   * Open the Add Symbols dialog
-   * DEPRECATED
-   */
-  openAddSymbolsDialog(): void {
-    const dialogRef = this.dialog.open(AddSymbolsDialogComponent, {
-      width: '500px',
-      maxWidth: '90vw',
-      maxHeight: '90vh',
-      data: {
-        store: this.store
-      }
-    });
-
-    dialogRef.afterClosed().subscribe((result) => {
-      // Always clear sync results when dialog is closed
-      this.store.clearSyncResults();
-      
-      if (result) {
-        this.store.setSymbolSelected(false);
-        
-        // Refresh the symbols list if symbols were added
-        this.store.listSymbols();
-        
-      }
     });
   }
 
