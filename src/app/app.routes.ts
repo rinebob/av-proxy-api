@@ -7,7 +7,6 @@ import { CompanyLogoGalleryComponent } from './feat/company-logo-gallery/company
 import { DataMaintainerViewComponent } from './feat/data-maintainer-view/data-maintainer-view.component';
 import { authGuard } from './core/auth/auth.guard';
 import { SymbolManagerComponent } from './feat/symbol-manager-view/components/symbol-manager/symbol-manager.component';
-import { FirestoreDebugComponent } from './feat/debug-view/components/firestore-debug/firestore-debug.component';
 import { DashboardLayoutComponent } from './feat/admin-dashboard/components/dashboard-layout/dashboard-layout.component';
 
 export const routes: Routes = [
@@ -17,10 +16,9 @@ export const routes: Routes = [
   { path: 'data-maintainer', component: DataMaintainerViewComponent, canActivate: [authGuard] },
   { path: 'symbol-manager', component: SymbolManagerComponent, canActivate: [authGuard] },
   { path: 'logos', component: CompanyLogoGalleryComponent, canActivate: [authGuard] },
-  { path: 'fs-debug', component: FirestoreDebugComponent, canActivate: [authGuard] },
   { path: 'admin', component: DashboardLayoutComponent, canActivate: [authGuard] },
   // Redirect root path to login by default
   { path: '', redirectTo: '/login', pathMatch: 'full' },
   // Fallback for any other route (optional, can also redirect to a 404 page or login)
-  // { path: '**', redirectTo: '/stock-data' }
+  { path: '**', redirectTo: 'admin' }
 ];
