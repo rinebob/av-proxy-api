@@ -3,7 +3,6 @@ export * from './handlers/benzinga-base.handler';
 export * from './handlers/benzinga-calendar.handler';
 
 // Re-export common types
-export * from '../common/types';
 export * from '../common/enums';
 
 // Export the factory as the default export
