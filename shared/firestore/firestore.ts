@@ -127,14 +127,14 @@ export const TOP_LEVEL_COLLECTIONS: CollectionInfo[] = [
         isSubcollection: false
     },{
         id: FirestoreCollection.SYMBOL_DATA,
-        name: 'Company Data',
-        description: 'Company information and metrics',
+        name: 'Symbol Data',
+        description: 'Company data and time series',
         isSubcollection: false
     },
     {
         id: FirestoreCollection.MARKET_DATA,
         name: 'Market Data',
-        description: 'Market prices and trading data',
+        description: 'Overall market data and events',
         isSubcollection: false
     },
     {
