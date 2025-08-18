@@ -16,9 +16,6 @@ export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-
 // New Benzinga Data Refresher
 export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager.js';
 
-// New News Data Refresher
-export { refreshBenzingaNewsEndpointsV2 } from './v2/benzinga/data-refresher/bz-news-refresh-manager.js';
-
 // Symbol Tracking Triggers
 export { onSymbolAdded } from './v2/alpha-vantage/triggers/on-symbol-added.function.js';
 
