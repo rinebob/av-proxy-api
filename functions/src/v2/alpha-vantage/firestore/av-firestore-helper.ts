@@ -6,7 +6,6 @@ import { ApiProvider } from '@shared/core';
 import type { EndpointConfig } from '@shared/core';
 
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
-import { AvDailyTimeSeriesHandler } from '../handlers/av-daily-time-series.handler';
 
 import { isManualWriteEnabled } from '../../common/firestore/manual-write-toggle';
 import { RefreshEvent, RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
@@ -209,11 +208,14 @@ export async function initializeTimeSeriesIfMissing(
   if (!endpointConfig) {
     throw new Error(`[initTSIM] No time series config found for endpoint: ${endpoint}`);
   }
-  let handler;
+  let handler: { fetch: (params: any) => Promise<{ data: any[] }> };
   switch (endpoint) {
-    case AlphaVantageEndpoint.TIME_SERIES_DAILY:
+    case AlphaVantageEndpoint.TIME_SERIES_DAILY: {
+      // Dynamic import to avoid circular dependency at module load time
+      const { AvDailyTimeSeriesHandler } = await import('../handlers/av-daily-time-series.handler.js');
       handler = new AvDailyTimeSeriesHandler(endpointConfig);
       break;
+    }
     // TODO: Add cases for WEEKLY, MONTHLY, etc. with their respective handlers
     default:
       throw new Error(`[initTSIM] No handler implemented for endpoint: ${endpoint}`);

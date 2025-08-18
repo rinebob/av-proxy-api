@@ -20,6 +20,7 @@ export interface EndpointParameter {
     description: string;
     default?: any;
     enum?: string[];
+    format?: string;
 }
 
 export interface EndpointConfig<TId extends string = string> {

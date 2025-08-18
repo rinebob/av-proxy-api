@@ -5,6 +5,7 @@ import { AvGlobalQuoteHandler } from './handlers/av-global-quote.handler';
 import { AvCompanyOverviewHandler } from './handlers/av-company-overview.handler';
 import { AvBulkQuoteHandler } from './handlers/av-bulk-quote.handler';
 import { AvSymbolSearchHandler } from './handlers/av-symbol-search.handler';
+import { AvHistoricalOptionsHandler } from './handlers/av-historical-options.handler';
 
 type HandlerConstructor = new (config: EndpointConfig | TimeSeriesEndpointConfig) => any;
 
@@ -14,6 +15,7 @@ const HANDLER_MAP: Record<string, HandlerConstructor> = {
   [AlphaVantageEndpoint.OVERVIEW]: AvCompanyOverviewHandler,
   [AlphaVantageEndpoint.REALTIME_BULK_QUOTES]: AvBulkQuoteHandler,
   [AlphaVantageEndpoint.SYMBOL_SEARCH]: AvSymbolSearchHandler,
+  [AlphaVantageEndpoint.HISTORICAL_OPTIONS]: AvHistoricalOptionsHandler,
 };
 
 function isTimeSeriesEndpoint(endpoint: AlphaVantageEndpoint): boolean {

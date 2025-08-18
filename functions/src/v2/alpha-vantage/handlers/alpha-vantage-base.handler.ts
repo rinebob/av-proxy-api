@@ -50,6 +50,40 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     console.log('aVB.H ctor base URL:', this.apiClient.defaults.baseURL);
   }
 
+  /**
+   * A simplified version of fetch that just makes the API call and returns the raw response
+   * without any additional processing, transformation, or Firestore saving.
+   * @param params Request parameters
+   * @returns The raw API response data
+   */
+  protected async fetchSimple<T>(params: any = {}): Promise<T> {
+    const requestId = Math.random().toString(36).substring(2, 10);
+    console.log(`aVB.H fetchSimple [${requestId}] Starting simple fetch for ${this.config.id}`);
+    
+    try {
+      // Prepare and make API request
+      const requestParams = this.prepareRequestParams(params);
+      const config: AxiosRequestConfig = { params: requestParams };
+
+      const fullUrl = `${this.apiClient.defaults.baseURL}?${Object.keys(config.params)
+        .map(key => `${key}=${config.params[key]}`)
+        .join('&')}`;
+      
+      console.log(`aVB.H fetchSimple [${requestId}] Fetching from API. URL: ${fullUrl}`);
+      const response = await this.apiClient.get('', config);
+      
+      console.log(`aVB.H fetchSimple [${requestId}] Received response`);
+      return response.data;
+      
+    } catch (error) {
+      console.error(`aVB.H fetchSimple [${requestId}] Error in fetchSimple:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error;
+    }
+  }
+
   public async fetch(params: any = {}): Promise<ApiResponse<T>> {
 
     console.log('----------------------------------------');
@@ -79,7 +113,7 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       const responseData = response.data;
       let logData = { ...responseData };
 
-      // If the response has a time series, take only the first 5 entries
+      // For logging only - If the response has a time series, take only the first 5 entries
       if (responseData && typeof responseData === 'object') {
         const timeSeriesKey = Object.keys(responseData).find(key =>
           key.toLowerCase().includes('time series') ||

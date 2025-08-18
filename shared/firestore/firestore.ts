@@ -33,6 +33,10 @@ export enum FirestoreCollection {
     MONTHLY = 'monthly',
     MONTHLY_ADJUSTED = 'monthly-adjusted',
 
+    // OPTIONS
+    OPTIONS = 'options',
+    HISTORICAL_OPTIONS = 'historical-options',
+
     // AlphaIntelligence Collections
     // Will be under company-data
     NEWS_SENTIMENTS = 'news-sentiments',

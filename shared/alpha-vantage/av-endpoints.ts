@@ -9,6 +9,9 @@ export enum AlphaVantageEndpoint {
     TIME_SERIES_INTRADAY = 'TIME_SERIES_INTRADAY',
     TIME_SERIES_INTRADAY_ADJUSTED = 'TIME_SERIES_INTRADAY_ADJUSTED',
   
+    // ===== Options Data =====
+    HISTORICAL_OPTIONS = 'HISTORICAL_OPTIONS',
+  
     // ===== Quotes =====
     GLOBAL_QUOTE = 'GLOBAL_QUOTE',
     REALTIME_BULK_QUOTES = 'REALTIME_BULK_QUOTES',
@@ -80,9 +83,12 @@ export enum AvEndpointCategory {
 }
 
 /**
- * Set of endpoints that have been implemented and are ready for automatic refresh.
- * Add endpoints to this set as they are implemented.
+ * Subset of endpoints that are currently implemented in the backend handler factory
+ * Extend this set as additional handlers are implemented.
  */
-export const AV_IMPLEMENTED_ENDPOINTS: Set<AlphaVantageEndpoint> = new Set([
+export const AV_IMPLEMENTED_ENDPOINTS: Set<AlphaVantageEndpoint> = new Set<AlphaVantageEndpoint>([
     AlphaVantageEndpoint.OVERVIEW,
+    AlphaVantageEndpoint.HISTORICAL_OPTIONS,
+    AlphaVantageEndpoint.TIME_SERIES_DAILY,
+    AlphaVantageEndpoint.GLOBAL_QUOTE,
 ]);

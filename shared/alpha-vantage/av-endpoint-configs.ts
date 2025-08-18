@@ -402,7 +402,42 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     documentationUrl: 'https://www.alphavantage.co/documentation/#nonfarm-payroll',
     parameters: {},
   },
-} as const;
+  
+  // Options Data
+  [AlphaVantageEndpoint.HISTORICAL_OPTIONS]: {
+    id: AlphaVantageEndpoint.HISTORICAL_OPTIONS,
+    name: 'Historical Options',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.OPTIONS_DATA,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Returns the full historical options chain for a specific symbol on a specific date, including Greeks and IV',
+    ttl: 24 * 60 * 60, // 1 day
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.OPTIONS}/av-${FirestoreCollection.HISTORICAL_OPTIONS}-{dateSuffix}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/#historical-options',
+    parameters: {
+      symbol: {
+        type: 'string',
+        required: true,
+        description: 'The name of the equity of your choice. For example: symbol=IBM',
+      },
+      date: {
+        type: 'string',
+        required: false,
+        description: 'Date in YYYY-MM-DD format. If not provided, returns data for the previous trading session',
+        format: 'date',
+      },
+      datatype: {
+        type: 'string',
+        required: false,
+        description: 'The format of the output. Default is json.',
+        default: 'json',
+        enum: ['json', 'csv']
+      },
+    },
+  },
+};
 
 export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, TimeSeriesEndpointConfig>> = {
   [AlphaVantageEndpoint.TIME_SERIES_DAILY]: {
