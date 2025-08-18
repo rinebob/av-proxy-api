@@ -15,6 +15,7 @@ export const DATA_MAINTAINER_ENDPOINTS_METADATA = [
   { key: AlphaVantageEndpoint.SYMBOL_SEARCH, label: 'Symbol Search', disabled: true },
   { key: AlphaVantageEndpoint.TIME_SERIES_DAILY, label: 'Daily Time Series', disabled: false }, // Implemented
   { key: AlphaVantageEndpoint.GLOBAL_QUOTE, label: 'Global Quote', disabled: false }, // Implemented
+  { key: AlphaVantageEndpoint.HISTORICAL_OPTIONS, label: 'Historical Options', disabled: false }, // Implemented
 ];
 
 /**
@@ -30,6 +31,7 @@ export interface DataMaintainerResultsMap {
   [AlphaVantageEndpoint.SYMBOL_SEARCH]?: any | null;
   [AlphaVantageEndpoint.TIME_SERIES_DAILY]?: any | null;
   [AlphaVantageEndpoint.GLOBAL_QUOTE]?: any | null;
+  [AlphaVantageEndpoint.HISTORICAL_OPTIONS]?: any | null;
   
   // Index signature for type safety with dynamic access
   [key: string]: any;

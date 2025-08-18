@@ -17,7 +17,7 @@ export interface AlphaVantageState {
 }
 
 const initialState: AlphaVantageState = {
-  symbol: 'AAPL',
+  symbol: '',
   loading: false,
   error: null,
   currentData: null,
@@ -32,6 +32,7 @@ export const AlphaVantageStore = signalStore(
     endpoint$: toObservable(store.endpoint),
     symbol$: toObservable(store.symbol),
     currentData$: toObservable(store.currentData),
+    loading$: toObservable(store.loading),
   })),
   withMethods((store, dataService = inject(AlphaVantageDataService)) => ({
     /**

@@ -4,20 +4,51 @@
   
   <div class="test-controls">
     <div class="symbol-input">
-      <label for="symbol">Symbol:</label>
-      <input 
-        id="symbol"
-        type="text" 
-        (input)="onSymbolInput($event)"
-        [disabled]="alphaVantageStore.loading()"
-        placeholder="Enter symbol (e.g., AAPL)"
-        class="symbol-textbox"
-      >
+      <mat-form-field appearance="fill" class="symbol-field">
+        <mat-label>Symbol</mat-label>
+        <input
+          id="symbol"
+          matInput
+          type="text"
+          [formControl]="symbolControl"
+          placeholder="Enter symbol (e.g., AAPL)"
+          autocomplete="off"
+          spellcheck="false"
+          aria-required="true"
+          aria-describedby="symbol-hint"
+        />
+        <mat-hint id="symbol-hint">Ticker symbol is required.</mat-hint>
+        @if (symbolControl.touched && symbolControl.hasError('required')) {
+          <mat-error>Symbol is required.</mat-error>
+        }
+      </mat-form-field>
     </div>
+
+    @if (alphaVantageStore.endpoint() === AlphaVantageEndpoint.HISTORICAL_OPTIONS) {
+      <div class="date-input">
+        <mat-form-field appearance="fill" class="date-field">
+          <mat-label>Date</mat-label>
+          <input
+            matInput
+            [matDatepicker]="picker"
+            [formControl]="dateControl"
+            placeholder="YYYY-MM-DD"
+            aria-required="true"
+            aria-describedby="date-hint"
+          />
+          <mat-datepicker-toggle matSuffix [for]="picker" />
+          <mat-datepicker #picker />
+          <mat-hint id="date-hint">Select the date to retrieve data for.</mat-hint>
+          @if (dateControl.touched && dateControl.hasError('required')) {
+            <mat-error>Date is required.</mat-error>
+          }
+        </mat-form-field>
+      </div>
+    }
     
     <button 
       (click)="onSubmit()" 
-      [disabled]="alphaVantageStore.loading() || !alphaVantageStore.symbol()"
+      [disabled]="(alphaVantageStore.loading$ | async) || !alphaVantageStore.symbol() || (alphaVantageStore.endpoint() === AlphaVantageEndpoint.HISTORICAL_OPTIONS && dateControl.invalid)"
       class="fetch-button"
     >
       Fetch

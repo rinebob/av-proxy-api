@@ -1,9 +1,12 @@
 import { Component, inject, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, JsonPipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormControl, Validators } from '@angular/forms';
 import { MatDialogModule } from '@angular/material/dialog';
-import { Subject } from 'rxjs';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatInputModule } from '@angular/material/input';
 import { debounceTime } from 'rxjs/operators';
 
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
@@ -19,9 +22,14 @@ import { EndpointSelectorRowComponent } from './comps/endpoint-selector-row.comp
   imports: [
     CommonModule, 
     JsonPipe, 
-    FormsModule, 
+    FormsModule,
+    ReactiveFormsModule,
     EndpointSelectorRowComponent,
-    MatDialogModule
+    MatDialogModule,
+    MatFormFieldModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatInputModule
   ],
 })
 export class DataMaintainerViewComponent {
@@ -30,23 +38,47 @@ export class DataMaintainerViewComponent {
   private destroyRef = inject(DestroyRef);
   
   public readonly AlphaVantageEndpoint = AlphaVantageEndpoint;
-  // For debounced symbol input
-  private symbolInput$ = new Subject<string>();
+  // Reactive symbol control with required validation (enabled by default)
+  public symbolControl = new FormControl<string>('', { nonNullable: true, validators: [Validators.required] });
+  // Reactive date control with required validation (used for HISTORICAL_OPTIONS) (enabled by default)
+  public dateControl = new FormControl<Date | null>(null, { validators: [Validators.required] });
+  // Local-only date for HISTORICAL_OPTIONS (YYYY-MM-DD)
+  private histOptionsDate: string | null = null;
 
   ngOnInit() {
-    // Set up debounced symbol input
-    this.symbolInput$.pipe(
-      debounceTime(300),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe(symbol => {
-      this.alphaVantageStore.setSymbol(symbol);
-    });
-  }
+    // Immediately sync controls with current loading state to avoid initial disabled state lingering
+    this.alphaVantageStore.loading$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(loading => {
+        if (loading) {
+          this.symbolControl.disable({ emitEvent: false });
+          this.dateControl.disable({ emitEvent: false });
+        } else {
+          this.symbolControl.enable({ emitEvent: false });
+          this.dateControl.enable({ emitEvent: false });
+        }
 
-  onSymbolInput(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const symbol = input.value.trim().toUpperCase();
-    this.alphaVantageStore.setSymbol(symbol);
+    });
+
+    // Drive store symbol from control (debounced, uppercase)
+    this.symbolControl.valueChanges
+      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
+      .subscribe(v => {
+        const symbol = (v || '').trim().toUpperCase();
+        this.alphaVantageStore.setSymbol(symbol);
+      });
+
+    // Drive local formatted date string from date control
+    this.dateControl.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(d => {
+        if (d instanceof Date) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          this.histOptionsDate = `${yyyy}-${mm}-${dd}`;
+        } else {
+          this.histOptionsDate = null;
+        }
+      });
   }
 
   onEndpointSelected(endpoint: AlphaVantageEndpoint) {
@@ -58,7 +90,15 @@ export class DataMaintainerViewComponent {
     if (!symbol) {
       return;
     }
-    this.alphaVantageStore.fetchData();
+
+    // Pass date only for HISTORICAL_OPTIONS
+    const endpoint = this.alphaVantageStore.endpoint();
+    const params: Record<string, any> = {};
+    if (endpoint === AlphaVantageEndpoint.HISTORICAL_OPTIONS && this.histOptionsDate) {
+      params['date'] = this.histOptionsDate;
+    }
+
+    this.alphaVantageStore.fetchData(params);
   }
 
   // Clear any error messages
@@ -69,6 +109,16 @@ export class DataMaintainerViewComponent {
   // Handle form submission (if needed)
   onSubmit(event?: Event) {
     event?.preventDefault();
+    // Validate symbol
+    if (this.symbolControl.invalid) {
+      this.symbolControl.markAsTouched();
+      return;
+    }
+    // Validate date if HISTORICAL_OPTIONS is selected
+    if (this.alphaVantageStore.endpoint() === AlphaVantageEndpoint.HISTORICAL_OPTIONS && this.dateControl.invalid) {
+      this.dateControl.markAsTouched();
+      return;
+    }
     this.fetchData();
   }
 }
