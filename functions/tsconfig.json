@@ -2,7 +2,7 @@
   "compilerOptions": {
     "module": "commonjs",
     "esModuleInterop": true,
-    "moduleResolution": "node",
+    "moduleResolution": "Node",
     "rootDir": "src",
     "noImplicitReturns": true,
     "noUnusedLocals": true,
@@ -17,7 +17,10 @@
     "paths": {
         "@shared/*": ["../shared/lib/*"]
     },
-    "types": ["node"]
+    "types": [
+        "node",
+        "node-fetch"
+    ]
   },
   "compileOnSave": true,
   "include": ["src/**/*"],

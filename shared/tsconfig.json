@@ -8,7 +8,7 @@
       "esModuleInterop": true,
       "strict": true,
       "types": ["node"],
-      "moduleResolution": "node"
+      "moduleResolution": "Node"
     },
     "include": ["**/*"],
     "exclude": ["lib", "node_modules", "**/http-proxy.d.ts"]
