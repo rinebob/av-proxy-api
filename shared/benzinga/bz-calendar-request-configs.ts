@@ -11,71 +11,166 @@ import {
     BenzingaRequestConfig,
 } from './bz-types';
 
+// Default lookback period for date ranges (in years)
+const SEARCH_WINDOW_LENGTH_YEARS = 1;
+
 // Shared parameter definitions map
 export const BZ_CALENDAR_PARAMETER_DEFS: Record<BenzingaCalendarParameter, any> = {
     [BenzingaCalendarParameter.PAGE]: {
         type: 'number',
         required: false,
+        label: 'Page',
         description: 'Page offset. For optimization, offsets are limited from 0 - 100000. Limit query results by other parameters such as date.',
         default: 0,
     },
     [BenzingaCalendarParameter.PAGESIZE]: {
         type: 'number',
         required: false,
+        label: 'Page Size',
         description: 'Number of results returned. Limit 1000',
-        default: 100,
+        default: 1000,
     },
     [BenzingaCalendarParameter.DATE]: {
         type: 'string',
         required: false,
+        label: 'Date',
         description: 'Date to query for calendar data. Shorthand for date_from and date_to if they are the same. Defaults for latest.',
         format: 'YYYY-MM-DD',
     },
     [BenzingaCalendarParameter.DATE_FROM]: {
         type: 'string',
         required: false,
+        label: 'Start Date',
         description: 'Date to query from point in time.',
         format: 'YYYY-MM-DD',
+        default: (() => {
+            const date = new Date();
+            date.setFullYear(date.getFullYear() - SEARCH_WINDOW_LENGTH_YEARS);
+            return date.toISOString().split('T')[0];
+        })(),
     },
     [BenzingaCalendarParameter.DATE_TO]: {
         type: 'string',
         required: false,
+        label: 'End Date',
         description: 'Date to query to point in time.',
         format: 'YYYY-MM-DD',
+        default: (() => {
+            return new Date().toISOString().split('T')[0]; // Default to today
+        })(),
     },
     [BenzingaCalendarParameter.DATE_SORT]: {
         type: 'string',
         required: false,
+        label: 'Sort Order',
         description: 'Field sort option for earnings calendar. Apply :desc, :asc for sort order.',
-        enum: ['date'],
+        enum: ['asc', 'desc']
     },
     [BenzingaCalendarParameter.TICKERS]: {
         type: 'string',
         required: false,
-        description: 'One or more ticker symbols separated by a comma. All calendars accept this parameter (except FDA endpoint). Max 50 tickers.',
-        format: 'csv',
+        label: 'Ticker Symbols',
+        description: 'A comma-separated list of ticker symbols to filter by.',
+        format: 'csv'
     },
     [BenzingaCalendarParameter.IMPORTANCE]: {
         type: 'number',
         required: false,
+        label: 'Importance',
         description: 'The importance level to filter by. Uses Greater Than or Equal To the importance indicated.',
         enum: [0, 1, 2, 3, 4, 5],
     },
     [BenzingaCalendarParameter.UPDATED]: {
         type: 'number',
         required: false,
+        label: 'Updated',
         description: 'Records last Updated Unix timestamp (UTC). This will force the sort order to be Greater Than or Equal to the timestamp indicated.',
     },
     [BenzingaCalendarParameter.DIVIDEND_YIELD]: {
         type: 'number',
         required: false,
+        label: 'Dividend Yield Filter',
         description: 'Dividend yield filter. Value is a decimal (e.g., 0.05 for 5%).',
+    },
+    [BenzingaCalendarParameter.DIVIDEND_YIELD_OPERATION]: {
+        type: 'string',
+        required: false,
+        label: 'Dividend Yield Operation',
+        description: 'Specifies how to filter using dividend yield. gt = Greater Than, gte = Greater Than or Equal, eq = Equal, lt = Less Than, lte = Less Than or Equal',
+        enum: ['gt', 'gte', 'eq', 'lt', 'lte'],
+        default: 'gte'
+    },
+    [BenzingaCalendarParameter.SIMPLIFY]: {
+        type: 'boolean',
+        required: false,
+        label: 'Simplify',
+        description: 'Simplify the aggregate ratings to only BUY, SELL, HOLD. Default returns all ratings (STRONG_BUY, BUY, HOLD, SELL, STRONG_SELL).',
+        default: false,
+    },
+    [BenzingaCalendarParameter.AGGREGATE_TYPE]: {
+        type: 'string',
+        required: false,
+        label: 'Aggregate Type',
+        description: 'Aggregate the ratings by either number or percentage.',
+        enum: ['number', 'percentage'],
+        default: 'number',
+    },
+    [BenzingaCalendarParameter.COUNTRY]: {
+        type: 'string',
+        required: false,
+        label: 'Country',
+        description: '3-Digit Country Code (ISO 3166-1 alpha-3)',
+        pattern: '^[A-Z]{3}$',
+    },
+    [BenzingaCalendarParameter.EVENT_CATEGORY]: {
+        type: 'string',
+        required: false,
+        label: 'Event Category',
+        description: 'One or more event categories separated by a comma.',
+        format: 'csv',
+    },
+    [BenzingaCalendarParameter.IS_PRIMARY]: {
+        type: 'string',
+        required: false,
+        label: 'Is Primary',
+        description: 'Determines if guidance returned is primary, secondary or all.',
+        enum: ['Y', 'N', 'All'],
+        default: 'Y',
     },
     [BenzingaCalendarParameter.ACTION]: {
         type: 'string',
         required: false,
+        label: 'Action',
         description: 'Rating action filter (e.g., upgrade, downgrade, initiate, reiterate, maintain).',
         enum: ['upgrade', 'downgrade', 'initiate', 'reiterate', 'maintain'],
+    },
+    [BenzingaCalendarParameter.ANALYST_ID]: {
+        type: 'string',
+        required: false,
+        label: 'Analyst ID',
+        description: 'One or more analyst IDs separated by a comma.',
+        format: 'csv',
+    },
+    [BenzingaCalendarParameter.FIRM_ID]: {
+        type: 'string',
+        required: false,
+        label: 'Firm ID',
+        description: 'One or more firm IDs separated by a comma.',
+        format: 'csv',
+    },
+    [BenzingaCalendarParameter.ANALYST]: {
+        type: 'string',
+        required: false,
+        label: 'Analyst',
+        description: 'A comma-separated list of analyst (person) IDs.',
+        format: 'csv',
+    },
+    [BenzingaCalendarParameter.FIRM]: {
+        type: 'string',
+        required: false,
+        label: 'Firm',
+        description: 'A comma-separated list of analyst firm IDs.',
+        format: 'csv',
     },
 };
 
@@ -99,7 +194,7 @@ export function getBzCalendarParams(keys: BenzingaCalendarParameter[]): Record<s
 }
 
 // Base configuration that can be extended by specific endpoints
-const BASE_CALENDAR_REQUEST_CONFIG: Omit<BenzingaRequestConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> & { apiKeyEnv: string } = {
+const BASE_CALENDAR_REQUEST_CONFIG: Omit<BenzingaRequestConfig, 'id' | 'name' | 'apiEndpoint' | 'description'> = {
     apiKeyEnv: 'BENZINGA_CALENDAR_API_KEY',
     provider: ApiProvider.BENZINGA,
     category: BzEndpointCategory.BENZINGA_CALENDAR,
