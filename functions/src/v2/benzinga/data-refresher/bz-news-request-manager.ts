@@ -7,7 +7,6 @@ import { BenzingaHandlerFactory } from "../benzinga-factory";
 import { 
     MAX_BENZINGA_NEWS_ARTICLES,
     BENZINGA_NEWS_TTL_DAYS,
-    BenzingaNewsRequestConfig,
     BzNewsData,
     SvtBenzingaNewsItem,
     SvtBzNewsRequest
