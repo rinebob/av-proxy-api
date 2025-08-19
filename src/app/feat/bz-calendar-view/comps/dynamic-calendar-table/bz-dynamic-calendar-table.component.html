@@ -1,5 +1,5 @@
 <div class="calendar-header-row">
-  <h1 class="calendar-title calendar-title-margin">{{ bzCalendarStore.selectedEndpointMeta()?.title }}</h1>
+  <h1 class="calendar-title calendar-title-margin">{{ bzCalendarStore.selectedEndpointMeta().title }}</h1>
   @if (bzCalendarStore.pagedResults().length > 0 && (bzCalendarStore.pagedResults()[0].name || bzCalendarStore.pagedResults()[0].ticker)) {
     <div class="company-header">
       <h2 class="company-title-inline">
@@ -23,7 +23,7 @@
       ({{ bzCalendarStore.totalItems() || bzCalendarStore.pagedResults().length }} total)
     </div>
     <table mat-table [dataSource]="bzCalendarStore.pagedResults()" class="mat-elevation-z1" style="width: 100%;">
-      @for (col of (bzCalendarStore.selectedEndpointMeta()?.columns ?? []); track col.key) {
+      @for (col of (bzCalendarStore.selectedEndpointMeta().columns); track col.key) {
         <ng-container [matColumnDef]="col.key">
           <th mat-header-cell *matHeaderCellDef>{{ col.displayName }}</th>
           <td mat-cell *matCellDef="let element">
