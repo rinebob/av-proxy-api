@@ -1,7 +1,7 @@
 {
     "name": "functions",
     "scripts": {
-        "copy-shared": "npm --prefix ../shared run build && cpx \"../shared/lib/**/*\" \"lib/shared\"",
+        "copy-shared": "npm --prefix ../shared run build && npx cpx \"../shared/lib/**/*\" \"lib/shared\"",
         "build": "npm run copy-shared && tsc --p tsconfig.json",
         "build:watch": "npm run copy-shared && tsc --watch",
         "serve": "npm run build && firebase emulators:start --only functions",
