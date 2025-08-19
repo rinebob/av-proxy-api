@@ -6,7 +6,8 @@
       "outDir": "lib",
       "rootDir": ".",
       "esModuleInterop": true,
-      "strict": true
+      "strict": true,
+      "types": ["node"]
     },
     "include": ["**/*"],
     "exclude": ["lib", "node_modules", "**/http-proxy.d.ts"]
