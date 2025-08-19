@@ -83,6 +83,17 @@ const benzingaApiHandler = async (req: Request, res: Response) => {
     res.status(200).json(response);
     
   } catch (error: unknown) {
+    // If the error already has an HTTP status (e.g., from our handler normalizeError), surface it with details
+    const anyErr = error as any;
+    if (typeof anyErr?.status === 'number') {
+      res.status(anyErr.status).json({
+        error: 'Benzinga API Error',
+        message: anyErr.message || 'Upstream API error',
+        details: anyErr.details
+      });
+      return;
+    }
+
     if (!handleApiError(error, res, BenzingaFunctionName.GET_CALENDAR)) {
       console.error(`bZG bzA [${requestId}] [GATEWAY] Unhandled error:`, error);
       res.status(500).json({ 
