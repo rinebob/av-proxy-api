@@ -152,9 +152,9 @@ const BASE_NEWS_REQUEST_CONFIG: Omit<BenzingaNewsRequestConfig, 'id' | 'name' | 
     method: HttpMethod.GET,
     ttl: 60 * 60, // 1 hour
     symbolUsage: EndpointSymbolUsage.OPTIONAL,
-    parameters: {},
     parameterKeys: [],
     documentationUrl: 'https://docs.benzinga.com/benzinga/newsfeed-v2/newsService-get.html',
+    responseKey: '',
 };
 
 // --- News Endpoint Config ---
@@ -185,20 +185,6 @@ export const BZ_NEWS_REQUEST_CONFIGS: Record<SvtBzNewsRequest, BenzingaNewsReque
       BenzingaNewsParameter.AUTHORS,
       BenzingaNewsParameter.CONTENT_TYPES,
     ],
-    parameters: {
-      ...Object.fromEntries(Object.entries(BASE_NEWS_REQUEST_CONFIG.parameters)),
-      [BenzingaNewsParameter.PAGE_SIZE]: {
-        type: 'number',
-        required: false,
-        description: 'Results per page (max 100)',
-        default: 100,
-      },
-      [BenzingaNewsParameter.UPDATED_SINCE]: {
-        type: 'number',
-        required: false,
-        description: 'Unix timestamp (UTC) for filtering news updated after this time. Currently temporarily disabled due to API issues.',
-      },
-    },
     channels: [BzNewsChannel.RUMORS, BzNewsChannel.OPINION],
   },
   [SvtBzNewsRequest.BZ_NEWS_BY_ID]: {
@@ -213,6 +199,5 @@ export const BZ_NEWS_REQUEST_CONFIGS: Record<SvtBzNewsRequest, BenzingaNewsReque
       BenzingaNewsParameter.NEWS_ID,
       BenzingaNewsParameter.DISPLAY_OUTPUT,
     ],
-    parameters: {},
   },
 }

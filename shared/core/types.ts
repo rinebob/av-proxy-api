@@ -50,7 +50,10 @@ export interface RequestConfig<TId = string, TCategory = string> {
   description: string;
   ttl: number;
   symbolUsage: EndpointSymbolUsage;
-  parameters: Record<string, EndpointParameter>;
+  /**
+   * Array of valid parameter keys for this endpoint
+   */
+  parameterKeys: string[];
   /**
    * The Firestore document path in the format 'collection/doc/collection/doc/...'.
    * Parameters in curly braces will be replaced with actual values from the request.
