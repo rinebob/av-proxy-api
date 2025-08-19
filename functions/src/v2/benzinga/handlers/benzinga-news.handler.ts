@@ -29,9 +29,13 @@ interface NewsParams {
  */
 export class BenzingaNewsHandler extends BenzingaBaseHandler<any> {
   constructor(config: BenzingaNewsRequestConfig) {
-    super({ ...config, apiEndpoint: DATA_PROVIDERS[ApiProvider.BENZINGA].baseUrl });
-    // Override the apiClient baseURL for news endpoint
-    this.apiClient.defaults.baseURL = DATA_PROVIDERS[ApiProvider.BENZINGA].baseUrl;
+    // Combine base URL with endpoint path
+    const baseUrl = DATA_PROVIDERS[ApiProvider.BENZINGA].baseUrl;
+    const apiEndpoint = `${baseUrl}${config.apiEndpoint}`;
+    
+    super({ ...config, apiEndpoint });
+    // Set baseURL for the axios instance
+    this.apiClient.defaults.baseURL = baseUrl;
     
     // Override paramsSerializer for news endpoint
     this.apiClient.defaults.paramsSerializer = (params: Record<string, any>) => {

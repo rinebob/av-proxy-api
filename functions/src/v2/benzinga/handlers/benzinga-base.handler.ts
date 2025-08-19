@@ -136,38 +136,27 @@ export abstract class BenzingaBaseHandler<T = any> {
       timeout: DATA_PROVIDERS[ApiProvider.BENZINGA].defaultTimeoutMs, // 15 seconds
       paramsSerializer: (params) => {
         const searchParams = new URLSearchParams();
-        for (const key of Object.keys(params)) {
-          const value = params[key];
-          if (value === undefined || value === null) {
-            continue; // Skip undefined or null values
-          }
+        
+        // Always include the API key
+        searchParams.append('token', this.apiKey);
 
-          // Add API key as token parameter
-          if (key === 'token') {
-            searchParams.append('token', value);
-            continue;
+        // Pass through all parameters as-is
+        Object.entries(params).forEach(([key, value]) => {
+          // Skip the token since we're adding it above
+          if (key === 'token') return;
+          
+          if (value !== undefined && value !== null && value !== '') {
+            // Handle arrays by appending each value with the same key
+            if (Array.isArray(value)) {
+              value.forEach(v => searchParams.append(key, String(v)));
+            } else {
+              searchParams.append(key, String(value));
+            }
           }
+        });
 
-          if (key === 'parameters' && typeof value === 'object') {
-            for (const nestedKey of Object.keys(value)) {
-              const nestedValue = value[nestedKey];
-              if (nestedValue !== undefined && nestedValue !== null) {
-                searchParams.append(`parameters[${nestedKey}]`, nestedValue);
-              }
-            }
-          } else if (typeof value === 'object' && !Array.isArray(value)) {
-            // Handle other top-level objects by flattening them
-            for (const nestedKey of Object.keys(value)) {
-              const nestedValue = value[nestedKey];
-              if (nestedValue !== undefined && nestedValue !== null) {
-                searchParams.append(nestedKey, nestedValue);
-              }
-            }
-          } else {
-            searchParams.append(key, value);
-          }
-        }
-        console.log('bBH ctor searchParams: ', searchParams);
+        // Log the final URLSearchParams for debugging
+        console.log('bBH ctor searchParams:', Array.from(searchParams.entries()));
         return searchParams.toString();
       }
     });
