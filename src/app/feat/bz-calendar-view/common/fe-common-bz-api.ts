@@ -39,16 +39,12 @@ export const BenzingaBackendUrls = [
 ];
 
 /**
- * Returns the full URL for a Benzinga endpoint
- * @param endpoint The Benzinga endpoint to call
+ * Returns the base URL for Benzinga API endpoints
  */
 export function getBenzingaEndpointUrl(): string {
   const baseUrl = getBenzingaBaseUrl();
-  // TODO - Refactor to remove magic string
   const gatewayPath = 'benzingaApiV2';
-  const endpointPath = 'calendar'; // The path is always 'calendar' for these endpoints.
-
-  return `${baseUrl}/${gatewayPath}/${endpointPath}`;
+  return `${baseUrl}/${gatewayPath}`;
 }
 
 /////////////////////////////// TYPES /////////////////////////
