@@ -4,7 +4,10 @@
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
     "scripts": {
-      "build": "tsc --project tsconfig.json"
+        "build": "tsc --project tsconfig.json"
     },
-    "license": "MIT"
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^24.3.0"
+    }
 }
