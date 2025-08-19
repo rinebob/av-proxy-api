@@ -23,15 +23,14 @@ const BZ_NEWS_REQUEST_TRACKING = 'bz-news-request-tracking';
  * Fetches all pages of news from the Benzinga API for a given endpoint configuration.
  *
  * @param {any} handler The Benzinga API handler instance.
- * @param {BenzingaNewsRequestConfig} endpointConfig The configuration for the news endpoint.
  * @param {Record<string, any>} initialApiParams The initial set of parameters for the API request.
  * @param {number} mostRecentArticleId The most recently fetched article ID.
  * @returns {Promise<any[]>} A promise that resolves to an array containing all fetched news articles.
  */
-async function fetchAllNewsPages(handler: any, endpointConfig: BenzingaNewsRequestConfig, initialApiParams: Record<string, any>, mostRecentArticleId: number): Promise<any[]> {
+async function fetchAllNewsPages(handler: any, initialApiParams: Record<string, any>, mostRecentArticleId: number): Promise<any[]> {
     let allNewsItems: any[] = [];
     let currentPage = 0;
-    const pageSize = parseInt(endpointConfig.parameters.pageSize?.default || 100, 10);
+    const pageSize = initialApiParams.pageSize ?? 100; // Use provided pageSize or default to 100
     const maxPages = 100; // Benzinga has a 100-page limit.  this will freeze the emulators though. Set at 5-10 for testing
     let hasMorePages = true;
 
@@ -170,7 +169,6 @@ export async function fetchAndPersistBenzingaNews() {
     console.log('==================== START BZ_NEWS ===============================');
     console.log('bNRM faPBN: --- Benzinga News Refresh Cycle Starting ---');
     const endpointId = SvtBzNewsRequest.BZ_NEWS;
-    const endpointConfig = BenzingaHandlerFactory.getEndpointConfig(endpointId) as BenzingaNewsRequestConfig;
     const handler = BenzingaHandlerFactory.createHandler(endpointId);
 
     const systemInfoRef = db.collection(FirestoreCollection.SYSTEM_INFO).doc(BZ_NEWS_REQUEST_TRACKING);
@@ -186,7 +184,7 @@ export async function fetchAndPersistBenzingaNews() {
         updated_since: Math.floor(lastRefreshTimestamp / 1000),
     };
 
-    const allNewsItems = await fetchAllNewsPages(handler, endpointConfig, apiParams, mostRecentArticleId);
+    const allNewsItems = await fetchAllNewsPages(handler, apiParams, mostRecentArticleId);
 
     if (allNewsItems.length === 0) {
         console.log('bNRM faPBN: No new news items to process.');
