@@ -1,115 +1,97 @@
-<form class="calendar-form flex-col" [formGroup]="searchForm" (ngSubmit)="onSubmit()">
-  <div class="form-row">
-    <div class="fields-group">
-      @let endpointParams = bzCalendarStore.selectedEndpointMeta()?.params ?? [];
-      @let benzingaCalendarParam = BenzingaCalendarParam;
-      @let benzingaCalendarParamFormField = BenzingaCalendarParamFormField;
-      @let hasTicker = endpointParams.includes(BenzingaCalendarParam.TICKERS);
-      @let hasStartDate = endpointParams.includes(benzingaCalendarParam.START_DATE);
-      @let hasEndDate = endpointParams.includes(benzingaCalendarParam.END_DATE);
-      
-      @if (hasStartDate) {
-        @let meta = BENZINGA_PARAM_META_MAP[benzingaCalendarParam.START_DATE];
-        <mat-form-field appearance="outline" class="date-field">
-          <mat-label>{{ meta.label }}</mat-label>
-          <input matInput [matDatepicker]="pickerStart" [formControlName]="benzingaCalendarParamFormField.START_DATE" [placeholder]="meta.placeholder ?? ''">
-          <mat-datepicker-toggle matSuffix [for]="pickerStart"></mat-datepicker-toggle>
-          <mat-datepicker #pickerStart></mat-datepicker>
-        </mat-form-field>
-      }
-      
-      @if (hasEndDate) {
-        @let meta = BENZINGA_PARAM_META_MAP[benzingaCalendarParam.END_DATE];
-        <mat-form-field appearance="outline" class="date-field">
-          <mat-label>{{ meta.label }}</mat-label>
-          <input matInput [matDatepicker]="pickerEnd" [formControlName]="benzingaCalendarParamFormField.END_DATE" [placeholder]="meta.placeholder ?? ''">
-          <mat-datepicker-toggle matSuffix [for]="pickerEnd"></mat-datepicker-toggle>
-          <mat-datepicker #pickerEnd></mat-datepicker>
-        </mat-form-field>
-      }
-      
-      @if (hasTicker) {
-        <mat-slide-toggle
-          [checked]="includeTicker()"
-          (change)="includeTicker.set($event.checked)"
-          class="toggle-ticker"
-        >
-          Include Ticker Symbol
-        </mat-slide-toggle>
-        @let showTicker = hasTicker && includeTicker();
-        @if (showTicker) {
-          @let meta = BENZINGA_PARAM_META_MAP[BenzingaCalendarParam.TICKERS];
-          <mat-form-field appearance="outline">
-            <mat-label>{{ meta.label }}</mat-label>
-            <input matInput [formControlName]="benzingaCalendarParamFormField.TICKERS" [placeholder]="meta.placeholder ?? ''">
-          </mat-form-field>
-        }
-      }
-      
-      <button mat-raised-button color="primary" type="submit" class="search-btn">Search</button>
-    </div>
-  </div>
-  <div class="form-row">
-    <div class="fields-group">
-      @let isDividends = bzCalendarStore.selectedEndpoint() === BenzingaEndpoint.DIVIDENDS;
-      @if (isDividends) {
-        <mat-form-field appearance="outline" class="narrow-field">
-          <mat-label>Yield Op</mat-label>
-          <mat-select [formControlName]="benzingaCalendarParamFormField.DIVIDEND_YIELD_OPERATION">
-            <mat-option value="gt">&gt;</mat-option>
-            <mat-option value="gte">&ge;</mat-option>
-            <mat-option value="eq">=</mat-option>
-            <mat-option value="lte">&le;</mat-option>
-            <mat-option value="lt">&lt;</mat-option>
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="narrow-field">
-          <mat-label>Yield</mat-label>
-          <input matInput type="number" [formControlName]="benzingaCalendarParamFormField.DIVIDEND_YIELD" min="0" placeholder="%">
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="narrow-field">
-          <mat-label>Date Sort</mat-label>
-          <mat-select [formControlName]="benzingaCalendarParamFormField.DATE_SORT">
-            <mat-option value="">None</mat-option>
-            <mat-option value="announced">Announced</mat-option>
-            <mat-option value="ex">Ex</mat-option>
-            <mat-option value="payable">Payable</mat-option>
-            <mat-option value="record">Record</mat-option>
-          </mat-select>
-        </mat-form-field>
-      }
+<form [formGroup]="searchForm" (ngSubmit)="onSubmit()" class="calendar-form">
+    <!-- First Row: Date Range and Toggle -->
+    <div class="form-row">
+        <div class="fields-group">
+            @for (param of firstRowParams(); track param) {
+                @let paramDef = paramDefs()[param];
+                @if (paramDef) {
+                    @if (param === BenzingaCalendarParameter.DATE_FROM || param === BenzingaCalendarParameter.DATE_TO) {
+                        <mat-form-field appearance="outline" class="date-field">
+                            <mat-label>{{ paramDef.label || param }}</mat-label>
+                            <input matInput
+                                [matDatepicker]="param === BenzingaCalendarParameter.DATE_FROM ? pickerStart : pickerEnd"
+                                [formControlName]="param" [placeholder]="paramDef.placeholder || ''">
+                            <mat-datepicker-toggle matSuffix
+                                [for]="param === BenzingaCalendarParameter.DATE_FROM ? pickerStart : pickerEnd"></mat-datepicker-toggle>
+                            <mat-datepicker #pickerStart></mat-datepicker>
+                            <mat-datepicker #pickerEnd></mat-datepicker>
+                        </mat-form-field>
+                    }
 
-      @if (endpointParams.includes(benzingaCalendarParam.SORT)) {
-        <mat-form-field appearance="outline" class="sort-field">
-          <mat-label>Sort by</mat-label>
-          <mat-select [formControlName]="benzingaCalendarParamFormField.SORT">
-            <mat-option value="asc">Ascending</mat-option>
-            <mat-option value="desc">Descending</mat-option>
-          </mat-select>
-        </mat-form-field>
-      }
-      @if (endpointParams.includes(benzingaCalendarParam.PAGESIZE)) {
-        <mat-form-field appearance="outline">
-          <mat-label>Page Size</mat-label>
-          <input matInput type="number" [formControlName]="benzingaCalendarParamFormField.PAGESIZE" min="1" max="1000" placeholder="Results per page (max 1000)">
-        </mat-form-field>
-      }
-      @if (endpointParams.includes(benzingaCalendarParam.IMPORTANCE)) {
-        <mat-form-field appearance="outline">
-          <mat-label>Importance</mat-label>
-          <mat-select [formControlName]="benzingaCalendarParamFormField.IMPORTANCE" placeholder="Any">
-            <mat-option [value]="null">Any</mat-option>
-            <mat-option *ngFor="let level of [0,1,2,3,4,5]" [value]="level">{{ level }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-      }
-      @if (endpointParams.includes(benzingaCalendarParam.UPDATED)) {
-        <mat-form-field appearance="outline">
-          <mat-label>Updated Since</mat-label> 
-          <input matInput type="datetime-local" [formControlName]="benzingaCalendarParamFormField.UPDATED" placeholder="Last Updated (UTC)">
-          <mat-hint>Records updated since this date/time</mat-hint>
-        </mat-form-field>
-      }
+                    @if (param === BenzingaCalendarParameter.TICKERS) {
+                        <mat-slide-toggle [checked]="includeTicker()" (change)="includeTicker.set($event.checked)"
+                            class="toggle-ticker">
+                            Include Ticker Symbol
+                        </mat-slide-toggle>
+                    }
+
+                    @if (includeTicker()) {
+                        <mat-form-field appearance="outline">
+                            <mat-label>{{ paramDef.label || 'Ticker' }}</mat-label>
+                            <input matInput [formControlName]="param" [placeholder]="paramDef.placeholder || 'e.g. AAPL'">
+                        </mat-form-field>
+                    }
+                }
+            }
+
+            <button mat-raised-button color="primary" type="submit" class="search-btn">Search</button>
+        </div>
     </div>
-  </div>
+
+    <!-- Second Row: Other Parameters -->
+    <div class="form-row">
+        <div class="fields-group">
+            @for (param of secondRowParams(); track param) {
+                @let paramDef = paramDefs()[param];
+                @if (paramDef) {
+                    <!-- Show dropdown for parameters with enum values -->
+                    @if (paramDef.enum) {
+                        <mat-form-field appearance="outline">
+                            <mat-label>{{ paramDef.label || param }}</mat-label>
+                            <mat-select [formControlName]="param">
+                                @for (option of getEnumOptions(param); track option.value) {
+                                    <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                    }
+                    @else {
+                        <!-- Show number input for number type -->
+                        @if (paramDef.type === 'number') {
+                            <mat-form-field appearance="outline" class="narrow-field">
+                                <mat-label>{{ paramDef.label || param }}</mat-label>
+                                <input matInput type="number" [formControlName]="param" [min]="paramDef.min" [max]="paramDef.max"
+                                    [step]="paramDef.step || '1'" [placeholder]="paramDef.placeholder || ''">
+                                @if (paramDef.suffix) {
+                                    <span matSuffix>{{ paramDef.suffix }}</span>
+                                }
+                            </mat-form-field>
+                        }
+                        <!-- Show date input for date type -->
+                        @else if (paramDef.type === 'date') {
+                            <mat-form-field appearance="outline" class="date-field">
+                                <mat-label>{{ paramDef.label || param }}</mat-label>
+                                <ng-container *appDatepickerRef="true">
+                                    <input matInput 
+                                        [matDatepicker]="datepicker"
+                                        [formControlName]="param"
+                                        [placeholder]="paramDef.placeholder || ''">
+                                    <mat-datepicker-toggle matSuffix [for]="datepicker"></mat-datepicker-toggle>
+                                    <mat-datepicker #datepicker></mat-datepicker>
+                                </ng-container>
+                            </mat-form-field>
+                        }
+                        <!-- Default to text input for other types -->
+                        @else {
+                            <mat-form-field appearance="outline">
+                                <mat-label>{{ paramDef.label || param }}</mat-label>
+                                <input matInput [formControlName]="param" [placeholder]="paramDef.placeholder || ''"
+                                    [type]="paramDef.inputType || 'text'">
+                            </mat-form-field>
+                        }
+                    }
+                }
+            }
+        </div>
+    </div>
 </form>
