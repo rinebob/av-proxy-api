@@ -4,7 +4,7 @@
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
     "scripts": {
-      "build": "echo \"--- DEBUG: shared build start ---\" && cd && echo \"PATH: %PATH%\" && echo \"--- DEBUG: Listing shared/node_modules/@types/node ---\" && dir node_modules\\@types\\node\\ && echo \"--- DEBUG: Listing shared/node_modules/undici-types ---\" && dir node_modules\\undici-types\\ && echo \"--- DEBUG: Running tsc ---\" && tsc --project tsconfig.json && echo \"--- DEBUG: shared build end ---\""
+      "build": "echo \"--- DEBUG: shared build start ---\" && echo \"PATH: %PATH%\" && echo \"--- DEBUG: Listing shared/node_modules/@types/node ---\" && dir node_modules\\@types\\node\\ && echo \"--- DEBUG: Listing shared/node_modules/undici-types ---\" && dir node_modules\\undici-types\\ && echo \"--- DEBUG: Running tsc ---\" && tsc --project tsconfig.json && echo \"--- DEBUG: shared build end ---\""
     },
     "license": "MIT",
     "devDependencies": {
