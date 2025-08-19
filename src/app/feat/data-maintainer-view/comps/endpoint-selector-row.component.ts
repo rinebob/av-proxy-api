@@ -19,7 +19,8 @@ import { DATA_MAINTAINER_ENDPOINTS_METADATA } from '../common/fe-common-dm';
 })
 export class EndpointSelectorRowComponent {
   alphaVantageStore = inject(AlphaVantageStore);
-  endpoints = DATA_MAINTAINER_ENDPOINTS_METADATA;
+  // Only show implemented (not disabled) endpoints
+  endpoints = DATA_MAINTAINER_ENDPOINTS_METADATA.filter(e => !e.disabled);
   currentEndpoint = this.alphaVantageStore.endpoint;
 
   selectEndpoint(key: AlphaVantageEndpoint) {
