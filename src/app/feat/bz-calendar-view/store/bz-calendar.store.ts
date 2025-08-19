@@ -2,15 +2,14 @@ import { signalStore, withState, withMethods, patchState, withProps, withCompute
 import { computed, inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 
-import { BzCalendarRequestType } from '@shared/benzinga';
+import { BenzingaCalendarParameter, BzCalendarRequestType } from '@shared/benzinga';
 
 import { BenzingaApiService } from '../services/benzinga-api.service';
-import type { BenzingaCalendarParams, BenzingaEndpointItemMap, BZCalendarResponseMap } from '../../../common/fe-common-bz';
+import type { BenzingaEndpointItemMap, BZCalendarResponseMap } from '../../../common/fe-common-bz';
 import { BENZINGA_ENDPOINTS_META_MAP } from '../../../common/fe-common-bz';
 
-
 export interface BenzingaCalendarState {
-    selectedEndpoint: BzCalendarRequestType | null;
+    selectedEndpoint: BzCalendarRequestType;
     formValues: Record<string, any>;
     loading: boolean;
     error: string | null;
@@ -66,7 +65,7 @@ export const BenzingaCalendarStore = signalStore(
          */
         selectedEndpointMeta: computed(() => {
             const endpoint = store.selectedEndpoint();
-            return endpoint ? BENZINGA_ENDPOINTS_META_MAP[endpoint] : undefined;
+            return BENZINGA_ENDPOINTS_META_MAP[endpoint];
         }),
 
         // Total items for the current endpoint
@@ -173,19 +172,41 @@ export const BenzingaCalendarStore = signalStore(
             });
         },
 
-        searchCalendar(formValues: BenzingaCalendarParams) {
+        searchCalendar(formValues: Record<string, any>) {
             console.log('bCSto sC calendar formValues: ', formValues);
             patchState(store, { loading: true, error: null, hasSearched: true, formValues });
 
             // The endpoint is determined by the 'type' property in the formValues
-            const endpoint = formValues.type;
+            const endpoint = formValues['type'];
             if (!endpoint) {
                 patchState(store, { error: 'No endpoint type specified in form submission.', loading: false });
                 return;
             }
 
-            // Ensure type is never undefined and always matches the endpoint
-            const apiParams: BenzingaCalendarParams = { ...formValues, type: endpoint };
+            // Get the endpoint config to access parameterKeys
+            const endpointConfig = BENZINGA_ENDPOINTS_META_MAP[endpoint as BzCalendarRequestType]?.config;
+            if (!endpointConfig) {
+                patchState(store, { error: `No configuration found for endpoint: ${endpoint}`, loading: false });
+                return;
+            }
+
+            // Filter form values to only include parameters defined in parameterKeys
+            const apiParams: Record<string, any> = { type: endpoint };
+            
+            // Get all valid parameter keys for this endpoint
+            const validParamKeys = endpointConfig.parameterKeys || [];
+            
+            // Copy over only the parameters that are in the valid parameter keys
+            for (const key of validParamKeys) {
+                if (formValues[key] !== undefined && formValues[key] !== '') {
+                    apiParams[key] = formValues[key];
+                }
+            }
+
+            // Handle pagination parameters
+            const { pageIndex, pageSize } = store.pagination();
+            apiParams[BenzingaCalendarParameter.PAGE] = pageIndex;
+            apiParams[BenzingaCalendarParameter.PAGESIZE] = pageSize;
 
             console.log('bCSto sC calendar calling benzingaApi.fetchData with:', { endpoint, apiParams });
 
@@ -197,7 +218,7 @@ export const BenzingaCalendarStore = signalStore(
 
                     console.log('bCSto sC calendar extracted items:', { 
                         endpoint, 
-                        responseKey: endpoint,
+                        responseKey: endpointConfig.responseKey || endpoint,
                         itemCount: items.length, 
                         items,
                         sampleItem: items[0],
@@ -229,7 +250,7 @@ export const BenzingaCalendarStore = signalStore(
                     
                     console.log('bCSto sC calendar updated store state:', { 
                         allResponseKeys: Object.keys(store.responses()),
-                        currentEndpointData: store.responses()[endpoint],
+                        currentEndpointData: store.responses()[endpoint as BzCalendarRequestType],
                         pagedResults: store.pagedResults(),
                         pagedResultsLength: store.pagedResults().length,
                         hasPagedResults: store.pagedResults().length > 0
@@ -277,7 +298,7 @@ function extractCalendarItems<E extends BzCalendarRequestType>(
   const endpointMeta = BENZINGA_ENDPOINTS_META_MAP[endpoint];
   
   // Use the responseKey from metadata if defined, otherwise use the endpoint name
-  const responseKey = endpointMeta?.responseKey || endpoint.toLowerCase();
+  const responseKey = endpointMeta?.config.responseKey || endpoint.toLowerCase();
   
   // Get the items using the determined response key
   const items = (response as any)[responseKey];
@@ -285,7 +306,7 @@ function extractCalendarItems<E extends BzCalendarRequestType>(
   console.log('bCSto sC calendar extractCalendarItems:', {
     endpoint,
     responseKey,
-    hasResponseKey: !!endpointMeta?.responseKey,
+    hasResponseKey: !!endpointMeta?.config.responseKey,
     items: Array.isArray(items) ? items.length : items
   });
   

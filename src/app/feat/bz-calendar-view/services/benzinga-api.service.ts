@@ -1,11 +1,17 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, catchError, throwError, switchMap, map, tap } from 'rxjs';
 
 import { AuthService } from '../../../core/auth/auth.service';
-import { BenzingaCalendarParams } from '../../../common/fe-common-bz';
 // TODO: Use shared response object instead of fe-common-bz-api
 import { getBenzingaEndpointUrl, BenzingaApiResponse } from '../common/fe-common-bz-api';
+import { 
+  BenzingaCalendarParameter, 
+  BZ_CALENDAR_PARAMETER_DEFS, 
+  BZ_CALENDAR_REQUEST_CONFIGS, 
+  BzCalendarRequestType,
+  BenzingaRequestConfig
+} from '@shared/benzinga';
 
 @Injectable({
   providedIn: 'root'
@@ -15,40 +21,87 @@ export class BenzingaApiService {
   private authService = inject(AuthService);
   
   /**
-   * Fetch data from a Benzinga endpoint
-   * @param endpoint The Benzinga endpoint to call
-   * @param params Query parameters for the request
+   * Fetch data for a Benzinga calendar request
+   * @param params The query parameters for the request
    * @returns Observable with the API response
    */
-  fetchData<T>(params: BenzingaCalendarParams): Observable<T> {
+  fetchData<T>(params: Record<string, any>): Observable<T> {
     return this.getAuthHeaders().pipe(
-      switchMap(headers => {
-        const url = getBenzingaEndpointUrl();
-        console.log('Making request to:', url, 'with params:', params);
+      switchMap((headers) => {
+        // Get the endpoint type from params
+        const endpointType = params['type'] as BzCalendarRequestType;
         
-        return this.http.get<BenzingaApiResponse<T>>(url, { 
-          headers,
-          params: this.sanitizeParams(params),
+        // Get the endpoint config based on the request type
+        const endpointConfig = BZ_CALENDAR_REQUEST_CONFIGS[endpointType];
+        if (!endpointConfig) {
+          return throwError(() => new Error(`No configuration found for type: ${endpointType}`));
+        }
+
+        // Sanitize and prepare parameters - keep the parameters[] format
+        const sanitizedParams = this.sanitizeParams(params, endpointConfig);
+        
+        // Get the base URL and construct the full URL
+        const baseUrl = getBenzingaEndpointUrl();
+        const fullUrl = `${baseUrl}${endpointConfig.apiEndpoint}`;
+        
+        // Use HttpParams to properly encode the parameters with brackets
+        let httpParams = new HttpParams();
+        
+        // Add all other parameters
+        Object.entries(sanitizedParams).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            // Convert array values to comma-separated strings
+            const paramValue = Array.isArray(value) ? value.join(',') : String(value);
+            httpParams = httpParams.set(key, paramValue);
+          }
+        });
+        
+        console.log('Making request to:', fullUrl, 'with params:', httpParams.toString());
+        
+        // Keep Authorization header for backend authentication; backend will inject Benzinga token itself
+        const newHeaders = headers;
+        
+        return this.http.get<BenzingaApiResponse<T>>(fullUrl, { 
+          headers: newHeaders,
+          params: httpParams,
           responseType: 'json'
         }).pipe(
-          tap(response => console.log('API response:', response)),
+          tap(response => console.log('bASvc fD API response:', response)),
           map(response => {
-            // Type guard to ensure the response has the expected structure
             if (response && typeof response === 'object' && 'data' in response) {
               if (!('ok' in response) || response.ok === true) {
                 return response.data;
               }
               throw new Error(response.error || 'API request failed');
             }
-            // If we get here, the response doesn't match our expected structure
-            console.warn('Unexpected API response format:', response);
-            // Try to return the response as-is in case it's the direct data
+            console.warn('bASvc fD unexpected API response:', response);
             return response as unknown as T;
           }),
           catchError(this.handleError)
         );
       })
     );
+  }
+
+  /**
+   * Sanitize and prepare parameters for the API request
+   * @param params The raw parameters from the form
+   * @param config The endpoint configuration
+   * @returns Sanitized parameters
+   */
+  private sanitizeParams(params: Record<string, any>, config: BenzingaRequestConfig): Record<string, any> {
+    const sanitized: Record<string, any> = {};
+    
+    // Only include parameters that are defined in the endpoint's parameterKeys
+    const validParamKeys = config.parameterKeys || [];
+    
+    for (const key of validParamKeys) {
+      if (params[key] !== undefined && params[key] !== '') {
+        sanitized[key] = params[key];
+      }
+    }
+    
+    return sanitized;
   }
 
   /**
@@ -70,52 +123,47 @@ export class BenzingaApiService {
   }
 
   /**
-   * Sanitize and prepare parameters for the API request
-   * @private
-   */
-  private sanitizeParams(params: any): { [key: string]: string | number | boolean } {
-    // Remove any undefined or null values
-    return Object.entries(params).reduce((acc, [key, value]) => {
-      if (value !== undefined && value !== null) {
-        acc[key] = value;
-      }
-      return acc;
-    }, {} as { [key: string]: any });
-  }
-
-  /**
    * Handle API errors
    * @private
    */
   private handleError(error: HttpErrorResponse) {
-    let errorMessage = 'An unknown error occurred';
-    
-    if (error.error instanceof ErrorEvent) {
-      // Client-side error
-      errorMessage = `Error: ${error.error.message}`;
-    } else {
-      // Server-side error
-      if (error.status === 401) {
-        errorMessage = 'Authentication failed. Please log in again.';
-      } else if (error.status === 403) {
-        errorMessage = 'You do not have permission to access this resource.';
-      } else if (error.status === 429) {
-        errorMessage = 'Too many requests. Please try again later.';
-      } else if (error.status >= 500) {
-        errorMessage = 'Server error. Please try again later.';
-      }
-      
-      // Try to get error details from the response
-      if (error.error?.error) {
-        errorMessage = error.error.error;
-      } else if (error.error?.message) {
-        errorMessage = error.error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
+    // Build a richer error message including backend-provided details
+    const status = error.status;
+    const statusText = error.statusText || '';
+    const backend = (error?.error && typeof error.error === 'object') ? error.error as Record<string, any> : null;
+
+    const parts: string[] = [];
+    if (status || statusText) {
+      parts.push(`HTTP ${status || 'N/A'} ${statusText}`.trim());
     }
-    
-    console.error('fe bAScv hE:Benzinga API Error:', error);
-    return throwError(() => new Error(errorMessage));
+    if (backend?.['error']) {
+      parts.push(String(backend['error']));
+    }
+    // Prefer backend.message; fall back to string error bodies
+    const backendMsg = backend?.['message'] || (typeof error.error === 'string' ? error.error : '');
+    if (backendMsg) {
+      parts.push(String(backendMsg));
+    }
+    // Append details if provided by backend (array, string, or object)
+    const details = backend?.['details'];
+    if (details !== undefined) {
+      const detailsStr = Array.isArray(details)
+        ? details.join('; ')
+        : typeof details === 'string'
+        ? details
+        : JSON.stringify(details);
+      parts.push(`details: ${detailsStr}`);
+    }
+
+    const message = parts.filter(Boolean).join(' | ') || 'An unknown error occurred';
+
+    console.error('fe bAScv hE:Benzinga API Error:', {
+      url: error.url,
+      status,
+      statusText,
+      message,
+      raw: error
+    });
+    return throwError(() => new Error(message));
   }
 }

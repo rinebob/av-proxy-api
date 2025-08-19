@@ -1,4 +1,7 @@
 import { 
+    BenzingaCalendarParameter,
+    BenzingaRequestConfig,
+    BZ_CALENDAR_REQUEST_CONFIGS,
     BzCalendarRequestType, 
     BzConferenceCallsData,
     BzDividendsData, 
@@ -21,33 +24,12 @@ export interface CalendarColumnConfig {
     digitsInfo?: string;
 }
 
-export interface BenzingaEndpointMetadata {
+export interface BenzingaCalendarRequestMetadata {
     name: BzCalendarRequestType;
-    url: string; // Only the leaf, e.g. 'earnings'
+    config: BenzingaRequestConfig;
     displayName: string;
     title: string;
     columns: CalendarColumnConfig[];
-    params: BenzingaCalendarParam[];
-    /**
-     * Ordered list of form fields (from BenzingaCalendarParamFormField) to render in the UI for this endpoint.
-     */
-    // formFields: BenzingaCalendarParamFormField[];
-    /**
-     * The key used in the API response to access the items array.
-     * If not provided, defaults to the endpoint name in lowercase.
-     * Example: For Economics endpoint, responseKey would be 'economic'.
-     */
-    responseKey?: string;
-}
-
-export interface BenzingaCalendarParamsBase {
-    // The type of calendar to request (e.g., earnings, dividends)
-    type: BzCalendarRequestType;
-    tickers?: string; // Optional: Comma-separated list of tickers
-    date_from?: string; // Optional: YYYY-MM-DD
-    date_to?: string; // Optional: YYYY-MM-DD
-    page?: number;
-    pageSize?: number;
 }
 
 //////////////////// ENDPOINT RESPONSE INTERFACES ////////////////////
@@ -74,14 +56,6 @@ export interface DividendsApiResponse {
     message?: string;
 }
 
-export interface DividendsCalendarParams extends BenzingaCalendarParamsBase {
-    // Override the base 'type' to be specific to Dividends
-    type: BzCalendarRequestType.DIVIDENDS;
-    // Dividend yield is a number, but the API expects a string with an operator, e.g., ">5"
-    dividend_yield?: string;
-    dividend_yield_operation?: 'gt' | 'gte' | 'eq' | 'lt' | 'lte';
-}
-
 export interface BzIpoCalendarResponse {
     ipos: BzIposData[];
     next_url?: string;
@@ -89,12 +63,6 @@ export interface BzIpoCalendarResponse {
     count: number;
     status: string;
     message?: string;
-}
-
-export interface IposCalendarParams extends BenzingaCalendarParamsBase {
-    // Override the base 'type' to be specific to IPOs
-    type: BzCalendarRequestType.IPOS;
-    // Add IPO-specific filters if needed
 }
 
 export interface BzSplitsCalendarResponse {
@@ -106,12 +74,6 @@ export interface BzSplitsCalendarResponse {
     message?: string;
 }
 
-export interface SplitsCalendarParams extends BenzingaCalendarParamsBase {
-    // Override the base 'type' to be specific to Splits
-    type: BzCalendarRequestType.SPLITS;
-    // Add splits-specific filters if needed
-}
-
 export interface BzGuidanceCalendarResponse {
     guidance: BzGuidanceData[];
     next_url?: string;
@@ -119,12 +81,6 @@ export interface BzGuidanceCalendarResponse {
     count: number;
     status: string;
     message?: string;
-}
-
-export interface GuidanceCalendarParams extends BenzingaCalendarParamsBase {
-    // Override the base 'type' to be specific to Guidance
-    type: BzCalendarRequestType.GUIDANCE;
-    // Add guidance-specific filters if needed
 }
 
 /////////////// DISPLAYED COLUMNS METADATA ////////////////////
@@ -342,371 +298,48 @@ export enum BenzingaCalendarParam {
     TOPICS = 'topics'
 }
 
-export enum BenzingaCalendarParamApiKey {
-    RATINGS_ACTION = 'ratings_action',
-    START_DATE = 'start_date',
-    END_DATE = 'end_date',
-    TICKERS = 'tickers',
-    PAGESIZE = 'pagesize',
-    IMPORTANCE = 'importance',
-    UPDATED = 'updated',
-    DIVIDEND_YIELD_OPERATION = 'dividend_yield_operation',
-    DIVIDEND_YIELD = 'dividend_yield',
-    DATE_SORT = 'date_sort',
-    SORT = 'sort',
-    COUNTRY = 'country',
-    EVENT_CATEGORY = 'event_category',
-    IPO_TYPE = 'ipo_type',
-    ACTION = 'action',
-    ANALYST_ID = 'analyst_id',
-    FIRM_ID = 'firm_id',
-    ANALYST = 'analyst',
-    FIRM = 'firm',
-    IS_PRIMARY = 'is_primary',
-    CHANNELS = 'channels',
-    TOPICS = 'topics'
-}
-
-export enum BenzingaCalendarParamFormField {
-    RATINGS_ACTION = 'ratingsAction',
-    START_DATE = 'startDate',
-    END_DATE = 'endDate',
-    TICKERS = 'tickers',
-    PAGESIZE = 'pagesize',
-    IMPORTANCE = 'importance',
-    UPDATED = 'updated',
-    DIVIDEND_YIELD_OPERATION = 'dividendYieldOperation',
-    DIVIDEND_YIELD = 'dividendYield',
-    DATE_SORT = 'dateSort',
-    SORT = 'sort',
-    COUNTRY = 'country',
-    EVENT_CATEGORY = 'eventCategory',
-    IPO_TYPE = 'ipoType',
-    ACTION = 'action',
-    ANALYST_ID = 'analystId',
-    FIRM_ID = 'firmId',
-    ANALYST = 'analyst',
-    FIRM = 'firm',
-    IS_PRIMARY = 'isPrimary',
-    CHANNELS = 'channels',
-    TOPICS = 'topics'
-}
-
-export interface BenzingaCalendarParamMetadata {
-    apiKey: BenzingaCalendarParamApiKey;
-    formControlName: BenzingaCalendarParamFormField;
-    type: 'text' | 'number' | 'date' | 'select';
-    label: string;
-    placeholder?: string;
-    min?: number;
-    max?: number;
-    options?: Array<{ value: string | number, label: string }>;
-}
-
-/////////////// FORM FIELDS ENUM & METADATA //////////// 
-
-// === Form Field Enum and Metadata ===
-
-
-
-export const START_DATE_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.START_DATE,
-    formControlName: BenzingaCalendarParamFormField.START_DATE,
-    type: 'date',
-    label: 'Start Date'
-};
-
-export const END_DATE_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.END_DATE,
-    formControlName: BenzingaCalendarParamFormField.END_DATE,
-    type: 'date',
-    label: 'End Date'
-};
-
-export const TICKERS_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.TICKERS,
-    formControlName: BenzingaCalendarParamFormField.TICKERS,
-    type: 'text',
-    label: 'Ticker Symbol',
-    placeholder: 'e.g. NVDA'
-};
-
-export const DIVIDEND_YIELD_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.DIVIDEND_YIELD,
-    formControlName: BenzingaCalendarParamFormField.DIVIDEND_YIELD,
-    type: 'number',
-    label: 'Yield',
-    min: 0,
-    placeholder: '%'
-};
-
-export const DATE_SORT_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.DATE_SORT,
-    formControlName: BenzingaCalendarParamFormField.DATE_SORT,
-    type: 'select',
-    label: 'Date Sort',
-    options: [
-        { value: 'desc', label: 'Descending' },
-        { value: 'asc', label: 'Ascending' }
-    ]
-};
-
-export const PAGESIZE_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.PAGESIZE,
-    formControlName: BenzingaCalendarParamFormField.PAGESIZE,
-    type: 'number',
-    label: 'Page Size',
-    min: 1,
-    max: 1000,
-    placeholder: 'e.g. 20'
-};
-
-export const IMPORTANCE_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.IMPORTANCE,
-    formControlName: BenzingaCalendarParamFormField.IMPORTANCE,
-    type: 'number',
-    label: 'Importance',
-    min: 0,
-    max: 5,
-    placeholder: '0-5'
-};
-
-export const UPDATED_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.UPDATED,
-    formControlName: BenzingaCalendarParamFormField.UPDATED,
-    type: 'number',
-    label: 'Updated (Unix Timestamp)',
-    placeholder: 'e.g. 1710000000'
-};
-
-export const DIVIDEND_YIELD_OPERATION_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.DIVIDEND_YIELD_OPERATION,
-    formControlName: BenzingaCalendarParamFormField.DIVIDEND_YIELD_OPERATION,
-    type: 'select',
-    label: 'Yield Operation',
-    options: [
-        { value: 'gt', label: '>' },
-        { value: 'gte', label: '\u2265' },
-        { value: 'eq', label: '=' },
-        { value: 'lt', label: '<' },
-        { value: 'lte', label: '\u2264' }
-    ]
-};
-
-
-
-export const RATINGS_ACTION_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.RATINGS_ACTION,
-    formControlName: BenzingaCalendarParamFormField.RATINGS_ACTION,
-    type: 'select',
-    label: 'Action',
-    options: [
-        { value: 'Downgrades', label: 'Downgrades' },
-        { value: 'Maintains', label: 'Maintains' },
-        { value: 'Reinstates', label: 'Reinstates' },
-        { value: 'Reiterates', label: 'Reiterates' },
-        { value: 'Upgrades', label: 'Upgrades' },
-        { value: 'Assumes', label: 'Assumes' },
-        { value: 'Initiates Coverage On', label: 'Initiates Coverage On' },
-        { value: 'Terminates Coverage On', label: 'Terminates Coverage On' },
-        { value: 'Removes', label: 'Removes' },
-        { value: 'Suspends', label: 'Suspends' },
-        { value: 'Firm Dissolved', label: 'Firm Dissolved' }
-    ]
-};
-
-export const COUNTRY_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.COUNTRY,
-    formControlName: BenzingaCalendarParamFormField.COUNTRY,
-    type: 'text',
-    label: 'Country',
-    placeholder: 'e.g. US'
-};
-
-export const EVENT_CATEGORY_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.EVENT_CATEGORY,
-    formControlName: BenzingaCalendarParamFormField.EVENT_CATEGORY,
-    type: 'text',
-    label: 'Event Category',
-    placeholder: 'e.g. Employment'
-};
-
-export const IPO_TYPE_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.IPO_TYPE,
-    formControlName: BenzingaCalendarParamFormField.IPO_TYPE,
-    type: 'text',
-    label: 'IPO Type',
-    placeholder: 'e.g. Traditional'
-};
-
-export const ACTION_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.ACTION,
-    formControlName: BenzingaCalendarParamFormField.ACTION,
-    type: 'text',
-    label: 'Action',
-    placeholder: ''
-};
-
-export const ANALYST_ID_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.ANALYST_ID,
-    formControlName: BenzingaCalendarParamFormField.ANALYST_ID,
-    type: 'text',
-    label: 'Analyst ID',
-    placeholder: ''
-};
-
-export const FIRM_ID_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.FIRM_ID,
-    formControlName: BenzingaCalendarParamFormField.FIRM_ID,
-    type: 'text',
-    label: 'Firm ID',
-    placeholder: ''
-};
-
-export const ANALYST_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.ANALYST,
-    formControlName: BenzingaCalendarParamFormField.ANALYST,
-    type: 'text',
-    label: 'Analyst',
-    placeholder: ''
-};
-
-export const FIRM_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.FIRM,
-    formControlName: BenzingaCalendarParamFormField.FIRM,
-    type: 'text',
-    label: 'Firm',
-    placeholder: ''
-};
-
-export const IS_PRIMARY_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.IS_PRIMARY,
-    formControlName: BenzingaCalendarParamFormField.IS_PRIMARY,
-    type: 'select',
-    label: 'Is Primary',
-    options: [
-        { value: 'true', label: 'Yes' },
-        { value: 'false', label: 'No' }
-    ]
-};
-
-export const CHANNELS_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.CHANNELS,
-    formControlName: BenzingaCalendarParamFormField.CHANNELS,
-    type: 'text',
-    label: 'Channels',
-    placeholder: ''
-};
-
-export const TOPICS_PARAM_META: BenzingaCalendarParamMetadata = {
-    apiKey: BenzingaCalendarParamApiKey.TOPICS,
-    formControlName: BenzingaCalendarParamFormField.TOPICS,
-    type: 'text',
-    label: 'Topics',
-    placeholder: ''
-};
-
-export const BENZINGA_PARAM_META_MAP: Record<BenzingaCalendarParam, BenzingaCalendarParamMetadata> = {
-    [BenzingaCalendarParam.RATINGS_ACTION]: RATINGS_ACTION_PARAM_META,
-    [BenzingaCalendarParam.START_DATE]: START_DATE_PARAM_META,
-    [BenzingaCalendarParam.END_DATE]: END_DATE_PARAM_META,
-    [BenzingaCalendarParam.TICKERS]: TICKERS_PARAM_META,
-    [BenzingaCalendarParam.PAGESIZE]: PAGESIZE_PARAM_META,
-    [BenzingaCalendarParam.IMPORTANCE]: IMPORTANCE_PARAM_META,
-    [BenzingaCalendarParam.UPDATED]: UPDATED_PARAM_META,
-    [BenzingaCalendarParam.DIVIDEND_YIELD_OPERATION]: DIVIDEND_YIELD_OPERATION_PARAM_META,
-    [BenzingaCalendarParam.DIVIDEND_YIELD]: DIVIDEND_YIELD_PARAM_META,
-    [BenzingaCalendarParam.DATE_SORT]: DATE_SORT_PARAM_META,
-    [BenzingaCalendarParam.SORT]: DATE_SORT_PARAM_META,
-    [BenzingaCalendarParam.COUNTRY]: COUNTRY_PARAM_META,
-    [BenzingaCalendarParam.EVENT_CATEGORY]: EVENT_CATEGORY_PARAM_META,
-    [BenzingaCalendarParam.IPO_TYPE]: IPO_TYPE_PARAM_META,
-    [BenzingaCalendarParam.ACTION]: ACTION_PARAM_META,
-    [BenzingaCalendarParam.ANALYST_ID]: ANALYST_ID_PARAM_META,
-    [BenzingaCalendarParam.FIRM_ID]: FIRM_ID_PARAM_META,
-    [BenzingaCalendarParam.ANALYST]: ANALYST_PARAM_META,
-    [BenzingaCalendarParam.FIRM]: FIRM_PARAM_META,
-    [BenzingaCalendarParam.IS_PRIMARY]: IS_PRIMARY_PARAM_META,
-    [BenzingaCalendarParam.CHANNELS]: CHANNELS_PARAM_META,
-    [BenzingaCalendarParam.TOPICS]: TOPICS_PARAM_META
-};
-
 /////////////// ENDPOINT METADATA //////////// 
 
 // === Endpoint Metadata Objects ===
 
-const baseParams: BenzingaCalendarParam[] = [
-    BenzingaCalendarParam.START_DATE,
-    BenzingaCalendarParam.END_DATE,
-    BenzingaCalendarParam.PAGESIZE,
-    BenzingaCalendarParam.IMPORTANCE,
-    BenzingaCalendarParam.UPDATED,
+const baseParams: BenzingaCalendarParameter[] = [
+    BenzingaCalendarParameter.DATE_FROM,
+    BenzingaCalendarParameter.DATE_TO,
+    BenzingaCalendarParameter.PAGESIZE,
+    BenzingaCalendarParameter.IMPORTANCE,
+    BenzingaCalendarParameter.UPDATED,
 ];
 
-const earningsMeta: BenzingaEndpointMetadata = {
+const earningsMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.EARNINGS,
-    url: 'earnings',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.EARNINGS],
     displayName: 'Earnings',
     title: 'Earnings Calendar',
     columns: bzEarningsCalendarColumns,
-    params: [
-        ...baseParams,
-        BenzingaCalendarParam.TICKERS,
-        BenzingaCalendarParam.IMPORTANCE,
-        BenzingaCalendarParam.DATE_SORT,
-        BenzingaCalendarParam.UPDATED
-    ],
-    responseKey: 'earnings'  // Actual response key from API
 };
 
-const dividendsMeta: BenzingaEndpointMetadata = {
+const dividendsMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.DIVIDENDS,
-    url: 'dividends',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.DIVIDENDS],
     displayName: 'Dividends',
     title: 'Dividends Calendar',
     columns: bzDividendsCalendarColumns,
-    params: [
-        ...baseParams,
-        BenzingaCalendarParam.TICKERS,
-        BenzingaCalendarParam.IMPORTANCE,
-        BenzingaCalendarParam.DIVIDEND_YIELD_OPERATION,
-        BenzingaCalendarParam.DIVIDEND_YIELD,
-        BenzingaCalendarParam.DATE_SORT,
-        BenzingaCalendarParam.UPDATED,
-        BenzingaCalendarParam.SORT
-    ],
-    responseKey: 'dividends'  // Actual response key from API
 };
 
-const economicsMeta: BenzingaEndpointMetadata = {
+const economicsMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.ECONOMICS,
-    url: 'economics',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.ECONOMICS],
     displayName: 'Economics',
     title: 'Economics Calendar',
     columns: bzEconomicsCalendarColumns,
-    params: [
-        ...baseParams,
-        BenzingaCalendarParam.IMPORTANCE,
-        BenzingaCalendarParam.UPDATED,
-        BenzingaCalendarParam.COUNTRY,
-        BenzingaCalendarParam.EVENT_CATEGORY
-    ],
-    responseKey: 'economics'
 };
 
-const iposMeta: BenzingaEndpointMetadata = {
+const iposMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.IPOS,
-    url: 'ipos',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.IPOS],
     displayName: 'IPOs',
     title: 'IPO Calendar',
     columns: bzIpoCalendarColumns,
-    params: [
-        ...baseParams,
-        BenzingaCalendarParam.TICKERS,
-        BenzingaCalendarParam.UPDATED,
-        BenzingaCalendarParam.IPO_TYPE
-    ],
-    responseKey: 'ipos'  // Actual response key from API
 };
 
 /**
@@ -714,98 +347,60 @@ const iposMeta: BenzingaEndpointMetadata = {
  * Includes all relevant fields from the sample data object for completeness.
  */
 
-const conferenceCallsMeta: BenzingaEndpointMetadata = {
+const conferenceCallsMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.CONFERENCE_CALLS,
-    url: 'conference-calls',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.CONFERENCE_CALLS],
     displayName: 'Conference Calls',
     title: 'Conference Calls Calendar',
     columns: bzConferenceCallsCalendarColumns,
-    params: [
-        ...baseParams,
-        BenzingaCalendarParam.TICKERS,
-        BenzingaCalendarParam.UPDATED,
-        BenzingaCalendarParam.ACTION,
-        BenzingaCalendarParam.ANALYST_ID,
-        BenzingaCalendarParam.FIRM_ID,
-        BenzingaCalendarParam.ANALYST,
-        BenzingaCalendarParam.FIRM,
-        BenzingaCalendarParam.IS_PRIMARY
-    ],
-    responseKey: 'conference'  // Actual response key from API
 };
 
-const ratingsMeta: BenzingaEndpointMetadata = {
+const ratingsMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.RATINGS,
-    url: 'ratings',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.RATINGS],
     displayName: 'Ratings',
     title: 'Ratings Calendar',
     columns: bzRatingsCalendarColumns,
-    params: [
-        ...baseParams,
-        BenzingaCalendarParam.TICKERS,
-        BenzingaCalendarParam.IMPORTANCE,
-        BenzingaCalendarParam.UPDATED,
-        BenzingaCalendarParam.RATINGS_ACTION
-    ],
-    responseKey: 'ratings'  // Actual response key from API
 };
 
-const guidanceMeta: BenzingaEndpointMetadata = {
+const guidanceMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.GUIDANCE,
-    url: 'guidance',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.GUIDANCE],
     displayName: 'Guidance',
     title: 'Guidance Calendar',
     columns: bzGuidanceCalendarColumns,
-    params: [
-        ...baseParams,
-        BenzingaCalendarParam.TICKERS,
-        BenzingaCalendarParam.IMPORTANCE,
-        BenzingaCalendarParam.UPDATED
-    ],
-    responseKey: 'guidance'  // Actual response key from API
 };
 
-const splitsMeta: BenzingaEndpointMetadata = {
+const splitsMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.SPLITS,
-    url: 'splits',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.SPLITS],
     displayName: 'Splits',
     title: 'Splits Calendar',
     columns: bzSplitsCalendarColumns,
-    params: [
-        ...baseParams,
-        BenzingaCalendarParam.TICKERS,
-        BenzingaCalendarParam.IMPORTANCE,
-        BenzingaCalendarParam.UPDATED
-    ],
-    responseKey: 'splits'  // Actual response key from API
 };
 
-const mergersAcquisitionsMeta: BenzingaEndpointMetadata = {
+const mergersAcquisitionsMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.MERGERS_ACQUISITIONS,
-    url: 'ma',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.MERGERS_ACQUISITIONS],
     displayName: 'M&As',
     title: 'Mergers & Acquisitions Calendar',
-    columns: [],
-    params: [...baseParams],
-    responseKey: 'ma'  // Using the API's short form for 'mergers & acquisitions'
+    columns: []
 };
 
 
-const offeringsMeta: BenzingaEndpointMetadata = {
+const offeringsMeta: BenzingaCalendarRequestMetadata = {
     name: BzCalendarRequestType.OFFERINGS,
-    url: 'offerings',
+    config: BZ_CALENDAR_REQUEST_CONFIGS[BzCalendarRequestType.OFFERINGS],
     displayName: 'Offerings',
     title: 'Offerings Calendar',
-    columns: [],
-    params: [...baseParams],
-    responseKey: 'offering'  // Singular form of 'offerings'
+    columns: []
 };
 
 //////////// ENDPOINT MAPS //////////// 
 
 // === Master Endpoint Maps ===
 
-export const BENZINGA_ENDPOINTS_META_MAP: Record<BzCalendarRequestType, BenzingaEndpointMetadata> = {
+export const BENZINGA_ENDPOINTS_META_MAP: Record<BzCalendarRequestType, BenzingaCalendarRequestMetadata> = {
     [BzCalendarRequestType.EARNINGS]: earningsMeta,
     [BzCalendarRequestType.DIVIDENDS]: dividendsMeta,
     [BzCalendarRequestType.ECONOMICS]: economicsMeta,
@@ -817,12 +412,6 @@ export const BENZINGA_ENDPOINTS_META_MAP: Record<BzCalendarRequestType, Benzinga
     [BzCalendarRequestType.SPLITS]: splitsMeta,
     [BzCalendarRequestType.OFFERINGS]: offeringsMeta
 };
-
-export type BenzingaCalendarParams =
-    | DividendsCalendarParams
-    | IposCalendarParams
-    | SplitsCalendarParams
-    | GuidanceCalendarParams;
 
 // === Master Response and Item Maps ===
 
