@@ -29,9 +29,11 @@ const benzingaApiHandler = async (req: Request, res: Response) => {
       return; // Authentication failed, response already sent
     }
 
-    // The endpoint is determined by the 'type' query parameter.
-    const endpoint = req.query.type as BenzingaEndpoint;
-    console.log(`bZG bzA [${requestId}] [GATEWAY] Resolved endpoint from 'type' query param: ${endpoint}`);
+    // Extract the endpoint from the URL path
+    // Expected format: /calendar/earnings -> 'earnings'
+    const pathParts = req.path.split('/').filter(Boolean);
+    const endpoint = pathParts[pathParts.length - 1] as BenzingaEndpoint;
+    console.log(`bZG bzA [${requestId}] [GATEWAY] Resolved endpoint from URL path: ${endpoint}`);
     
     if (!endpoint) {
       res.status(400).json({ 
