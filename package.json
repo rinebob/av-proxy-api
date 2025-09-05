@@ -4,6 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "start:apphosting": "ng build --configuration production && node server.mjs",
     "install:shared": "cd shared && npm install",
     "build:shared": "npm run install:shared && tsc -p shared/tsconfig.json",
     "build:functions": "cd functions && npm run build",

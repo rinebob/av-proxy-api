@@ -19,7 +19,7 @@
   },
   "apphosting": {
     "source": ".",
-    "run": "npm run start",
+    "run": "npm run start:apphosting",
     "headers": [
       {
         "source": "/index.html",
@@ -44,7 +44,7 @@
   "hosting": [
     {
       "target": "app",
-      "public": "dist/av-proxy-api/browser",
+      "public": "dist/myapp",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
       "rewrites": [
         {
