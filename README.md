@@ -245,3 +245,75 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Benzinga](https://www.benzinga.com/)
 - [Firebase](https://firebase.google.com/)
 - [Angular](https://angular.io/)
+
+---
+
+## App Hosting (Production Runtime)
+
+This repo is configured to run the Angular app on App Hosting (Cloud Run) using a zero‑dependency Node HTTP server.
+
+- Runtime entrypoint (configured in `firebase.json`):
+  - `apphosting.run: npm run start:apphosting`
+- Script (`package.json`):
+  - `start:apphosting`: builds shared, builds the Angular app in production mode, then starts `server.mjs`.
+- Server (`server.mjs`):
+  - Serves static files from `dist/myapp`
+  - Binds to `0.0.0.0:$PORT` (required by App Hosting)
+  - SPA fallback to `index.html`
+  - Cache headers: `index.html` is no‑cache; assets are long‑cached
+
+### Build Order for Monorepo
+
+To ensure the Angular app resolves `@shared/*` imports from compiled outputs:
+
+1) Build shared first
+```
+npm run build:shared
+```
+2) Build the Angular app
+```
+ng build --configuration production
+```
+3) Local production run (uses the same runtime as App Hosting)
+```
+$env:PORT=8080; npm run start:apphosting
+# or
+PORT=8080 npm run start:apphosting
+```
+
+### TypeScript Path Mapping
+
+The app consumes compiled shared declarations instead of raw TS sources:
+
+- `tsconfig.json`
+```json
+{
+  "compilerOptions": {
+    "paths": {
+      "@shared/*": ["shared/lib/*"]
+    }
+  }
+}
+```
+
+This prevents the browser build from importing Node‑typed sources.
+
+### Troubleshooting TS2688 ('node' types)
+
+If you see:
+```
+error TS2688: Cannot find type definition file for 'node'.
+```
+Check the following:
+
+- App (browser) build should not include Node types
+  - `tsconfig.app.json`: do NOT specify `"types": ["node"]`.
+- Shared library should not force Node types into the app
+  - `shared/tsconfig.json`: do NOT specify `"types": ["node"]`.
+- Path mapping must point to compiled outputs
+  - `tsconfig.json`: `"@shared/*": ["shared/lib/*"]`.
+- Functions require Node types at build time
+  - `functions/package.json`: `@types/node` is in `dependencies` (not just `devDependencies`).
+- App Hosting runtime should build shared before building the app
+  - `package.json` → `start:apphosting` runs `npm run build:shared` first.
+
