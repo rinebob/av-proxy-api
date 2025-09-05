@@ -2,7 +2,7 @@
     "name": "functions",
     "scripts": {
         "copy-shared": "npm --prefix ../shared run build && npx cpx \"../shared/lib/**/*\" \"lib/shared\"",
-        "build": "npm run copy-shared && echo \"--- DEBUG: PWD before tsc: \" && pwd && echo \"--- DEBUG: Catting tsconfig.json:\" && cat tsconfig.json && echo \"--- DEBUG: Running tsc ---\" && tsc --p tsconfig.json --traceResolution",
+        "build": "npm run copy-shared && tsc -p tsconfig.json",
         "build:watch": "npm run copy-shared && tsc --watch",
         "serve": "npm run build && firebase emulators:start --only functions",
         "shell": "npm run build && firebase functions:shell",
