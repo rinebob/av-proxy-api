@@ -1,42 +1,42 @@
 {
-    "name": "functions",
-    "scripts": {
-        "copy-shared": "npm --prefix ../shared run build && npx cpx \"../shared/lib/**/*\" \"lib/shared\"",
-        "build": "npm run copy-shared && tsc -p tsconfig.json",
-        "build:watch": "npm run copy-shared && tsc --watch",
-        "serve": "npm run build && firebase emulators:start --only functions",
-        "shell": "npm run build && firebase functions:shell",
-        "start": "npm run shell",
-        "deploy": "npm run build && firebase deploy --only functions",
-        "logs": "firebase functions:log",
-        "ts": "ts-node -r tsconfig-paths/register"
-    },
-    "engines": {
-        "node": "22"
-    },
-    "main": "lib/index.js",
-    "dependencies": {
-        "axios": "^1.9.0",
-        "dotenv": "^16.5.0",
-        "firebase-admin": "^12.6.0",
-        "firebase-functions": "^6.4.0",
-        "module-alias": "^2.2.3"
-    },
-    "devDependencies": {
-        "@types/dotenv": "^6.1.1",
-        "@types/lodash": "^4.17.17",
-        "@types/ms": "^2.1.0",
-        "@types/node": "^22.15.21",
-        "@types/request": "^2.48.12",
-        "@types/tough-cookie": "^4.0.5",
-        "cpx": "^1.5.0",
-        "firebase-functions-test": "^3.1.0",
-        "ts-node": "^10.9.2",
-        "tsconfig-paths": "^4.2.0",
-        "typescript": "^5.9.2"
-    },
-    "private": true,
-    "_moduleAliases": {
-        "@shared": "lib/shared"
-    }
+  "name": "functions",
+  "scripts": {
+    "copy-shared": "npm --prefix ../shared run build && npx cpx \"../shared/lib/**/*\" \"lib/shared\"",
+    "build": "npm run copy-shared && tsc -p tsconfig.json",
+    "build:watch": "npm run copy-shared && tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "npm run build && firebase deploy --only functions",
+    "logs": "firebase functions:log",
+    "ts": "ts-node -r tsconfig-paths/register"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "axios": "^1.9.0",
+    "dotenv": "^16.5.0",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.4.0",
+    "module-alias": "^2.2.3",
+    "@types/node": "^22.15.21"
+  },
+  "devDependencies": {
+    "@types/dotenv": "^6.1.1",
+    "@types/lodash": "^4.17.17",
+    "@types/ms": "^2.1.0",
+    "@types/request": "^2.48.12",
+    "@types/tough-cookie": "^4.0.5",
+    "cpx": "^1.5.0",
+    "firebase-functions-test": "^3.1.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.2"
+  },
+  "private": true,
+  "_moduleAliases": {
+    "@shared": "lib/shared"
+  }
 }
