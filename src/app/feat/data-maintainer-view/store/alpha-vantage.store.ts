@@ -21,7 +21,7 @@ const initialState: AlphaVantageState = {
   loading: false,
   error: null,
   currentData: null,
-  endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY,
+  endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
   lastUpdated: undefined
 };
 

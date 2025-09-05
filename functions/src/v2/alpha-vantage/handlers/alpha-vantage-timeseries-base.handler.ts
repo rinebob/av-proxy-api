@@ -3,12 +3,22 @@ import { saveAvTimeSeriesData } from '../firestore/av-firestore-helper';
 import { ApiResponse } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval } from '@shared/alpha-vantage';
 
+// Typed compact bar shape persisted to Firestore for time-series
+export interface StorageBar {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 /**
  * Abstract base handler for Alpha Vantage time series endpoints.
  * Handles parameter validation, request preparation, fetch orchestration,
  * Firestore write (normalized schema), and error handling for time series endpoints.
  */
-export abstract class AlphaVantageTimeSeriesHandlerBase<T extends any[] = any[]> extends AlphaVantageBaseHandler<T> {
+export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVantageBaseHandler<T> {
   protected readonly config: TimeSeriesEndpointConfig;
 
   constructor(config: TimeSeriesEndpointConfig) {
@@ -30,6 +40,12 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T extends any[] = any[]>
   }
 
   /**
+   * Subclasses must provide the storage bars extracted from the transformed payload.
+   * Return null/empty array if there are no bars to persist for this endpoint.
+   */
+  protected abstract getBarsForStorage(transformed: T): StorageBar[] | null;
+
+  /**
    * Fetches time series data, transforms, saves to Firestore, and returns ApiResponse.
    */
   public async fetch(params: any = {}): Promise<ApiResponse<T>> {
@@ -43,10 +59,16 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T extends any[] = any[]>
       const responseData = response.data;
       const transformedData = this.transformResponse(responseData);
       // Save to Firestore using normalized schema
-      const symbol = params.symbol;
-      if (symbol && Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)) {
+      const symbol: string | undefined = params.symbol;
+      const bars = this.getBarsForStorage(transformedData);
+      if (
+        symbol &&
+        bars &&
+        bars.length > 0 &&
+        Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)
+      ) {
         await saveAvTimeSeriesData(
-          transformedData,
+          bars,
           symbol,
           endpoint as AlphaVantageEndpoint,
           this.config.interval as TimeSeriesInterval,

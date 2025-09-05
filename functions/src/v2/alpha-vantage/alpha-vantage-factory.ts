@@ -11,6 +11,8 @@ type HandlerConstructor = new (config: EndpointConfig | TimeSeriesEndpointConfig
 
 const HANDLER_MAP: Record<string, HandlerConstructor> = {
   [AlphaVantageEndpoint.TIME_SERIES_DAILY]: AvDailyTimeSeriesHandler as unknown as HandlerConstructor,
+  // Default to ADJUSTED for daily by supporting the adjusted endpoint with the same handler
+  [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]: AvDailyTimeSeriesHandler as unknown as HandlerConstructor,
   [AlphaVantageEndpoint.GLOBAL_QUOTE]: AvGlobalQuoteHandler,
   [AlphaVantageEndpoint.OVERVIEW]: AvCompanyOverviewHandler,
   [AlphaVantageEndpoint.REALTIME_BULK_QUOTES]: AvBulkQuoteHandler,

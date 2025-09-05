@@ -3,7 +3,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 
 import { AlphaVantageEndpoint, AV_TIME_SERIES_ENDPOINT_CONFIGS, OutputSize, TimeSeriesInterval } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
-import type { EndpointConfig } from '@shared/core';
+import type { EndpointConfig, ApiResponse } from '@shared/core';
 
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 
@@ -204,13 +204,17 @@ export async function initializeTimeSeriesIfMissing(
   console.log(`[initTSIM] Will write to Firestore path: ${docPath}`);
 
   // 2. Fetch the full time series from Alpha Vantage using canonical config and handler
-  const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpoint];
+  // Prefer adjusted for daily during initializer
+  const effectiveEndpoint = endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY
+    ? AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
+    : endpoint;
+  const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[effectiveEndpoint];
   if (!endpointConfig) {
-    throw new Error(`[initTSIM] No time series config found for endpoint: ${endpoint}`);
+    throw new Error(`[initTSIM] No time series config found for endpoint: ${effectiveEndpoint}`);
   }
-  let handler: { fetch: (params: any) => Promise<{ data: any[] }> };
-  switch (endpoint) {
-    case AlphaVantageEndpoint.TIME_SERIES_DAILY: {
+  let handler: { fetch: (params: any) => Promise<ApiResponse<any>> };
+  switch (effectiveEndpoint) {
+    case AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED: {
       // Dynamic import to avoid circular dependency at module load time
       const { AvDailyTimeSeriesHandler } = await import('../handlers/av-daily-time-series.handler.js');
       handler = new AvDailyTimeSeriesHandler(endpointConfig);
@@ -218,12 +222,13 @@ export async function initializeTimeSeriesIfMissing(
     }
     // TODO: Add cases for WEEKLY, MONTHLY, etc. with their respective handlers
     default:
-      throw new Error(`[initTSIM] No handler implemented for endpoint: ${endpoint}`);
+      throw new Error(`[initTSIM] No handler implemented for endpoint: ${effectiveEndpoint}`);
   }
   const response = await handler.fetch({ symbol, outputsize: OutputSize.COMPACT });
   let data = response.data;
 
-  if (!data || !Array.isArray(data) || data.length === 0) {
+  const isArrayPayload = Array.isArray(data);
+  if (!data || (isArrayPayload && data.length === 0)) {
     console.log(`[initTSIM] No data received from AV for ${symbol} [${interval}] at path: ${docPath}`);
     return false;
   }
@@ -231,7 +236,7 @@ export async function initializeTimeSeriesIfMissing(
   // Emulator-aware truncation for local testing
   const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true' || !!process.env.FIRESTORE_EMULATOR_HOST;
   console.log('[initTSIM] Emulator detected?: ', isEmulator);
-  if (isEmulator) {
+  if (isEmulator && Array.isArray(data)) {
     console.log('[initTSIM] Emulator detected: truncating time series data to first 10 records.');
     data = data.slice(0, 10);
     console.log(`[initTSIM] Data length after truncation: ${data.length}`);
@@ -240,6 +245,6 @@ export async function initializeTimeSeriesIfMissing(
   // 3. Handler is responsible for saving data and logging refresh event
   // Do NOT call saveAvTimeSeriesData here!
 
-  console.log(`[initTSIM] Initialized time series at path: ${docPath} (${data.length} entries)`);
+  console.log(`[initTSIM] Initialized time series at path: ${docPath} (${isArrayPayload ? data.length : 'object'})`);
   return true;
 }

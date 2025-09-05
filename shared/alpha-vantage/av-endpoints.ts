@@ -89,6 +89,7 @@ export enum AvEndpointCategory {
 export const AV_IMPLEMENTED_ENDPOINTS: Set<AlphaVantageEndpoint> = new Set<AlphaVantageEndpoint>([
     AlphaVantageEndpoint.OVERVIEW,
     AlphaVantageEndpoint.HISTORICAL_OPTIONS,
-    AlphaVantageEndpoint.TIME_SERIES_DAILY,
+    // Prefer adjusted time series by default
+    AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
     AlphaVantageEndpoint.GLOBAL_QUOTE,
 ]);
