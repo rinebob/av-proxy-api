@@ -9,7 +9,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-factory';
 
-import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS } from '@shared/alpha-vantage';
+import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_CONFIGS } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection } from '@shared/firestore';
 
@@ -50,7 +50,7 @@ export const refreshAlphaVantageDataV2 = onSchedule(
       logDM(`**********************************************************************************`);
       logDM(`=========== START ENDPOINT [${endpoint}] ===================================`);
       
-      const endpointConfig = AV_ENDPOINT_CONFIGS[endpoint]; 
+      const endpointConfig = (AV_ENDPOINT_CONFIGS as any)[endpoint] || (AV_TIME_SERIES_ENDPOINT_CONFIGS as any)[endpoint]; 
       if (!endpointConfig) {
         logDM(`aDM rAVD: No config found for endpoint: ${endpoint}`);
         continue;

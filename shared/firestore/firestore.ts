@@ -12,7 +12,6 @@ export enum FirestoreCollection {
     // For feature control
     CONFIG = 'config',
 
-    // Deprecated
     TIME_SERIES = 'time-series',
 
     // LEGACY - refactor to use above core collections
