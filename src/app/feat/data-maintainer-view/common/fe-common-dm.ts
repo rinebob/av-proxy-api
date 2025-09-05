@@ -13,9 +13,13 @@ export const DATA_MAINTAINER_ENDPOINTS_METADATA = [
   { key: AlphaVantageEndpoint.CASH_FLOW, label: 'Cash Flow', disabled: true },
   { key: AlphaVantageEndpoint.EARNINGS, label: 'Earnings', disabled: true },
   { key: AlphaVantageEndpoint.SYMBOL_SEARCH, label: 'Symbol Search', disabled: true },
-  { key: AlphaVantageEndpoint.TIME_SERIES_DAILY, label: 'Daily Time Series', disabled: false }, // Implemented
-  { key: AlphaVantageEndpoint.GLOBAL_QUOTE, label: 'Global Quote', disabled: false }, // Implemented
-  { key: AlphaVantageEndpoint.HISTORICAL_OPTIONS, label: 'Historical Options', disabled: false }, // Implemented
+  // Time Series (prefer adjusted)
+  { key: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, label: 'Daily Time Series (Adjusted)', disabled: false },
+  { key: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED, label: 'Weekly Time Series (Adjusted)', disabled: false },
+  { key: AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED, label: 'Monthly Time Series (Adjusted)', disabled: false },
+  // Implemented non-time-series
+  { key: AlphaVantageEndpoint.GLOBAL_QUOTE, label: 'Global Quote', disabled: false },
+  { key: AlphaVantageEndpoint.HISTORICAL_OPTIONS, label: 'Historical Options', disabled: false },
 ];
 
 /**
@@ -29,7 +33,9 @@ export interface DataMaintainerResultsMap {
   [AlphaVantageEndpoint.CASH_FLOW]?: any | null;
   [AlphaVantageEndpoint.EARNINGS]?: any | null;
   [AlphaVantageEndpoint.SYMBOL_SEARCH]?: any | null;
-  [AlphaVantageEndpoint.TIME_SERIES_DAILY]?: any | null;
+  [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]?: any | null;
+  [AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED]?: any | null;
+  [AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED]?: any | null;
   [AlphaVantageEndpoint.GLOBAL_QUOTE]?: any | null;
   [AlphaVantageEndpoint.HISTORICAL_OPTIONS]?: any | null;
   

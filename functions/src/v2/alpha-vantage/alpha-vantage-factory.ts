@@ -6,6 +6,8 @@ import { AvCompanyOverviewHandler } from './handlers/av-company-overview.handler
 import { AvBulkQuoteHandler } from './handlers/av-bulk-quote.handler';
 import { AvSymbolSearchHandler } from './handlers/av-symbol-search.handler';
 import { AvHistoricalOptionsHandler } from './handlers/av-historical-options.handler';
+import { AvWeeklyTimeSeriesHandler } from './handlers/av-weekly-time-series.handler';
+import { AvMonthlyTimeSeriesHandler } from './handlers/av-monthly-time-series.handler';
 
 type HandlerConstructor = new (config: EndpointConfig | TimeSeriesEndpointConfig) => any;
 
@@ -13,6 +15,12 @@ const HANDLER_MAP: Record<string, HandlerConstructor> = {
   [AlphaVantageEndpoint.TIME_SERIES_DAILY]: AvDailyTimeSeriesHandler as unknown as HandlerConstructor,
   // Default to ADJUSTED for daily by supporting the adjusted endpoint with the same handler
   [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]: AvDailyTimeSeriesHandler as unknown as HandlerConstructor,
+  // Weekly
+  [AlphaVantageEndpoint.TIME_SERIES_WEEKLY]: AvWeeklyTimeSeriesHandler as unknown as HandlerConstructor,
+  [AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED]: AvWeeklyTimeSeriesHandler as unknown as HandlerConstructor,
+  // Monthly
+  [AlphaVantageEndpoint.TIME_SERIES_MONTHLY]: AvMonthlyTimeSeriesHandler as unknown as HandlerConstructor,
+  [AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED]: AvMonthlyTimeSeriesHandler as unknown as HandlerConstructor,
   [AlphaVantageEndpoint.GLOBAL_QUOTE]: AvGlobalQuoteHandler,
   [AlphaVantageEndpoint.OVERVIEW]: AvCompanyOverviewHandler,
   [AlphaVantageEndpoint.REALTIME_BULK_QUOTES]: AvBulkQuoteHandler,
