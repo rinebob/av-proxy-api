@@ -22,3 +22,58 @@ export function getSymbolTimeSeriesDocPath(symbol: string, endpoint: string, ven
   const docId = getTimeSeriesDocId(endpoint, vendor);
   return `${FirestoreCollection.SYMBOL_DATA}/${symbol.toUpperCase()}/${FirestoreCollection.TIME_SERIES}/${docId}`;
 }
+
+// ----------- Year-sharded helpers (non-intraday) -----------
+export function getSymbolTimeSeriesYearsCollectionPath(symbol: string, endpoint: string, vendor: ApiProvider): string {
+  return `${getSymbolTimeSeriesDocPath(symbol, endpoint, vendor)}/years`;
+}
+
+export function getSymbolTimeSeriesYearDocPath(symbol: string, endpoint: string, vendor: ApiProvider, year: number): string {
+  return `${getSymbolTimeSeriesYearsCollectionPath(symbol, endpoint, vendor)}/${String(year)}`;
+}
+
+export function getYearFromEpochMillis(epochMillis: number): number {
+  return new Date(epochMillis).getUTCFullYear();
+}
+
+// ----------- Single-doc helper (e.g., monthly 'all') -----------
+export function getSymbolTimeSeriesAllDocPath(symbol: string, endpoint: string, vendor: ApiProvider): string {
+  return `${getSymbolTimeSeriesDocPath(symbol, endpoint, vendor)}/all`;
+}
+
+// ----------- Day/Bar helpers (intraday only; currently optional) -----------
+export function getSymbolTimeSeriesDaysCollectionPath(symbol: string, endpoint: string, vendor: ApiProvider): string {
+  return `${getSymbolTimeSeriesDocPath(symbol, endpoint, vendor)}/days`;
+}
+
+export function getSymbolTimeSeriesDayDocPath(
+  symbol: string,
+  endpoint: string,
+  vendor: ApiProvider,
+  yyyymmdd: string
+): string {
+  return `${getSymbolTimeSeriesDaysCollectionPath(symbol, endpoint, vendor)}/${yyyymmdd}`;
+}
+
+export function getBarDocIdFromEpochMillis(epochMillis: number): string {
+  return new Date(epochMillis).toISOString();
+}
+
+export function getSymbolTimeSeriesBarsCollectionPath(
+  symbol: string,
+  endpoint: string,
+  vendor: ApiProvider,
+  yyyymmdd: string
+): string {
+  return `${getSymbolTimeSeriesDayDocPath(symbol, endpoint, vendor, yyyymmdd)}/bars`;
+}
+
+export function getSymbolTimeSeriesBarDocPath(
+  symbol: string,
+  endpoint: string,
+  vendor: ApiProvider,
+  yyyymmdd: string,
+  barIsoDocId: string
+): string {
+  return `${getSymbolTimeSeriesBarsCollectionPath(symbol, endpoint, vendor, yyyymmdd)}/${barIsoDocId}`;
+}

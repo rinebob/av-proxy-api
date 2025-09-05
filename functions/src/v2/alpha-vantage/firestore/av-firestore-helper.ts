@@ -1,15 +1,21 @@
 import { db } from '../../../firebase-admin-init';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, WriteBatch } from 'firebase-admin/firestore';
 
 import { AlphaVantageEndpoint, AV_TIME_SERIES_ENDPOINT_CONFIGS, OutputSize, TimeSeriesInterval } from '@shared/alpha-vantage';
-import { ApiProvider } from '@shared/core';
-import type { EndpointConfig, ApiResponse } from '@shared/core';
+import { ApiProvider, ApiResponse } from '@shared/core';
+import { FirestoreCollection } from '@shared/firestore';
+import type { EndpointConfig } from '@shared/core';
 
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 
 import { isManualWriteEnabled } from '../../common/firestore/manual-write-toggle';
-import { RefreshEvent, RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
+import { RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
+import {
+  getSymbolTimeSeriesYearDocPath,
+  getSymbolTimeSeriesAllDocPath,
+  getYearFromEpochMillis,
+} from '../../common/firestore/firestore-paths';
 
 /**
  * Saves Alpha Vantage STANDARD (non-time-series) data to Firestore and logs refresh event using RefreshLoggerService.
@@ -26,7 +32,7 @@ export async function saveAvData(
   endpointConfig: EndpointConfig,
   checkManualWriteEnabled: boolean
 ): Promise<void> {
-    console.log('================= START aFH sAD saveAvData called =================');
+  console.log('================= START aFH sAD saveAvData called =================');
   console.log(`aFH sAD saveAvData called. symbol: ${symbol}, endpoint: ${endpoint}, checkManualWriteEnabled: ${checkManualWriteEnabled}`);
   const { firestorePath, ttl } = endpointConfig;
 
@@ -102,7 +108,7 @@ export async function saveAvTimeSeriesData(
   interval: TimeSeriesInterval,
   checkManualWriteEnabled: boolean
 ): Promise<void> {
-    console.log('================= START aFH sATSD saveAvTimeSeriesData called =================');
+  console.log('================= START aFH sATSD saveAvTimeSeriesData called =================');
   console.log(`aFH sATSD saveAvTimeSeriesData called. symbol: ${symbol}, endpoint: ${endpoint}, interval: ${interval}`);
   // 1. Compute metadata fields
   const histDataPoints = Array.isArray(data) ? data.length : 0;
@@ -119,48 +125,117 @@ export async function saveAvTimeSeriesData(
 
   try {
     const startTime = Date.now();
-    // 3. Fetch existing refreshHistory if present
-    const existingDoc = await docRef.get();
-    let refreshHistory: RefreshEvent[] = [];
-    if (existingDoc.exists && Array.isArray(existingDoc.data()?.refreshHistory)) {
-      refreshHistory = existingDoc.data()!.refreshHistory;
+    // 3. Respect manual Firestore write toggle for UI/gateway-triggered calls
+    if (checkManualWriteEnabled) {
+      const enabled = await isManualWriteEnabled();
+      console.log(`[saveAvTimeSeriesData] Manual Firestore write toggle enabled?`, enabled);
+      if (!enabled) {
+        console.log('[saveAvTimeSeriesData] Manual Firestore write toggle is OFF. Skipping all Firestore writes.');
+        return;
+      }
+    }
+    // 3. Sharded writes do not rely on existing refreshHistory; skip reading existing doc
+
+    // 4. Prepare writes for non-intraday:
+    // DAILY/WEEKLY -> year-sharded docs with compact bars array
+    // MONTHLY -> single 'all' doc with compact bars array
+    type CompactBar = { t: number; o: number; h: number; l: number; c: number; v?: number };
+    const vendor = ApiProvider.ALPHA_VANTAGE;
+    const barsByYear = new Map<number, CompactBar[]>();
+    const compactBars: CompactBar[] = [];
+    for (const b of data) {
+      const dt = new Date(b.date);
+      const t = dt.getTime();
+      if (isNaN(t)) continue;
+      const bar: CompactBar = {
+        t,
+        o: Number(b.open),
+        h: Number(b.high),
+        l: Number(b.low),
+        c: Number(b.close),
+        v: b.volume != null ? Number(b.volume) : undefined,
+      };
+      compactBars.push(bar);
+      const y = getYearFromEpochMillis(t);
+      const bucket = barsByYear.get(y) || [];
+      bucket.push(bar);
+      barsByYear.set(y, bucket);
     }
 
-    // 4. Prepare document data
-    const docData = {
-      data,
+    // Sort bars ascending for deterministic writes
+    compactBars.sort((a, b) => a.t - b.t);
+    for (const arr of barsByYear.values()) arr.sort((a, b) => a.t - b.t);
+
+    // Batched writes
+    const BATCH_LIMIT = 400;
+    let batch: WriteBatch = db.batch();
+    let opsInBatch = 0;
+    let totalBarWrites = 0;
+
+    if (interval === TimeSeriesInterval.MONTHLY) {
+      // Single 'all' doc
+      const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
+      batch.set(db.doc(allDocPath), {
+        bars: compactBars,
+        count: compactBars.length,
+        firstBarTs: compactBars[0]?.t ?? null,
+        lastBarTs: compactBars[compactBars.length - 1]?.t ?? null,
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
+      opsInBatch++;
+    } else {
+      // Year-sharded DAILY / WEEKLY
+      for (const [year, bars] of barsByYear.entries()) {
+        const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year);
+        batch.set(db.doc(yearDocPath), {
+          bars,
+          count: bars.length,
+          firstBarTs: bars[0]?.t ?? null,
+          lastBarTs: bars[bars.length - 1]?.t ?? null,
+          updatedAt: Timestamp.now(),
+        }, { merge: true });
+        opsInBatch++;
+        totalBarWrites += bars.length;
+        if (opsInBatch >= BATCH_LIMIT) {
+          await batch.commit();
+          batch = db.batch();
+          opsInBatch = 0;
+        }
+      }
+    }
+
+    if (opsInBatch > 0) await batch.commit();
+
+    // 6. Update top-level provider/interval doc metadata (no large arrays)
+    const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpoint];
+    if (!endpointConfig || typeof endpointConfig.ttl !== 'number') {
+      throw new Error(`aFH sATSD TTL (ttlSeconds) must be specified in AV_TIME_SERIES_ENDPOINT_CONFIGS for endpoint: ${endpoint}`);
+    }
+    const ttlSeconds = endpointConfig.ttl;
+    const availableYears = Array.from(barsByYear.keys()).sort((a, b) => a - b);
+    const histStartTs = compactBars[0]?.t ?? null;
+    const histEndTs = compactBars[compactBars.length - 1]?.t ?? null;
+    await docRef.set({
       metadata: {
         symbol,
         interval,
         histDataPoints,
         histStartDate,
         histEndDate,
+        lastUpdated: Timestamp.now(),
+        nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttlSeconds * 1000)),
+        ttlSeconds,
+        vendor: ApiProvider.ALPHA_VANTAGE,
+        endpoint: endpoint,
+        availableYears,
+        histStartTs,
+        histEndTs,
       },
-      refreshHistory // preserve/merge history, or [] for new doc
-    };
+      latestBarTimestamp: histEndDate,
+    }, { merge: true });
 
-    console.log(`aFH sATSD Will write to Firestore path: ${docPath}`);
-    // 5. Check manual Firestore write enabled
-    if (checkManualWriteEnabled) {
-      const enabled = await isManualWriteEnabled();
-      console.log(`[saveAvTimeSeriesData] Manual Firestore write toggle enabled?`, enabled);
-      if (!enabled) {
-        console.log('[saveAvTimeSeriesData] Manual Firestore write toggle is OFF. Skipping data write and refresh log.');
-        return;
-      }
-    }
-    // 6. If enabled or bypassed proceed with Firestore write and refresh event logging
-    await db.doc(docPath).set(docData, { merge: true });
-    console.log(`aFH sATSD Saved TIME SERIES data for ${symbol}/${endpoint} at path: ${docPath}`);
-    
     // 7. Log refresh event and update refreshHistory using the canonical service
     const refreshLogger = new RefreshLoggerService();
-    // You need the TTL for this endpoint; get it from AV_TIME_SERIES_ENDPOINT_CONFIGS or pass as param
-    const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpoint];
-    if (!endpointConfig || typeof endpointConfig.ttl !== 'number') {
-      throw new Error(`aFH sATSD TTL (ttlSeconds) must be specified in AV_TIME_SERIES_ENDPOINT_CONFIGS for endpoint: ${endpoint}`);
-    }
-    const ttlSeconds = endpointConfig.ttl;
     await refreshLogger.logRefreshEvent(
       {
         vendor: ApiProvider.ALPHA_VANTAGE,
@@ -174,9 +249,20 @@ export async function saveAvTimeSeriesData(
         status: RefreshStatus.SUCCESS,
         triggeredBy: RefreshTrigger.SCHEDULER,
         durationMs: Date.now() - startTime,
-        // Optionally add more event fields
       }
     );
+
+    // 8. Ensure symbol presence under symbol-data/{symbol} with minimal metadata for Console visibility
+    const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+    await symbolDocRef.set({
+      nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttlSeconds * 1000)),
+      nextRefreshBy: '',
+      refreshedAt: Timestamp.now(),
+      refreshedBy: 'time-series-write', // or 'scheduler' depending on caller
+      ttlHuman: ''
+    }, { merge: true });
+
+    console.log(`aFH sATSD Wrote ${interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites} bars for ${symbol}/${endpoint}`);
     console.log('================= END aFH sATSD saveAvTimeSeriesData called =================');
   } catch (error) {
     console.error('aFH sATSD Error saving time series data to Firestore:', error);
