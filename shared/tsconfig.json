@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-      "module": "commonjs",
+      "module": "NodeNext",
       "target": "es2020",
       "declaration": true,
       "outDir": "lib",
@@ -8,7 +8,7 @@
       "esModuleInterop": true,
       "strict": true,
       "types": ["node"],
-      "moduleResolution": "Node"
+      "moduleResolution": "nodenext"
     },
     "include": ["**/*"],
     "exclude": ["lib", "node_modules", "**/http-proxy.d.ts"]

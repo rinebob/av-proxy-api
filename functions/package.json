@@ -2,7 +2,7 @@
     "name": "functions",
     "scripts": {
         "copy-shared": "npm --prefix ../shared run build && npx cpx \"../shared/lib/**/*\" \"lib/shared\"",
-        "build": "npm run copy-shared && tsc --p tsconfig.json",
+        "build": "npm run copy-shared && echo \"--- DEBUG: PWD before tsc: \" && pwd && echo \"--- DEBUG: Catting tsconfig.json:\" && cat tsconfig.json && echo \"--- DEBUG: Running tsc ---\" && tsc --p tsconfig.json --traceResolution",
         "build:watch": "npm run copy-shared && tsc --watch",
         "serve": "npm run build && firebase emulators:start --only functions",
         "shell": "npm run build && firebase functions:shell",
@@ -26,7 +26,7 @@
         "@types/dotenv": "^6.1.1",
         "@types/lodash": "^4.17.17",
         "@types/ms": "^2.1.0",
-        "@types/node": "^24.2.1",
+        "@types/node": "^22.15.21",
         "@types/request": "^2.48.12",
         "@types/tough-cookie": "^4.0.5",
         "cpx": "^1.5.0",

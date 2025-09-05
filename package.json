@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "install:shared": "cd shared && npm ci",
+    "install:shared": "cd shared && npm install",
     "build:shared": "npm run install:shared && tsc -p shared/tsconfig.json",
     "build:functions": "cd functions && npm run build",
     "build": "npm run build:shared && npm run build:functions && ng build",
@@ -29,6 +29,7 @@
     "@angular/router": "^19.2.0",
     "@ngrx/operators": "^19.2.1",
     "@ngrx/signals": "^19.2.1",
+    "@types/node": "^22.15.21",
     "cors": "^2.8.5",
     "firebase": "^11.8.1",
     "rxjs": "~7.8.0",
@@ -40,7 +41,6 @@
     "@angular/cli": "^19.2.12",
     "@angular/compiler-cli": "^19.2.0",
     "@types/jasmine": "~5.1.0",
-    "@types/node": "^22.15.21",
     "jasmine-core": "~5.6.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
@@ -52,7 +52,7 @@
     "typescript": "5.7.2"
   },
   "_moduleAliases": {
-    "@root"      : ".",
-    "@shared"      : "shared"
+    "@root": ".",
+    "@shared": "shared"
   }
 }
