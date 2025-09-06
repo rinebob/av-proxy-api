@@ -8,8 +8,8 @@
     },
     "license": "MIT",
     "dependencies": {
-        "@types/node": "^22.15.21",
-        "undici-types": "^6.19.8"
+        "@types/node": "22.18.1",
+        "undici-types": "^6.21.0"
     },
     "devDependencies": {
         "typescript": "^5.9.2"
