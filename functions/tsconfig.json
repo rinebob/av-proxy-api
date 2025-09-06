@@ -15,11 +15,9 @@
     ],
     "baseUrl": ".",
     "paths": {
-        "@shared/*": ["../shared/lib/*"]
+      "@shared/*": ["../shared/lib/*"]
     },
-    "types": [
-        "node",
-    ]
+    "lib": ["es2020"]
   },
   "compileOnSave": true,
   "include": ["src/**/*"],
