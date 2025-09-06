@@ -1,15 +1,15 @@
 {
-    "compilerOptions": {
-      "module": "NodeNext",
-      "target": "es2020",
-      "declaration": true,
-      "outDir": "lib",
-      "rootDir": ".",
-      "esModuleInterop": true,
-      "strict": true,
-      "types": ["node"],
-      "moduleResolution": "nodenext"
-    },
-    "include": ["**/*"],
-    "exclude": ["lib", "node_modules", "**/http-proxy.d.ts"]
-  }
+  "compilerOptions": {
+    "module": "NodeNext",
+    "target": "es2020",
+    "declaration": true,
+    "outDir": "lib",
+    "rootDir": ".",
+    "esModuleInterop": true,
+    "strict": true,
+    "moduleResolution": "nodenext",
+    "lib": ["es2020"]
+  },
+  "include": ["**/*"],
+  "exclude": ["lib", "node_modules", "**/http-proxy.d.ts"]
+}
