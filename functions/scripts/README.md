@@ -187,3 +187,158 @@ The following steps detail how to manually trigger the `fetchAndPersistBenzingaN
     ```
 
     You should now see the function's log output, and if successful, the corresponding data will be written to the Firestore emulator.
+
+---
+
+## Lock down HTTPS function invokers (IAM)
+
+Use Cloud Run IAM to restrict who can invoke your HTTPS Cloud Functions (Gen2). Remove public access (allUsers) and grant `roles/run.invoker` only to the identities you control (e.g., your frontend app’s service account or a CI/CD SA).
+
+### Prerequisites
+- gcloud CLI authenticated to the target project
+- Know your Cloud Run region (e.g., `us-central1`)
+- Service account email(s) that should be allowed to invoke
+
+### Function service names
+For Gen2, the Cloud Run service name typically matches the function name. You can confirm with:
+
+```bash
+PROJECT_ID="alpha-vantage-proxy-api"
+REGION="us-central1"
+
+gcloud run services list \
+  --platform=managed \
+  --region="$REGION" \
+  --project="$PROJECT_ID" \
+  --format="table(NAME,REGION)"
+```
+
+Target services in this repo:
+- `alphaVantageApiV2`
+- `benzingaApiV2`
+- `listSymbolsV2`
+
+### Remove public invoker (allUsers)
+Run once per service:
+
+```bash
+PROJECT_ID="alpha-vantage-proxy-api"
+REGION="us-central1"
+SERVICE="alphaVantageApiV2" # alphaVantageApiV2 | benzingaApiV2 | listSymbolsV2
+
+gcloud run services remove-iam-policy-binding "$SERVICE" \
+  --region="$REGION" \
+  --project="$PROJECT_ID" \
+  --member="allUsers" \
+  --role="roles/run.invoker" || true
+```
+
+### Grant invoker to specific identities
+Grant to your app/backend service account(s):
+
+```bash
+PROJECT_ID="alpha-vantage-proxy-api"
+REGION="us-central1"
+SERVICE="alphaVantageApiV2"
+INVOKER_SA="web-frontend@alpha-vantage-proxy-api.iam.gserviceaccount.com" # e.g. web-frontend@<alpha-vantage-proxy-api>.iam.gserviceaccount.com
+
+gcloud run services add-iam-policy-binding "$SERVICE" \
+  --region="$REGION" \
+  --project="$PROJECT_ID" \
+  --member="serviceAccount:$INVOKER_SA" \
+  --role="roles/run.invoker"
+```
+
+Repeat the grant for each allowed principal (service accounts, user emails, groups as needed).
+
+### Verify effective policy
+
+```bash
+PROJECT_ID="alpha-vantage-proxy-api"
+REGION="us-central1"
+SERVICE="alphaVantageApiV2"
+
+gcloud run services get-iam-policy "$SERVICE" \
+  --region="$REGION" \
+  --project="$PROJECT_ID" \
+  --format=json | jq '.bindings[] | select(.role=="roles/run.invoker")'
+```
+
+### Notes
+- Application code-level auth (Firebase ID token) remains in place for defense-in-depth.
+- After changing IAM on Cloud Run services, no redeploy is required; changes apply immediately.
+- For browser clients, consider enabling Firebase App Check for additional protection.
+- Keep internal refreshers/task handlers private (do not expose externally).
+
+---
+
+## Dual-auth for internal HTTPS endpoints (Firebase ID or Google OIDC)
+
+Internal gateways (e.g., `alphaVantageApiV2`, `benzingaApiV2`, `listSymbolsV2`) can accept either:
+- Firebase ID token (standard app user auth), or
+- Google OIDC token from an allowlisted service account (for internal automation), in addition to Cloud Run IAM.
+
+### Configuration
+- Set the allowlist of service accounts via an environment variable on each Cloud Run service:
+  - Key: `allowed_service_account_emails`
+  - Value: comma-separated emails (e.g., `maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com`)
+
+Using gcloud (one-time per service):
+```bash
+PROJECT_ID="alpha-vantage-proxy-api"
+REGION="us-central1"
+VAL="maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com"
+
+for SERVICE in alphavantageapiv2 benzingaapiv2 listsymbolsv2; do
+  echo "Updating env var on $SERVICE ..."
+  gcloud run services update "$SERVICE" \
+    --region="$REGION" \
+    --project="$PROJECT_ID" \
+    --update-env-vars allowed_service_account_emails="$VAL"
+done
+```
+
+Or via Console:
+- Cloud Run > Services > [service] > Edit > Variables & Secrets > Add variable
+- Key: `allowed_service_account_emails`
+- Value: `maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com`
+
+### Deploy functions with dual-auth
+```bash
+firebase deploy --only functions:alphaVantageApiV2,functions:benzingaApiV2,functions:listSymbolsV2
+```
+
+### IAM (required)
+Lock down HTTPS invokers to internal SAs only (see section above). Typical invoker: `maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com`.
+
+### Curl test matrix (Google OIDC)
+```bash
+PROJECT_ID="alpha-vantage-proxy-api"
+REGION="us-central1"
+INVOKER_SA="maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com"
+
+# Resolve service URL
+SERVICE="alphavantageapiv2"
+SERVICE_URL="$(gcloud run services describe "$SERVICE" \
+  --region="$REGION" --project="$PROJECT_ID" \
+  --format='value(status.url)')"
+
+echo "$SERVICE => $SERVICE_URL"
+
+# Anonymous call -> should be 403 (blocked by IAM)
+curl -i "$SERVICE_URL"
+
+# OIDC as service account -> IAM allows, app accepts SA if allowlisted
+ID_TOKEN="$(gcloud auth print-identity-token \
+  --audiences="$SERVICE_URL" \
+  --impersonate-service-account="$INVOKER_SA")"
+
+# Call with endpoint path (AV example)
+curl -i -H "Authorization: Bearer $ID_TOKEN" \
+  "$SERVICE_URL/GLOBAL_QUOTE?symbol=AAPL"
+```
+
+### Notes
+- For emulator, add to `functions/.env.<project-id>`: `allowed_service_account_emails=...` and restart emulators.
+- token verification for Google OIDC uses `tokeninfo` (suitable for low QPS internal calls).
+- Keep IAM invoker allowlist minimal; remove `allUsers`.

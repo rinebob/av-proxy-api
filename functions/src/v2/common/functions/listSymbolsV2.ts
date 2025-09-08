@@ -2,7 +2,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { ListSymbolsOptions } from "@shared/alpha-vantage";
 import { serializeTrackedSymbols } from "../common-dm";
 import { symbolManagerService } from "../../alpha-vantage/services/symbol-manager.service";
-import { authenticateRequest } from "../../utils/utils";
+import { authenticateRequestEither } from "../../utils/utils";
 
 /**
  * HTTP endpoint for listing tracked symbols
@@ -17,9 +17,9 @@ export const listSymbolsV2 = onRequest({
       return;
     }
 
-    // Require Firebase Auth (same pattern as benzinga/alpha-vantage gateways)
-    const decodedToken = await authenticateRequest(req, res);
-    if (!decodedToken) {
+    // Require auth: Firebase ID token OR Google OIDC from allowlisted SAs
+    const authResult = await authenticateRequestEither(req, res);
+    if (!authResult) {
       return; // Response already sent
     }
 

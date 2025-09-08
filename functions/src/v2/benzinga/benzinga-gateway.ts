@@ -4,7 +4,7 @@ import { Request, Response } from 'express';
 import { BenzingaEndpoint, BenzingaFunctionName } from '@shared/benzinga';
 
 import { BenzingaHandlerFactory } from './benzinga-factory';
-import { authenticateRequest, handleApiError } from '../utils/utils';
+import { authenticateRequestEither, handleApiError } from '../utils/utils';
 import { withCors } from '../utils/cors-middleware';
 
 /**
@@ -23,9 +23,9 @@ const benzingaApiHandler = async (req: Request, res: Response) => {
     console.log(`bZG bzA [${requestId}] [GATEWAY] Headers:`, JSON.stringify(req.headers));
     console.log(`bZG bzA [${requestId}] [GATEWAY] Query params:`, JSON.stringify(req.query));
     
-    // Authenticate the request
-    const decodedToken = await authenticateRequest(req, res);
-    if (!decodedToken) {
+    // Authenticate the request (Firebase ID token OR Google OIDC from allowlisted SAs)
+    const authResult = await authenticateRequestEither(req, res);
+    if (!authResult) {
       return; // Authentication failed, response already sent
     }
 

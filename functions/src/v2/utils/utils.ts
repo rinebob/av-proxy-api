@@ -19,6 +19,13 @@ export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVa
 */
 export const alphaVantageApiKeyParam = defineSecret("ALPHAVANTAGE_API_KEY");
 
+// Comma-separated list of allowlisted service account emails that may call internal endpoints via Google OIDC
+const allowedServiceAccountsParam = defineString("ALLOWED_SERVICE_ACCOUNT_EMAILS", {
+  input: { text: {} },
+  default: "maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com",
+  description: "Comma-separated list of service account emails allowed to invoke internal endpoints via Google OIDC",
+});
+
 /**
  * New param for local emulator. This is read from .env.<project-id> by the emulator.
  * It uses a different name to avoid conflicts during deployment when ALPHAVANTAGE_API_KEY
@@ -95,6 +102,76 @@ export async function authenticateRequest(
     // handleApiError should ideally handle CORS, but we add it here for safety
     setCorsHeaders(res);
     handleApiError(error, res, 'authenticateRequest');
+    return null;
+  }
+}
+
+/**
+ * Validate a Google OIDC ID token via tokeninfo endpoint and return decoded info if valid.
+ * WARNING: This calls Google's tokeninfo endpoint; suitable for low-QPS internal admin calls.
+ */
+async function validateGoogleOidcToken(idToken: string): Promise<any | null> {
+  try {
+    const { data } = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
+      params: { id_token: idToken },
+      timeout: 5000,
+    });
+    // data.iss should be Google accounts; email may be present for service accounts
+    if (!data || !data.iss) return null;
+    const iss = String(data.iss);
+    if (iss !== 'https://accounts.google.com' && iss !== 'accounts.google.com') return null;
+    return data; // includes fields like email, aud, sub, exp, etc.
+  } catch (e) {
+    return null;
+  }
+}
+
+function getAllowedServiceAccounts(): string[] {
+  const raw = allowedServiceAccountsParam.value() || '';
+  return raw
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => s.toLowerCase());
+}
+
+/**
+ * Accept either Firebase ID token OR Google OIDC from an allowlisted service account.
+ * If Firebase verification fails, we attempt Google OIDC verification and allow if email matches allowlist.
+ */
+export async function authenticateRequestEither(
+  req: any,
+  res: any
+): Promise<any | { serviceAccountEmail: string } | null> {
+  try {
+    const authHeader = req.headers.authorization;
+    const idToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader;
+    if (!idToken) {
+      setCorsHeaders(res);
+      res.status(401).json({ error: 'Unauthorized', message: 'No authentication token provided.' });
+      return null;
+    }
+
+    // Try Firebase first
+    const decodedFirebase = await authenticateFirebaseUser(idToken);
+    if (decodedFirebase) return decodedFirebase;
+
+    // Fall back to Google OIDC token for internal service accounts
+    const decodedOidc = await validateGoogleOidcToken(idToken);
+    if (decodedOidc) {
+      const email = String(decodedOidc.email || '').toLowerCase();
+      const allowed = getAllowedServiceAccounts();
+      if (email && allowed.includes(email)) {
+        return { serviceAccountEmail: email };
+      }
+    }
+
+    setCorsHeaders(res);
+    res.status(403).json({ error: 'Forbidden', message: 'Invalid or unauthorized token.' });
+    return null;
+  } catch (error) {
+    setCorsHeaders(res);
+    handleApiError(error, res, 'authenticateRequestEither');
     return null;
   }
 }
