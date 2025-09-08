@@ -19,13 +19,6 @@ export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVa
 */
 export const alphaVantageApiKeyParam = defineSecret("ALPHAVANTAGE_API_KEY");
 
-// Comma-separated list of allowlisted service account emails that may call internal endpoints via Google OIDC
-const allowedServiceAccountsParam = defineString("ALLOWED_SERVICE_ACCOUNT_EMAILS", {
-  input: { text: {} },
-  default: "maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com",
-  description: "Comma-separated list of service account emails allowed to invoke internal endpoints via Google OIDC",
-});
-
 /**
  * New param for local emulator. This is read from .env.<project-id> by the emulator.
  * It uses a different name to avoid conflicts during deployment when ALPHAVANTAGE_API_KEY
@@ -126,13 +119,19 @@ async function validateGoogleOidcToken(idToken: string): Promise<any | null> {
   }
 }
 
+
+// Allowlisted service accounts are read from environment only.
+// Use uppercase key everywhere to satisfy Firebase env loader requirements.
+// i.e. ALLOWED_SERVICE_ACCOUNT_EMAILS="maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com"
+
 function getAllowedServiceAccounts(): string[] {
-  const raw = allowedServiceAccountsParam.value() || '';
+  // Standardize on uppercase env var across environments
+  const raw = process.env.ALLOWED_SERVICE_ACCOUNT_EMAILS || '';
   return raw
     .split(',')
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(Boolean)
-    .map(s => s.toLowerCase());
+    .map((s) => s.toLowerCase());
 }
 
 /**
