@@ -5,6 +5,7 @@ import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 
 import { AlphaVantageHandlerFactory } from './alpha-vantage-factory';
 import { withCors } from '../utils/cors-middleware';
+import { authenticateRequest } from '../utils/utils';
 
 /**
  * Alpha Vantage API Gateway
@@ -21,6 +22,12 @@ const alphaVantageApiHandler = async (req: Request, res: Response) => {
     console.log(`aVG aVA [${requestId}] [GATEWAY] Incoming request: ${req.method} ${req.url}`);
     console.log(`aVG aVA [${requestId}] [GATEWAY] Headers:`, JSON.stringify(req.headers));
     console.log(`aVG aVA [${requestId}] [GATEWAY] Query params:`, JSON.stringify(req.query));
+
+    // Authenticate the request (require Firebase ID token)
+    const decodedToken = await authenticateRequest(req, res);
+    if (!decodedToken) {
+      return; // Response already sent on failure
+    }
 
     // Extract endpoint from URL path (e.g., 'TIME_SERIES_DAILY' from '/alpha-vantage/TIME_SERIES_DAILY')
     const endpoint = req.path.split('/').pop() as AlphaVantageEndpoint;
