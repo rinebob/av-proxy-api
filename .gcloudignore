@@ -1,0 +1,12 @@
+# Ignore server code and TS configs for App Hosting build context
+functions/**
+shared/src/**
+shared/tsconfig.json
+functions/tsconfig.json
+functions/tsconfig.functions.json
+
+# Node modules should not be uploaded
+**/node_modules/**
+
+# Allow built shared library for Angular app
+!shared/lib/**

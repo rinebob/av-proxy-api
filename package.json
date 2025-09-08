@@ -13,7 +13,11 @@
     "test": "ng test",
     "dev": "ng serve",
     "emulators": "firebase emulators:start --only auth,functions,firestore --import=.firebase/emulator-data --export-on-exit",
-    "emulators:clean": "if exist .firebase\\emulator-data rmdir /s /q .firebase\\emulator-data && mkdir .firebase\\emulator-data"
+    "emulators:clean": "if exist .firebase\\emulator-data rmdir /s /q .firebase\\emulator-data && mkdir .firebase\\emulator-data",
+    "dev:functions": "npm --prefix functions run dev:watch",
+    "dev:functions:emu": "npm --prefix functions run dev:emu",
+    "dev:web": "ng serve",
+    "dev:all": "npx concurrently \"npm:dev:functions:emu\" \"ng serve\""
   },
   "private": true,
   "dependencies": {
@@ -43,6 +47,7 @@
     "@angular/cli": "^19.2.12",
     "@angular/compiler-cli": "^19.2.0",
     "@types/jasmine": "~5.1.0",
+    "concurrently": "^9.1.2",
     "jasmine-core": "~5.6.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
