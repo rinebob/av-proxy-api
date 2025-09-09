@@ -19,26 +19,23 @@ async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> 
   const dailyDataRef = db.doc(dailyDataDocPath);
   
   try {
-    // 1. Fetch latest global quote
-    console.log(`dTSU uDTSWQ [${symbol}] Fetching latest global quote...`);
+    // 1. Fetch latest global quote (EOD path)
+    console.log(`aDTSU uDTSWQ EOD:FETCH [${symbol}] Requesting GLOBAL_QUOTE for end-of-day append...`);
     const quoteHandler = AlphaVantageHandlerFactory.createHandler(globalQuoteEndpoint);
     const quoteResponse = await quoteHandler.fetch({ symbol });
     
     if (!quoteResponse.data) {
-      console.log(`dTSU uDTSWQ [${symbol}] No quote data received`);
+      console.log(`aDTSU uDTSWQ EOD:FETCH [${symbol}] No quote data received`);
       return false;
     }
+    console.log(`aDTSU uDTSWQ EOD:FETCH [${symbol}] latestTradingDay=${quoteResponse.data.latestTradingDay} price=${quoteResponse.data.price} prevClose=${quoteResponse.data.previousClose} ch=${quoteResponse.data.change} cp=${quoteResponse.data.changePercent}`);
     
     // 2. Read normalized metadata to determine latest bar timestamp (histEndTs)
     let metaSnap = await dailyDataRef.get();
     if (!metaSnap.exists) {
-      const initialized = await initializeTimeSeriesIfMissing(
-        symbol,
-        TimeSeriesInterval.DAILY,
-        AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
-      );
+      const initialized = await initializeTimeSeriesIfMissing(symbol, TimeSeriesInterval.DAILY, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
       if (!initialized) return false;
-      console.log(`dTSU uDTSWQ [${symbol}] No daily adjusted series found. Initialized full series.`);
+      console.log(`aDTSU uDTSWQ EOD:INIT [${symbol}] Initialized full series (no prior daily adjusted series found).`);
       metaSnap = await dailyDataRef.get();
     }
     
@@ -65,6 +62,7 @@ async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> 
       };
       
       // Persist via normalized sharded writer; scheduled job -> do not check manual toggle
+      console.log(`aDTSU uDTSWQ EOD:WRITE [${symbol}] Appending bar for ${latestTradingDay} o=${bar.open} h=${bar.high} l=${bar.low} c=${bar.close} v=${bar.volume}`);
       await saveAvTimeSeriesData(
         [bar],
         symbol,
@@ -73,14 +71,14 @@ async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> 
         false,
       );
       
-      console.log(`dTSU uDTSWQ [${symbol}] Appended new trading day bar: ${latestTradingDay}`);
+      console.log(`aDTSU uDTSWQ EOD:DONE [${symbol}] Appended bar for ${latestTradingDay}`);
       return true;
     }
     
-    console.log(`dTSU uDTSWQ [${symbol}] No new trading day data available (latest histEndTs: ${latestHistEndTs})`);
+    console.log(`aDTSU uDTSWQ EOD:SKIP [${symbol}] No append (latestTradingDayMs=${latestTradingDayMs}, histEndTs=${latestHistEndTs})`);
     return false;
   } catch (error) {
-    console.error(`dTSU uDTSWQ [${symbol}] Error updating daily data:`, error);
+    console.error(`aDTSU uDTSWQ EOD:ERROR [${symbol}]`, error);
     throw error;
   }
 }
@@ -163,27 +161,37 @@ export const updateDailyTimeSeries = onSchedule({
  */
 async function updateIntradaySnapshotWithQuote(symbol: string): Promise<boolean> {
   const quoteHandler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.GLOBAL_QUOTE);
+  console.log(`aDTSU uISWQ IDAY:FETCH [${symbol}] Requesting GLOBAL_QUOTE for intraday snapshot (3:30 PM ET)...`);
   const resp = await quoteHandler.fetch({ symbol });
   const q = resp.data;
-  if (!q) return false;
-
+  if (!q) {
+    console.log(`aDTSU uISWQ IDAY:FETCH [${symbol}] No quote data received`);
+    return false;
+  }
+  console.log(`aDTSU uISWQ IDAY:FETCH [${symbol}] latestTradingDay=${q.latestTradingDay} price=${q.price} observedAt=${new Date(Date.now()).toISOString()}`);
+  
   // Ensure series exists so year doc is present when upserting
   await initializeTimeSeriesIfMissing(symbol, TimeSeriesInterval.DAILY, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
-
+  
   // Use AV-provided trading day as the bar date (YYYY-MM-DD, local to AV feed but effectively UTC day key)
   const date = q.latestTradingDay as string;
   const nowMs = Date.now();
   const price = Number(q.price);
-  if (!date || !Number.isFinite(price)) return false;
-
+  if (!date || !Number.isFinite(price)) {
+    console.log(`aDTSU uISWQ IDAY:SKIP [${symbol}] Invalid quote values date='${date}' price='${q.price}'`);
+    return false;
+  }
+  console.log(`aDTSU uISWQ IDAY:FETCH [${symbol}] latestTradingDay=${date} price=${price} observedAt=${new Date(nowMs).toISOString()}`);
+  
+  console.log(`aDTSU uISWQ IDAY:WRITE [${symbol}] Upserting intraday snapshot ip=${price} io=${nowMs}`);
   await upsertAvDailyBar({
     symbol,
     date,
     patch: { ip: price, io: nowMs },
     endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
   });
-
-  console.log(`dTSU intraday [${symbol}] captured snapshot ${price} at ${new Date(nowMs).toISOString()} for ${date}`);
+  
+  console.log(`aDTSU uISWQ IDAY:DONE [${symbol}] Snapshot stored for ${date}`);
   return true;
 }
 
@@ -203,7 +211,7 @@ export async function updateIntradaySnapshotHandler() {
     results.forEach((r) => { if (r.status === 'fulfilled' && r.value) updated++; });
     if (i + BATCH_SIZE < symbols.length) await new Promise(res => setTimeout(res, 1000));
   }
-  console.log(`Intraday snapshot updated for ${updated}/${symbols.length} symbols`);
+  console.log(`aDTSU uISH IDAY:BATCH Done. Intraday snapshots updated for ${updated}/${symbols.length} symbols`);
 }
 
 export const updateIntradaySnapshot = onSchedule({
