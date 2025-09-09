@@ -139,7 +139,7 @@ export async function saveAvTimeSeriesData(
     // 4. Prepare writes for non-intraday:
     // DAILY/WEEKLY -> year-sharded docs with compact bars array
     // MONTHLY -> single 'all' doc with compact bars array
-    type CompactBar = { t: number; d?: string; o: number; h: number; l: number; c: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number };
+    type CompactBar = { t: number; d?: string; o: number; h: number; l: number; c: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number; ip?: number; io?: number; it?: string };
     const vendor = ApiProvider.ALPHA_VANTAGE;
     const barsByYear = new Map<number, CompactBar[]>();
     const compactBars: CompactBar[] = [];
@@ -147,6 +147,10 @@ export async function saveAvTimeSeriesData(
       const dt = new Date(b.date);
       const t = dt.getTime();
       if (isNaN(t)) continue;
+      const intradayObservedAt = b.intradayObservedAt != null ? Number(b.intradayObservedAt) : undefined;
+      const intradayTime = intradayObservedAt != null && Number.isFinite(intradayObservedAt)
+        ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(intradayObservedAt))
+        : undefined;
       const bar: CompactBar = {
         t,
         // Store human-readable date string in UTC (YYYY-MM-DD) for ease of display/debugging
@@ -162,6 +166,9 @@ export async function saveAvTimeSeriesData(
         pc: b.previousClose != null ? Number(b.previousClose) : undefined,
         ch: b.change != null ? Number(b.change) : undefined,
         cp: b.changePercent != null ? Number(b.changePercent) : undefined,
+        ip: b.intradayPrice != null ? Number(b.intradayPrice) : undefined,
+        io: intradayObservedAt,
+        it: intradayTime,
       };
       compactBars.push(bar);
       const y = getYearFromEpochMillis(t);
@@ -341,4 +348,74 @@ export async function initializeTimeSeriesIfMissing(
 
   console.log(`[initTSIM] Initialized time series at path: ${docPath} (${isArrayPayload ? data.length : 'object'})`);
   return true;
+}
+
+/**
+ * Upserts a single daily bar for the given symbol and date.
+ * @param options - The upsert options
+ */
+export async function upsertAvDailyBar(options: {
+  symbol: string;
+  date: string; // YYYY-MM-DD (UTC day)
+  // Partial compact fields to merge onto the bar. Use numeric values only.
+  patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number; ip?: number; io?: number };
+  endpoint?: AlphaVantageEndpoint; // defaults to DAILY_ADJUSTED
+}): Promise<void> {
+  const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED } = options;
+  const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
+  const docRef = db.doc(docPath);
+  const dataRef = db.collection(`${docPath}/data`).doc(date);
+  const data = await dataRef.get();
+  const bars: CompactBar[] = data.exists ? data.get('bars') : [];
+
+  type CompactBar = { t: number; d?: string; o: number; h: number; l: number; c: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number; ip?: number; io?: number; it?: string };
+  const t = new Date(`${date}T00:00:00.000Z`).getTime();
+  const idx = bars.findIndex((b) => b.t === t);
+  if (idx >= 0) {
+    const existing = bars[idx];
+    const io = patch.io != null ? patch.io : existing.io;
+    const it = io != null && Number.isFinite(io)
+      ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io))
+      : existing.it;
+    bars[idx] = {
+      ...existing,
+      // Ensure 'd' stays aligned to the UTC day
+      d: new Date(t).toISOString().slice(0, 10),
+      ...patch,
+      // Preserve required numeric fields if not provided in patch
+      o: patch.o != null ? patch.o : existing.o,
+      h: patch.h != null ? patch.h : existing.h,
+      l: patch.l != null ? patch.l : existing.l,
+      c: patch.c != null ? patch.c : existing.c,
+      v: patch.v != null ? patch.v : existing.v,
+      io,
+      it,
+    } as CompactBar;
+  } else {
+    // Insert new bar; defaults for missing required fields
+    const io = patch.io;
+    const it = io != null && Number.isFinite(io)
+      ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io))
+      : undefined;
+    bars.push({
+      t,
+      d: new Date(t).toISOString().slice(0, 10),
+      o: patch.o ?? 0,
+      h: patch.h ?? (patch.o ?? 0),
+      l: patch.l ?? (patch.o ?? 0),
+      c: patch.c ?? 0,
+      v: patch.v,
+      ac: patch.ac,
+      dv: patch.dv,
+      sc: patch.sc,
+      pc: patch.pc,
+      ch: patch.ch,
+      cp: patch.cp,
+      ip: patch.ip,
+      io,
+      it,
+    });
+  }
+
+  await dataRef.set({ bars }, { merge: true });
 }

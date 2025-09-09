@@ -13,13 +13,18 @@ export interface StorageBar {
   low: number;
   close: number;
   volume: number;
-  // Optional fields preserved when available (e.g., from DAILY_ADJUSTED or GLOBAL_QUOTE)
-  adjustedClose?: number; // from adjusted endpoints
-  dividendAmount?: number; // from adjusted endpoints
-  splitCoefficient?: number; // from adjusted endpoints
-  previousClose?: number; // from GLOBAL_QUOTE
-  change?: number; // from GLOBAL_QUOTE
-  changePercent?: number; // from GLOBAL_QUOTE, numeric percent (e.g., 1.23 for 1.23%)
+  // Optional fields preserved when available (adjusted endpoints / global quote)
+  adjustedClose?: number;
+  dividendAmount?: number;
+  splitCoefficient?: number;
+  previousClose?: number;
+  change?: number;
+  // Numeric percent, e.g., 1.23 for 1.23%
+  changePercent?: number;
+  // Optional intraday snapshot fields (captured pre-close for REL-STR use cases)
+  intradayPrice?: number;        // intraday mark price
+  intradayObservedAt?: number;   // epoch ms when the intraday price was observed
+  intradayTime?: string;         // human-readable HH:mm (derived from intradayObservedAt)
 }
 
 /**

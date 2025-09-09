@@ -13,9 +13,12 @@ export const BULK_QUOTE_UPDATE_SCHEDULE = '12 13 * * *';  // 12:12 PM ET (13:12 
 
 // for updateDailyTimeSeries
 // functions/src/alpha-vantage/data-refresher/av-daily-time-series-updater.ts
-// export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '20 20 * * *';  // 4:20 PM ET (20:20 UTC during EDT, 21:20 UTC during EST)
-export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '45 13 * * *';  // 12:45 PM ET (13:45 UTC)
+// Run at market close: 16:30 PM ET
+export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * *';  // 16:30 PM ET
 
+// Intraday snapshot (pre-close) for REL-STR use cases
+// Captures a quote at 3:30 PM Eastern each trading day
+export const INTRADAY_SNAPSHOT_SCHEDULE = '30 15 * * *';  // 3:30 PM ET
 
 // for refreshAlphaVantageDataV2
 // functions/src/alpha-vantage/data-refresher/av-refresh-manager.ts
