@@ -13,6 +13,13 @@ export interface StorageBar {
   low: number;
   close: number;
   volume: number;
+  // Optional fields preserved when available (e.g., from DAILY_ADJUSTED or GLOBAL_QUOTE)
+  adjustedClose?: number; // from adjusted endpoints
+  dividendAmount?: number; // from adjusted endpoints
+  splitCoefficient?: number; // from adjusted endpoints
+  previousClose?: number; // from GLOBAL_QUOTE
+  change?: number; // from GLOBAL_QUOTE
+  changePercent?: number; // from GLOBAL_QUOTE, numeric percent (e.g., 1.23 for 1.23%)
 }
 
 /**

@@ -139,7 +139,7 @@ export async function saveAvTimeSeriesData(
     // 4. Prepare writes for non-intraday:
     // DAILY/WEEKLY -> year-sharded docs with compact bars array
     // MONTHLY -> single 'all' doc with compact bars array
-    type CompactBar = { t: number; o: number; h: number; l: number; c: number; v?: number };
+    type CompactBar = { t: number; d?: string; o: number; h: number; l: number; c: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number };
     const vendor = ApiProvider.ALPHA_VANTAGE;
     const barsByYear = new Map<number, CompactBar[]>();
     const compactBars: CompactBar[] = [];
@@ -149,11 +149,19 @@ export async function saveAvTimeSeriesData(
       if (isNaN(t)) continue;
       const bar: CompactBar = {
         t,
+        // Store human-readable date string in UTC (YYYY-MM-DD) for ease of display/debugging
+        d: new Date(t).toISOString().slice(0, 10),
         o: Number(b.open),
         h: Number(b.high),
         l: Number(b.low),
         c: Number(b.close),
         v: b.volume != null ? Number(b.volume) : undefined,
+        ac: b.adjustedClose != null ? Number(b.adjustedClose) : undefined,
+        dv: b.dividendAmount != null ? Number(b.dividendAmount) : undefined,
+        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : undefined,
+        pc: b.previousClose != null ? Number(b.previousClose) : undefined,
+        ch: b.change != null ? Number(b.change) : undefined,
+        cp: b.changePercent != null ? Number(b.changePercent) : undefined,
       };
       compactBars.push(bar);
       const y = getYearFromEpochMillis(t);

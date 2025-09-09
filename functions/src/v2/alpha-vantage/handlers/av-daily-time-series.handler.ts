@@ -83,7 +83,7 @@ export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<
   /**
    * Derive compact bars array for storage from the normalized object.
    */
-  protected toBarsArray(timeSeriesDaily: Record<string, AvDailyEntry>): Array<{ date: string; open: number; high: number; low: number; close: number; volume: number; }> {
+  protected toBarsArray(timeSeriesDaily: Record<string, AvDailyEntry>): StorageBar[] {
     // AV returns newest-first in the API; order is not guaranteed in object keys. We preserve as-is; storage will handle sorting.
     return Object.entries(timeSeriesDaily).map(([date, v]) => ({
       date,
@@ -93,6 +93,10 @@ export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<
       // Prefer adjustedClose when present for storage default
       close: Number((v as AvDailyEntry).adjustedClose ?? v.close),
       volume: Number(v.volume),
+      // Preserve optional adjusted series fields when present
+      ...(v.adjustedClose != null ? { adjustedClose: Number(v.adjustedClose) } : {}),
+      ...(v.dividendAmount != null ? { dividendAmount: Number(v.dividendAmount) } : {}),
+      ...(v.splitCoefficient != null ? { splitCoefficient: Number(v.splitCoefficient) } : {}),
     }));
   }
 
