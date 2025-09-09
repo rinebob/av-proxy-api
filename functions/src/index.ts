@@ -10,6 +10,9 @@ export { alphaVantageApiV2 } from './v2/alpha-vantage/alpha-vantage-gateway';
 // Benzinga endpoints
 export { benzingaApiV2 } from './v2/benzinga/benzinga-gateway';
 
+// Partner endpoints
+export { partnerTimeSeriesV2 } from './v2/partner/time-series-partner';
+
 // New AlphaVantage Data Refresher
 export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-refresh-manager.js';
 
