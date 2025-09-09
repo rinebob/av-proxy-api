@@ -363,7 +363,6 @@ export async function upsertAvDailyBar(options: {
 }): Promise<void> {
   const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED } = options;
   const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
-  const docRef = db.doc(docPath);
   const dataRef = db.collection(`${docPath}/data`).doc(date);
   const data = await dataRef.get();
   const bars: CompactBar[] = data.exists ? data.get('bars') : [];
