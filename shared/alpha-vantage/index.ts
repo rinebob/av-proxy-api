@@ -8,6 +8,7 @@ export * from './av-global-quote';
 export * from './av-historical-options';
 export * from './av-symbol-search';
 export * from './av-time-series';
+export * from './av-time-series.types';
 
 // Default export: aggregate all named exports into a single object
 import * as companyOverview from './av-company-overview';
