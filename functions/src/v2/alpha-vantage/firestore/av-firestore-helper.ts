@@ -5,6 +5,7 @@ import { AlphaVantageEndpoint, AV_TIME_SERIES_ENDPOINT_CONFIGS, OutputSize, Time
 import { ApiProvider, ApiResponse } from '@shared/core';
 import { FirestoreCollection } from '@shared/firestore';
 import type { EndpointConfig } from '@shared/core';
+import type { CompactBar } from '@shared/alpha-vantage';
 
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 
@@ -154,7 +155,6 @@ export async function saveAvTimeSeriesData(
     // 4. Prepare writes for non-intraday:
     // DAILY/WEEKLY -> year-sharded docs with compact bars array
     // MONTHLY -> single 'all' doc with compact bars array
-    type CompactBar = { t: number; d?: string; o: number; h: number; l: number; c: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number; ip?: number; io?: number; it?: string };
     const vendor = ApiProvider.ALPHA_VANTAGE;
     const barsByYear = new Map<number, CompactBar[]>();
     const compactBars: CompactBar[] = [];
@@ -174,10 +174,15 @@ export async function saveAvTimeSeriesData(
         h: Number(b.high),
         l: Number(b.low),
         c: Number(b.close),
-        v: b.volume != null ? Number(b.volume) : undefined,
-        ac: b.adjustedClose != null ? Number(b.adjustedClose) : undefined,
-        dv: b.dividendAmount != null ? Number(b.dividendAmount) : undefined,
-        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : undefined,
+        // Required compact fields: provide sensible defaults when provider fields are absent
+        // v: volume -> default 0
+        v: Number(b.volume ?? 0),
+        // ac: adjusted close -> default to close when adjusted not provided
+        ac: Number((b as any).adjustedClose ?? b.close ?? 0),
+        // dv: dividend amount -> default 0
+        dv: Number((b as any).dividendAmount ?? 0),
+        // sc: split coefficient -> default 1
+        sc: Number((b as any).splitCoefficient ?? 1),
         pc: b.previousClose != null ? Number(b.previousClose) : undefined,
         ch: b.change != null ? Number(b.change) : undefined,
         cp: b.changePercent != null ? Number(b.changePercent) : undefined,
@@ -392,7 +397,6 @@ export async function upsertAvDailyBar(options: {
   const data = await dataRef.get();
   const bars: CompactBar[] = data.exists ? data.get('bars') : [];
 
-  type CompactBar = { t: number; d?: string; o: number; h: number; l: number; c: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number; ip?: number; io?: number; it?: string };
   const t = new Date(`${date}T00:00:00.000Z`).getTime();
   const idx = bars.findIndex((b) => b.t === t);
   if (idx >= 0) {
@@ -401,44 +405,48 @@ export async function upsertAvDailyBar(options: {
     const it = io != null && Number.isFinite(io)
       ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io))
       : existing.it;
-    bars[idx] = {
-      ...existing,
-      // Ensure 'd' stays aligned to the UTC day
-      d: new Date(t).toISOString().slice(0, 10),
-      ...patch,
-      // Preserve required numeric fields if not provided in patch
-      o: patch.o != null ? patch.o : existing.o,
-      h: patch.h != null ? patch.h : existing.h,
-      l: patch.l != null ? patch.l : existing.l,
-      c: patch.c != null ? patch.c : existing.c,
-      v: patch.v != null ? patch.v : existing.v,
+    const patchBar = {
+      o: Number(patch.o ?? existing.o),
+      h: Number(patch.h ?? existing.h),
+      l: Number(patch.l ?? existing.l),
+      c: Number(patch.c ?? existing.c),
+      // Ensure required compact fields are set; provide defaults if patch values are missing
+      v: Number(patch.v ?? existing.v ?? 0),
+      ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
+      dv: Number(patch.dv ?? existing.dv ?? 0),
+      sc: Number(patch.sc ?? existing.sc ?? 1),
+      pc: patch.pc != null ? Number(patch.pc) : existing.pc,
+      ch: patch.ch != null ? Number(patch.ch) : existing.ch,
+      cp: patch.cp != null ? Number(patch.cp) : existing.cp,
+      ip: patch.ip != null ? Number(patch.ip) : existing.ip,
       io,
       it,
-    } as CompactBar;
+    } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
+
+    bars[idx] = { ...existing, ...patchBar } as CompactBar;
   } else {
-    // Insert new bar; defaults for missing required fields
-    const io = patch.io;
-    const it = io != null && Number.isFinite(io)
-      ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io))
-      : undefined;
-    bars.push({
+    // Insert new bar
+    const newBar: CompactBar = {
       t,
       d: new Date(t).toISOString().slice(0, 10),
-      o: patch.o ?? 0,
-      h: patch.h ?? (patch.o ?? 0),
-      l: patch.l ?? (patch.o ?? 0),
-      c: patch.c ?? 0,
-      v: patch.v,
-      ac: patch.ac,
-      dv: patch.dv,
-      sc: patch.sc,
-      pc: patch.pc,
-      ch: patch.ch,
-      cp: patch.cp,
-      ip: patch.ip,
-      io,
-      it,
-    });
+      o: Number(patch.o ?? 0),
+      h: Number(patch.h ?? (patch.o ?? 0)),
+      l: Number(patch.l ?? (patch.o ?? 0)),
+      c: Number(patch.c ?? 0),
+      v: Number(patch.v ?? 0),
+      ac: Number(patch.ac ?? patch.c ?? 0),
+      dv: Number(patch.dv ?? 0),
+      sc: Number(patch.sc ?? 1),
+      pc: patch.pc != null ? Number(patch.pc) : undefined,
+      ch: patch.ch != null ? Number(patch.ch) : undefined,
+      cp: patch.cp != null ? Number(patch.cp) : undefined,
+      ip: patch.ip != null ? Number(patch.ip) : undefined,
+      io: patch.io,
+      it: patch.io != null && Number.isFinite(patch.io)
+        ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(patch.io))
+        : undefined,
+    };
+    bars.push(newBar);
   }
 
   await dataRef.set({ bars }, { merge: true });

@@ -3,10 +3,21 @@ import type { Request, Response } from 'express';
 
 import { withCors } from '../utils/cors-middleware';
 import { authenticateRequestEither } from '../utils/utils';
-import { getPartnerTimeSeries, type TimeSeriesReadParams, type IntervalInput } from '../common/firestore/time-series-readers';
+import { getPartnerTimeSeries, type TimeSeriesReadParams } from '../common/firestore/time-series-readers';
+import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
-function isValidInterval(val: any): val is IntervalInput {
-  return val === 'DAILY' || val === 'WEEKLY' || val === 'MONTHLY';
+// Accepted intervals derived from the shared enum (no magic strings)
+const ALLOWED_INTERVALS = [
+  TimeSeriesInterval.DAILY,
+  TimeSeriesInterval.WEEKLY,
+  TimeSeriesInterval.MONTHLY,
+] as const;
+
+function parseInterval(val: unknown): TimeSeriesInterval | null {
+  if (typeof val !== 'string') return null;
+  const lc = val.toLowerCase();
+  const match = ALLOWED_INTERVALS.find((i) => i === lc);
+  return match ?? null;
 }
 
 async function handler(req: Request, res: Response) {
@@ -26,24 +37,26 @@ async function handler(req: Request, res: Response) {
     if (!authResult) return; // Response already sent with 401/403
 
     const symbol = String(req.query.symbol || '').toUpperCase();
-    const interval = String(req.query.interval || '').toUpperCase() as IntervalInput;
-
+    const interval = parseInterval(req.query.interval);
     if (!symbol) {
-      res.status(400).json({ ok: false, error: 'Missing required parameter: symbol', code: 'BAD_REQUEST' });
+      res.status(400).json({ ok: false, error: 'Missing symbol', code: 'BAD_REQUEST' });
       return;
     }
-    if (!isValidInterval(interval)) {
-      res.status(400).json({ ok: false, error: 'Invalid interval. Use DAILY | WEEKLY | MONTHLY', code: 'BAD_REQUEST' });
+    if (!interval) {
+      res.status(400).json({ ok: false, error: `Invalid interval. Use one of: ${ALLOWED_INTERVALS.join(', ')}`, code: 'BAD_REQUEST' });
       return;
     }
 
-    const range = req.query.range ? String(req.query.range) as TimeSeriesReadParams['range'] : undefined;
-    const from = req.query.from ? String(req.query.from) : undefined;
-    const to = req.query.to ? String(req.query.to) : undefined;
-    const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
+    const params: TimeSeriesReadParams = {
+      symbol,
+      interval,
+      range: (req.query.range as any) || undefined,
+      from: (req.query.from as any) || undefined,
+      to: (req.query.to as any) || undefined,
+      limit: req.query.limit != null ? Number(req.query.limit) : undefined,
+    };
 
-    const result = await getPartnerTimeSeries({ symbol, interval, range, from, to, limit });
-
+    const result = await getPartnerTimeSeries(params);
     const status = result.ok ? 200 : result.code === 'NOT_FOUND' ? 404 : 500;
     res.status(status).json({ ...result, processingTimeMs: Date.now() - start });
   } catch (e: any) {

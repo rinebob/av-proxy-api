@@ -1,56 +1,25 @@
 import { AlphaVantageTimeSeriesHandlerBase, StorageBar } from './alpha-vantage-timeseries-base.handler';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
+import { sortAndComputeChange } from '../utils/bars-utils';
+import type { AvCommonMeta, AvOhlcEntry, AvTimeSeriesNormalized } from '@shared/alpha-vantage';
+import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
 /**
- * Normalized meta data for AV Daily responses
+ * Handler class for Alpha Vantage TIME_SERIES_DAILY(_ADJUSTED)
  */
-interface AvDailyMeta {
-  information?: string;
-  symbol?: string;
-  lastRefreshed?: string;
-  outputSize?: string;
-  timeZone?: string;
-}
-
-/**
- * Normalized time series entry for AV Daily responses
- */
-interface AvDailyEntry {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  adjustedClose?: number;
-  dividendAmount?: number;
-  splitCoefficient?: number;
-}
-
-/**
- * Normalized response for AV Daily responses
- */
-interface AvDailyNormalizedResponse {
-  meta: AvDailyMeta;
-  timeSeriesDaily: Record<string, AvDailyEntry>;
-}
-
-/**
- * Handler for Alpha Vantage TIME_SERIES_DAILY (and DAILY_ADJUSTED via factory mapping).
- * Returns an AV-like normalized object for the UI, with sane keys, and saves compact bars to Firestore.
- */
-export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<AvDailyNormalizedResponse> {
+export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<AvTimeSeriesNormalized> {
   /**
-   * Transform AV raw JSON into an AV-like normalized object with clean keys.
+   * Transform AV JSON to unified normalized response
    */
-  protected transformResponse(raw: any): AvDailyNormalizedResponse {
+  protected transformResponse(raw: any): AvTimeSeriesNormalized {
     validateAlphaVantageApiResponse(raw);
     const metaRaw = raw['Meta Data'] || {};
-    const tsRaw = raw['Time Series (Daily)'];
-    if (!tsRaw) {
+    const timeSeriesRaw = raw['Time Series (Daily)'] || raw['Time Series Daily'];
+    if (!timeSeriesRaw) {
       throw new Error('Invalid response format: Missing Time Series (Daily)');
     }
-    // Normalize meta keys to camelCase
-    const meta: AvDailyMeta = {
+
+    const meta: AvCommonMeta = {
       information: metaRaw['1. Information'] ?? metaRaw['Information'],
       symbol: metaRaw['2. Symbol'] ?? metaRaw['Symbol'],
       lastRefreshed: metaRaw['3. Last Refreshed'] ?? metaRaw['Last Refreshed'],
@@ -58,13 +27,13 @@ export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<
       timeZone: metaRaw['5. Time Zone'] ?? metaRaw['Time Zone'],
     };
 
-    // Normalize time series keys: keep by-date map, but clean field names
-    const timeSeriesDaily: Record<string, AvDailyEntry> = {};
-    for (const [date, values] of Object.entries<any>(tsRaw)) {
+    const daily: Record<string, AvOhlcEntry> = {};
+    for (const [date, values] of Object.entries<any>(timeSeriesRaw)) {
+      // Daily adjusted has adjusted close and dividend (and split coefficient)
       const adjustedClose = values['5. adjusted close'];
       const dividendAmount = values['7. dividend amount'];
       const splitCoefficient = values['8. split coefficient'];
-      timeSeriesDaily[date] = {
+      daily[date] = {
         open: parseFloat(values['1. open']),
         high: parseFloat(values['2. high']),
         low: parseFloat(values['3. low']),
@@ -77,21 +46,21 @@ export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<
       };
     }
 
-    return { meta, timeSeriesDaily };
+    return { meta, series: { [TimeSeriesInterval.DAILY]: daily } };
   }
 
   /**
    * Derive compact bars array for storage from the normalized object.
    */
-  protected toBarsArray(timeSeriesDaily: Record<string, AvDailyEntry>): StorageBar[] {
+  protected toBarsArray(seriesByDate: Record<string, AvOhlcEntry>): StorageBar[] {
     // AV returns newest-first in the API; order is not guaranteed in object keys. We preserve as-is; storage will handle sorting.
-    return Object.entries(timeSeriesDaily).map(([date, v]) => ({
+    return Object.entries(seriesByDate).map(([date, v]) => ({
       date,
       open: Number(v.open),
       high: Number(v.high),
       low: Number(v.low),
       // Prefer adjustedClose when present for storage default
-      close: Number((v as AvDailyEntry).adjustedClose ?? v.close),
+      close: Number((v as AvOhlcEntry).adjustedClose ?? v.close),
       volume: Number(v.volume),
       // Preserve optional adjusted series fields when present
       ...(v.adjustedClose != null ? { adjustedClose: Number(v.adjustedClose) } : {}),
@@ -102,10 +71,14 @@ export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<
 
   /**
    * Provide bars to the base class for storage persistence.
+   * Augment with derived fields: change (ch) and percent change (cp) based on prior day's close.
+   * Values rounded to 2 decimals. We do not persist priorClose.
    */
-  protected getBarsForStorage(transformed: AvDailyNormalizedResponse): StorageBar[] | null {
-    if (!transformed?.timeSeriesDaily) return null;
-    const bars = this.toBarsArray(transformed.timeSeriesDaily);
-    return bars.length ? bars : null;
+  protected getBarsForStorage(transformed: AvTimeSeriesNormalized): StorageBar[] | null {
+    const daily = transformed?.series?.[TimeSeriesInterval.DAILY];
+    if (!daily) return null;
+    const bars = this.toBarsArray(daily);
+    if (!bars.length) return null;
+    return sortAndComputeChange(bars);
   }
 }

@@ -6,12 +6,11 @@ import {
   getSymbolTimeSeriesYearDocPath,
   getSymbolTimeSeriesAllDocPath,
 } from '../firestore/firestore-paths';
-
-export type IntervalInput = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+import type { CompactBar } from '@shared/alpha-vantage';
 
 export interface TimeSeriesReadParams {
   symbol: string;
-  interval: IntervalInput;
+  interval: TimeSeriesInterval;
   range?: 'ytd' | '1y' | '3y' | '5y' | 'max';
   from?: string | number; // ISO date or epoch ms
   to?: string | number;   // ISO date or epoch ms
@@ -21,13 +20,13 @@ export interface TimeSeriesReadParams {
 export interface PartnerTimeSeriesResponse {
   ok: boolean;
   symbol: string;
-  interval: IntervalInput;
+  interval: TimeSeriesInterval;
   provider: 'av';
   endpointDocId: string;
   rangeUsed: { from?: number; to?: number; preset?: string };
   availableYears?: number[];
   count: number;
-  bars: Array<{ t: number; o: number; h: number; l: number; c: number; v?: number }>;
+  bars: CompactBar[];
   timestamp: string;
   truncated?: boolean;
   error?: string;
@@ -37,36 +36,20 @@ export interface PartnerTimeSeriesResponse {
 function toEpoch(input?: string | number): number | undefined {
   if (input == null) return undefined;
   if (typeof input === 'number') return input;
-  const d = new Date(input);
-  const t = d.getTime();
-  return Number.isFinite(t) ? t : undefined;
+  const t = Date.parse(input);
+  return Number.isNaN(t) ? undefined : t;
 }
 
-function rangeToFromTo(nowMs: number, preset?: TimeSeriesReadParams['range']): { from?: number; to?: number } {
-  if (!preset) return {};
-  const to = nowMs;
-  const d = new Date(nowMs);
-  switch (preset) {
-    case 'ytd': {
-      const yStart = Date.UTC(d.getUTCFullYear(), 0, 1);
-      return { from: yStart, to };
-    }
-    case '1y': return { from: nowMs - 365 * 24 * 3600 * 1000, to };
-    case '3y': return { from: nowMs - 3 * 365 * 24 * 3600 * 1000, to };
-    case '5y': return { from: nowMs - 5 * 365 * 24 * 3600 * 1000, to };
-    case 'max': return { };
-    default: return {};
-  }
-}
-
-function resolveEndpoint(interval: IntervalInput): { intervalEnum: TimeSeriesInterval; endpoint: AlphaVantageEndpoint } {
+function resolveEndpoint(interval: TimeSeriesInterval): { intervalEnum: TimeSeriesInterval; endpoint: AlphaVantageEndpoint } {
   switch (interval) {
-    case 'DAILY':
+    case TimeSeriesInterval.DAILY:
       return { intervalEnum: TimeSeriesInterval.DAILY, endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED };
-    case 'WEEKLY':
+    case TimeSeriesInterval.WEEKLY:
       return { intervalEnum: TimeSeriesInterval.WEEKLY, endpoint: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED };
-    case 'MONTHLY':
+    case TimeSeriesInterval.MONTHLY:
       return { intervalEnum: TimeSeriesInterval.MONTHLY, endpoint: AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED };
+    default:
+      throw new Error(`Unsupported interval: ${interval}`);
   }
 }
 
@@ -77,7 +60,7 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
   const { endpoint } = resolveEndpoint(interval);
 
   // Defaults per interval
-  const defaultPreset: TimeSeriesReadParams['range'] = interval === 'DAILY' ? '1y' : interval === 'WEEKLY' ? '5y' : 'max';
+  const defaultPreset: TimeSeriesReadParams['range'] = interval === TimeSeriesInterval.DAILY ? '1y' : interval === TimeSeriesInterval.WEEKLY ? '5y' : 'max';
 
   // Determine from/to
   const fromExplicit = toEpoch(params.from);
@@ -92,16 +75,20 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
 
   try {
     // Monthly uses single 'all' doc
-    if (interval === 'MONTHLY') {
+    if (interval === TimeSeriesInterval.MONTHLY) {
       const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
       const snap = await db.doc(allDocPath).get();
       if (!snap.exists) {
         return { ok: false, symbol, interval, provider: 'av', endpointDocId: docPath.split('/').pop()!, rangeUsed: { from, to, preset: presetApplied }, count: 0, bars: [], timestamp: new Date().toISOString(), error: 'NOT_FOUND', code: 'NOT_FOUND' };
       }
       const data = snap.data() as any;
-      let bars: Array<{ t: number; o: number; h: number; l: number; c: number; v?: number }> = Array.isArray(data?.bars) ? data.bars : [];
+      let bars: CompactBar[] = Array.isArray(data?.bars) ? data.bars : [];
       // Filter and sort ascending
       bars = bars.filter(b => (from == null || b.t >= from) && (to == null || b.t <= to)).sort((a, b) => a.t - b.t);
+      // Enrich with ch/cp if missing
+      if (bars.length && (bars[0].ch == null || bars[0].cp == null)) {
+        bars = enrichWithChange(bars);
+      }
       let truncated = false;
       if (typeof params.limit === 'number' && params.limit > 0 && bars.length > params.limit) {
         truncated = true;
@@ -114,6 +101,7 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
         provider: 'av',
         endpointDocId: docPath.split('/').pop()!,
         rangeUsed: { from, to, preset: presetApplied },
+        availableYears: undefined,
         count: bars.length,
         bars,
         timestamp: new Date().toISOString(),
@@ -138,21 +126,27 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
     const yearRefs = yearsToRead.map(y => db.doc(getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y)));
     const yearSnaps = await Promise.all(yearRefs.map(r => r.get()));
 
-    let allBars: Array<{ t: number; o: number; h: number; l: number; c: number; v?: number }> = [];
+    let allBars: CompactBar[] = [];
     for (const s of yearSnaps) {
       if (!s.exists) continue;
       const d = s.data() as any;
-      if (Array.isArray(d?.bars)) allBars.push(...d.bars);
+      const yBars: CompactBar[] = Array.isArray(d?.bars) ? d.bars : [];
+      allBars.push(...yBars);
     }
 
     // Filter and sort ascending
-    allBars = allBars.filter(b => (from == null || b.t >= from) && (to == null || b.t <= to)).sort((a, b) => a.t - b.t);
+    let bars = allBars.filter(b => (from == null || b.t >= from) && (to == null || b.t <= to)).sort((a, b) => a.t - b.t);
+
+    // Enrich with ch/cp if missing
+    if (bars.length && (bars[0].ch == null || bars[0].cp == null)) {
+      bars = enrichWithChange(bars);
+    }
 
     // Only truncate when an explicit limit is provided
     let truncated = false;
-    if (typeof params.limit === 'number' && params.limit > 0 && allBars.length > params.limit) {
+    if (typeof params.limit === 'number' && params.limit > 0 && bars.length > params.limit) {
       truncated = true;
-      allBars = allBars.slice(-params.limit);
+      bars = bars.slice(-params.limit);
     }
 
     return {
@@ -163,8 +157,8 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
       endpointDocId: docPath.split('/').pop()!,
       rangeUsed: { from, to, preset: presetApplied },
       availableYears,
-      count: allBars.length,
-      bars: allBars,
+      count: bars.length,
+      bars,
       timestamp: new Date().toISOString(),
       truncated,
     };
@@ -183,4 +177,32 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
       code: 'INTERNAL_ERROR',
     };
   }
+}
+
+function rangeToFromTo(nowMs: number, preset?: TimeSeriesReadParams['range']): { from?: number; to?: number } {
+  if (!preset) return {};
+  const to = nowMs;
+  const d = new Date(nowMs);
+  switch (preset) {
+    case 'ytd': {
+      const yStart = Date.UTC(d.getUTCFullYear(), 0, 1);
+      return { from: yStart, to };
+    }
+    case '1y': return { from: nowMs - 365 * 24 * 3600 * 1000, to };
+    case '3y': return { from: nowMs - 3 * 365 * 24 * 3600 * 1000, to };
+    case '5y': return { from: nowMs - 5 * 365 * 24 * 3600 * 1000, to };
+    case 'max': return { };
+    default: return {};
+  }
+}
+
+function enrichWithChange(bars: CompactBar[]): CompactBar[] {
+  // bars are expected ascending here
+  let prevClose: number | undefined = undefined;
+  return bars.map((b, idx) => {
+    const ch = idx === 0 || prevClose == null ? 0 : Number((b.c - prevClose).toFixed(2));
+    const cp = idx === 0 || prevClose == null || prevClose === 0 ? 0 : Number((((b.c - prevClose) / prevClose) * 100).toFixed(2));
+    prevClose = b.c;
+    return { ...b, ch, cp } as CompactBar;
+  });
 }

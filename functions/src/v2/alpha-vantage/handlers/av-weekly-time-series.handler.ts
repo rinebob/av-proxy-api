@@ -1,34 +1,14 @@
 import { AlphaVantageTimeSeriesHandlerBase, StorageBar } from './alpha-vantage-timeseries-base.handler';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
-
-interface AvWeeklyMeta {
-  information?: string;
-  symbol?: string;
-  lastRefreshed?: string;
-  outputSize?: string;
-  timeZone?: string;
-}
-
-interface AvWeeklyEntry {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  adjustedClose?: number;
-  volume: number;
-  dividendAmount?: number;
-}
-
-export interface AvWeeklyNormalizedResponse {
-  meta: AvWeeklyMeta;
-  timeSeriesWeekly: Record<string, AvWeeklyEntry>;
-}
+import { sortAndComputeChange } from '../utils/bars-utils';
+import type { AvCommonMeta, AvOhlcEntry, AvTimeSeriesNormalized } from '@shared/alpha-vantage/av-time-series.types';
+import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
 /**
  * Handler for Alpha Vantage TIME_SERIES_WEEKLY and TIME_SERIES_WEEKLY_ADJUSTED.
  */
-export class AvWeeklyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<AvWeeklyNormalizedResponse> {
-  protected transformResponse(raw: any): AvWeeklyNormalizedResponse {
+export class AvWeeklyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<AvTimeSeriesNormalized> {
+  protected transformResponse(raw: any): AvTimeSeriesNormalized {
     validateAlphaVantageApiResponse(raw);
     const metaRaw = raw['Meta Data'] || {};
     const tsAdjusted = raw['Weekly Adjusted Time Series'];
@@ -38,7 +18,7 @@ export class AvWeeklyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase
       throw new Error('Invalid response format: Missing Weekly Time Series');
     }
 
-    const meta: AvWeeklyMeta = {
+    const meta: AvCommonMeta = {
       information: metaRaw['1. Information'] ?? metaRaw['Information'],
       symbol: metaRaw['2. Symbol'] ?? metaRaw['Symbol'],
       lastRefreshed: metaRaw['3. Last Refreshed'] ?? metaRaw['Last Refreshed'],
@@ -46,11 +26,11 @@ export class AvWeeklyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase
       timeZone: metaRaw['5. Time Zone'] ?? metaRaw['Time Zone'],
     };
 
-    const timeSeriesWeekly: Record<string, AvWeeklyEntry> = {};
+    const weekly: Record<string, AvOhlcEntry> = {};
     for (const [date, values] of Object.entries<any>(ts)) {
       const adjustedClose = values['5. adjusted close'];
       const dividendAmount = values['7. dividend amount'];
-      timeSeriesWeekly[date] = {
+      weekly[date] = {
         open: parseFloat(values['1. open']),
         high: parseFloat(values['2. high']),
         low: parseFloat(values['3. low']),
@@ -61,12 +41,13 @@ export class AvWeeklyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase
       };
     }
 
-    return { meta, timeSeriesWeekly };
+    return { meta, series: { [TimeSeriesInterval.WEEKLY]: weekly } };
   }
 
-  protected getBarsForStorage(transformed: AvWeeklyNormalizedResponse): StorageBar[] | null {
-    if (!transformed?.timeSeriesWeekly) return null;
-    const bars: StorageBar[] = Object.entries(transformed.timeSeriesWeekly).map(([date, v]) => ({
+  protected getBarsForStorage(transformed: AvTimeSeriesNormalized): StorageBar[] | null {
+    const weekly = transformed?.series?.[TimeSeriesInterval.WEEKLY];
+    if (!weekly) return null;
+    const bars: StorageBar[] = Object.entries(weekly).map(([date, v]) => ({
       date,
       open: Number(v.open),
       high: Number(v.high),
@@ -74,6 +55,7 @@ export class AvWeeklyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase
       close: Number(v.adjustedClose ?? v.close),
       volume: Number(v.volume),
     }));
-    return bars.length ? bars : null;
+    if (!bars.length) return null;
+    return sortAndComputeChange(bars);
   }
 }
