@@ -1,7 +1,7 @@
 import { AlphaVantageTimeSeriesHandlerBase, StorageBar } from './alpha-vantage-timeseries-base.handler';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 import { sortAndComputeChange } from '../utils/bars-utils';
-import type { AvCommonMeta, AvOhlcEntry, AvTimeSeriesNormalized } from '@shared/alpha-vantage/av-time-series.types';
+import type { AvCommonMeta, AvOhlcEntry, AvTimeSeriesNormalized } from '@shared/alpha-vantage';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
 /**
@@ -47,7 +47,8 @@ export class AvWeeklyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase
   protected getBarsForStorage(transformed: AvTimeSeriesNormalized): StorageBar[] | null {
     const weekly = transformed?.series?.[TimeSeriesInterval.WEEKLY];
     if (!weekly) return null;
-    const bars: StorageBar[] = Object.entries(weekly).map(([date, v]) => ({
+    const entries = Object.entries(weekly) as [string, AvOhlcEntry][];
+    const bars: StorageBar[] = entries.map(([date, v]) => ({
       date,
       open: Number(v.open),
       high: Number(v.high),
