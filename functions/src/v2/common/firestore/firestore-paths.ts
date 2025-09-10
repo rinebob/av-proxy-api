@@ -37,8 +37,14 @@ export function getYearFromEpochMillis(epochMillis: number): number {
 }
 
 // ----------- Single-doc helper (e.g., monthly 'all') -----------
+/**
+ * Returns a valid Firestore document path for the monthly "all" bars document.
+ * Structure:
+ *   symbol-data/{symbol}/time-series/{docId}/all/data
+ */
 export function getSymbolTimeSeriesAllDocPath(symbol: string, endpoint: string, vendor: ApiProvider): string {
-  return `${getSymbolTimeSeriesDocPath(symbol, endpoint, vendor)}/all`;
+  // Use a subcollection "all" with a fixed doc id "data" to ensure an even number of segments.
+  return `${getSymbolTimeSeriesDocPath(symbol, endpoint, vendor)}/all/data`;
 }
 
 // ----------- Day/Bar helpers (intraday only; currently optional) -----------
