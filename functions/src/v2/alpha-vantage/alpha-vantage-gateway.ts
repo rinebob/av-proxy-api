@@ -4,8 +4,7 @@ import { Request, Response } from 'express';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 
 import { AlphaVantageHandlerFactory } from './alpha-vantage-factory';
-import { withCors } from '../utils/cors-middleware';
-import { authenticateRequestEither } from '../utils/utils';
+import { withCors, ALLOWED_ORIGINS } from '../utils/cors-middleware';
 
 /**
  * Alpha Vantage API Gateway
@@ -23,10 +22,18 @@ const alphaVantageApiHandler = async (req: Request, res: Response) => {
     console.log(`aVG aVA [${requestId}] [GATEWAY] Headers:`, JSON.stringify(req.headers));
     console.log(`aVG aVA [${requestId}] [GATEWAY] Query params:`, JSON.stringify(req.query));
 
-    // Authenticate the request (Firebase ID token OR Google OIDC from allowlisted SAs)
-    const authResult = await authenticateRequestEither(req, res);
-    if (!authResult) {
-      return; // Response already sent on failure
+    // NOTE: This gateway is intentionally restricted to specific browser origins.
+    // Do NOT enforce server-to-server auth here; this endpoint is browser-facing and protected by Origin checks.
+    const origin = req.headers.origin as string | undefined;
+    if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
+      console.warn(`aVG aVA [${requestId}] [GATEWAY] Blocked by origin policy. Origin: ${origin}`);
+      res.status(403).json({
+        error: 'Forbidden',
+        message: 'This endpoint is only accessible from approved origins.',
+        allowedOrigins: ALLOWED_ORIGINS,
+        requestId,
+      });
+      return;
     }
 
     // Extract endpoint from URL path (e.g., 'TIME_SERIES_DAILY' from '/alpha-vantage/TIME_SERIES_DAILY')

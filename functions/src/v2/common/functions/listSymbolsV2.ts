@@ -2,25 +2,28 @@ import { onRequest } from "firebase-functions/v2/https";
 import { ListSymbolsOptions } from "@shared/alpha-vantage";
 import { serializeTrackedSymbols } from "../common-dm";
 import { symbolManagerService } from "../../alpha-vantage/services/symbol-manager.service";
-import { authenticateRequestEither } from "../../utils/utils";
+import { withCors, ALLOWED_ORIGINS } from "../../utils/cors-middleware";
 
 /**
  * HTTP endpoint for listing tracked symbols
  * GET /listSymbols?activeOnly=true&limit=100&offset=0&sortBy=symbol&sortDirection=asc
  */
-export const listSymbolsV2 = onRequest({ 
-  cors: true 
-}, async (req, res) => {
+export const listSymbolsV2 = onRequest({ }, withCors(async (req, res) => {
   try {
     if (req.method !== 'GET') {
       res.status(405).json({ error: 'Method not allowed' });
       return;
     }
 
-    // Require auth: Firebase ID token OR Google OIDC from allowlisted SAs
-    const authResult = await authenticateRequestEither(req, res);
-    if (!authResult) {
-      return; // Response already sent
+    // Internal/browser-facing: restrict by Origin allowlist
+    const origin = req.headers.origin as string | undefined;
+    if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
+      res.status(403).json({
+        error: 'Forbidden',
+        message: 'This endpoint is only accessible from approved origins.',
+        allowedOrigins: ALLOWED_ORIGINS,
+      });
+      return;
     }
 
     console.log('=============== START BE listSymbolsV2 ==============================');
@@ -79,4 +82,4 @@ export const listSymbolsV2 = onRequest({
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
-});
+}));

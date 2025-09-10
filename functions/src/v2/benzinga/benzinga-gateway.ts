@@ -4,8 +4,8 @@ import { Request, Response } from 'express';
 import { BenzingaEndpoint, BenzingaFunctionName } from '@shared/benzinga';
 
 import { BenzingaHandlerFactory } from './benzinga-factory';
-import { authenticateRequestEither, handleApiError } from '../utils/utils';
-import { withCors } from '../utils/cors-middleware';
+import { handleApiError } from '../utils/utils';
+import { withCors, ALLOWED_ORIGINS } from '../utils/cors-middleware';
 
 /**
  * Benzinga API Gateway
@@ -23,10 +23,17 @@ const benzingaApiHandler = async (req: Request, res: Response) => {
     console.log(`bZG bzA [${requestId}] [GATEWAY] Headers:`, JSON.stringify(req.headers));
     console.log(`bZG bzA [${requestId}] [GATEWAY] Query params:`, JSON.stringify(req.query));
     
-    // Authenticate the request (Firebase ID token OR Google OIDC from allowlisted SAs)
-    const authResult = await authenticateRequestEither(req, res);
-    if (!authResult) {
-      return; // Authentication failed, response already sent
+    // Internal/browser-facing: restrict by Origin allowlist, not server-to-server auth.
+    const origin = req.headers.origin as string | undefined;
+    if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
+      console.warn(`bZG bzA [${requestId}] [GATEWAY] Blocked by origin policy. Origin: ${origin}`);
+      res.status(403).json({
+        error: 'Forbidden',
+        message: 'This endpoint is only accessible from approved origins.',
+        allowedOrigins: ALLOWED_ORIGINS,
+        requestId,
+      });
+      return;
     }
 
     // Extract the endpoint from the URL path

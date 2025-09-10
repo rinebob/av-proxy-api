@@ -2,7 +2,7 @@ import cors from 'cors';
 import { Request, Response } from 'express';
 
 // List your allowed origins (add more as needed)
-const ALLOWED_ORIGINS = [
+export const ALLOWED_ORIGINS = [
   'https://av-proxy-api--alpha-vantage-proxy-api.us-central1.hosted.app',
   'https://www.savantapi.com',
   'http://localhost:4200',

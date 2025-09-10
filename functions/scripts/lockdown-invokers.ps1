@@ -17,50 +17,49 @@
   The service account email to grant roles/run.invoker to (e.g., maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com).
 
 .PARAMETER Services
-  Optional array of Cloud Run service names to target. Defaults to a set of internal HTTPS services:
-  - alphavantageapiv2
-  - benzingaapiv2
-  - listsymbolsv2
-  - listcollections
-  - requestbenzinganews
+  Explicit array of Cloud Run HTTP service names to target. Defaults to empty (no action) to avoid accidental lockdown.
+  Only include EXTERNAL/PARTNER HTTP services that must NOT be browser-invokable.
+  Do NOT include internal/browser endpoints (e.g., alphavantageapiv2, benzingaapiv2, listsymbolsv2),
+  or non-HTTP functions like callable/onCall (listCollections) or scheduled jobs (requestBenzingaNews).
 
 .EXAMPLE
-  pwsh -File functions/scripts/lockdown-invokers.ps1 `
-    -ProjectId alpha-vantage-proxy-api `
-    -Region us-central1 `
-    -InvokerServiceAccount maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com
-
-.EXAMPLE
-  # Custom set of services
+  # Lock down a partner-only endpoint
   pwsh -File functions/scripts/lockdown-invokers.ps1 `
     -ProjectId alpha-vantage-proxy-api `
     -Region us-central1 `
     -InvokerServiceAccount maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com `
-    -Services 'alphavantageapiv2','benzingaapiv2'
+    -Services 'partner-time-series'
+
+.EXAMPLE
+  # Custom set of partner services
+  pwsh -File functions/scripts/lockdown-invokers.ps1 `
+    -ProjectId alpha-vantage-proxy-api `
+    -Region us-central1 `
+    -InvokerServiceAccount maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com `
+    -Services 'partner-time-series','partner-realtime'
 
 .NOTES
   - Requires gcloud CLI, authenticated with permissions to update Cloud Run IAM.
-  - Use after creating new HTTPS functions or cloning to a new environment.
-  - Pair with application-level auth in your gateways (Firebase ID token or Google OIDC) for defense-in-depth.
+  - Use after creating new HTTPS partner endpoints or cloning to a new environment.
+  - Internal/browser-facing gateways should remain publicly invokable and enforce Origin allowlist in code.
 #>
 
 param(
   [Parameter(Mandatory=$true)][string]$ProjectId,
   [Parameter(Mandatory=$true)][string]$Region,
   [Parameter(Mandatory=$true)][string]$InvokerServiceAccount,
-  [string[]]$Services = @(
-    'alphavantageapiv2',
-    'benzingaapiv2',
-    'listsymbolsv2',
-    'listcollections',
-    'requestbenzinganews'
-  )
+  [string[]]$Services = @()
 )
 
 Write-Host "Project: $ProjectId" -ForegroundColor Cyan
 Write-Host "Region : $Region" -ForegroundColor Cyan
 Write-Host "Invoker SA: $InvokerServiceAccount" -ForegroundColor Cyan
 Write-Host "Services: $($Services -join ', ')" -ForegroundColor Cyan
+
+if ($Services.Count -eq 0) {
+  Write-Host "No services specified. This script is opt-in only. Exiting without changes." -ForegroundColor Yellow
+  return
+}
 
 function Remove-PublicInvoker {
   param([string]$Service)
