@@ -1,6 +1,17 @@
 # Partner Integration Guide (Server-to-Server)
 
-This guide explains how Savant partner backends should call the Partner Time Series API securely using Google OIDC service account tokens.
+This guide explains how Savant partner backends should call the Partner Time Series API endpoint (`partnerTimeSeriesV2`) securely using Google OIDC service account tokens.
+
+> Read order: Start with `docs/partner-discovery.md` for concepts, data shapes, and auth. Then use this integration guide for step-by-step setup and request examples.
+
+> Note: This document targets the Partner Time Series endpoint only. As additional partner endpoints are introduced, we will publish separate guides or expand this document with dedicated sections.
+
+## Internal vs. Partner Endpoints
+
+- Internal browser-facing endpoints (e.g., `alphaVantageApiV2`, `benzingaApiV2`, `listSymbolsV2`) are for SavantApi.com internal use only. They are publicly invokable to allow browser preflight, but strictly restricted by an Origin allowlist in code and must not be used by partners.
+- Partner endpoints (e.g., `partnerTimeSeriesV2`) are server-to-server, protected via dual-auth (Google OIDC ID tokens or Firebase ID tokens) with allowlisted service account emails. These services typically have public invoker removed at Cloud Run.
+
+See also `functions/scripts/lockdown-invokers.ps1` (now opt-in and partner-only) for the policy on Cloud Run invoker bindings.
 
 ## 1) Get your service account allowlisted
 - Provide your service account email(s) to us. We will add them to the function env var:
@@ -90,6 +101,8 @@ Examples:
   - Verify `symbol` exists and data has been initialized; reach out if you need us to initialize new symbols
 - 400 Bad Request:
   - Check `interval`, `range`, and date formats
+- Additional note:
+  - Internal endpoints (SavantApi.com internal use only) are blocked for partner use by an Origin allowlist and should not be targeted by partner backends.
 
 ## 7) Notes for copying to other partner projects
 - Keep the server-to-server flow (backend-to-backend). Do not call from browsers.
@@ -104,7 +117,7 @@ Examples:
    - Location: Cloud Run > Service for `partnerTimeSeriesV2` > Edit & deploy new revision > Environment variables
 2. Deploy a new revision so the function picks up the variable.
 3. Partner backend: mint a Google OIDC ID token with `aud` = function URL and include email.
-4. Call the endpoint with `Authorization: Bearer <id_token>`.
+4. Call the `partnerTimeSeriesV2` endpoint with `Authorization: Bearer <id_token>`.
 
 ## 9) Windows PowerShell quick commands
 
@@ -128,13 +141,13 @@ Verify token (should include an `email` claim for the SA):
 curl.exe "https://oauth2.googleapis.com/tokeninfo?id_token=$ID_TOKEN"
 ```
 
-Call the endpoint (PowerShell):
+Call the `partnerTimeSeriesV2` endpoint (PowerShell):
 ```powershell
 # Older PowerShell may require -UseBasicParsing; alternatively, use curl.exe
 Invoke-WebRequest -Method GET -Uri "$AUD$QUERY" -Headers @{ Authorization = "Bearer $ID_TOKEN" }
 ```
 
-Call the endpoint (curl.exe explicitly):
+Call the `partnerTimeSeriesV2` endpoint (curl.exe explicitly):
 ```powershell
 $Curl = "$env:SystemRoot\System32\curl.exe"
 & $Curl -G -H "Authorization: Bearer $ID_TOKEN" "$AUD" `

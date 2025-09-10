@@ -1,0 +1,194 @@
+# Partner Data Access Discovery
+
+Audience: External partner engineering/admin teams integrating with Savant partner endpoints. This document explains partner-facing surfaces, authentication, data schemas, and operational expectations.
+
+Last updated: 2025-09-10
+
+> Start here: Read this discovery guide first to understand the surface area, data shapes, and auth model. When ready to make requests, proceed to `docs/partner-integration.md` for step-by-step integration examples.
+
+---
+
+## Overview
+
+SavantApi.com maintains a centralized, Firestore-backed market data service. Partner applications consume data through secure HTTPS endpoints operated on Firebase/Cloud Run. The current partner-exposed surface focuses on normalized time series data aggregated from Alpha Vantage (AV) and stored in a sharded Firestore schema.
+
+For server-to-server integrations, partners should use Google OIDC (service account identity tokens) with allowlisting. See `docs/partner-integration.md` for end-to-end examples.
+
+---
+
+## Partner Endpoint Surface
+
+- Endpoint: Partner Time Series API (read-only)
+  - Deployed as a Google Cloud HTTPS function/service (Cloud Functions for Firebase / Cloud Run)
+  - Canonical function name (current): `partnerTimeSeriesV2`
+  - Purpose: Deliver normalized OHLCV bars for common intervals without hitting upstream providers directly
+
+- Data provider (current primary): Alpha Vantage (AV)
+  - Daily-adjusted time series normalized in Firestore
+  - Weekly and Monthly supported with sensible defaults
+
+- Storage model (internal reference): Firestore sharded time-series per symbol and interval
+  - `symbol-data/{SYMBOL}/time-series/{provider-interval}/years/{YYYY}` with bar docs under the year doc
+  - Top-level time-series doc holds metadata such as `latestBarTimestamp`
+  - Bars are compact objects with numeric timestamps and OHLCV values (see Data Schema)
+
+---
+
+## Authentication and Security (Partner)
+
+We use dual-auth middleware to validate partner requests. Recommended approach is Google OIDC with allowlisted service accounts.
+
+- Primary auth: Google OIDC ID token (service account)
+  - Allowlist env var: `ALLOWED_SERVICE_ACCOUNT_EMAILS` (comma-separated list)
+  - Header: `Authorization: Bearer <id_token>`
+  - Token must include an `email` claim matching an allowlisted service account
+  - `aud` (audience) must equal the deployed function URL
+
+- Alternate auth (case-by-case): Firebase ID token
+
+---
+
+## Partner Time Series API
+
+- HTTPS method: GET
+- URL: Provided during onboarding (e.g., `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerTimeSeriesV2`)
+
+### Query parameters
+- `symbol` (required) — e.g., `AAPL`
+- `interval` (required) — `DAILY` | `WEEKLY` | `MONTHLY`
+- `range` (optional) — `ytd` | `1y` | `3y` | `5y` | `max`
+- `from` (optional) — ISO `YYYY-MM-DD` or epoch ms
+- `to` (optional) — ISO `YYYY-MM-DD` or epoch ms
+- `limit` (optional) — truncate to the last N bars after filtering
+
+Defaults used when `range/from/to` are not provided:
+- DAILY: last 1 year
+- WEEKLY: last 5 years
+- MONTHLY: all available
+
+### Example requests
+
+- Last 1 year of daily bars
+```
+GET /partnerTimeSeriesV2?symbol=AAPL&interval=DAILY&range=1y
+Authorization: Bearer <id_token>
+```
+
+- Weekly bars YTD
+```
+GET /partnerTimeSeriesV2?symbol=MSFT&interval=WEEKLY&range=ytd
+Authorization: Bearer <id_token>
+```
+
+- Explicit date range and limit
+```
+GET /partnerTimeSeriesV2?symbol=GOOGL&interval=DAILY&from=2024-01-01&to=2024-12-31&limit=100
+Authorization: Bearer <id_token>
+```
+
+### Response shape
+
+```
+{
+  "ok": true,
+  "symbol": "AAPL",
+  "interval": "DAILY",
+  "provider": "av",
+  "endpointDocId": "av-daily-adjusted",
+  "rangeUsed": { "from": 1704768000000, "to": 1725849600000, "preset": "1y" },
+  "availableYears": [2023, 2024],
+  "count": 252,
+  "bars": [
+    { "t": 1725494400000, "o": 220.1, "h": 222.3, "l": 219.8, "c": 221.5, "v": 51234567, "d": "2024-09-05" }
+  ],
+  "timestamp": "2025-09-09T00:00:00.000Z",
+  "truncated": false
+}
+```
+
+- `bars[].t` is epoch milliseconds (UTC)
+- `bars[].d` is human-readable UTC date `YYYY-MM-DD` added to new writes for convenience
+- Prices are decimals; volume is integer; not all fields will be present for all providers
+
+### Limits and behavior
+- Soft cap: Data begins in 1999 so ~6500 bars is a safe limit
+- Ordering: ascending time order
+- Missing days (holidays) are naturally absent; weekly/monthly represent period bars
+- Symbols must be initialized in our backend. If you receive 404, contact us to initialize the symbol
+
+---
+
+## Data Schema (internal reference)
+
+We normalize upstream data into a sharded Firestore schema to support high-volume writes and efficient reads.
+
+- Canonical collection: `symbol-data/{SYMBOL}/time-series/{provider-interval}`
+  - Sharding: `years/{YYYY}` (bar documents grouped under the year)
+  - Top-level doc stores metadata fields such as `latestBarTimestamp`
+  - Provider-interval IDs:
+    - `av-daily-adjusted`
+    - `av-weekly-adjusted`
+    - `av-monthly-adjusted`
+
+- Bar document schema (compact):
+```
+{
+  "t": number,  // epoch ms UTC
+  "o": number,  // open
+  "h": number,  // high
+  "l": number,  // low
+  "c": number,  // close (adjusted for AV daily adjusted)
+  "v": number,  // volume
+  "d": string?, // YYYY-MM-DD (UTC)
+  "ch": number?, // change in decimal
+  "cp": number? // change percentage
+}
+```
+
+Notes:
+- Prior close is not persisted; compute as the previous bar’s `c` if needed.
+- Important: Legacy shapes like `{ data, metadata }` on time-series docs are deprecated; all new logic uses the normalized, enum-driven schema above.
+
+---
+
+## Freshness and TTL Strategy (Reference)
+
+A background refresher keeps Firestore current by reloading data from upstream according to endpoint TTLs. The scheduler triggers refresh runs and only rewrites documents when `metadata.nextRefreshAt` is missing or due.
+
+- AV time-series:
+  - Daily cadence at pre-close and post-close (3:30PM and 4:30PM Eastern) 
+  - After a successful refresh: set `metadata.lastUpdated`, `metadata.ttlSeconds`, `metadata.nextRefreshAt`
+  - TTLs are defined per endpoint in `shared/alpha-vantage/av-endpoint-configs.ts`
+
+> Partners do not need to orchestrate refresh; the API reads from Firestore only and does not fan-out upstream synchronously.
+
+---
+
+## Onboarding Checklist (Partner)
+
+1. Provide the service account email(s) your backend will use.
+2. We add them to `ALLOWED_SERVICE_ACCOUNT_EMAILS` on the deployed `partnerTimeSeriesV2` service.
+3. Mint a Google OIDC ID token with `aud` equal to the exact function URL and include the `email` claim.
+4. Call the `partnerTimeSeriesV2` endpoint with `Authorization: Bearer <id_token>`.
+
+See `docs/partner-integration.md` for cURL/Node/PowerShell examples.
+
+---
+
+## Error Handling and Troubleshooting
+
+- 401/403 Unauthorized/Forbidden
+  - Missing/invalid ID token, `aud` mismatch, or email not allowlisted
+- 404 Not Found
+  - Symbol not initialized in Firestore
+- 400 Bad Request
+  - Invalid `interval` / `range` / date formats
+- 5xx Errors
+  - Transient issues; retry with backoff and contact Savant if persistent
+
+---
+
+## Contacts
+
+- Integration support: Contact your Savant representative or open a ticket in the shared tracker.
+- Security/allowlisting changes: Provide the service account email(s) and target environment (dev/stage/prod).
