@@ -2,9 +2,9 @@
 //   npx ts-node -r tsconfig-paths/register -r module-alias/register functions/scripts/backfill-timeseries-chcp.ts --dry-run
 //   npx ts-node -r tsconfig-paths/register -r module-alias/register functions/scripts/backfill-timeseries-chcp.ts --interval daily
 //   npx ts-node -r tsconfig-paths/register -r module-alias/register functions/scripts/backfill-timeseries-chcp.ts --symbol AAPL --repair-metadata
+//   npx ts-node -r tsconfig-paths/register -r module-alias/register functions/scripts/backfill-timeseries-chcp.ts --emulator=false
 //
 // Notes:
-// - Defaults to Firebase Emulator if FIRESTORE_EMULATOR_HOST is not set.
 // - Ensures AV time-series existence (daily/weekly/monthly) and upgrades stored bars to latest compact schema.
 // - Enrichment: adds d (YYYY-MM-DD UTC), ch (change), cp (percent change), with 2-decimal rounding.
 // - First bar baseline: ch=0, cp=0.
@@ -14,10 +14,6 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { setupEmulator } from './scripts-util';
 
-// Configure environment (emulator by default)
-if (!process.env.FIRESTORE_EMULATOR_HOST) {
-  setupEmulator();
-}
 // Load local .env if present
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
 
@@ -45,6 +41,24 @@ for (let i = 0; i < argv.length; i++) {
   }
 }
 
+// Emulator toggle (default true). Pass --emulator=false to target PROD (no emulators)
+const EMULATOR_RAW = argMap.get('--emulator');
+const USE_EMULATOR = EMULATOR_RAW === undefined
+  ? true
+  : !(String(EMULATOR_RAW).toLowerCase() === 'false' || String(EMULATOR_RAW) === '0');
+
+// Configure environment
+if (USE_EMULATOR) {
+  if (!process.env.FIRESTORE_EMULATOR_HOST) {
+    setupEmulator();
+  }
+  console.log('fn scripts setupEmulator - Using Firebase Emulators');
+} else {
+  delete (process.env as any).FIREBASE_AUTH_EMULATOR_HOST;
+  delete (process.env as any).FIRESTORE_EMULATOR_HOST;
+  console.log('fn scripts - Using PROD Firestore (no emulators)');
+}
+
 const SYMBOL_FILTER = (argMap.get('--symbol') as string | undefined)?.toUpperCase();
 const INTERVAL_FILTER = (argMap.get('--interval') as string | undefined)?.toLowerCase() as ('daily'|'weekly'|'monthly'|undefined);
 const DRY_RUN = Boolean(argMap.get('--dry-run'));
@@ -68,21 +82,23 @@ function endpointsForInterval(interval?: 'daily'|'weekly'|'monthly'): { ep: Alph
 
 function round2(n: number): number { return Number(n.toFixed(2)); }
 
-function ensureBarD<T extends { t: number; d?: string }>(bars: T[]): boolean {
+function ensureBarD<T extends { t: number; d?: string }>(bars: T[]): { mutated: boolean; addedCount: number } {
   let mutated = false;
+  let addedCount = 0;
   for (const b of bars) {
     const dStr = new Date(b.t).toISOString().slice(0, 10);
-    if (b.d !== dStr) { (b as any).d = dStr; mutated = true; }
+    if (b.d !== dStr) { (b as any).d = dStr; mutated = true; addedCount++; }
   }
-  return mutated;
+  return { mutated, addedCount };
 }
 
-function enrichBarsAscending<T extends { t: number; c: number; ch?: number; cp?: number }>(bars: T[]): { mutated: boolean; bars: T[] } {
-  if (!Array.isArray(bars) || bars.length === 0) return { mutated: false, bars: [] };
+function enrichBarsAscending<T extends { t: number; c: number; ch?: number; cp?: number }>(bars: T[]): { mutated: boolean; changedCount: number; bars: T[] } {
+  if (!Array.isArray(bars) || bars.length === 0) return { mutated: false, changedCount: 0, bars: [] };
   // Ensure ascending
   bars.sort((a, b) => a.t - b.t);
   let mutated = false;
   let prevClose: number | undefined = undefined;
+  let changedCount = 0;
   for (let i = 0; i < bars.length; i++) {
     const curr = bars[i];
     let ch = 0;
@@ -97,10 +113,11 @@ function enrichBarsAscending<T extends { t: number; c: number; ch?: number; cp?:
       (curr as any).ch = ch;
       (curr as any).cp = cp;
       mutated = true;
+      changedCount++;
     }
     prevClose = curr.c;
   }
-  return { mutated, bars };
+  return { mutated, changedCount, bars };
 }
 
 async function ensureTimeSeries(symbol: string, ep: AlphaVantageEndpoint, iv: TimeSeriesInterval): Promise<void> {
@@ -141,8 +158,8 @@ async function repairDailyOrWeekly(symbol: string, ep: AlphaVantageEndpoint, iv:
 
     // Normalize d
     const barsArr = data.bars as Array<{ t: number; c: number; d?: string; ch?: number; cp?: number }>;
-    const dMut = ensureBarD(barsArr);
-    const { mutated: chcpMut, bars } = enrichBarsAscending(barsArr);
+    const { mutated: dMut, addedCount } = ensureBarD(barsArr);
+    const { mutated: chcpMut, changedCount, bars } = enrichBarsAscending(barsArr);
 
     // Track series bounds
     firstTs = firstTs ?? bars[0]?.t ?? null;
@@ -150,11 +167,11 @@ async function repairDailyOrWeekly(symbol: string, ep: AlphaVantageEndpoint, iv:
 
     if (dMut || chcpMut) {
       if (DRY_RUN) {
-        console.log(`[DRY-RUN] Would update ${yPath} (bars: ${bars.length})`);
+        console.log(`[DRY-RUN] Would update ${yPath} (bars: ${bars.length}; add d: ${addedCount}; fix ch/cp: ${changedCount})`);
       } else {
         await yRef.set({ bars }, { merge: true });
         updatedDocs++;
-        console.log(`[WRITE] Updated ${yPath} (bars: ${bars.length})`);
+        console.log(`[WRITE] Updated ${yPath} (bars: ${bars.length}; added d: ${addedCount}; fixed ch/cp: ${changedCount})`);
       }
     }
   }
@@ -189,14 +206,14 @@ async function repairMonthly(symbol: string, ep: AlphaVantageEndpoint): Promise<
     const barsArr = Array.isArray(data?.bars) ? data.bars as Array<{ t: number; c: number; d?: string; ch?: number; cp?: number }> : [];
     if (!barsArr.length) return { updatedDocs: 0 };
 
-    const dMut = ensureBarD(barsArr);
-    const { mutated: chcpMut, bars } = enrichBarsAscending(barsArr);
+    const { mutated: dMut, addedCount } = ensureBarD(barsArr);
+    const { mutated: chcpMut, changedCount, bars } = enrichBarsAscending(barsArr);
     if (dMut || chcpMut) {
       if (DRY_RUN) {
-        console.log(`[DRY-RUN] Would update ${allPath} (bars: ${bars.length})`);
+        console.log(`[DRY-RUN] Would update ${allPath} (bars: ${bars.length}; add d: ${addedCount}; fix ch/cp: ${changedCount})`);
       } else {
         await ref.set({ bars }, { merge: true });
-        console.log(`[WRITE] Updated ${allPath} (bars: ${bars.length})`);
+        console.log(`[WRITE] Updated ${allPath} (bars: ${bars.length}; added d: ${addedCount}; fixed ch/cp: ${changedCount})`);
       }
       return { updatedDocs: 1 };
     }
@@ -211,7 +228,7 @@ async function repairMonthly(symbol: string, ep: AlphaVantageEndpoint): Promise<
 async function main() {
   const start = Date.now();
   console.log('=== Backfill AV time-series (DAILY/WEEKLY/MONTHLY) ===');
-  console.log(`Filters: symbol=${SYMBOL_FILTER ?? '*'}, interval=${INTERVAL_FILTER ?? '*'}, dryRun=${DRY_RUN}, repairMeta=${REPAIR_METADATA}`);
+  console.log(`Filters: symbol=${SYMBOL_FILTER ?? '*'}, interval=${INTERVAL_FILTER ?? '*'}, dryRun=${DRY_RUN}, repairMeta=${REPAIR_METADATA}, emulator=${USE_EMULATOR}`);
 
   // Gather symbols exclusively from symbol-data
   let symbols: string[];
