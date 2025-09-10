@@ -110,6 +110,21 @@ export async function saveAvTimeSeriesData(
 ): Promise<void> {
   console.log('================= START aFH sATSD saveAvTimeSeriesData called =================');
   console.log(`aFH sATSD saveAvTimeSeriesData called. symbol: ${symbol}, endpoint: ${endpoint}, interval: ${interval}`);
+  // Emulator guard: for DAILY, keep roughly last 1 year of data to reduce emulator dataset size
+  const emulator = process.env.FUNCTIONS_EMULATOR === 'true' || !!process.env.FIRESTORE_EMULATOR_HOST;
+  if (emulator && interval === TimeSeriesInterval.DAILY && Array.isArray(data)) {
+    const now = Date.now();
+    const oneYearMs = 365 * 24 * 3600 * 1000;
+    const cutoff = now - oneYearMs;
+    const filtered = data.filter((b) => {
+      const t = new Date(b.date).getTime();
+      return Number.isFinite(t) && t >= cutoff;
+    });
+    if (filtered.length !== data.length) {
+      console.log(`[sATSD] Emulator mode: trimming daily bars from ${data.length} to ${filtered.length} (~1y)`);
+      data = filtered;
+    }
+  }
   // 1. Compute metadata fields
   const histDataPoints = Array.isArray(data) ? data.length : 0;
   const histStartDate = histDataPoints > 0 && data[histDataPoints - 1]?.date
@@ -317,15 +332,25 @@ export async function initializeTimeSeriesIfMissing(
   switch (effectiveEndpoint) {
     case AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED: {
       // Dynamic import to avoid circular dependency at module load time
-      const { AvDailyTimeSeriesHandler } = await import('../handlers/av-daily-time-series.handler.js');
+      const { AvDailyTimeSeriesHandler } = await import('../handlers/av-daily-time-series.handler');
       handler = new AvDailyTimeSeriesHandler(endpointConfig);
       break;
     }
-    // TODO: Add cases for WEEKLY, MONTHLY, etc. with their respective handlers
+    case AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED: {
+      const { AvWeeklyTimeSeriesHandler } = await import('../handlers/av-weekly-time-series.handler');
+      handler = new AvWeeklyTimeSeriesHandler(endpointConfig as any);
+      break;
+    }
+    case AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED: {
+      const { AvMonthlyTimeSeriesHandler } = await import('../handlers/av-monthly-time-series.handler');
+      handler = new AvMonthlyTimeSeriesHandler(endpointConfig as any);
+      break;
+    }
+    // TODO: Add cases for non-adjusted WEEKLY/MONTHLY if needed
     default:
       throw new Error(`[initTSIM] No handler implemented for endpoint: ${effectiveEndpoint}`);
   }
-  const response = await handler.fetch({ symbol, outputsize: OutputSize.COMPACT });
+  const response = await handler.fetch({ symbol, outputsize: OutputSize.FULL, __checkWriteToggle: false });
   let data = response.data;
 
   const isArrayPayload = Array.isArray(data);
