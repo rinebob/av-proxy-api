@@ -17,30 +17,33 @@
       "npm --prefix \"$RESOURCE_DIR\" run build"
     ]
   },
-  "apphosting": {
-    "source": ".",
-    "run": "npm run start:apphosting",
-    "headers": [
-      {
-        "source": "/index.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "/**/*.@(js|css|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "max-age=31536000"
-          }
-        ]
-      }
-    ]
-  },
+  "apphosting": [
+    {
+      "backendId": "default",
+      "source": ".",
+      "run": "npm run start:apphosting",
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/**/*.@(js|css|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000"
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "hosting": [
     {
       "target": "app",
@@ -55,6 +58,7 @@
     }
   ],
   "emulators": {
+    "hub": { "port": 4400, "host": "127.0.0.1" },
     "auth": {
       "port": 9099,
       "host": "127.0.0.1"
