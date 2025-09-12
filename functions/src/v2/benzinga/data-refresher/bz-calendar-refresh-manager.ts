@@ -30,6 +30,9 @@ function logBZDM(message: string, ...args: any[]) {
     if (pr) console.log(`${message}`, ...args);
 }
 
+// Kill-switch: set DISABLE_BENZINGA_UPDATERS=true to bypass all Benzinga scheduled refresh work
+const DISABLE_BENZINGA_UPDATERS = process.env.DISABLE_BENZINGA_UPDATERS === 'true';
+
 // Main logic for refreshing Benzinga data
 export async function runBenzingaCalendarRefreshJob() {
     logBZDM('==============================================');
@@ -263,6 +266,10 @@ export const refreshBenzingaCalendarDataV2 = onSchedule(
         secrets: ['BENZINGA_CALENDAR_API_KEY'],
     },
     async () => {
+        if (DISABLE_BENZINGA_UPDATERS) {
+            // console.warn('refreshBenzingaCalendarDataV2: DISABLED via DISABLE_BENZINGA_UPDATERS. Skipping execution.');
+            return;
+        }
         await runBenzingaCalendarRefreshJob();
     }
 );

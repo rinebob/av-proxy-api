@@ -18,6 +18,9 @@ import { BZ_NEWS_REFRESH_SCHEDULE } from "../../common/function-schedules";
 // Document name for tracking bz news requests
 const BZ_NEWS_REQUEST_TRACKING = 'bz-news-request-tracking';
 
+// Kill-switch: set DISABLE_BENZINGA_UPDATERS=true to bypass all Benzinga scheduled refresh work
+const DISABLE_BENZINGA_UPDATERS = process.env.DISABLE_BENZINGA_UPDATERS === 'true';
+
 /**
  * Fetches all pages of news from the Benzinga API for a given endpoint configuration.
  *
@@ -214,6 +217,10 @@ export const requestBenzingaNews = onSchedule(
         secrets: ['BENZINGA_WIIM_API_KEY'],
     },
     async () => {
+        if (DISABLE_BENZINGA_UPDATERS) {
+            // console.warn('requestBenzingaNews: DISABLED via DISABLE_BENZINGA_UPDATERS. Skipping execution.');
+            return;
+        }
         console.info('bNRM rBN: Benzinga News Request Manager triggered by schedule.');
         try {
             await fetchAndPersistBenzingaNews();
