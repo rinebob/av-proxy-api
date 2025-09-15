@@ -10,11 +10,16 @@ export { alphaVantageApiV2 } from './v2/alpha-vantage/alpha-vantage-gateway';
 // Benzinga endpoints
 export { benzingaApiV2 } from './v2/benzinga/benzinga-gateway';
 
-// Partner endpoints
+// Partner endpoints (HTTP)
 export { partnerTimeSeriesV2 } from './v2/partner/time-series-partner';
+
+// Note: HTTP dataReadyWebhook has been removed. Publishing is internal-only via enqueueDataReadyInternal.
 
 // New AlphaVantage Data Refresher
 export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-refresh-manager.js';
+
+// New HTTP wrapper for emulator testing only
+export { refreshAlphaVantageDataV2Http } from './v2/alpha-vantage/data-refresher/av-refresh-http.js';
 
 // New Benzinga Data Refresher
 export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager.js';
