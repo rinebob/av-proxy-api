@@ -45,6 +45,14 @@ service cloud.firestore {
       allow write: if request.auth.token.admin == true;
     }
 
+    // 8. Operational collections for processing runs
+    // These are written by backend functions using Admin SDK (bypasses rules).
+    // Lock down client access: no writes; reads restricted to admins only.
+    match /runs/{runId} {
+      allow read: if request.auth.token.admin == true;
+      allow write: if false;
+    }
+
     // Optional: Default deny for any other collections not explicitly matched
     // match /{document=**} {
     //   allow read, write: if false;
