@@ -46,8 +46,24 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     console.log('==============================');
     console.log(' --- AlphaVantageBaseHandler ---');
 
-    console.log('aVB.H ctor request params:', this.baseParams);
+    console.log('aVB.H ctor request params:', this.maskParamsForLog(this.baseParams));
     console.log('aVB.H ctor base URL:', this.apiClient.defaults.baseURL);
+  }
+
+  /**
+   * Mask sensitive parameters before logging.
+   */
+  private maskParamsForLog(params: any): any {
+    try {
+      if (!params) return params;
+      const clone = Array.isArray(params) ? [...params] : { ...params };
+      if (clone && typeof clone === 'object') {
+        if ('apikey' in clone) clone.apikey = '***';
+      }
+      return clone;
+    } catch {
+      return params;
+    }
   }
 
   /**
@@ -65,11 +81,12 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       const requestParams = this.prepareRequestParams(params);
       const config: AxiosRequestConfig = { params: requestParams };
 
-      const fullUrl = `${this.apiClient.defaults.baseURL}?${Object.keys(config.params)
-        .map(key => `${key}=${config.params[key]}`)
+      const safeParams = { ...config.params } as Record<string, any>;
+      if ('apikey' in safeParams) safeParams.apikey = '***';
+      const fullUrlSafe = `${this.apiClient.defaults.baseURL}?${Object.keys(safeParams)
+        .map(key => `${key}=${safeParams[key]}`)
         .join('&')}`;
-      
-      console.log(`aVB.H fetchSimple [${requestId}] Fetching from API. URL: ${fullUrl}`);
+      console.log(`aVB.H fetchSimple [${requestId}] Fetching from API. URL: ${fullUrlSafe}`);
       const response = await this.apiClient.get('', config);
       
       console.log(`aVB.H fetchSimple [${requestId}] Received response`);
@@ -103,8 +120,10 @@ export abstract class AlphaVantageBaseHandler<T = any> {
       const requestParams = this.prepareRequestParams(params);
       const config: AxiosRequestConfig = { params: requestParams };
 
-      const fullUrl = `${this.apiClient.defaults.baseURL}?${Object.keys(config.params).map(key => `${key}=${config.params[key]}`).join('&')}`;
-      console.log(`aVB.H fetch [${this.requestId}] Fetching from API. URL: ${fullUrl}`);
+      const safeParams2 = { ...config.params } as Record<string, any>;
+      if ('apikey' in safeParams2) safeParams2.apikey = '***';
+      const fullUrlSafe2 = `${this.apiClient.defaults.baseURL}?${Object.keys(safeParams2).map(key => `${key}=${safeParams2[key]}`).join('&')}`;
+      console.log(`aVB.H fetch [${this.requestId}] Fetching from API. URL: ${fullUrlSafe2}`);
 
       const response = await this.apiClient.get('', config);
       console.log(`aVB.H fetch [${this.requestId}] Raw API response`, { data: response.data });
@@ -142,23 +161,30 @@ export abstract class AlphaVantageBaseHandler<T = any> {
         }
 
         try {
-          console.log(`aVB.H fetch [${this.requestId}] Saving data to Firestore. transformedData: ${
-            JSON.stringify(Array.isArray(transformedData) ?
-              [...transformedData].slice(0, 5) :
-              transformedData,
-            null, 2)
-          }`);
-          // Ensure we're working with an AlphaVantageEndpoint before saving
-          if (Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)) {
-            await saveAvData(
-              transformedData,
-              symbol,
-              endpoint as AlphaVantageEndpoint,
-              this.config,
-              true // Check whether manual firestore write is enabled (for manual data refresh)
-            );
+          // If transformed result is empty, skip save to avoid empty documents
+          const isEmptyArray = Array.isArray(transformedData) && transformedData.length === 0;
+          const isEmptyObject = !Array.isArray(transformedData) && typeof transformedData === 'object' && transformedData !== null && Object.keys(transformedData).length === 0;
+          if (isEmptyArray || isEmptyObject) {
+            console.warn(`aVB.H fetch [${this.requestId}] Skipping Firestore save: transformed result is empty for ${endpoint} ${symbol}`);
           } else {
-            console.warn(`aVB.H fetch [${this.requestId}] Skipping Firestore save for non-AlphaVantage endpoint:`, endpoint);
+            console.log(`aVB.H fetch [${this.requestId}] Saving data to Firestore. transformedData: ${
+              JSON.stringify(Array.isArray(transformedData) ?
+                [...transformedData].slice(0, 5) :
+                transformedData,
+              null, 2)
+            }`);
+            // Ensure we're working with an AlphaVantageEndpoint before saving
+            if (Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)) {
+              await saveAvData(
+                transformedData,
+                symbol,
+                endpoint as AlphaVantageEndpoint,
+                this.config,
+                true // Check whether manual firestore write is enabled (for manual data refresh)
+              );
+            } else {
+              console.warn(`aVB.H fetch [${this.requestId}] Skipping Firestore save for non-AlphaVantage endpoint:`, endpoint);
+            }
           }
         } catch (firestoreError) {
           console.error(`aVB.H fetch [${this.requestId}] Failed to save to Firestore:`, firestoreError);
@@ -247,7 +273,7 @@ export abstract class AlphaVantageBaseHandler<T = any> {
 
   protected prepareRequestParams(params: any): any {
     const newParams = { ...params, ...this.baseParams };
-    console.log(`aVB.H pRP [${this.requestId}] Prepared request params`, { newParams });
+    console.log(`aVB.H pRP [${this.requestId}] Prepared request params`, { newParams: this.maskParamsForLog(newParams) });
     return newParams;
   }
 
@@ -260,9 +286,9 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     const requestId = (this as any).requestId || 'N/A';
     const endpoint = this.config?.id || 'unknown-endpoint';
     console.info(`[AlphaVantageBaseHandler] [${caller}] [${requestId}] Request to endpoint: ${endpoint}`, {
-      params,
-      timestamp: new Date().toISOString(),
-    });
+      params: this.maskParamsForLog(params),
+       timestamp: new Date().toISOString(),
+     });
   }
 
   protected normalizeError(error: any): Error {
