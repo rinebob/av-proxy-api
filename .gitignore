@@ -48,6 +48,14 @@ Thumbs.db
 .idx/integrations.json
 functions/.env.alpha-vantage-proxy-api
 .env.*
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+pubsub-debug.log
+ui-debug.log
+firebase-export-*/
+firebase-export-*
 
 # Compiled JavaScript files
 *.js
