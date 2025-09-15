@@ -117,11 +117,8 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
     console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Processing company overview for symbol: ${data.Symbol || 'unknown'}`);
 
     try {
-      // The Alpha Vantage API returns the data directly as an object
-      // We'll clean it up and ensure all fields are properly typed
-      const result: Partial<CompanyOverviewData> = {};
-      
       // Map the response fields to our interface
+      const result: Partial<CompanyOverviewData> = {};
       const fieldMappings: Record<keyof CompanyOverviewData, string | string[]> = {
         Symbol: 'Symbol',
         AssetType: 'AssetType',
@@ -190,18 +187,10 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
         }
       });
 
-      // Log field mapping statistics
-      console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Mapped ${mappedFields} out of ${Object.keys(fieldMappings).length} fields`);
-      console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Result: ${JSON.stringify(result)}`);
-
-      // Ensure we have at least some data
       if (mappedFields === 0) {
-        const errorMsg = 'No valid data found in API response';
-        console.error(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] ${errorMsg}`, {
-          availableKeys: Object.keys(data),
-          dataSample: JSON.stringify(data).substring(0, 200) + '...'
-        });
-        throw new Error(errorMsg);
+        // Provider returned no data; return empty result so caller can skip save
+        console.warn(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Empty response; skipping save.`);
+        return {} as CompanyOverviewData;
       }
 
       console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Successfully transformed company overview data`, {
@@ -236,7 +225,10 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
       datatype: 'json' // Force JSON response
     };
 
-    console.log(`aCO.H pRP [${this.requestId}] [COMPANY-OVERVIEW] Final request params:`, requestParams);
+    // Mask apikey before logging final params
+    const logParams = { ...requestParams } as any;
+    if ('apikey' in logParams) logParams.apikey = '***';
+    console.log(`aCO.H pRP [${this.requestId}] [COMPANY-OVERVIEW] Final request params:`, logParams);
     return requestParams;
   }
 }
