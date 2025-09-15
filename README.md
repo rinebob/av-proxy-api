@@ -10,6 +10,18 @@ A secure proxy service for Alpha Vantage and Benzinga APIs with Firebase Authent
 - 🌐 CORS support with origin whitelisting
 - 📊 Supports multiple API endpoints (Alpha Vantage & Benzinga)
 
+## Local Emulator Quickstart (HTTP-first)
+
+For a simplified local workflow that starts all emulators and triggers refresh over HTTP (no Functions shell), see:
+
+- docs/local-emulator-workflow.md
+
+Key HTTP endpoint for manual runs (emulator only):
+
+```
+GET http://127.0.0.1:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantageDataV2Http
+```
+
 ## Development Setup
 
 ### Prerequisites
@@ -316,4 +328,3 @@ Check the following:
   - `functions/package.json`: `@types/node` is in `dependencies` (not just `devDependencies`).
 - App Hosting runtime should build shared before building the app
   - `package.json` → `start:apphosting` runs `npm run build:shared` first.
-
