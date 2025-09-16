@@ -1,6 +1,6 @@
 # Firestore Data Structure (Canonical Reference)
 
-_Last updated: 2025-09-12_
+_Last updated: 2025-09-16_
 
 This document describes the canonical Firestore data structure for the Financial Data Proxy API Surface project.
 
@@ -30,6 +30,30 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
 | dividends          | /symbol-data/AAPL/dividends/bz-dividends               | Dividend data for the symbol          |
 | company-overview   | /symbol-data/AAPL/company-overview/av-company-overview | Company overview/fundamental data     |
 | ...                | ...                                                    | Add new subcollections as needed      |
+
+---
+
+## Time-Series Sharded Storage (Alpha Vantage)
+
+- Canonical path per interval: `symbol-data/{symbol}/time-series/{provider-interval}` (e.g., `av-daily-adjusted`).
+- Shards by day: `days/{YYYY-MM-DD}/bars/{ISO_TIMESTAMP}` holding compact bars.
+- Top-level time-series doc stores only metadata and `latestBarTimestamp`.
+
+### Applying Global Quote (GLOBAL_QUOTE)
+
+- We do not persist a standalone `GLOBAL_QUOTE` document.
+- Instead, quotes drive updates to the most recent time-series shards. A separate quote request is issued per symbol/interval combination, and applied only to that interval:
+  - Pre-close: write intraday-only fields on the current day’s bar:
+    - `intradayPrice`, `intradayObservedAt`, `intradayTime`
+  - Post-close (EOD): finalize the day’s bar using the quote’s `price` (Global Quote field 05) as the close; reconcile high/low/volume if present.
+  - Weekly/monthly: at boundary windows, roll/update the latest week/month bar accordingly.
+- Adjusted vs non-adjusted:
+  - Intraday updates do not synthesize adjusted values.
+  - Adjusted values are refreshed via adjusted endpoints when needed (splits/dividends), not on frequent loops.
+
+### Company Overview for Non-Company Symbols
+
+- `company-overview` is skipped for non-company symbols (e.g., ETFs, crypto). The refresher reads `tracked-symbols/{symbol}.type` and only calls OVERVIEW for equities/companies.
 
 ---
 

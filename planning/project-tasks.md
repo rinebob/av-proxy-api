@@ -56,6 +56,7 @@ This document tracks the completion status of tasks outlined in the `project-pla
 
 ### Discovered During Work
 - As of 2025-06-25: Frontend endpoint selection, canonical metadata, and type consolidation are complete and in sync with backend expectations.
+- As of 2025-09-15: Inbound partner notifications fully removed (webhook, subscriber, partnerEvents). System is outbound-only; announcements publish to Pub/Sub with `runs/{runId}` tracking. Emulator workflow and env cleaned up.
 
 ---
 
@@ -77,6 +78,7 @@ This document tracks the completion status of tasks outlined in the `project-pla
 - [ ] **Task 7.1: Implement backend caching**
 - [ ] **Task 7.2: Implement backend rate limiting**
 - [ ] **Task 7.3: Implement data transformation/filtering**
+- [ ] **Task 7.4: Migrate options chains storage (HISTORICAL_OPTIONS) to sharded Firestore or GCS; implement shard-aware readers; re-enable endpoint in refresher**
 
 ### Enhanced UI/UX
 

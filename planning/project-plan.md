@@ -147,3 +147,74 @@ Once the core proxy workbench is functional and stable, the following can be con
 -   **Error Handling & Logging**: More sophisticated error handling and logging for both frontend and backend.
 -   **Monitoring & Alerts**: Set up Firebase/Cloud Monitoring for function invocations, errors, and performance.
 -   **Custom Domains**: Configure custom domains for the Firebase App Hosting.
+
+---
+
+## Monitoring and Scheduler Checklist (Prod Readiness)
+
+### Structured Logging in Code
+- Emit JSON logs with consistent fields from:
+  - `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager.ts`
+  - AV handlers (e.g., `av-company-overview.handler.ts`, time-series handlers)
+- Suggested fields: `component`, `runId`, `endpointId`, `symbol`, `phase`, `status`, `durationMs`, `httpStatus`, `errorCode`.
+
+### Cloud Logging Saved Queries (Stackdriver)
+- AV refresh runs:
+  - `jsonPayload.component="av.refresh" AND jsonPayload.runId:*`
+- Errors only:
+  - `severity>=ERROR AND jsonPayload.component="av.refresh"`
+- Slow runs (>30s):
+  - `jsonPayload.component="av.refresh" AND jsonPayload.durationMs>30000`
+
+### Log-based Metrics and Dashboards
+- Counters: `refresh_success_count`, `refresh_error_count` by endpoint.
+- Distribution: `refresh_duration_ms` (P50/P95/P99).
+- Pub/Sub publish failures (if using outbound announcements): count per 15m.
+- Build a dashboard showing success/error rate and 95th percentile durations per endpoint.
+
+### Alerting Policies
+- Error rate > N in 15 minutes for AV refresh component.
+- No successful refresh for critical endpoints during trading hours.
+- Pub/Sub publish failures > 0 in last 15 minutes (if announcements enabled).
+- Notify via email/Slack/PagerDuty.
+
+### Scheduler Configuration (Prod)
+- Confirm CRON in `functions/src/v2/common/function-schedules.ts` (e.g., 12:45 PM ET daily) and trading-hours alignment.
+- Ensure Cloud Scheduler job exists, targets the correct function, and has proper IAM.
+- Verify rate limits and concurrency settings for Functions meet AV/Firestore constraints.
+
+### Secrets and Config
+- Store API keys in Secret Manager; grant access to Functions runtime service account.
+- Avoid local env flags in prod; rely on secrets and parameterized config.
+
+### Firestore and Rules
+- Confirm canonical paths for time-series writes (`symbol-data/{SYMBOL}/time-series/av-<interval>`), and sharded storage where applicable.
+- Rules: clients read-only to `symbol-data`/`market-data`; writes restricted to backend service account.
+
+### Rollout and Runbook
+- Dry-run in emulator, then deploy to staging, then prod.
+- Create a runbook with:
+  - How to temporarily pause scheduler.
+  - Where to check logs and metrics.
+  - How to roll back a function version.
+
+## Alpha Vantage Time Series Refresh Strategy (Updated)
+
+This project uses a Global Quote–driven update flow for Alpha Vantage time series:
+
+- Initial backfill happens once per symbol/interval (daily, weekly, monthly; adjusted and/or raw) when a symbol is added to `tracked-symbols`. The time-series handlers perform sharded writes under `symbol-data/{symbol}/time-series/{provider-interval}/days/{YYYY-MM-DD}/bars/{ISO_TIMESTAMP}` and set a minimal top-level doc containing `metadata` and `latestBarTimestamp`.
+
+- Ongoing updates do not call the full time-series endpoints frequently. Instead, the refresher runs on a schedule (pre-close and post-close daily; and at week/month end) and fetches `GLOBAL_QUOTE` per symbol/interval combination. The quote is then applied to the most recent sharded bar(s) for that interval:
+  - Pre-close: write intraday-only fields on the current day’s bar (e.g., `intradayPrice`, `intradayObservedAt`, `intradayTime`). Do not overwrite adjusted fields.
+  - Post-close (EOD): write the official close using `price` from the Global Quote for the day’s bar; reconcile high/low/volume if present.
+  - Week/month end: at boundary windows, roll the last week/month bar accordingly (or update intraday markers pre-close, finalize post-close).
+
+- No 10–30s TTL loop is used. Scheduling is explicit and aligned with market phases (pre-close, post-close, weekly/monthly boundaries).
+
+- Adjusted vs non-adjusted series:
+  - Intraday touching updates add intraday fields only; adjusted values are not synthesized intraday.
+  - Post-close updates can finalize the day’s bar. Adjusted series can still be backfilled/refreshed via the adjusted endpoints when warranted (e.g., splits/dividends), but this is not part of frequent loops.
+
+- Company Overview (OVERVIEW): skipped for non-company symbols (e.g., ETFs, crypto). The refresher reads `tracked-symbols/{symbol}.type` and only calls OVERVIEW for equities/companies.
+
+This approach minimizes provider calls, preserves sharded storage, and keeps series current at operationally significant boundaries.
