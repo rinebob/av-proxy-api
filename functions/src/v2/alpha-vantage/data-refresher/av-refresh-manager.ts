@@ -15,7 +15,7 @@ import { FirestoreCollection } from '@shared/firestore';
 
 import { AV_REFRESH_MANAGER_SCHEDULE } from '../../common/function-schedules';
 
-import { formatPST } from '../../utils/utils';
+import { createLogger, hr, hrBlank, formatPST } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { refreshLogger } from '../../services/refresh-logger.service';
@@ -23,10 +23,19 @@ import { enqueueDataReadyInternal } from '../../partner/data-ready.handler';
 import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema';
 import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase } from '../../partner/constants';
 
-// Logging helper
-const pr = true;
-function logDM(message: string, ...args: any[]) {
-  if (pr) console.log(`dM rAVD: ${message}`, ...args);
+// Structured logger (shared)
+const log = createLogger('av.refresh');
+
+// Stats collected per endpoint for clearer summaries
+interface EndpointStats {
+  endpointId: string;
+  endpointName: string;
+  checked: number;
+  refreshed: number;
+  skippedFresh: number;
+  skippedNoPath: number;
+  skippedEmpty: number;
+  failures: number;
 }
 
 // Determine trading phase automatically using Eastern Time.
@@ -57,18 +66,33 @@ function getHistoryPathFor(docPath: string): string {
  * Run the Alpha Vantage refresh cycle once and return minimal stats.
  * Exported so HTTP wrapper can invoke the same logic as the scheduler.
  */
-export async function runRefreshAlphaVantageDataV2(): Promise<{ durationMs: number; symbolsUpdatedCount: number }> {
-  logDM('==============================================');
-  logDM('--- Alpha Vantage Data Refresh Cycle Started ---');
+export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } = {}): Promise<{ durationMs: number; symbolsUpdatedCount: number; symbolsChecked: number; freshCount: number; staleCount: number; force: boolean }> {
+  hr('av.refresh', '=========== AV Refresh Cycle START ===========' );
+  log.info('refresh.start');
   const batchStart = Date.now();
-
   // Track unique symbols actually updated during this cycle
   const updatedSymbols = new Set<string>();
+  let freshCount = 0;
+  let staleCount = 0;
 
-  // 1. Get all tracked symbols (assume a collection 'tracked-symbols' exists)
+  // Per-endpoint stats map
+  const endpointStatsMap = new Map<string, EndpointStats>();
+
+  // 1. Get all tracked symbols
   const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
   const symbols = symbolsSnap.docs.map(doc => doc.id);
-  logDM(`aDM rAVD: Found ${symbols.length} tracked symbols:`, symbols);
+  // Build a quick lookup of symbol -> type (e.g., Equity, ETF, Crypto) if present
+  const symbolTypes = new Map<string, string>();
+  for (const d of symbolsSnap.docs) {
+    const t = (d.data() as any)?.type as string | undefined;
+    if (t) symbolTypes.set(d.id, t);
+  }
+  log.info('symbols.loaded', { symbolsCount: symbols.length, symbols });
+  const symbolsChecked = symbols.length;
+  const force = !!options.force;
+  if (force) {
+    log.info('refresh.options', { force });
+  }
 
   // 2. For each implemented AV endpoint
   for (const endpoint of Array.from(AV_IMPLEMENTED_ENDPOINTS)) {
@@ -76,26 +100,55 @@ export async function runRefreshAlphaVantageDataV2(): Promise<{ durationMs: numb
     // # Reason: Options chains regularly exceed Firestore's 1MB document limit
     // TODO(pubsub-followup): Re-enable HISTORICAL_OPTIONS after migrating to sharded Firestore writes or GCS storage
     if (endpoint === 'HISTORICAL_OPTIONS') {
-      logDM(`Skipping endpoint [${endpoint}] temporarily (pending sharded/GCS migration)`);
+      log.info('endpoint.skip', { endpointId: endpoint, reason: 'historical_options_migration' });
       continue;
     }
-    logDM(`**********************************************************************************`);
-    logDM(`**********************************************************************************`);
-    logDM(`=========== START ENDPOINT [${endpoint}] ===================================`);
+    console.log('')
+    console.log('')
+    console.log('')
+    hr('av.refresh', `=========== START ENDPOINT [${endpoint}] ===========`);
+    log.info('endpoint.start', { endpointId: endpoint });
 
     const endpointConfig = (AV_ENDPOINT_CONFIGS as any)[endpoint] || (AV_TIME_SERIES_ENDPOINT_CONFIGS as any)[endpoint];
     if (!endpointConfig) {
-      logDM(`aDM rAVD: No config found for endpoint: ${endpoint}`);
+      log.warn('endpoint.missing_config', { endpointId: endpoint });
       continue;
     }
     const endpointName = endpointConfig.name;
     const ttl = endpointConfig.ttl;
-    logDM(`aDM rAVD: Processing endpoint: ${endpointName} (TTL: ${ttl}s)`);
+    log.info('endpoint.meta', { endpointId: endpoint, endpointName, ttlSeconds: ttl });
+
+    // Initialize stats for this endpoint
+    const eStats: EndpointStats = {
+      endpointId: endpoint,
+      endpointName,
+      checked: 0,
+      refreshed: 0,
+      skippedFresh: 0,
+      skippedNoPath: 0,
+      skippedEmpty: 0,
+      failures: 0,
+    };
+    endpointStatsMap.set(endpoint, eStats);
 
     // 3. For each symbol
     for (const symbol of symbols) {
-      logDM(`**********************************************************************************`);
-      logDM(`=========== START SYMBOL [${symbol}] ===================================`);
+      // Guard: Skip Company Overview for non-company symbols (e.g., ETFs, Crypto, Indexes)
+      if (endpoint === 'OVERVIEW') {
+        const rawType = symbolTypes.get(symbol) || '';
+        const type = rawType.toLowerCase();
+        const isEquity = type.includes('equity') || type.includes('stock') || type.includes('common');
+        if (type && !isEquity) {
+          hr('av.refresh', `skip: non-company symbol for OVERVIEW (${symbol} type=${rawType})`);
+          log.info('symbol.skip', { endpointId: endpoint, symbol, reason: 'non_company_symbol', type: rawType });
+          continue;
+        }
+      }
+      console.log('')
+      console.log('')
+      console.log('')
+      hr('av.refresh', `--- SYMBOL START: ${symbol} ---`);
+      log.info('symbol.start', { endpointId: endpoint, endpointName, symbol });
       // Compute target Firestore docPath
       let docPath: string;
       if (isTimeSeriesEndpoint(endpoint)) {
@@ -103,7 +156,8 @@ export async function runRefreshAlphaVantageDataV2(): Promise<{ durationMs: numb
         docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
       } else {
         if (!endpointConfig.firestorePath) {
-          logDM(`Skipping - no firestorePath configured for endpoint: ${endpoint}`);
+          log.warn('symbol.skip', { endpointId: endpoint, symbol, reason: 'missing_firestore_path' });
+          eStats.skippedNoPath++;
           continue;
         }
         docPath = resolveFirestorePath({
@@ -112,15 +166,17 @@ export async function runRefreshAlphaVantageDataV2(): Promise<{ durationMs: numb
           endpointName: endpoint
         }, symbol);
       }
-      logDM(`aDM rAVD: docPath: ${docPath}`);
+      hr('av.refresh', `docPath: ${docPath}`);
       const docRef = db.doc(docPath);
       const docSnap = await docRef.get();
       const now = Timestamp.now();
       let needsRefresh = false;
+      eStats.checked++;
 
       if (!docSnap.exists) {
-        logDM(`aDM rAVD: No data for ${symbol} ${endpointName}, will fetch.`);
+        log.info('freshness.decision', { endpointId: endpoint, endpointName, symbol, exists: false, isFresh: false });
         needsRefresh = true;
+        staleCount++;
       } else {
         const metadata = docSnap.data()?.metadata;
         const lastUpdated = metadata?.lastUpdated;
@@ -144,70 +200,82 @@ export async function runRefreshAlphaVantageDataV2(): Promise<{ durationMs: numb
             nextRefreshDate = new Date(Number(nextRefreshAt));
           }
         }
-        logDM(`----------- aDM rAVD: START FRESHNESS CHECK FOR [${symbol} ${endpointName}] -------------`);
         const nowDate = new Date();
-        const ttl = endpointConfig?.ttl || 0;
         const sinceLastRefreshMs = lastUpdatedDate ? (nowDate.getTime() - lastUpdatedDate.getTime()) : null;
         const untilNextRefreshMs = nextRefreshDate ? (nextRefreshDate.getTime() - nowDate.getTime()) : null;
-        // Diagnostic debug logging
-        logDM(`[DEBUG] nowDate: ${nowDate.toISOString()} (${nowDate.getTime()} ms)`);
-        logDM(`[DEBUG] nextRefreshAt (raw):`, nextRefreshAt, `type: ${typeof nextRefreshAt}`);
-        logDM(`[DEBUG] nextRefreshDate: ${nextRefreshDate ? nextRefreshDate.toISOString() : 'N/A'} (${nextRefreshDate ? nextRefreshDate.getTime() : 'N/A'} ms)`);
-        logDM(`[DEBUG] nowDate >= nextRefreshDate?`, nextRefreshDate ? nowDate >= nextRefreshDate : 'N/A');
-        // Use shared PST formatter from utils
-        logDM(`aDM rAVD: [${symbol} ${endpointName}] lastUpdated: ${formatPST(lastUpdatedDate)}, nextRefreshAt: ${formatPST(nextRefreshDate)}, TTL: ${ttl}s`);
-        if (sinceLastRefreshMs !== null) {
-          logDM(`aDM rAVD: [${symbol} ${endpointName}] Time since last refresh: ${(sinceLastRefreshMs / 1000 / 60).toFixed(2)} min (${sinceLastRefreshMs} ms)`);
-        }
-        if (untilNextRefreshMs !== null) {
-          logDM(`aDM rAVD: [${symbol} ${endpointName}] Time until next refresh: ${(untilNextRefreshMs / 1000 / 60).toFixed(2)} min (${untilNextRefreshMs} ms)`);
-        }
-        if (!nextRefreshDate || nowDate >= nextRefreshDate) {
-          logDM(`aDM rAVD: [${symbol} ${endpointName}] Data is STALE or missing nextRefreshAt. Refresh should occur now.`);
+        const isFresh = !!nextRefreshDate && nowDate < nextRefreshDate;
+
+        // Structured decision log
+        log.info('freshness.decision', {
+          endpointId: endpoint,
+          endpointName,
+          symbol,
+          isFresh,
+          lastUpdated: lastUpdatedDate ? lastUpdatedDate.toISOString() : null,
+          nextRefreshAt: nextRefreshDate ? nextRefreshDate.toISOString() : null,
+          ttlSeconds: ttl,
+          sinceLastRefreshMs,
+          untilNextRefreshMs,
+        });
+
+        // Concise human-readable summary
+        hr('av.refresh', `[${endpointName}] ${symbol}: last=${formatPST(lastUpdatedDate)} next=${formatPST(nextRefreshDate)} ttl=${ttl}s ${isFresh ? 'FRESH' : 'STALE'}`);
+
+        if (isFresh) freshCount++; else staleCount++;
+
+        if (force || !nextRefreshDate || nowDate >= nextRefreshDate) {
           needsRefresh = true;
         } else {
-          logDM(`aDM rAVD: [${symbol} ${endpointName}] Data is FRESH. No refresh needed.`);
+          eStats.skippedFresh++;
+          // If still fresh, no action needed for this symbol
+          hr('av.refresh', `skip: fresh (next=${formatPST(nextRefreshDate)})`);
         }
-        logDM(`----------- aDM rAVD: END FRESHNESS CHECK FOR [${symbol} ${endpointName}] -------------`);
       }
 
-      if (!needsRefresh) continue;
+      if (!needsRefresh) {
+        log.debug('symbol.fresh', { endpointId: endpoint, endpointName, symbol });
+        hr('av.refresh', `--- SYMBOL END: ${symbol} ---`);
+        hrBlank(3);
+        log.info('symbol.end', { endpointId: endpoint, endpointName, symbol });
+        continue;
+      }
 
       // 4. Call Alpha Vantage API via handler factory
       const apiStart = Date.now();
       try {
-        logDM(`----------- aDM rAVD: START REFRESH FOR ${symbol} ${endpointName} -----------------------`);
-        // Use the handler factory for internal backend calls
         const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
-        const apiResponse = await handler.fetch({ symbol });
+        const fetchParams = isTimeSeriesEndpoint(endpoint)
+          ? { symbol, __checkWriteToggle: false }
+          : { symbol };
+        const apiResponse = await handler.fetch(fetchParams);
         const durationMs = Date.now() - apiStart;
-        logDM(`aDM rAVD: Fetched data for ${symbol} ${endpointName} in ${durationMs}ms.`);
-        logDM(`aDM rAVD: apiResponse: ${apiResponse}`);
+        log.info('refresh.fetch', { endpointId: endpoint, endpointName, symbol, durationMs });
 
         // Skip saving if the provider returned an empty payload ({} or [])
         const data = (apiResponse as any)?.data;
         const isEmptyArray = Array.isArray(data) && data.length === 0;
         const isEmptyObject = !Array.isArray(data) && typeof data === 'object' && data !== null && Object.keys(data).length === 0;
         if (isEmptyArray || isEmptyObject) {
-          logDM(`aDM rAVD: Skipping save for ${symbol} ${endpointName}: empty provider response`);
           // Log a 'skipped' event to history if possible
-          {
-            const historyPath = getHistoryPathFor(docPath);
-            const nowDate = new Date();
-            const refreshEventId = getRefreshEventDocId(ApiProvider.ALPHA_VANTAGE, endpoint, nowDate, symbol);
-            await db.collection(historyPath).doc(refreshEventId).set({
-              timestamp: now,
-              status: 'skipped',
-              durationMs,
-              error: null,
-              endpoint: endpointName,
-              symbol,
-              vendor: ApiProvider.ALPHA_VANTAGE,
-              reason: 'empty_provider_response'
-            });
-            logDM(`aDM rAVD: Logged skipped event for ${symbol} ${endpointName} as ${refreshEventId}.`);
-          }
-          // Do not mark symbol as updated for "skipped"
+          const historyPath = getHistoryPathFor(docPath);
+          const nowDate = new Date();
+          const refreshEventId = getRefreshEventDocId(ApiProvider.ALPHA_VANTAGE, endpoint, nowDate, symbol);
+          await db.collection(historyPath).doc(refreshEventId).set({
+            timestamp: now,
+            status: 'skipped',
+            durationMs,
+            error: null,
+            endpoint: endpointName,
+            symbol,
+            vendor: ApiProvider.ALPHA_VANTAGE,
+            reason: 'empty_provider_response'
+          });
+          log.info('history.skipped', { endpointId: endpoint, endpointName, symbol, refreshEventId });
+          eStats.skippedEmpty++;
+          hr('av.refresh', `skip: provider returned empty payload (${endpointName} ${symbol})`);
+          hr('av.refresh', `--- SYMBOL END: ${symbol} ---`);
+          hrBlank(3);
+          log.info('symbol.end', { endpointId: endpoint, endpointName, symbol });
           continue;
         }
 
@@ -229,20 +297,19 @@ export async function runRefreshAlphaVantageDataV2(): Promise<{ durationMs: numb
             error: null,
           },
         };
-        logDM(`----------- aDM rAVD: START WRITE TO FIRESTORE FOR ${symbol} ${endpointName} -----------------------`);
         await docRef.set(updateData, { merge: true });
-        logDM(`aDM rAVD: Saved refreshed data for ${symbol} ${endpointName} to Firestore.`);
-        logDM(`----------- aDM rAVD: END WRITE TO FIRESTORE FOR ${symbol} ${endpointName} -----------------------`);
+        log.info('refresh.write', { endpointId: endpoint, endpointName, symbol, status: 'success', durationMs });
+        eStats.refreshed++;
 
-        // If you need to update symbol-level metadata after writing endpoint data:
+        // Update symbol-level metadata after writing endpoint data (if applicable)
         if (endpointConfig.symbolUsage && symbol) {
           await refreshLogger.updateSymbolMetadata({
             symbol,
             endpointName,
-            now: now.toDate(), // Convert Firestore Timestamp to JS Date
+            now: now.toDate(),
             ttl
           });
-          logDM(`aDM rAVD: Updated minimal metadata fields for symbol ${symbol}.`);
+          log.debug('symbol.meta_updated', { endpointId: endpoint, endpointName, symbol });
         }
 
         // Mark this symbol as updated for this cycle (unique via Set)
@@ -259,12 +326,11 @@ export async function runRefreshAlphaVantageDataV2(): Promise<{ durationMs: numb
           vendor: ApiProvider.ALPHA_VANTAGE,
           timestamp: now,
         });
-        logDM(`aDM rAVD: Logged refresh event for ${symbol} ${endpointName} as ${refreshEventId}.`);
-        logDM(`----------- aDM rAVD: END LOG REFRESH EVENT TO HISTORY FOR ${symbol} ${endpointName} -----------------------`);
+        log.debug('history.written', { endpointId: endpoint, endpointName, symbol, refreshEventId });
       } catch (error: any) {
         const durationMs = Date.now() - apiStart;
-        logDM(`aDM rAVD: ERROR refreshing ${symbol} ${endpointName}:`, error.message);
-        // Log failure event with human-readable doc ID
+        log.error('refresh.error', { endpointId: endpoint, endpointName, symbol, durationMs, error: String(error?.message || error) });
+        eStats.failures++;
         const historyPath = getHistoryPathFor(docPath);
         const nowDate = new Date();
         const refreshEventId = getRefreshEventDocId(ApiProvider.ALPHA_VANTAGE, endpoint, nowDate, symbol);
@@ -277,22 +343,27 @@ export async function runRefreshAlphaVantageDataV2(): Promise<{ durationMs: numb
           symbol,
           vendor: ApiProvider.ALPHA_VANTAGE,
         });
-        logDM(`aDM rAVD: Logged failure event for ${symbol} ${endpointName} as ${refreshEventId}.`);
-        logDM(`----------- aDM rAVD: END LOG REFRESH EVENT TO HISTORY FOR ${symbol} ${endpointName} -----------------------`);
+        log.debug('history.failure_written', { endpointId: endpoint, endpointName, symbol, refreshEventId });
       }
-      logDM(`=========== END SYMBOL [${symbol}] ===================================`);
-      logDM(`**********************************************************************************`);
-      logDM(`-`);
-      logDM(`-`);
+      hr('av.refresh', `--- SYMBOL END: ${symbol} ---`);
+      hrBlank(3);
+      log.info('symbol.end', { endpointId: endpoint, endpointName, symbol });
     }
-    logDM(`=========== END ENDPOINT [${endpoint}] ===================================`);
-    logDM(`**********************************************************************************`);
-    logDM(`**********************************************************************************`);
-    logDM(`-`);
-    logDM(`-`);
+    hr('av.refresh', `=========== END ENDPOINT [${endpoint}] ===========`);
+    hrBlank(3);
+    log.info('endpoint.complete', { endpointId: endpoint, endpointName });
+    const s = endpointStatsMap.get(endpoint)!;
+    // Human-readable endpoint summary
+    hr('av.refresh', `Endpoint Summary [${s.endpointName}] checked=${s.checked} refreshed=${s.refreshed} fresh-skips=${s.skippedFresh} no-path=${s.skippedNoPath} empty=${s.skippedEmpty} failures=${s.failures}`);
+    // Structured endpoint summary
+    log.info('endpoint.summary', { endpointId: s.endpointId, endpointName: s.endpointName, checked: s.checked, refreshed: s.refreshed, skippedFresh: s.skippedFresh, skippedNoPath: s.skippedNoPath, skippedEmpty: s.skippedEmpty, failures: s.failures });
   }
-  logDM(`aDM rAVD: --- Alpha Vantage Data Refresh Cycle Complete. Duration: ${Date.now() - batchStart}ms ---`);
-  logDM('==============================================');
+  const duration = Date.now() - batchStart;
+  log.info('refresh.complete', { durationMs: duration, symbolsUpdatedCount: updatedSymbols.size, symbolsChecked, freshCount, staleCount, force });
+  // Human-readable final summary
+  hr('av.refresh', `TOTAL: checked=${symbolsChecked} updated=${updatedSymbols.size} fresh=${freshCount} stale=${staleCount} force=${force}`);
+  // Structured final summary
+  log.info('refresh.summary', { durationMs: duration, symbolsChecked, updated: updatedSymbols.size, fresh: freshCount, stale: staleCount, force });
 
   // Announce data-ready internally (no HTTP/OIDC) after a successful cycle.
   try {
@@ -314,10 +385,10 @@ export async function runRefreshAlphaVantageDataV2(): Promise<{ durationMs: numb
 
     await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL);
   } catch (error: any) {
-    logDM(`aDM rAVD: ERROR announcing data-ready:`, error.message);
+    log.error('announce.error', { error: String(error?.message || error) });
   }
 
-  return { durationMs: Date.now() - batchStart, symbolsUpdatedCount: updatedSymbols.size };
+  return { durationMs: Date.now() - batchStart, symbolsUpdatedCount: updatedSymbols.size, symbolsChecked, freshCount, staleCount, force };
 }
 
 /**

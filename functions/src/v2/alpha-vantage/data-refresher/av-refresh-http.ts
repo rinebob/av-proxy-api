@@ -13,7 +13,9 @@ export const refreshAlphaVantageDataV2Http = onRequest(async (req, res) => {
   }
 
   try {
-    const result = await runRefreshAlphaVantageDataV2();
+    const forceParam = String((req.query?.force ?? '')).toLowerCase();
+    const force = forceParam === '1' || forceParam === 'true';
+    const result = await runRefreshAlphaVantageDataV2({ force });
     res.status(200).json({ ok: true, ...result });
   } catch (error: any) {
     res.status(500).json({ ok: false, error: error?.message || 'Unknown error' });

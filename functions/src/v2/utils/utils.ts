@@ -10,6 +10,46 @@ import { AlphaVantageDailyTimeSeriesResponse, AlphaVantageGlobalQuoteResponse, A
 // Create a union type for all possible Alpha Vantage API responses
 export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVantageGlobalQuoteResponse;
 
+// ------------------------------
+// Structured Logger (Reusable)
+// ------------------------------
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
+const LEVELS: Record<LogLevel, number> = { error: 0, warn: 1, info: 2, debug: 3 };
+export function createLogger(component: string) {
+  const envLevel = (process.env.LOG_LEVEL || 'info').toLowerCase() as LogLevel;
+  const threshold = LEVELS[envLevel] ?? LEVELS.info;
+  const should = (level: LogLevel) => LEVELS[level] <= threshold;
+  function log(level: LogLevel, event: string, payload: Record<string, unknown> = {}) {
+    if (!should(level)) return;
+    const entry = {
+      component,
+      event,
+      level,
+      timestamp: new Date().toISOString(),
+      ...payload,
+    } as const;
+    console.log(JSON.stringify(entry));
+  }
+  return {
+    info: (event: string, payload?: Record<string, unknown>) => log('info', event, payload),
+    warn: (event: string, payload?: Record<string, unknown>) => log('warn', event, payload),
+    error: (event: string, payload?: Record<string, unknown>) => log('error', event, payload),
+    debug: (event: string, payload?: Record<string, unknown>) => log('debug', event, payload),
+  };
+}
+
+const logger = createLogger('utils');
+
+export const HUMAN_LOGS = process.env.HUMAN_LOGS === 'true';
+export function hr(component: string, message: string, ...args: unknown[]) {
+  if (!HUMAN_LOGS) return;
+  console.log(`${component} ${message}`, ...args);
+}
+export function hrBlank(count = 1) {
+  if (!HUMAN_LOGS) return;
+  for (let i = 0; i < count; i++) console.log('');
+}
+
 /** Define the Alpha Vantage API key as a Firebase Function parameter
 * The key 'ALPHAVANTAGE_API_KEY' is what you'll see in the .env.<project-id> file
 * and what you'd set in the Google Cloud Console if managing directly.
@@ -184,14 +224,14 @@ export function getAlphaVantageApiKey(): string {
   if (process.env.FUNCTIONS_EMULATOR === 'true') {
     const localKey = localEmulatorAlphaVantageApiKeyParam.value();
     if (localKey) {
-      console.log("Using local emulator API key.");
+      logger.info('Using local emulator API key.');
       return localKey;
     }
   }
   // In a deployed environment, use the secret
   const apiKey = alphaVantageApiKeyParam.value();
   if (!apiKey) {
-    console.error("FATAL: ALPHAVANTAGE_API_KEY secret not found or loaded.");
+    logger.error("FATAL: ALPHAVANTAGE_API_KEY secret not found or loaded.");
     // Throw an error to halt execution, as the function cannot proceed.
     throw new Error("Server configuration error: Missing Alpha Vantage API key.");
   }
@@ -209,7 +249,7 @@ export async function fetchStockData(
   params: { [key: string]: string }, 
   apiKey: string
 ): Promise<AlphaVantageResponse> {
-  console.info('----------- Utils fetchStockData ---------------');
+  logger.info('----------- Utils fetchStockData ---------------');
     // Construct the query parameters for the Alpha Vantage API call
     const queryParams = new URLSearchParams({
         ...params,
@@ -217,26 +257,26 @@ export async function fetchStockData(
     });
 
     const url = `${ALPHAVANTAGE_BASE_URL}?${queryParams.toString()}`;
-    console.log(`ut fSD Fetching data from URL: ${url}`);
+    logger.info(`ut fSD Fetching data from URL: ${url}`);
 
     try {
         const response = await axios.get<AlphaVantageResponse>(url);
 
-        console.log(`ut fSD response: ${response}`);
+        logger.info(`ut fSD response: ${response}`);
         
         // The Alpha Vantage API sometimes returns a 200 OK sttus even for errors,
         // with the error message in the response body. We need to check for this.
         const responseData = response.data;
-        console.log(`ut fSD responseData: ${responseData}`);
+        logger.info(`ut fSD responseData: ${responseData}`);
 
         if (responseData['Error Message']) {
-            console.error('ut fSD Alpha Vantage API Error:', responseData['Error Message']);
+            logger.error('ut_fSD_api_error', { errorMessage: responseData['Error Message'] });
             // We will throw an error here so it can be caught by the handleApiError utility
             throw new Error(`API Error: ${responseData['Error Message']}`);
         }
 
         if (responseData['Note']) {
-            console.warn('ut fSD Alpha Vantage API Rate Limit Note:', responseData['Note']);
+            logger.warn('ut_fSD_rate_limit_note', { note: responseData['Note'] });
             // Throw a specific error for rate limiting that can be handled downstream
             throw new Error(`ut fSD RATE_LIMIT: ${responseData['Note']}`);
         }
@@ -244,7 +284,7 @@ export async function fetchStockData(
         return responseData;
     } catch (error: any) {
         // Log the detailed error and re-throw it to be handled by the calling function's catch block
-        console.error(`ut fSD Error in fetchStockData for symbol ${params.symbol}:`, error.message);
+        logger.error('ut_fSD_fetch_error', { symbol: params.symbol, error: String(error?.message || error) });
         // Re-throw the original error to preserve stack trace and allow for specific handling
         throw error;
     }
@@ -255,7 +295,7 @@ export async function fetchStockData(
  */
 export function validateRequestMethod(req: any, res: any): boolean {
   if (req.method !== 'GET') {
-    console.warn('Received non-GET request:', req.method);
+    logger.warn('validateRequestMethod.non_get', { method: req.method });
     res.status(405).json({ 
       error: 'Method Not Allowed',
       message: 'Please send a GET request.'
@@ -279,7 +319,7 @@ export function handleApiError(error: any, res: any, context: string = ''): bool
   // Check for rate limit error first and handle without stack trace
   if (error.message?.startsWith('RATE_LIMIT:')) {
     const rateLimitMessage = error.message.replace('RATE_LIMIT:', '').trim();
-    console.warn(`${contextPrefix}Rate limit error:`, rateLimitMessage);
+    logger.warn(`${contextPrefix}Rate limit error:`, rateLimitMessage);
     res.status(429).json({
       error: 'ut hAE Rate Limit Exceeded',
       message: rateLimitMessage,
@@ -289,12 +329,12 @@ export function handleApiError(error: any, res: any, context: string = ''): bool
   }
   
   // For other errors, log the full error
-  console.error(`${contextPrefix}Error processing response:`, error);
+  logger.error('handleApiError.process_error', { context: contextPrefix.trim(), error: String(error) });
   
   // If we have an error response from Alpha Vantage
   if (error.response?.data) {
     const errorData = error.response.data;
-    console.error(`ut hAE ${contextPrefix}Alpha Vantage error response:`, errorData);
+    logger.error('handleApiError.provider_response', { context: contextPrefix.trim(), providerError: errorData });
     
     if (errorData['Error Message']) {
       res.status(400).json({ 
@@ -330,7 +370,7 @@ export function handleApiError(error: any, res: any, context: string = ''): bool
   }
   // If we have a network error
   else if (error.request) {
-    console.error(`ut hAE ${contextPrefix}No response received from API:`, error.request);
+    logger.error('handleApiError.no_response', { context: contextPrefix.trim(), request: '[present]' });
     res.status(504).json({ 
       error: 'ut hAE Gateway Timeout',
       message: 'No response received from AlphaVantage API' 
@@ -339,7 +379,7 @@ export function handleApiError(error: any, res: any, context: string = ''): bool
   }
   // For any other errors
   else {
-    console.error(`ut hAE ${contextPrefix}Unexpected error:`, error);
+    logger.error('handleApiError.unexpected', { context: contextPrefix.trim(), error: String(error) });
     res.status(500).json({
       error: 'ut hAE Internal Server Error',
       message: error.message || 'An unexpected error occurred'
@@ -369,7 +409,7 @@ export function formatPST(date: any): string {
       hour12: true
     }) + ' PT';
   } catch (error) {
-    console.error('Error formatting date:', error);
+    logger.error('formatPST.error', { error: String(error) });
     return 'Invalid Date';
   }
 }

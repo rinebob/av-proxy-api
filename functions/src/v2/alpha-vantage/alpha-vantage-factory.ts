@@ -59,9 +59,7 @@ export class AlphaVantageHandlerFactory {
   static createHandler<T = any>(endpointId: AlphaVantageEndpoint): any {
     const requestId = `factory-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     console.log(`aVF cH [${requestId}] [FACTORY] Creating handler for endpoint: ${endpointId}`);
-    // Diagnostic logging to debug handler map issues
-    console.log('HANDLER_MAP keys:', Object.keys(HANDLER_MAP));
-    console.log('Requested endpointId:', endpointId, typeof endpointId);
+    console.log('Requested endpointId:', endpointId);
     try {
       const config = AlphaVantageHandlerFactory.getEndpointConfig(endpointId);
       const Handler = HANDLER_MAP[endpointId];

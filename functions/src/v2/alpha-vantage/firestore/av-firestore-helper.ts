@@ -17,6 +17,9 @@ import {
   getSymbolTimeSeriesAllDocPath,
   getYearFromEpochMillis,
 } from '../../common/firestore/firestore-paths';
+import { createLogger } from '../../utils/utils';
+
+const log = createLogger('av.ts'); // Abbrev: aFH sATSD
 
 /**
  * Saves Alpha Vantage STANDARD (non-time-series) data to Firestore and logs refresh event using RefreshLoggerService.
@@ -33,8 +36,8 @@ export async function saveAvData(
   endpointConfig: EndpointConfig,
   checkManualWriteEnabled: boolean
 ): Promise<void> {
-  console.log('================= START aFH sAD saveAvData called =================');
-  console.log(`aFH sAD saveAvData called. symbol: ${symbol}, endpoint: ${endpoint}, checkManualWriteEnabled: ${checkManualWriteEnabled}`);
+  console.log(`aFH sAD start ${endpoint} ${symbol}`);
+  log.info('standard.save.start', { symbol, endpoint, checkManualWriteEnabled });
   const { firestorePath, ttl } = endpointConfig;
 
   if (typeof ttl !== 'number') {
@@ -56,9 +59,11 @@ export async function saveAvData(
     // of waiting for the next scheduled job.
     if (checkManualWriteEnabled) {
       const enabled = await isManualWriteEnabled();
-      console.log(`[saveAvData] Manual Firestore write toggle enabled?`, enabled);
+      console.log(`aFH sAD toggle enabled? ${enabled}`);
+      log.debug('standard.save.toggle', { enabled });
       if (!enabled) {
-        console.log('[saveAvData] Manual Firestore write toggle is OFF. Skipping data write and refresh log.');
+        console.log('aFH sAD toggle OFF; skip');
+        log.info('standard.save.skip_toggle');
         return;
       }
     }
@@ -86,10 +91,11 @@ export async function saveAvData(
       }
     );
 
-    console.log(`aFH sAD Saved STANDARD data for ${symbol}/${endpoint} at path: ${docPath}`);
-    console.log('================= END aFH sAD saveAvData called =================');
+    console.log(`aFH sAD ✓ ${endpoint} ${symbol}`);
+    log.info('standard.save.success', { symbol, endpoint, docPath, durationMs: Date.now() - startTime });
   } catch (error) {
-    console.error('aFH sAD Error saving data to Firestore:', error);
+    console.error('! aFH sAD error', (error as any)?.message || error);
+    log.error('standard.save.error', { error: String((error as any)?.message || error) });
     throw error;
   }
 }
@@ -109,8 +115,8 @@ export async function saveAvTimeSeriesData(
   interval: TimeSeriesInterval,
   checkManualWriteEnabled: boolean
 ): Promise<void> {
-  console.log('================= START aFH sATSD saveAvTimeSeriesData called =================');
-  console.log(`aFH sATSD saveAvTimeSeriesData called. symbol: ${symbol}, endpoint: ${endpoint}, interval: ${interval}`);
+  console.log(`aFH sATSD start ${endpoint} ${symbol} ${interval}`);
+  log.info('timeseries.save.start', { symbol, endpoint, interval });
   // Emulator guard: for DAILY, keep roughly last 1 year of data to reduce emulator dataset size
   const emulator = process.env.FUNCTIONS_EMULATOR === 'true' || !!process.env.FIRESTORE_EMULATOR_HOST;
   if (emulator && interval === TimeSeriesInterval.DAILY && Array.isArray(data)) {
@@ -122,7 +128,8 @@ export async function saveAvTimeSeriesData(
       return Number.isFinite(t) && t >= cutoff;
     });
     if (filtered.length !== data.length) {
-      console.log(`[sATSD] Emulator mode: trimming daily bars from ${data.length} to ${filtered.length} (~1y)`);
+      console.log(`aFH sATSD emulator trim ${data.length} → ${filtered.length}`);
+      log.debug('timeseries.save.trim', { from: data.length, to: filtered.length });
       data = filtered;
     }
   }
@@ -130,10 +137,10 @@ export async function saveAvTimeSeriesData(
   const histDataPoints = Array.isArray(data) ? data.length : 0;
   const histStartDate = histDataPoints > 0 && data[histDataPoints - 1]?.date
     ? Timestamp.fromDate(new Date(data[histDataPoints - 1].date))
-    : Timestamp.now();
+    : null;
   const histEndDate = histDataPoints > 0 && data[0]?.date
     ? Timestamp.fromDate(new Date(data[0].date))
-    : Timestamp.now();
+    : null;
 
   // 2. Canonical doc path for time series
   const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
@@ -144,9 +151,11 @@ export async function saveAvTimeSeriesData(
     // 3. Respect manual Firestore write toggle for UI/gateway-triggered calls
     if (checkManualWriteEnabled) {
       const enabled = await isManualWriteEnabled();
-      console.log(`[saveAvTimeSeriesData] Manual Firestore write toggle enabled?`, enabled);
+      console.log(`aFH sATSD toggle? ${enabled}`);
+      log.debug('timeseries.save.toggle', { enabled });
       if (!enabled) {
-        console.log('[saveAvTimeSeriesData] Manual Firestore write toggle is OFF. Skipping all Firestore writes.');
+        console.log('aFH sATSD toggle OFF; skip');
+        log.info('timeseries.save.skip_toggle');
         return;
       }
     }
@@ -250,6 +259,9 @@ export async function saveAvTimeSeriesData(
     const availableYears = Array.from(barsByYear.keys()).sort((a, b) => a - b);
     const histStartTs = compactBars[0]?.t ?? null;
     const histEndTs = compactBars[compactBars.length - 1]?.t ?? null;
+    const latestBarIso = histEndTs != null ? new Date(histEndTs).toISOString() : 'null';
+    console.log(`aFH sATSD latestBar=${latestBarIso} (${histEndTs ?? 'null'}) ${symbol} ${endpoint} ${interval}`);
+    log.info('timeseries.save.latest_bar', { symbol, endpoint, interval, latestBarIso, latestBarMs: histEndTs });
     await docRef.set({
       metadata: {
         symbol,
@@ -266,7 +278,7 @@ export async function saveAvTimeSeriesData(
         histStartTs,
         histEndTs,
       },
-      latestBarTimestamp: histEndDate,
+      latestBarTimestamp: histEndTs != null ? Timestamp.fromMillis(histEndTs) : null,
     }, { merge: true });
 
     // 7. Log refresh event and update refreshHistory using the canonical service
@@ -297,10 +309,11 @@ export async function saveAvTimeSeriesData(
       ttlHuman: ''
     }, { merge: true });
 
-    console.log(`aFH sATSD Wrote ${interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites} bars for ${symbol}/${endpoint}`);
-    console.log('================= END aFH sATSD saveAvTimeSeriesData called =================');
+    console.log(`aFH sATSD ✓ ${endpoint} ${symbol} ${interval} wrote=${interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites}`);
+    log.info('timeseries.save.success', { symbol, endpoint, interval, barsWritten: interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites, durationMs: Date.now() - startTime, latestBarIso });
   } catch (error) {
-    console.error('aFH sATSD Error saving time series data to Firestore:', error);
+    console.error('! aFH sATSD error', (error as any)?.message || error);
+    log.error('timeseries.save.error', { symbol, endpoint, interval, error: String((error as any)?.message || error) });
     throw error;
   }
 }

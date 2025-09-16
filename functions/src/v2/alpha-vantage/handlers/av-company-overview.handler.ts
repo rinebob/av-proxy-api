@@ -1,6 +1,9 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { ApiResponse } from '@shared/core';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
+import { createLogger } from '../../utils/utils';
+
+const log = createLogger('av.handler.company-overview'); // Abbrev: aCO.H
 
 /**
  * Interface for the company overview data structure returned by Alpha Vantage
@@ -66,19 +69,20 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
    * @returns Processed company overview data
    */
   public async fetch(params: Record<string, any>): Promise<ApiResponse<CompanyOverviewData>> {
-    console.log('========== START AvCompanyOverviewHandler.fetch ====================');
+    console.log('---- aCO.H fetch --- start');
     const startTime = Date.now();
-    console.log(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Starting fetch for symbol: ${params.symbol}`);
+    console.log(` aCO.H f [${this.requestId}] start symbol=${params.symbol}`);
+    log.info('fetch.start', { symbol: params.symbol, requestId: this.requestId });
     
     try {
       // Validate required parameters
       if (!params.symbol) {
         const error = new Error('Symbol parameter is required');
-        console.error(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Validation error:`, error.message);
+        console.error(`! aCO.H f [${this.requestId}] validate error:`, error.message);
+        log.error('validate.error', { requestId: this.requestId, error: error.message });
         throw error;
       }
 
-      console.log(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Fetching company overview data`);
       
       // Call the parent fetch method to make the actual API request
       const response = await super.fetch({
@@ -86,21 +90,13 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
         datatype: 'json'
       });
 
-      console.log(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Successfully fetched company overview in ${Date.now() - startTime}ms`, {
-        symbol: params.symbol,
-        dataPoints: response.data ? Object.keys(response.data).length : 0
-      });
-
-      console.log('========== END AvCompanyOverviewHandler.fetch ====================');
-
+      console.log(` aCO.H f [${this.requestId}] ok ${Date.now() - startTime}ms`);
+      log.info('fetch.success', { symbol: params.symbol, requestId: this.requestId, durationMs: Date.now() - startTime, dataPoints: response.data ? Object.keys(response.data).length : 0 });
+ 
       return response;
     } catch (error) {
-      console.error(`aCO.H f [${this.requestId}] [COMPANY-OVERVIEW] Error in fetch:`, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        symbol: params.symbol,
-        processingTimeMs: Date.now() - startTime
-      });
+      console.error(`! aCO.H f [${this.requestId}] error:`, error instanceof Error ? error.message : error);
+      log.error('fetch.error', { requestId: this.requestId, symbol: params.symbol, durationMs: Date.now() - startTime, error: String((error as any)?.message || error) });
       throw error;
     }
   }
@@ -112,9 +108,10 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
    */
   protected transformResponse(data: any): CompanyOverviewData {
     validateAlphaVantageApiResponse(data);
-    console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Starting response transformation. data: ${JSON.stringify(data)}`);
+    console.log(` aCO.H tR [${this.requestId}] start`);
+    log.debug('transform.start', { requestId: this.requestId });
     
-    console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Processing company overview for symbol: ${data.Symbol || 'unknown'}`);
+    console.log(` aCO.H tR [${this.requestId}] symbol=${data?.Symbol || 'unknown'}`);
 
     try {
       // Map the response fields to our interface
@@ -189,32 +186,23 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
 
       if (mappedFields === 0) {
         // Provider returned no data; return empty result so caller can skip save
-        console.warn(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Empty response; skipping save.`);
+        console.warn(` aCO.H tR [${this.requestId}] empty; skip save`);
+        log.info('transform.empty', { requestId: this.requestId });
         return {} as CompanyOverviewData;
       }
 
-      console.log(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Successfully transformed company overview data`, {
-        symbol: result.Symbol,
-        name: result.Name,
-        sector: result.Sector,
-        industry: result.Industry,
-        mappedFields
-      });
+      log.info('transform.success', { requestId: this.requestId, symbol: (result as any).Symbol, mappedFields });
 
       return result as CompanyOverviewData;
       
     } catch (error) {
-      console.error(`aCO.H tR [${this.requestId}] [COMPANY-OVERVIEW] Error transforming response:`, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        dataSample: data ? JSON.stringify(data).substring(0, 200) + '...' : 'No data'
-      });
+      console.error(`! aCO.H tR [${this.requestId}] error:`, error instanceof Error ? error.message : error);
+      log.error('transform.error', { requestId: this.requestId, error: String((error as any)?.message || error) });
       throw error;
     }
   }
   
   protected prepareRequestParams(params: Record<string, any>): Record<string, any> {
-    console.log(`aCO.H pRP [${this.requestId}] [COMPANY-OVERVIEW] Preparing request params:`, params);
     
     // Call the parent's prepareRequestParams first
     const baseParams = super.prepareRequestParams(params);
@@ -228,7 +216,7 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
     // Mask apikey before logging final params
     const logParams = { ...requestParams } as any;
     if ('apikey' in logParams) logParams.apikey = '***';
-    console.log(`aCO.H pRP [${this.requestId}] [COMPANY-OVERVIEW] Final request params:`, logParams);
+    log.debug('prepare.params', { requestId: this.requestId /* no secrets */ });
     return requestParams;
   }
 }

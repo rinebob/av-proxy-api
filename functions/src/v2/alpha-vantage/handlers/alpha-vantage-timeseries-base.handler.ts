@@ -2,6 +2,9 @@ import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { saveAvTimeSeriesData } from '../firestore/av-firestore-helper';
 import { ApiResponse } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval } from '@shared/alpha-vantage';
+import { createLogger, hr } from '../../utils/utils';
+
+const log = createLogger('av.handler.ts-base'); // Abbrev: aVTS.H
 
 /**
  * Compact bar shape persisted to Firestore for time-series.
@@ -69,6 +72,9 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
     super.logRequest(params, 'AVTimeSeriesHandlerBase.fetch');
     const startTime = Date.now();
     const endpoint = this.config.id;
+    const symbol = params?.symbol;
+    hr('aVTS.H', `fetch start ${endpoint} ${symbol ?? ''} [${(this as any).requestId}]`);
+    log.info('fetch.start', { endpointId: endpoint, symbol, requestId: (this as any).requestId });
     this.validateParams(params);
 
     // Strip internal params before sending to AV
@@ -77,11 +83,11 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
 
     try {
       const response = await this.apiClient.get('', { params: requestParams });
+      log.debug('fetch.response.raw', { endpointId: endpoint, hasData: !!response?.data, requestId: (this as any).requestId });
       const responseData = response.data;
       const transformedData = this.transformResponse(responseData);
 
       // Persist bars if provided by subclass
-      const symbol: string | undefined = params.symbol;
       const bars = this.getBarsForStorage(transformedData);
 
       // Default: check write toggle (UI/gateway). Backend callers should pass __checkWriteToggle: false
@@ -93,6 +99,8 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
         bars.length > 0 &&
         Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)
       ) {
+        hr('aVTS.H', `save ${endpoint} ${symbol} bars=${bars.length} [${(this as any).requestId}]`);
+        log.info('firestore.save', { endpointId: endpoint, symbol, bars: bars.length, requestId: (this as any).requestId });
         await saveAvTimeSeriesData(
           bars,
           symbol,
@@ -100,10 +108,17 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           this.config.interval as TimeSeriesInterval,
           checkWriteToggle
         );
+      } else {
+        hr('aVTS.H', `skip save (empty|noBars) ${endpoint} ${symbol ?? ''} [${(this as any).requestId}]`);
+        log.info('firestore.skip_or_empty', { endpointId: endpoint, symbol, hasBars: !!bars && bars.length > 0, requestId: (this as any).requestId });
       }
 
+      hr('aVTS.H', `fetch ok ${endpoint} ${symbol ?? ''} ${(Date.now() - startTime)}ms [${(this as any).requestId}]`);
+      log.info('fetch.success', { endpointId: endpoint, symbol, durationMs: Date.now() - startTime, requestId: (this as any).requestId });
       return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
     } catch (error) {
+      hr('aVTS.H', `fetch error ${endpoint} ${symbol ?? ''} ${String((error as any)?.message || error)} [${(this as any).requestId}]`);
+      log.error('fetch.error', { endpointId: endpoint, symbol, error: String((error as any)?.message || error), requestId: (this as any).requestId });
       throw super.normalizeError(error);
     }
   }
