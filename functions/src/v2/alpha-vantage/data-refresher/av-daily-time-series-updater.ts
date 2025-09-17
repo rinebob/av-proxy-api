@@ -6,8 +6,8 @@ import { AlphaVantageEndpoint, TimeSeriesInterval } from '@shared/alpha-vantage'
 import { FirestoreCollection } from '@shared/firestore';
 import { ApiProvider } from '@shared/core';
 
-import { DAILY_TIME_SERIES_UPDATE_SCHEDULE, INTRADAY_SNAPSHOT_SCHEDULE } from '../../common/function-schedules';
-import { initializeTimeSeriesIfMissing, saveAvTimeSeriesData, upsertAvDailyBar } from '../firestore/av-firestore-helper';
+import { DAILY_TIME_SERIES_UPDATE_SCHEDULE } from '../../common/function-schedules';
+import { initializeTimeSeriesIfMissing, saveAvTimeSeriesData } from '../firestore/av-firestore-helper';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 
 // Helper function to update daily time series with latest quote
@@ -53,12 +53,6 @@ async function updateDailyTimeSeriesWithQuote(symbol: string): Promise<boolean> 
         low: Number(quoteResponse.data.low),
         close: Number(quoteResponse.data.price),
         volume: Number(quoteResponse.data.volume),
-        previousClose: Number(quoteResponse.data.previousClose),
-        change: Number(quoteResponse.data.change),
-        // Strip % and convert to numeric; keep as 1.23 for 1.23%
-        changePercent: typeof quoteResponse.data.changePercent === 'string'
-          ? Number(quoteResponse.data.changePercent.replace('%', '').trim())
-          : Number(quoteResponse.data.changePercent),
       };
       
       // Persist via normalized sharded writer; scheduled job -> do not check manual toggle
@@ -151,71 +145,3 @@ export const updateDailyTimeSeries = onSchedule({
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, updateDailyTimeSeriesHandler);
-
-/**
- * Intraday snapshot updater
- * Runs at 3:30 PM ET to capture "pre-close" price and timestamp for the trading day.
- * Stores as compact fields on the daily bar:
- *  - ip: intradayPrice
- *  - io: intradayObservedAt (epoch ms)
- */
-async function updateIntradaySnapshotWithQuote(symbol: string): Promise<boolean> {
-  const quoteHandler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.GLOBAL_QUOTE);
-  console.log(`aDTSU uISWQ IDAY:FETCH [${symbol}] Requesting GLOBAL_QUOTE for intraday snapshot (3:30 PM ET)...`);
-  const resp = await quoteHandler.fetch({ symbol });
-  const q = resp.data;
-  if (!q) {
-    console.log(`aDTSU uISWQ IDAY:FETCH [${symbol}] No quote data received`);
-    return false;
-  }
-  console.log(`aDTSU uISWQ IDAY:FETCH [${symbol}] latestTradingDay=${q.latestTradingDay} price=${q.price} observedAt=${new Date(Date.now()).toISOString()}`);
-  
-  // Ensure series exists so year doc is present when upserting
-  await initializeTimeSeriesIfMissing(symbol, TimeSeriesInterval.DAILY, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
-  
-  // Use AV-provided trading day as the bar date (YYYY-MM-DD, local to AV feed but effectively UTC day key)
-  const date = q.latestTradingDay as string;
-  const nowMs = Date.now();
-  const price = Number(q.price);
-  if (!date || !Number.isFinite(price)) {
-    console.log(`aDTSU uISWQ IDAY:SKIP [${symbol}] Invalid quote values date='${date}' price='${q.price}'`);
-    return false;
-  }
-  console.log(`aDTSU uISWQ IDAY:FETCH [${symbol}] latestTradingDay=${date} price=${price} observedAt=${new Date(nowMs).toISOString()}`);
-  
-  console.log(`aDTSU uISWQ IDAY:WRITE [${symbol}] Upserting intraday snapshot ip=${price} io=${nowMs}`);
-  await upsertAvDailyBar({
-    symbol,
-    date,
-    patch: { ip: price, io: nowMs },
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
-  });
-  
-  console.log(`aDTSU uISWQ IDAY:DONE [${symbol}] Snapshot stored for ${date}`);
-  return true;
-}
-
-export async function updateIntradaySnapshotHandler() {
-  console.log('============ START INTRADAY SNAPSHOT UPDATE (3:30 PM ET) ======================');
-  const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
-  const symbols = symbolsSnap.docs.map(d => d.id);
-  if (!symbols.length) {
-    console.log('No tracked symbols for intraday snapshot');
-    return;
-  }
-  const BATCH_SIZE = 5;
-  let updated = 0;
-  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
-    const batch = symbols.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(batch.map(s => updateIntradaySnapshotWithQuote(s)));
-    results.forEach((r) => { if (r.status === 'fulfilled' && r.value) updated++; });
-    if (i + BATCH_SIZE < symbols.length) await new Promise(res => setTimeout(res, 1000));
-  }
-  console.log(`aDTSU uISH IDAY:BATCH Done. Intraday snapshots updated for ${updated}/${symbols.length} symbols`);
-}
-
-export const updateIntradaySnapshot = onSchedule({
-  schedule: INTRADAY_SNAPSHOT_SCHEDULE,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, updateIntradaySnapshotHandler);

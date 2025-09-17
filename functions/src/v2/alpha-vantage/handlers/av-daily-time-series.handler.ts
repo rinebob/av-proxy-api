@@ -1,6 +1,5 @@
 import { AlphaVantageTimeSeriesHandlerBase, StorageBar } from './alpha-vantage-timeseries-base.handler';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
-import { sortAndComputeChange } from '../utils/bars-utils';
 import type { AvCommonMeta, AvOhlcEntry, AvTimeSeriesNormalized } from '@shared/alpha-vantage';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
@@ -71,14 +70,12 @@ export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<
 
   /**
    * Provide bars to the base class for storage persistence.
-   * Augment with derived fields: change (ch) and percent change (cp) based on prior day's close.
-   * Values rounded to 2 decimals. We do not persist priorClose.
    */
   protected getBarsForStorage(transformed: AvTimeSeriesNormalized): StorageBar[] | null {
     const daily = transformed?.series?.[TimeSeriesInterval.DAILY];
     if (!daily) return null;
     const bars = this.toBarsArray(daily);
     if (!bars.length) return null;
-    return sortAndComputeChange(bars);
+    return bars;
   }
 }

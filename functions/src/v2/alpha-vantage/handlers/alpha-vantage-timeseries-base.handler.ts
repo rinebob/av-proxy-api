@@ -20,10 +20,6 @@ export interface StorageBar {
   adjustedClose?: number;
   dividendAmount?: number;
   splitCoefficient?: number;
-  previousClose?: number;
-  change?: number;
-  // Numeric percent, e.g., 1.23 for 1.23%
-  changePercent?: number;
   // Optional intraday snapshot fields (captured pre-close for REL-STR use cases)
   intradayPrice?: number;        // intraday mark price
   intradayObservedAt?: number;   // epoch ms when the intraday price was observed

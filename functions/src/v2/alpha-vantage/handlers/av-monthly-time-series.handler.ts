@@ -1,6 +1,5 @@
 import { AlphaVantageTimeSeriesHandlerBase, StorageBar } from './alpha-vantage-timeseries-base.handler';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
-import { sortAndComputeChange } from '../utils/bars-utils';
 import type { AvCommonMeta, AvOhlcEntry, AvTimeSeriesNormalized } from '@shared/alpha-vantage';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
@@ -56,6 +55,6 @@ export class AvMonthlyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBas
       volume: Number(v.volume),
     }));
     if (!bars.length) return null;
-    return sortAndComputeChange(bars);
+    return bars;
   }
 }
