@@ -464,3 +464,122 @@ export async function upsertAvDailyBar(options: {
 
   await dataRef.set({ bars }, { merge: true });
 }
+
+/**
+ * Upserts a single weekly bar for the given symbol and date (YYYY-MM-DD),
+ * writing into the year-sharded WEEKLY doc.
+ */
+export async function upsertAvWeeklyBar(options: {
+  symbol: string;
+  date: string; // YYYY-MM-DD (UTC day)
+  patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number };
+  endpoint?: AlphaVantageEndpoint; // defaults to WEEKLY_ADJUSTED
+}): Promise<void> {
+  const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED } = options;
+  const vendor = ApiProvider.ALPHA_VANTAGE;
+  const t = new Date(`${date}T00:00:00.000Z`).getTime();
+  const y = getYearFromEpochMillis(t);
+  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y);
+  const yearRef = db.doc(yearDocPath);
+  const snap = await yearRef.get();
+  const bars: CompactBar[] = snap.exists ? (snap.get('bars') ?? []) : [];
+
+  const idx = bars.findIndex((b) => b.t === t);
+  if (idx >= 0) {
+    const existing = bars[idx];
+    const patchBar = {
+      o: Number(patch.o ?? existing.o ?? 0),
+      h: Number(patch.h ?? existing.h ?? patch.o ?? 0),
+      l: Number(patch.l ?? existing.l ?? patch.o ?? 0),
+      c: Number(patch.c ?? existing.c ?? 0),
+      v: Number(patch.v ?? existing.v ?? 0),
+      ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
+      dv: Number(patch.dv ?? existing.dv ?? 0),
+      sc: Number(patch.sc ?? existing.sc ?? 1),
+    } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
+    bars[idx] = { ...existing, ...patchBar } as CompactBar;
+  } else {
+    const newBar: CompactBar = {
+      t,
+      d: new Date(t).toISOString().slice(0, 10),
+      o: Number(patch.o ?? 0),
+      h: Number(patch.h ?? (patch.o ?? 0)),
+      l: Number(patch.l ?? (patch.o ?? 0)),
+      c: Number(patch.c ?? 0),
+      v: Number(patch.v ?? 0),
+      ac: Number(patch.ac ?? patch.c ?? 0),
+      dv: Number(patch.dv ?? 0),
+      sc: Number(patch.sc ?? 1),
+    };
+    bars.push(newBar);
+  }
+
+  // Sort ascending for deterministic writes
+  bars.sort((a, b) => a.t - b.t);
+  await yearRef.set({
+    bars,
+    count: bars.length,
+    firstBarTs: bars[0]?.t ?? null,
+    lastBarTs: bars[bars.length - 1]?.t ?? null,
+    updatedAt: Timestamp.now(),
+  }, { merge: true });
+}
+
+/**
+ * Upserts a single monthly bar for the given symbol and date (YYYY-MM-DD),
+ * writing into the single 'all' MONTHLY doc.
+ */
+export async function upsertAvMonthlyBar(options: {
+  symbol: string;
+  date: string; // YYYY-MM-DD (UTC day)
+  patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number };
+  endpoint?: AlphaVantageEndpoint; // defaults to MONTHLY_ADJUSTED
+}): Promise<void> {
+  const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED } = options;
+  const vendor = ApiProvider.ALPHA_VANTAGE;
+  const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
+  const allRef = db.doc(allDocPath);
+  const snap = await allRef.get();
+  const bars: CompactBar[] = snap.exists ? (snap.get('bars') ?? []) : [];
+  const t = new Date(`${date}T00:00:00.000Z`).getTime();
+
+  const idx = bars.findIndex((b) => b.t === t);
+  if (idx >= 0) {
+    const existing = bars[idx];
+    const patchBar = {
+      o: Number(patch.o ?? existing.o ?? 0),
+      h: Number(patch.h ?? existing.h ?? patch.o ?? 0),
+      l: Number(patch.l ?? existing.l ?? patch.o ?? 0),
+      c: Number(patch.c ?? existing.c ?? 0),
+      v: Number(patch.v ?? existing.v ?? 0),
+      ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
+      dv: Number(patch.dv ?? existing.dv ?? 0),
+      sc: Number(patch.sc ?? existing.sc ?? 1),
+    } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
+    bars[idx] = { ...existing, ...patchBar } as CompactBar;
+  } else {
+    const newBar: CompactBar = {
+      t,
+      d: new Date(t).toISOString().slice(0, 10),
+      o: Number(patch.o ?? 0),
+      h: Number(patch.h ?? (patch.o ?? 0)),
+      l: Number(patch.l ?? (patch.o ?? 0)),
+      c: Number(patch.c ?? 0),
+      v: Number(patch.v ?? 0),
+      ac: Number(patch.ac ?? patch.c ?? 0),
+      dv: Number(patch.dv ?? 0),
+      sc: Number(patch.sc ?? 1),
+    };
+    bars.push(newBar);
+  }
+
+  // Sort ascending for deterministic writes
+  bars.sort((a, b) => a.t - b.t);
+  await allRef.set({
+    bars,
+    count: bars.length,
+    firstBarTs: bars[0]?.t ?? null,
+    lastBarTs: bars[bars.length - 1]?.t ?? null,
+    updatedAt: Timestamp.now(),
+  }, { merge: true });
+}
