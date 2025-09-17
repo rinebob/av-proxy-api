@@ -6,8 +6,12 @@ import * as admin from 'firebase-admin';
 let app: App;
 let db: Firestore;
 
-if (process.env.FUNCTIONS_EMULATOR === 'true') {
-  // In emulator mode, the SDK is initialized automatically, 
+// Determine environment: never treat Cloud Run as emulator even if env vars are mis-set
+const isRunningOnCloudRun = !!process.env.K_SERVICE; // Present on Cloud Run/Gen2 Functions
+const useEmulators = process.env.FUNCTIONS_EMULATOR === 'true' && !isRunningOnCloudRun;
+
+if (useEmulators) {
+  // In emulator mode, the SDK is initialized automatically,
   // but we can still configure it if needed.
   if (!admin.apps.length) {
     admin.initializeApp({
@@ -35,10 +39,9 @@ app = getApp();
 db = getFirestore(app);
 db.settings({ ignoreUndefinedProperties: true });
 
-// If using emulators, point the SDK to them.
-if (process.env.FUNCTIONS_EMULATOR === 'true') {
+// If using emulators, point/log the emulator config. Never do this on Cloud Run.
+if (useEmulators) {
   console.log('Connecting to Firebase Emulators...');
-  
   // Point to the auth emulator
   // This env var is read by the Admin SDK's auth().verifyIdToken() method.
   process.env.FIREBASE_AUTH_EMULATOR_HOST = 'localhost:9099';
