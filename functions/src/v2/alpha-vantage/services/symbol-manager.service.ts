@@ -182,9 +182,20 @@ export class SymbolManagerService {
           query = query.where(TRACKED_SYMBOL_V2_FIELDS.IS_ACTIVE, '==', true);
         }
 
-        // Get total count
-        const countSnapshot = await query.count().get();
-        const total = countSnapshot.data().count;
+        // Get total count (with fallback if aggregate query fails)
+        let total = 0;
+        try {
+          const countSnapshot = await query.count().get();
+          total = countSnapshot.data().count;
+        } catch (countErr: any) {
+          console.error('sMSvc lSV2 count() failed; falling back to approximate count via documentId():', {
+            message: countErr?.message,
+            code: countErr?.code,
+            details: countErr?.details,
+          });
+          total = await this._fallbackCount(query);
+          console.log('sMSvc lSV2 fallback total computed as:', total);
+        }
 
         // Map sortBy (from UI or API) to canonical Firestore field
         const sortField =
@@ -213,6 +224,27 @@ export class SymbolManagerService {
       } catch (error) {
         console.error('sMSvc lSV2 [SymbolManager] Error listing symbols:', error);
         throw new Error('Failed to list symbols');
+      }
+    }
+
+    /**
+     * Fallback counter when Firestore aggregate count() is unavailable.
+     * Uses select(documentId()) to minimize payload size.
+     */
+    private async _fallbackCount(query: Query<DocumentData>): Promise<number> {
+      try {
+        const snapshot = await (query as any)
+          .select(admin.firestore.FieldPath.documentId())
+          .get();
+        return snapshot.size;
+      } catch (err: any) {
+        console.error('sMSvc lSV2 _fallbackCount failed:', {
+          message: err?.message,
+          code: err?.code,
+          details: err?.details,
+        });
+        // As a last resort, return 0 to avoid failing the entire request
+        return 0;
       }
     }
 }
