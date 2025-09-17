@@ -16,15 +16,17 @@ export const BULK_QUOTE_UPDATE_SCHEDULE = '12 13 * * *';  // 12:12 PM ET (13:12 
 // Run at market close: 16:30 PM ET
 export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * *';  // 16:30 PM ET
 
-// Intraday snapshot (pre-close) for REL-STR use cases
-// Captures a quote at 3:30 PM Eastern each trading day
-export const INTRADAY_SNAPSHOT_SCHEDULE = '30 15 * * *';  // 3:30 PM ET
+// Pre-close run (time-series daily compact)
+export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * *';   // 3:30 PM ET
 
 // for refreshAlphaVantageDataV2
 // functions/src/alpha-vantage/data-refresher/av-refresh-manager.ts
 // export const AV_REFRESH_MANAGER_SCHEDULE = 'every 15 minutes'; 
 export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * *';  // 12:45 PM ET (13:45 UTC)
 
+// New schedules for time-series-only refresh cadence
+export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 16 * * *';  // 4:35 PM ET
+export const TS_POST_CLOSE_SCHEDULE = '40 16 * * *';        // 4:40 PM ET (generic post-close)
 
 // for refreshBenzingaCalendarDataV2
 // functions/src/benzinga/data-refresher/bz-calendar-refresh-manager.ts

@@ -1,5 +1,5 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
-import { saveAvTimeSeriesData } from '../firestore/av-firestore-helper';
+import { saveAvTimeSeriesData, upsertAvDailyBar, upsertAvWeeklyBar, upsertAvMonthlyBar } from '../firestore/av-firestore-helper';
 import { ApiResponse } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval } from '@shared/alpha-vantage';
 import { createLogger, hr } from '../../utils/utils';
@@ -84,7 +84,23 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
       const transformedData = this.transformResponse(responseData);
 
       // Persist bars if provided by subclass
-      const bars = this.getBarsForStorage(transformedData);
+      let bars = this.getBarsForStorage(transformedData);
+
+      // For compact updates, persist only the most recent element
+      const outputSize = (requestParams as any)?.outputsize as string | undefined;
+      if (outputSize === 'compact' && Array.isArray(bars) && bars.length > 1) {
+        // Choose the bar with the maximum date (YYYY-MM-DD)
+        let latestIdx = 0;
+        let latestTs = Number.NEGATIVE_INFINITY;
+        for (let i = 0; i < bars.length; i++) {
+          const t = new Date(`${bars[i].date}T00:00:00.000Z`).getTime();
+          if (Number.isFinite(t) && t > latestTs) {
+            latestTs = t;
+            latestIdx = i;
+          }
+        }
+        bars = latestIdx >= 0 ? [bars[latestIdx]] : bars;
+      }
 
       // Default: check write toggle (UI/gateway). Backend callers should pass __checkWriteToggle: false
       const checkWriteToggle: boolean = __checkWriteToggle !== false;
@@ -95,15 +111,53 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
         bars.length > 0 &&
         Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)
       ) {
-        hr('aVTS.H', `save ${endpoint} ${symbol} bars=${bars.length} [${(this as any).requestId}]`);
-        log.info('firestore.save', { endpointId: endpoint, symbol, bars: bars.length, requestId: (this as any).requestId });
-        await saveAvTimeSeriesData(
-          bars,
-          symbol,
-          endpoint as AlphaVantageEndpoint,
-          this.config.interval as TimeSeriesInterval,
-          checkWriteToggle
-        );
+        const outputSize = (requestParams as any)?.outputsize as string | undefined;
+        if (outputSize === 'compact') {
+          // Upsert only the latest bar to avoid rewriting larger arrays
+          const latest = bars[0];
+          hr('aVTS.H', `upsert ${endpoint} ${symbol} date=${latest.date} [${(this as any).requestId}]`);
+          log.info('firestore.upsert', { endpointId: endpoint, symbol, date: latest.date, requestId: (this as any).requestId });
+          const patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number } = {
+            o: latest.open,
+            h: latest.high,
+            l: latest.low,
+            c: latest.close,
+            v: latest.volume,
+            ac: latest.adjustedClose,
+            dv: latest.dividendAmount,
+            sc: latest.splitCoefficient,
+          };
+          switch (this.config.interval) {
+            case TimeSeriesInterval.DAILY:
+              await upsertAvDailyBar({ symbol, date: latest.date, patch });
+              break;
+            case TimeSeriesInterval.WEEKLY:
+              await upsertAvWeeklyBar({ symbol, date: latest.date, patch });
+              break;
+            case TimeSeriesInterval.MONTHLY:
+              await upsertAvMonthlyBar({ symbol, date: latest.date, patch });
+              break;
+            default:
+              await saveAvTimeSeriesData(
+                bars,
+                symbol,
+                endpoint as AlphaVantageEndpoint,
+                this.config.interval as TimeSeriesInterval,
+                checkWriteToggle
+              );
+          }
+        } else {
+          // Full/backfill writes
+          hr('aVTS.H', `save ${endpoint} ${symbol} bars=${bars.length} [${(this as any).requestId}]`);
+          log.info('firestore.save', { endpointId: endpoint, symbol, bars: bars.length, requestId: (this as any).requestId });
+          await saveAvTimeSeriesData(
+            bars,
+            symbol,
+            endpoint as AlphaVantageEndpoint,
+            this.config.interval as TimeSeriesInterval,
+            checkWriteToggle
+          );
+        }
       } else {
         hr('aVTS.H', `skip save (empty|noBars) ${endpoint} ${symbol ?? ''} [${(this as any).requestId}]`);
         log.info('firestore.skip_or_empty', { endpointId: endpoint, symbol, hasBars: !!bars && bars.length > 0, requestId: (this as any).requestId });

@@ -117,9 +117,13 @@ export async function saveAvTimeSeriesData(
 ): Promise<void> {
   console.log(`aFH sATSD start ${endpoint} ${symbol} ${interval}`);
   log.info('timeseries.save.start', { symbol, endpoint, interval });
-  // Emulator guard: for DAILY, keep roughly last 1 year of data to reduce emulator dataset size
+  // Emulator guard: trim DAILY/WEEKLY/MONTHLY to roughly last 1 year to keep emulator datasets small
   const emulator = process.env.FUNCTIONS_EMULATOR === 'true' || !!process.env.FIRESTORE_EMULATOR_HOST;
-  if (emulator && interval === TimeSeriesInterval.DAILY && Array.isArray(data)) {
+  if (emulator && Array.isArray(data) && (
+    interval === TimeSeriesInterval.DAILY ||
+    interval === TimeSeriesInterval.WEEKLY ||
+    interval === TimeSeriesInterval.MONTHLY
+  )) {
     const now = Date.now();
     const oneYearMs = 365 * 24 * 3600 * 1000;
     const cutoff = now - oneYearMs;
@@ -128,8 +132,9 @@ export async function saveAvTimeSeriesData(
       return Number.isFinite(t) && t >= cutoff;
     });
     if (filtered.length !== data.length) {
-      console.log(`aFH sATSD emulator trim ${data.length} → ${filtered.length}`);
-      log.debug('timeseries.save.trim', { from: data.length, to: filtered.length });
+      const intervalLabel = String(interval);
+      console.log(`aFH sATSD emulator trim [${intervalLabel}] ${data.length} → ${filtered.length}`);
+      log.debug('timeseries.save.trim', { interval: intervalLabel, from: data.length, to: filtered.length });
       data = filtered;
     }
   }
