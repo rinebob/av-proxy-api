@@ -200,21 +200,31 @@ Once the core proxy workbench is functional and stable, the following can be con
 
 ## Alpha Vantage Time Series Refresh Strategy (Updated)
 
-This project uses a Global Quote–driven update flow for Alpha Vantage time series:
+This project uses a Time Series endpoint–driven update flow for Alpha Vantage time series. GLOBAL_QUOTE is not used to update time series.
 
-- Initial backfill happens once per symbol/interval (daily, weekly, monthly; adjusted and/or raw) when a symbol is added to `tracked-symbols`. The time-series handlers perform sharded writes under `symbol-data/{symbol}/time-series/{provider-interval}/days/{YYYY-MM-DD}/bars/{ISO_TIMESTAMP}` and set a minimal top-level doc containing `metadata` and `latestBarTimestamp`.
+- Initial backfill happens once per symbol/interval (daily, weekly, monthly; adjusted and/or raw) when a symbol is added to `tracked-symbols`.
+  - Call the corresponding time-series endpoint with `outputsize=full`.
+  - Handlers perform sharded writes under `symbol-data/{symbol}/time-series/{provider-interval}/years/{year}` and set a minimal top-level doc containing `metadata` and `latestBarTimestamp`.
 
-- Ongoing updates do not call the full time-series endpoints frequently. Instead, the refresher runs on a schedule (pre-close and post-close daily; and at week/month end) and fetches `GLOBAL_QUOTE` per symbol/interval combination. The quote is then applied to the most recent sharded bar(s) for that interval:
-  - Pre-close: write intraday-only fields on the current day’s bar (e.g., `intradayPrice`, `intradayObservedAt`, `intradayTime`). Do not overwrite adjusted fields.
-  - Post-close (EOD): write the official close using `price` from the Global Quote for the day’s bar; reconcile high/low/volume if present.
-  - Week/month end: at boundary windows, roll the last week/month bar accordingly (or update intraday markers pre-close, finalize post-close).
+- Ongoing updates use the same time-series endpoints (not GLOBAL_QUOTE):
+  - On each scheduled refresh, call the endpoint with `outputsize=compact` (returns up to the most recent ~100 elements).
+  - Use the most recent element in the response as the newest bar to append/patch via the normalized sharded writers.
+  - Do not make frequent full backfill calls; reserve `outputsize=full` for initialization or explicit re-backfill operations.
 
-- No 10–30s TTL loop is used. Scheduling is explicit and aligned with market phases (pre-close, post-close, weekly/monthly boundaries).
+- Field usage and persistence constraints:
+  - Only use fields that are present in the time-series payload (open, high, low, close, adjusted close, volume, dividend amount, split coefficient, etc.).
+  - Do not calculate or persist synthetic fields derived from GLOBAL_QUOTE such as previous close, change, or change percent for time-series documents.
+
+- Scheduling:
+  - Daily time series: run twice each trading day — pre-close and post-close — calling the daily time-series endpoint with `outputsize=compact` and applying the most recent bar.
+  - Weekly and monthly time series: run every trading day post-close (also with `outputsize=compact`). There is no special week/month-end rollup; we always request the same endpoints each trading day and use the most recent element.
+  - There is no separate boundary-window logic.
 
 - Adjusted vs non-adjusted series:
-  - Intraday touching updates add intraday fields only; adjusted values are not synthesized intraday.
-  - Post-close updates can finalize the day’s bar. Adjusted series can still be backfilled/refreshed via the adjusted endpoints when warranted (e.g., splits/dividends), but this is not part of frequent loops.
+  - Continue to use adjusted endpoints as the canonical default for persisted series where appropriate (e.g., `av-daily-adjusted`, `av-weekly-adjusted`, `av-monthly-adjusted`).
+  - we are not currently using raw time series, so we will not be using non-adjusted endpoints.
 
-- Company Overview (OVERVIEW): skipped for non-company symbols (e.g., ETFs, crypto). The refresher reads `tracked-symbols/{symbol}.type` and only calls OVERVIEW for equities/companies.
+- Company Overview (OVERVIEW):
+  - Unchanged: skip for non-company symbols (e.g., ETFs, crypto). The refresher reads `tracked-symbols/{symbol}.type` and only calls OVERVIEW for equities/companies.
 
-This approach minimizes provider calls, preserves sharded storage, and keeps series current at operationally significant boundaries.
+This approach minimizes provider calls to the necessary cadence, preserves sharded storage, and keeps series current by reusing the time-series endpoints with compact output for updates.

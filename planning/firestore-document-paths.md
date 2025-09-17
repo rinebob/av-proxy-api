@@ -39,17 +39,18 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
 - Shards by day: `days/{YYYY-MM-DD}/bars/{ISO_TIMESTAMP}` holding compact bars.
 - Top-level time-series doc stores only metadata and `latestBarTimestamp`.
 
-### Applying Global Quote (GLOBAL_QUOTE)
+### Applying Time Series Updates (No GLOBAL_QUOTE)
 
-- We do not persist a standalone `GLOBAL_QUOTE` document.
-- Instead, quotes drive updates to the most recent time-series shards. A separate quote request is issued per symbol/interval combination, and applied only to that interval:
-  - Pre-close: write intraday-only fields on the current day’s bar:
-    - `intradayPrice`, `intradayObservedAt`, `intradayTime`
-  - Post-close (EOD): finalize the day’s bar using the quote’s `price` (Global Quote field 05) as the close; reconcile high/low/volume if present.
-  - Weekly/monthly: at boundary windows, roll/update the latest week/month bar accordingly.
-- Adjusted vs non-adjusted:
-  - Intraday updates do not synthesize adjusted values.
-  - Adjusted values are refreshed via adjusted endpoints when needed (splits/dividends), not on frequent loops.
+- We do not persist or use a standalone `GLOBAL_QUOTE` document for time-series updates.
+- Initialization:
+  - On symbol add, call the corresponding time-series endpoint with `outputsize=full` and write all bars via sharded writers.
+- Ongoing updates:
+  - Daily time series: run twice each trading day — pre-close and post-close — calling the daily endpoint with `outputsize=compact` and applying the most recent element.
+  - Weekly and monthly time series: run every trading day post-close, also with `outputsize=compact`. There is no special week/month-end rollup; we always request the same endpoints each trading day and use the most recent element.
+  - There is no separate boundary-window logic.
+- Field usage:
+  - Persist only fields present in the time-series payload: open, high, low, close, adjusted close, volume, dividend amount, split coefficient.
+  - Do NOT calculate or persist `previous close`, `change`, or `change percent` on time-series documents.
 
 ### Company Overview for Non-Company Symbols
 
