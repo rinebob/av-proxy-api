@@ -1,6 +1,12 @@
 <div class="app-container">
   <mat-toolbar color="primary" class="app-toolbar">
-    <button mat-icon-button (click)="sidenav.toggle()" class="menu-button">
+    <button
+      mat-icon-button
+      (click)="sidenav.toggle()"
+      class="menu-button"
+      [class.invisible]="isLoginRoute() || !isAuthenticated()"
+      [disabled]="isLoginRoute() || !isAuthenticated()"
+      [attr.aria-hidden]="(isLoginRoute() || !isAuthenticated()) ? true : null">
       <mat-icon>menu</mat-icon>
     </button>
     
@@ -8,9 +14,11 @@
     
     <span class="spacer"></span>
     
-    <app-manual-firestore-write-toggle />
+    @if (isAuthenticated() && isAdmin() && !isLoginRoute()) {
+      <app-manual-firestore-write-toggle />
+    }
     
-    @if (isAuthenticated()) {
+    @if (isAuthenticated() && !isLoginRoute()) {
       <div class="user-info">
         <span class="welcome-text">Welcome, {{ currentUser()?.email || 'User' }}</span>
         <button mat-raised-button color="accent" (click)="handleLogout()" class="logout-button">
@@ -27,22 +35,24 @@
   </mat-toolbar>
 
   <mat-sidenav-container class="sidenav-container" autosize>
-    <mat-sidenav #sidenav class="sidenav" mode="side">
-      <mat-nav-list>
-        @for (item of filteredNavItems(); track item.route) {
-          <a mat-list-item 
-             [routerLink]="item.route" 
-             routerLinkActive="active"
-             [routerLinkActiveOptions]="{exact: item.exact}"
-             (click)="sidenav.toggle()"
-             class="nav-item">
-            <mat-icon matListItemIcon class="nav-icon">{{item.iconName}}</mat-icon>
-            <span matListItemTitle class="nav-label">{{item.displayName}}</span>
-          </a>
-        }
-      </mat-nav-list>
-    </mat-sidenav>
-
+    @if (!isLoginRoute() && isAuthenticated()) {
+      <mat-sidenav #sidenav class="sidenav" mode="side">
+        <mat-nav-list>
+          @for (item of filteredNavItems(); track item.route) {
+            <a mat-list-item 
+               [routerLink]="item.route" 
+               routerLinkActive="active"
+               [routerLinkActiveOptions]="{exact: item.exact}"
+               (click)="sidenav.toggle()"
+               class="nav-item">
+              <mat-icon matListItemIcon class="nav-icon">{{item.iconName}}</mat-icon>
+              <span matListItemTitle class="nav-label">{{item.displayName}}</span>
+            </a>
+          }
+        </mat-nav-list>
+      </mat-sidenav>
+    }
+ 
     <mat-sidenav-content class="content">
       <main class="main-content">
         <router-outlet></router-outlet>

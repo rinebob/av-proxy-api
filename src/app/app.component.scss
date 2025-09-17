@@ -165,6 +165,12 @@ mat-toolbar {
   
   .menu-button {
     margin-right: 8px;
+    
+    // Keep layout space but hide visuals and interactions when not applicable
+    &.invisible {
+      visibility: hidden; // preserves layout space
+      pointer-events: none; // no clicks
+    }
   }
   
   .logo {

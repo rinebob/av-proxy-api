@@ -1,14 +1,16 @@
 @if (isAdmin()) {
 <div class="toggle-toolbar-row">
     <span class="toggle-status">
-        @if (enabled()) {
+        @if (loading()) {
+            Loading…
+        } @else if (enabled()) {
             Writes Enabled
         } @else {
             Writes Disabled
         }
     </span>
     <mat-slide-toggle [checked]="enabled()" (change)="toggleWrite()" color="accent"
-        aria-label="Enable manual Firestore writes">
+        aria-label="Enable manual Firestore writes" [disabled]="loading()">
         {{ enabled() ? 'Disable' : 'Enable' }}
     </mat-slide-toggle>
     @if (error()) {

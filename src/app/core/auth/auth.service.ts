@@ -59,7 +59,12 @@ export class AuthService {
         });
         
         // Log ID token details
-        await this.logTokenDetails(user);
+        // Force-refresh to ensure custom claims are current (important for emulator and after role updates)
+        let freshToken: string | null = null;
+        try {
+          freshToken = await user.getIdToken(true);
+        } catch {}
+        await this.logTokenDetails(user, freshToken ?? undefined);
         const tokenResult = await getIdTokenResult(user);
         this.isAdmin.set(!!tokenResult.claims['admin']);
       } else {
@@ -69,17 +74,17 @@ export class AuthService {
     });
   }
 
-  private async logTokenDetails(user: User): Promise<void> {
+  private async logTokenDetails(user: User, token?: string): Promise<void> {
     try {
-      const token = await user.getIdToken();
-      const decoded = JSON.parse(atob(token.split('.')[1]));
+      const t = token ?? await user.getIdToken();
+      const decoded = JSON.parse(atob(t.split('.')[1]));
       console.log('AuthService: Current ID token details:', {
         uid: decoded.user_id || decoded.uid,
         email: decoded.email,
         auth_time: new Date(decoded.auth_time * 1000).toISOString(),
         issued_at: new Date(decoded.iat * 1000).toISOString(),
         expires_at: new Date(decoded.exp * 1000).toISOString(),
-        token_length: token.length
+        token_length: t.length
       });
     } catch (error) {
       console.error('AuthService: Error decoding ID token:', error);
@@ -110,7 +115,7 @@ export class AuthService {
           // Force refresh the token
           const token = await user.getIdToken(true);
           console.log('AuthService: Successfully refreshed ID token');
-          await this.logTokenDetails(user);
+          await this.logTokenDetails(user, token);
           resolve(token);
         } catch (error) {
           console.error('AuthService: Error refreshing token:', error);

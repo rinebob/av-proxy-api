@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal, ViewChild } from '@angular/core';
+import { Component, computed, effect, inject, signal, ViewChild, AfterViewInit } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { CommonModule } from '@angular/common';
@@ -12,7 +12,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { User } from 'firebase/auth';
-import { map, shareReplay } from 'rxjs/operators';
+import { map, shareReplay, map as rxMap, startWith } from 'rxjs/operators';
 
 import { AuthService } from './core/auth/auth.service';
 import { environment } from '../environments/environment';
@@ -39,7 +39,7 @@ import { ManualFirestoreWriteToggleComponent } from './core/admin/manual-firesto
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss']
 })
-export class AppComponent {
+export class AppComponent implements AfterViewInit {
   @ViewChild('sidenav') sidenav!: MatSidenav;
   
   private authService = inject(AuthService);
@@ -62,12 +62,23 @@ export class AppComponent {
   // Signals
   currentUser = toSignal<User | null>(this.authService.user$);
   isAuthenticated = computed(() => !!this.currentUser());
-  isAdmin = computed<boolean>(() => {
-    const userEmail = this.currentUser()?.email;
-    return userEmail ? environment.adminEmails.includes(userEmail) : false;
-  });
-  
+  // IMPORTANT: keep as a signal so it reacts to async custom-claims load
+  isAdmin = this.authService.isAdmin;
+
+  readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      rxMap(() => this.router.url),
+      startWith(this.router.url)
+    ),
+    { initialValue: this.router.url }
+  );
+  isLoginRoute = computed(() => this.currentUrl().startsWith('/login'));
+
   filteredNavItems = computed<NavItem[]>(() => {
+    // Hide all items on login route or when not authenticated
+    if (!this.isAuthenticated() || this.isLoginRoute()) {
+      return [];
+    }
     return this.navItems.filter(item => {
       // Show all items for admin, only non-admin items for regular users
       if (this.isAdmin()) return true;
@@ -77,6 +88,22 @@ export class AppComponent {
 
   ngOnInit(): void {
     this.titleService.setTitle('Savant API');
+  }
+
+  ngAfterViewInit(): void {
+    // Keep the sidenav state in sync with auth and route
+    effect(() => {
+      const shouldOpen = this.isAuthenticated() && !this.isLoginRoute();
+      // Defer until ViewChild is available
+      queueMicrotask(() => {
+        if (!this.sidenav) return;
+        if (shouldOpen) {
+          this.sidenav.open();
+        } else {
+          this.sidenav.close();
+        }
+      });
+    });
   }
 
   async handleLogout(): Promise<void> {

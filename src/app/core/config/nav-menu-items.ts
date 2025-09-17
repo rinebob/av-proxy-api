@@ -40,14 +40,5 @@ export const NAV_ITEMS: NavItem[] = [
     exact: false,
     requiredRole: 'admin',
     tooltip: 'Manage company logos'
-  },
-  {
-    displayName: 'Debug',
-    iconName: 'bug_report',
-    route: '/fs-debug',
-    exact: false,
-    requiredRole: 'admin', // Only admin can see debug
-    tooltip: 'Debug tools',
-    isDebug: true
   }
 ];
