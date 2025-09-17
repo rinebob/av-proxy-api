@@ -21,6 +21,9 @@ export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-
 // New HTTP wrapper for emulator testing only
 export { refreshAlphaVantageDataV2Http } from './v2/alpha-vantage/data-refresher/av-refresh-http.js';
 
+// Emulator-only HTTP for time-series (DAILY/WEEKLY/MONTHLY) refresh/init
+export { refreshAvTimeSeriesHttp } from './v2/alpha-vantage/data-refresher/av-timeseries-http.js';
+
 // New Benzinga Data Refresher
 export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager.js';
 
@@ -28,7 +31,7 @@ export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-c
 export { onSymbolAdded } from './v2/alpha-vantage/triggers/on-symbol-added.function.js';
 
 // In the V2 section of index.ts
-export { updateDailyTimeSeries } from './v2/alpha-vantage';
+// Legacy daily updater export removed; use TS_* scheduled wrappers and HTTP emu endpoints.
 
 export { listCollections } from './v2/common/functions/list-collections.js';
 

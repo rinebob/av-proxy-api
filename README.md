@@ -247,6 +247,85 @@ ng e2e
 - Ensure the user is properly authenticated
 - Check Firebase Authentication console for user status
 
+## Emulator HTTP Utilities
+
+This repo includes emulator-only HTTP endpoints for manually triggering data refreshes during local development. These endpoints return 403 outside the Firebase emulators.
+
+- Functions emulator URL template:
+  - `http://localhost:5001/<projectId>/us-central1/<functionName>`
+
+### Time-Series Refresh/Init (Alpha Vantage)
+
+- Function: `refreshAvTimeSeriesHttp`
+- File: `functions/src/v2/alpha-vantage/data-refresher/av-timeseries-http.ts`
+- Query params:
+  - `interval` (required): `DAILY | WEEKLY | MONTHLY`
+  - `symbol` (optional): e.g., `AAPL`; omit to run for all tracked symbols
+  - `init` (optional): `true` to initialize the full series if missing
+  - `force` (optional): `true` to bypass freshness at the wrapper level
+
+PowerShell one-liners (replace `<projectId>` as needed; default region is `us-central1`):
+
+```powershell
+# DAILY compact refresh for a single symbol
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAvTimeSeriesHttp?interval=DAILY&symbol=AAPL"
+
+# WEEKLY full init if missing
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAvTimeSeriesHttp?interval=WEEKLY&symbol=AAPL&init=true"
+
+# MONTHLY compact refresh for all tracked symbols
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAvTimeSeriesHttp?interval=MONTHLY"
+
+# DAILY compact refresh with force
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAvTimeSeriesHttp?interval=DAILY&symbol=MSFT&force=true"
+```
+
+Response shape includes: `startedAtIso`, `finishedAtIso`, `totalDurationMs`, `processed`, `refreshed`, `initialized`, `errors`, and per-symbol details like `durationMs`, `docPath`, `latestBarIso`, `nextRefreshIso`.
+
+### Non–Time-Series Refresh (Alpha Vantage)
+
+- Function: `refreshAlphaVantageDataV2Http`
+- File: `functions/src/v2/alpha-vantage/data-refresher/av-refresh-http.ts`
+
+PowerShell one-liners:
+
+```powershell
+# Run once (TTL-aware)
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAlphaVantageDataV2Http"
+
+# With force
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAlphaVantageDataV2Http?force=true"
+```
+
+## Emulator Behavior: Time-Series Trimming
+
+To keep local datasets small, the emulator build trims AV time-series payloads in `saveAvTimeSeriesData()`:
+- DAILY, WEEKLY, MONTHLY: roughly the last 1 year of bars are persisted.
+
+Files:
+- `functions/src/v2/alpha-vantage/firestore/av-firestore-helper.ts`
+
+## Storage Layout Summary (AV Time-Series)
+
+- Root: `symbol-data/{SYMBOL}/time-series/{provider-interval}`
+  - `av-daily-adjusted`, `av-weekly-adjusted`, `av-monthly-adjusted`
+- Daily: year-sharded docs
+  - `.../years/{YYYY}` with compact bars array
+- Weekly: year-sharded docs
+  - `.../years/{YYYY}` with compact bars array
+- Monthly: single aggregate doc (current implementation)
+  - `.../all/data` with compact bars array
+
+Compact Bar Fields:
+- Required: `t` (ms), `d` (YYYY-MM-DD), `o`, `h`, `l`, `c`, `v`
+- Adjustments: `ac` (adjusted close), `dv` (dividend amount), `sc` (split coefficient)
+- Optional intraday snapshot fields (if used): `ip`, `io`, `it`
+
+## Notes
+
+- These HTTP endpoints are intended for local development only and will return 403 outside the emulators.
+- For scheduled, automated refreshes use the cron-based functions defined in `functions/src/v2/common/function-schedules.ts` and wired in `av-refresh-manager.ts`.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
