@@ -95,6 +95,12 @@ export enum FirestoreCollection {
     WIIM = 'wiim',
     METADATA = '_metadata',
 
+    //////////// HEALTH METRICS DASHBOARD ///////////////////
+
+    HEALTH_METRICS = 'health-metrics',
+
+    //////////// END HEALTH METRICS DASHBOARD ///////////////////
+
     /////////////////// END BENZINGA ///////////////////
 
     // For disabling / not implementing an endpoint

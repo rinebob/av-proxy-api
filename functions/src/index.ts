@@ -27,6 +27,9 @@ export { refreshAvTimeSeriesHttp } from './v2/alpha-vantage/data-refresher/av-ti
 // New Benzinga Data Refresher
 export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager.js';
 
+// Health Metrics Scheduler
+export { checkAllEndpoints as healthMetricsScheduler } from './v2/health-metrics/health-metrics.scheduler';
+
 // Symbol Tracking Triggers
 export { onSymbolAdded } from './v2/alpha-vantage/triggers/on-symbol-added.function.js';
 
