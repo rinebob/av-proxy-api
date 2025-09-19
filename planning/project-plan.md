@@ -114,6 +114,65 @@ To build a simple, robust, and secure developer workbench (Proxy API Surface) fo
 
 ---
 
+## Health Dashboard (New Module)
+
+### Overview
+A comprehensive dashboard to monitor the health and status of all automated Alpha Vantage data updates, TTLs, and system metrics. This will provide visibility into the data refresh pipeline and help identify any issues with data freshness or update failures.
+
+### Key Features
+1. **Endpoint Status Overview**
+   - Current status of all Alpha Vantage endpoints
+   - Last successful update timestamp per endpoint
+   - Time until next scheduled refresh
+   - TTL configuration for each endpoint
+   - Success/failure rate metrics
+
+2. **Data Freshness Monitoring**
+   - Time since last successful update per symbol/endpoint
+   - Visual indicators for stale data
+   - Historical update patterns and trends
+
+3. **System Health Metrics**
+   - Alpha Vantage API rate limit usage and quotas
+   - Error rates and common failure modes
+   - Performance metrics (latency, processing time)
+   - Resource utilization (Firestore reads/writes)
+
+4. **Alerting and Notifications**
+   - Configurable alerts for failed updates
+   - Threshold-based notifications for performance degradation
+   - Integration with monitoring systems (e.g., Cloud Monitoring)
+
+### Implementation Approach
+1. **Backend Components**
+   - New Cloud Function to aggregate health metrics
+   - Firestore collection for storing health check results
+   - Scheduled jobs to update health metrics
+
+2. **Frontend Components**
+   - New Angular module for the health dashboard
+   - Real-time updates using Firestore listeners
+   - Interactive charts and visualizations
+   - Filtering and search capabilities
+
+3. **Data Collection**
+   - Instrument existing refresh functions to log health metrics
+   - Track success/failure of each update operation
+   - Monitor TTLs and next refresh times
+
+### Integration Points
+- Leverages existing Firestore data structures
+- Integrates with current authentication and authorization
+- Complements the existing monitoring setup
+
+### Future Enhancements
+- Automated remediation for common issues
+- Historical trend analysis
+- Capacity planning insights
+- SLA compliance reporting
+
+---
+
 ## Future Enhancements (Post-Phase 1)
 
 Once the core proxy workbench is functional and stable, the following can be considered:

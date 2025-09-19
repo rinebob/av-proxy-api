@@ -54,6 +54,56 @@ This document tracks the completion status of tasks outlined in the `project-pla
 
 ---
 
+## Phase 3: Health Dashboard
+
+### Module 1: Backend Health Monitoring
+
+- [ ] **Task 10.1: Implement health metrics collection**
+  - [ ] Create Firestore schema for health metrics
+  - [ ] Instrument refresh functions to log health data
+  - [ ] Implement scheduled aggregation of metrics
+
+- [ ] **Task 10.2: Create health check endpoints**
+  - [ ] Endpoint for current system status
+  - [ ] Endpoint for historical metrics
+  - [ ] Endpoint for TTL configurations
+
+- [ ] **Task 10.3: Implement alerting system**
+  - [ ] Configure alert thresholds
+  - [ ] Set up notification channels
+  - [ ] Implement alert suppression rules
+
+### Module 2: Frontend Dashboard
+
+- [ ] **Task 10.4: Create dashboard layout**
+  - [ ] Design main dashboard view
+  - [ ] Implement navigation and routing
+  - [ ] Create responsive grid layout
+
+- [ ] **Task 10.5: Implement data visualization**
+  - [ ] Status overview cards
+  - [ ] Time-series charts for metrics
+  - [ ] Data freshness indicators
+
+- [ ] **Task 10.6: Add filtering and search**
+  - [ ] Filter by endpoint/status
+  - [ ] Search functionality
+  - [ ] Time range selection
+
+### Module 3: Integration and Testing
+
+- [ ] **Task 10.7: Integrate with existing systems**
+  - [ ] Connect to Firestore real-time updates
+  - [ ] Implement authentication/authorization
+  - [ ] Set up production monitoring
+
+- [ ] **Task 10.8: Testing and validation**
+  - [ ] Unit tests for health metrics collection
+  - [ ] Integration tests for dashboard components
+  - [ ] End-to-end testing of monitoring flow
+
+---
+
 ### Discovered During Work
 - As of 2025-06-25: Frontend endpoint selection, canonical metadata, and type consolidation are complete and in sync with backend expectations.
 - As of 2025-09-15: Inbound partner notifications fully removed (webhook, subscriber, partnerEvents). System is outbound-only; announcements publish to Pub/Sub with `runs/{runId}` tracking. Emulator workflow and env cleaned up.
