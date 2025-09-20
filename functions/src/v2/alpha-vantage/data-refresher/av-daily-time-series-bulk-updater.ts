@@ -1,3 +1,25 @@
+/**
+ * @file Bulk updater for Alpha Vantage time series data (INACTIVE)
+ * 
+ * This file contains functionality for bulk updating time series data using Alpha Vantage's
+ * BULK_QUOTES endpoint. It's currently not in use but is being kept for potential
+ * future use cases where bulk updates might be needed.
+ * 
+ * Current Status: Inactive
+ * - The function is not exported or scheduled
+ * - All references in the codebase are commented out
+ * - The schedule constant is defined but not used
+ * 
+ * To reactivate:
+ * 1. Uncomment the export in alpha-vantage/index.ts
+ * 2. Uncomment the export in functions/src/index.ts
+ * 3. Uncomment and verify the schedule in function-schedules.ts
+ * 4. Update any necessary environment variables
+ * 
+ * Note: Consider if this is still needed as the regular refresh process might handle
+ * updates more efficiently with the current architecture.
+ */
+
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db } from '../../../firebase-admin-init';
 
