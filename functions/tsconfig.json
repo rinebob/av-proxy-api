@@ -16,10 +16,11 @@
     "baseUrl": ".",
     "paths": {
       "@shared/*": [
-        "lib/shared/*"
+        "../shared/lib/*"
       ]
     },
-    "lib": ["es2020"]
+    "lib": ["es2020"],
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
