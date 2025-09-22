@@ -83,3 +83,4 @@ functions/src/v2/benzinga/data-refresher/bz-news-refresh-manager.copy_0723-1624.
 src/assets/misc/prompts.txt
 functions/assets/data/AV_HIST_OPTIONS_RESP_NVDA_280813.ts
 shared/node_modules
+functions/local-dev.env.alpha-vantage-proxy-api
