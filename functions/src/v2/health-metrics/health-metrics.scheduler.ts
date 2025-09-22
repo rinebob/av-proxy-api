@@ -1,5 +1,5 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { AV_IMPLEMENTED_ENDPOINTS } from '@shared/alpha-vantage';
 import { RefreshStatus } from '@shared/firestore';
 import { HealthMetricsService } from './health-metrics.service';
 import { createLogger } from '../utils/utils';
@@ -20,8 +20,9 @@ export const checkAllEndpoints = onSchedule({
   logger.info('------- Starting scheduled health metrics check for all endpoints -------');
 
   try {
-    // Get all Alpha Vantage endpoints
-    const endpoints = Object.values(AlphaVantageEndpoint);
+    // Use the centrally-maintained allowlist of implemented endpoints
+    // Extend AV_IMPLEMENTED_ENDPOINTS as additional endpoint handlers are added
+    const endpoints = Array.from(AV_IMPLEMENTED_ENDPOINTS);
     logger.info(`Checking health for ${endpoints.length} endpoints`);
 
     let successCount = 0;
