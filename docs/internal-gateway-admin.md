@@ -104,3 +104,85 @@ See: `docs/partner-discovery.md`, `docs/partner-integration.md`.
 - `functions/scripts/README.lockdown-invokers.md`
 - `docs/partner-discovery.md`
 - `docs/partner-integration.md`
+
+---
+
+## Health Metrics (Internal HTTPS)
+
+These endpoints power the internal Health Dashboard. They are protected with the same authenticateRequest flow as other internal gateways.
+
+- Handler file: `functions/src/v2/health-metrics/health-metrics.function.ts`
+- Exported from: `functions/src/index.ts`
+- Auth: `authenticateRequest(req, res)` (Firebase ID token). For dual‑auth (Firebase or Google OIDC allowlist), we can switch to `authenticateRequestEither` later if needed.
+
+### Endpoints
+
+- `getHealthSummary`
+  - Returns aggregate `HealthSummary` across all endpoints
+  - Method: GET
+  - Params: none
+  - Response: `{ success: boolean, data: HealthSummary }`
+
+- `getHealthMetrics`
+  - Returns `EndpointHealthMetrics` for a single endpoint
+  - Method: GET
+  - Params:
+    - `endpoint` (required): one of `AlphaVantageEndpoint`
+  - Response: `{ success: boolean, data: EndpointHealthMetrics }`
+
+- `getRequestLogs`
+  - Returns paginated request/refresh logs with filters
+  - Method: GET
+  - Params:
+    - `endpointIds` (optional, csv)
+    - `symbols` (optional, csv)
+    - `from` (optional, ISO timestamp)
+    - `to` (optional, ISO timestamp)
+    - `sortBy` (optional; default `timestamp`)
+    - `sortOrder` (optional `asc|desc`; default `desc`)
+    - `limit` (optional; max 1000)
+    - `offset` (optional)
+  - Response: `{ success: boolean, data: RefreshRequestLog[], total, limit, offset, hasMore }`
+
+- `getSymbolStatus`
+  - Returns latest `SymbolStatus` across endpoints for a symbol (if present)
+  - Method: GET
+  - Params:
+    - `symbol` (required)
+  - Response: `{ success: boolean, data: SymbolStatus | null }`
+
+- `getSymbolMetrics`
+  - Returns aggregated `SymbolRefreshMetrics` for a symbol (if present)
+  - Method: GET
+  - Params:
+    - `symbol` (required)
+  - Response: `{ success: boolean, data: SymbolRefreshMetrics | null }`
+
+### Notes
+
+- Scheduler excludes raw (non‑adjusted) time‑series endpoints to avoid creating health docs for `TIME_SERIES_DAILY|WEEKLY|MONTHLY` (non‑adjusted). See `functions/src/v2/health-metrics/health-metrics.scheduler.ts`.
+- Time‑series writes use sharded storage; handlers update refresh history and top‑level metadata only.
+
+### Examples
+
+```bash
+# Health summary
+curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  https://<region>-<project>.cloudfunctions.net/getHealthSummary
+
+# Endpoint health
+curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  "https://<region>-<project>.cloudfunctions.net/getHealthMetrics?endpoint=TIME_SERIES_DAILY_ADJUSTED"
+
+# Request logs (last 24h for AAPL/MSFT daily-adjusted)
+FROM=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+TO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  "https://<region>-<project>.cloudfunctions.net/getRequestLogs?endpointIds=TIME_SERIES_DAILY_ADJUSTED&symbols=AAPL,MSFT&from=$FROM&to=$TO&limit=100&offset=0"
+
+# Symbol status/metrics
+curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  "https://<region>-<project>.cloudfunctions.net/getSymbolStatus?symbol=AAPL"
+
+curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  "https://<region>-<project>.cloudfunctions.net/getSymbolMetrics?symbol=AAPL"
