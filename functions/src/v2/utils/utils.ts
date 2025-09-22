@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { db } from '../../firebase-admin-init';
-import { defineSecret, defineString } from "firebase-functions/params";
-import * as dotenv from 'dotenv';
+import { defineSecret } from "firebase-functions/params";
 
 import { authenticateFirebaseUser } from './auth';
 
@@ -59,20 +58,9 @@ export function hrBlank(count = 1) {
 */
 export const alphaVantageApiKeyParam = defineSecret("ALPHAVANTAGE_API_KEY");
 
-/**
- * New param for local emulator. This is read from .env.<project-id> by the emulator.
- * It uses a different name to avoid conflicts during deployment when ALPHAVANTAGE_API_KEY
- * (the secret) is sourced from Secret Manager.
- */
-const localEmulatorAlphaVantageApiKeyParam = defineString("LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY", {
-  input: {text: {}},
-  default: "", // Default to empty string, so value() doesn't throw if not set, allowing logic to proceed
-  description: "API key for Alpha Vantage, ONLY for local emulator use.",
-});
-
 // Only load .env in non-production environment
 if (process.env.FUNCTIONS_EMULATOR === 'true') {
-  dotenv.config();
+  require('dotenv').config({ path: './local-dev.env.alpha-vantage-proxy-api' });
 }
 
 export { db };
@@ -216,23 +204,22 @@ export async function authenticateRequestEither(
 }
 
 /**
- * Retrieves the Alpha Vantage API key from Firebase environment configuration.
- * Logs an error if the key is not found.
+ * Retrieves the Alpha Vantage API key from environment or secret.
  * @returns {string} The API key. Throws an error if not found.
  */
 export function getAlphaVantageApiKey(): string {
   if (process.env.FUNCTIONS_EMULATOR === 'true') {
-    const localKey = localEmulatorAlphaVantageApiKeyParam.value();
+    const localKey = process.env.LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY;
     if (localKey) {
-      logger.info('Using local emulator API key.');
+      logger.info('Using local emulator API key from process.env.');
       return localKey;
     }
+    throw new Error("Local emulator API key not set in environment.");
   }
-  // In a deployed environment, use the secret
+  // In deployed environment, use the secret
   const apiKey = alphaVantageApiKeyParam.value();
   if (!apiKey) {
     logger.error("FATAL: ALPHAVANTAGE_API_KEY secret not found or loaded.");
-    // Throw an error to halt execution, as the function cannot proceed.
     throw new Error("Server configuration error: Missing Alpha Vantage API key.");
   }
   return apiKey;
