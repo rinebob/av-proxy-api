@@ -1,4 +1,3 @@
-
 export enum FirestoreCollection {
 
     // Top-level Collections
@@ -98,6 +97,8 @@ export enum FirestoreCollection {
     //////////// HEALTH METRICS DASHBOARD ///////////////////
 
     HEALTH_METRICS = 'health-metrics',
+    REQUEST_LOGS = 'request-logs',
+    ENDPOINT_SYMBOLS = 'endpoint-symbols',    
 
     //////////// END HEALTH METRICS DASHBOARD ///////////////////
 
