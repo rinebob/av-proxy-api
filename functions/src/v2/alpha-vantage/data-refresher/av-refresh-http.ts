@@ -1,6 +1,7 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { runRefreshAlphaVantageDataV2 } from './av-refresh-manager';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
+import { RefreshStatus } from '@shared/firestore';
 import { createLogger } from '../../utils/utils';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 
@@ -53,7 +54,7 @@ export const refreshAlphaVantageDataV2Http = onRequest(async (req, res) => {
     // Record success in health metrics for the specific endpoint
     await healthMetricsService.recordRefreshAttempt(
       TRACKED_ENDPOINT,
-      'success',
+      RefreshStatus.SUCCESS,
       undefined,
       durationMs
     );
@@ -77,8 +78,8 @@ export const refreshAlphaVantageDataV2Http = onRequest(async (req, res) => {
     // Record failure in health metrics for the specific endpoint
     await healthMetricsService.recordRefreshAttempt(
       TRACKED_ENDPOINT,
-      'failure',
-      errorMessage,
+      RefreshStatus.FAILURE,
+      error ? error.message : undefined,
       durationMs
     );
     

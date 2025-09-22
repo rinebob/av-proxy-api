@@ -1,5 +1,6 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { RefreshStatus } from '@shared/firestore';
 import { HealthMetricsService } from './health-metrics.service';
 import { createLogger } from '../utils/utils';
 
@@ -39,7 +40,7 @@ export const checkAllEndpoints = onSchedule({
         // Record the status check
         await healthMetricsService.recordRefreshAttempt(
           endpoint,
-          'success',
+          RefreshStatus.SUCCESS,
           undefined,
           Date.now() - endpointStartTime
         );
@@ -55,7 +56,7 @@ export const checkAllEndpoints = onSchedule({
         
         await healthMetricsService.recordRefreshAttempt(
           endpoint,
-          'failure',
+          RefreshStatus.FAILURE,
           error instanceof Error ? error.message : String(error),
           Date.now() - endpointStartTime
         );
