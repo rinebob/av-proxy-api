@@ -91,5 +91,7 @@ export const AV_IMPLEMENTED_ENDPOINTS: Set<AlphaVantageEndpoint> = new Set<Alpha
     AlphaVantageEndpoint.HISTORICAL_OPTIONS,
     // Prefer adjusted time series by default
     AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
+    AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
+    AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
     AlphaVantageEndpoint.GLOBAL_QUOTE,
 ]);
