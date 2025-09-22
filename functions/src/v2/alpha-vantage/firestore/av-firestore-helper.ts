@@ -467,7 +467,6 @@ export async function upsertAvDailyBar(options: {
     bars.push(newBar);
   }
 
-  await dataRef.set({ bars }, { merge: true });
 }
 
 /**
