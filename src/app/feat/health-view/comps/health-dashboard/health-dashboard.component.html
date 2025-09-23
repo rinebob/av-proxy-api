@@ -1,13 +1,19 @@
 <section class="health-dashboard">
-  <header class="header">
-    <h1 class="title">Health Metrics Dashboard</h1>
-    <p class="subtitle">System health, endpoint status, and request logs</p>
-  </header>
-
-  <div class="content">
-    <!-- Placeholder content; store-driven widgets will be added later -->
-    <div class="placeholder">
-      <p>Summary, filters, and logs will appear here.</p>
+    <header class="header">
+      <h1 class="title">Health Metrics Dashboard</h1>
+      <p class="subtitle">System health, endpoint status, and request logs</p>
+    </header>
+  
+    <div class="content">
+      <app-health-summary-cards />
+  
+      <app-health-filters-bar />
+  
+      <app-health-endpoint-detail />
+  
+      <app-health-request-log-table />
+  
+      <app-health-symbol-drawer />
     </div>
-  </div>
-</section>
+  </section>
+  
