@@ -4,6 +4,7 @@ import { HealthMetricsService } from './health-metrics.service';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { createLogger } from '../utils/utils';
 import { withCors } from '../utils/cors-middleware';
+import { HealthMetricsSortBy, SortOrder } from '@shared/health-metrics';
 
 const logger = createLogger('health-metrics');
 const healthMetricsService = new HealthMetricsService();
@@ -84,8 +85,14 @@ export const getRequestLogs = onRequest(withCors(async (req, res) => {
     const from = fromStr ? new Date(fromStr) : undefined;
     const to = toStr ? new Date(toStr) : undefined;
 
-    const sortBy = (qp.sortBy as any) || 'timestamp';
-    const sortOrder = (qp.sortOrder as 'asc' | 'desc') || 'desc';
+    const sortByRaw = (qp.sortBy as string) || 'timestamp';
+    const sortBy = (Object.values(HealthMetricsSortBy) as string[]).includes(sortByRaw)
+      ? (sortByRaw as HealthMetricsSortBy)
+      : HealthMetricsSortBy.Timestamp;
+
+    const sortOrderRaw = (qp.sortOrder as 'asc' | 'desc') || 'desc';
+    const sortOrder = sortOrderRaw === 'asc' ? SortOrder.Asc : SortOrder.Desc;
+
     const limit = qp.limit ? Math.max(1, Math.min(1000, Number(qp.limit))) : undefined;
     const offset = qp.offset ? Math.max(0, Number(qp.offset)) : undefined;
 

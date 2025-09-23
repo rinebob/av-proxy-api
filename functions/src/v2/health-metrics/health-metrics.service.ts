@@ -12,7 +12,10 @@ import {
   SymbolStatus,
   HealthSummary,
   HealthMetricsFilter,
-  HealthMetricsResponse
+  HealthMetricsResponse,
+  RefreshRecency,
+  HealthStatus,
+  SymbolHealthState,
 } from '@shared/health-metrics';
 
 export class HealthMetricsService {
@@ -40,7 +43,7 @@ export class HealthMetricsService {
       endpointName: config.name,
       ttlSeconds: config.ttl || 0,
       refreshStatus: this.calculateRefreshStatus(latest?.nextRefreshAt?.toDate(), config.ttl),
-      healthStatus: 'healthy',
+      healthStatus: HealthStatus.Healthy,
       uptimePercentage: 100,
       requestHistory: [],
       metrics: {
@@ -87,10 +90,10 @@ export class HealthMetricsService {
     throw new Error(`No configuration found for endpoint: ${endpointId}`);
   }
   
-  private calculateRefreshStatus(nextRefreshAt?: Date, ttlSeconds?: number): 'fresh' | 'stale' | 'never' | 'error' {
-    if (!nextRefreshAt) return 'never';
+  private calculateRefreshStatus(nextRefreshAt?: Date, ttlSeconds?: number): RefreshRecency {
+    if (!nextRefreshAt) return RefreshRecency.Never;
     const now = new Date();
-    return now < nextRefreshAt ? 'fresh' : 'stale';
+    return now < nextRefreshAt ? RefreshRecency.Fresh : RefreshRecency.Stale;
   }
 
   /**
@@ -247,7 +250,7 @@ export class HealthMetricsService {
     const statusUpdate: Partial<SymbolStatus> = {
       symbol,
       endpointId,
-      status: error ? 'error' : 'success',
+      status: error ? SymbolHealthState.Error : SymbolHealthState.Success,
       lastUpdated: now,
       updatedAt: now,
       lastError: error || undefined,
@@ -261,9 +264,12 @@ export class HealthMetricsService {
     await batch.commit();
   }
 
+  /**
+   * Returns a list of symbols for an endpoint filtered by SymbolHealthState.
+   */
   async getSymbolsByStatus(
     endpointId: string,
-    status: 'success' | 'error' | 'stale',
+    status: SymbolHealthState,
     limit = 100
   ): Promise<SymbolStatus[]> {
     const snapshot = await db
@@ -276,10 +282,10 @@ export class HealthMetricsService {
       .get();
 
     return snapshot.docs.map(doc => ({
-      ...doc.data(),
+      ...(doc.data() as SymbolStatus),
       symbol: doc.id,
-      endpointId
-    } as SymbolStatus));
+      endpointId,
+    }));
   }
 
   /**
@@ -296,9 +302,9 @@ export class HealthMetricsService {
     // Calculate summary statistics
     const summary: HealthSummary = {
       totalEndpoints: metrics.length,
-      healthyEndpoints: metrics.filter(m => m.healthStatus === 'healthy').length,
-      errorEndpoints: metrics.filter(m => m.healthStatus === 'error').length,
-      degradedEndpoints: metrics.filter(m => m.healthStatus === 'degraded').length,
+      healthyEndpoints: metrics.filter(m => m.healthStatus === HealthStatus.Healthy).length,
+      errorEndpoints: metrics.filter(m => m.healthStatus === HealthStatus.Error).length,
+      degradedEndpoints: metrics.filter(m => m.healthStatus === HealthStatus.Degraded).length,
       totalSymbols: metrics.reduce((sum, m) => sum + (m.symbols?.total || 0), 0),
       errorSymbols: metrics.reduce((sum, m) => sum + (m.symbols?.error || 0), 0),
       staleSymbols: metrics.reduce((sum, m) => sum + (m.symbols?.stale || 0), 0),
@@ -436,7 +442,7 @@ export class HealthMetricsService {
       endpointId: doc.data().endpointId,
       ...doc.data(),
       // Ensure all required fields have default values
-      status: doc.data().status || 'unknown',
+      status: doc.data().status || SymbolHealthState.Unknown,
       lastUpdated: doc.data().lastUpdated || new Date(),
       updatedAt: doc.data().updatedAt || new Date(),
       refreshCount: doc.data().refreshCount || 0,
