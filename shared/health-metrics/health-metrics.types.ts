@@ -1,7 +1,48 @@
 import { RefreshStatus } from '../firestore';
 import type { TimestampLike } from '../firestore/timestamp';
 
-export type HealthStatus = 'healthy' | 'degraded' | 'error' | 'offline';
+// Enums replace prior string literal unions
+export enum HealthStatus {
+  Healthy = 'healthy',
+  Degraded = 'degraded',
+  Error = 'error',
+  Offline = 'offline',
+}
+
+export enum RefreshRecency {
+  Fresh = 'fresh',
+  Stale = 'stale',
+  Never = 'never',
+  Error = 'error',
+}
+
+export enum RefreshTrigger {
+  Scheduled = 'scheduled',
+  Manual = 'manual',
+  Retry = 'retry',
+  Api = 'api',
+}
+
+export enum HealthMetricsSortBy {
+  Timestamp = 'timestamp',
+  LastUpdated = 'lastUpdated',
+  Symbol = 'symbol',
+  Status = 'status',
+  Duration = 'duration',
+}
+
+export enum SortOrder {
+  Asc = 'asc',
+  Desc = 'desc',
+}
+
+export enum SymbolHealthState {
+  Success = 'success',
+  Error = 'error',
+  Stale = 'stale',
+  Pending = 'pending',
+  Unknown = 'unknown',
+}
 
 export interface SymbolRefreshMetrics {
   symbol: string;
@@ -24,7 +65,7 @@ export interface EndpointHealthMetrics {
   ttlSeconds: number;
   lastUpdated?: Date | TimestampLike;
   nextRefreshAt?: Date | TimestampLike;
-  refreshStatus: 'fresh' | 'stale' | 'never' | 'error';
+  refreshStatus: RefreshRecency;
   lastRefreshAttempt?: Date | TimestampLike;
   lastRefreshStatus?: RefreshStatus;
   error?: string;
@@ -70,7 +111,7 @@ export interface RefreshRequestLog {
   error?: string;
   responseSize?: number;
   metadata?: {
-    trigger?: 'scheduled' | 'manual' | 'retry' | 'api';
+    trigger?: RefreshTrigger;
     userId?: string;
     userAgent?: string;
     ipAddress?: string;
@@ -81,7 +122,7 @@ export interface RefreshRequestLog {
 export interface SymbolStatus {
   symbol: string;
   endpointId: string;
-  status: 'success' | 'error' | 'stale' | 'pending' | 'unknown';
+  status: SymbolHealthState;
   lastUpdated: Date | TimestampLike;
   updatedAt: Date | TimestampLike;
   lastError?: string;
@@ -102,8 +143,8 @@ export interface HealthMetricsFilter {
   endpointIds?: string[];
   symbols?: string[];
   searchQuery?: string;
-  sortBy?: 'lastUpdated' | 'symbol' | 'status' | 'duration';
-  sortOrder?: 'asc' | 'desc';
+  sortBy?: HealthMetricsSortBy;
+  sortOrder?: SortOrder;
   limit?: number;
   offset?: number;
 }
