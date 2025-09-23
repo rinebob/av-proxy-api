@@ -445,4 +445,41 @@ export class HealthMetricsService {
       lastDurationMs: doc.data().lastDurationMs
     } as SymbolStatus;
   }
+
+  /**
+   * Purge old endpoint history documents older than the provided cutoff date.
+   * Deletes in batches (<=500 writes per batch) and returns the number of
+   * deleted documents. A maxDelete cap can be provided to bound execution time.
+   *
+   * # Reason: Keep the append-only history lightweight and cost-efficient
+   * without impacting the latest/status snapshot.
+   */
+  async purgeOldHistory(cutoff: Date, maxDelete: number = 2000): Promise<{ deletedCount: number }> {
+    let deletedCount = 0;
+
+    while (deletedCount < maxDelete) {
+      const remaining = maxDelete - deletedCount;
+      const pageSize = Math.min(remaining, 500); // Firestore batch limit
+
+      const snapshot = await db
+        .collectionGroup('history')
+        .where('timestamp', '<', cutoff)
+        .orderBy('timestamp', 'asc')
+        .limit(pageSize)
+        .get();
+
+      if (snapshot.empty) break;
+
+      const batch = db.batch();
+      snapshot.docs.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+
+      deletedCount += snapshot.size;
+
+      // If we fetched less than requested, no more matching docs
+      if (snapshot.size < pageSize) break;
+    }
+
+    return { deletedCount };
+  }
 }

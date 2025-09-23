@@ -30,6 +30,9 @@ export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-c
 // Health Metrics Scheduler
 export { checkAllEndpoints as healthMetricsScheduler } from './v2/health-metrics/health-metrics.scheduler';
 
+// New export
+export { purgeOldHealthHistory } from './v2/health-metrics/health-metrics.scheduler';
+
 // Health Metrics HTTPS (internal)
 export { getHealthSummary, getRequestLogs, getSymbolStatus, getSymbolMetrics, getHealthMetrics } from './v2/health-metrics/health-metrics.function';
 

@@ -94,5 +94,38 @@ export const checkAllEndpoints = onSchedule({
   }
 });
 
+/**
+ * Nightly retention job: purge history documents older than 30 days.
+ * Runs once daily at 08:00 UTC. Adjust schedule if needed.
+ */
+export const purgeOldHealthHistory = onSchedule({
+  schedule: '0 8 * * *', // daily at 08:00 UTC
+  timeoutSeconds: 540, // 9 minutes
+  memory: '1GiB',
+  maxInstances: 1,
+}, async () => {
+  const startedAt = Date.now();
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
+
+  logger.info('Starting nightly purge of old health history', { cutoff: cutoff.toISOString() });
+
+  try {
+    const { deletedCount } = await healthMetricsService.purgeOldHistory(cutoff, 5000);
+
+    logger.info('Completed nightly purge of old health history', {
+      deletedCount,
+      durationMs: Date.now() - startedAt,
+    });
+  } catch (error) {
+    logger.error('Error during nightly purge of old health history', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
+});
+
 // Export all scheduler functions
 export * from './health-metrics.service';
