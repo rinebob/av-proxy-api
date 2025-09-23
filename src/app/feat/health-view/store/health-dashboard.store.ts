@@ -5,6 +5,7 @@ import { take, catchError, finalize } from 'rxjs/operators';
 import { of } from 'rxjs';
 
 import type { HealthSummary, HealthMetricsFilter, HealthMetricsResponse, RefreshRequestLog } from '@shared/health-metrics';
+import { HealthMetricsSortBy, SortOrder } from '@shared/health-metrics';
 import { HealthMetricsApiService } from '../../../services/health-metrics-api.service';
 
 // State shape for the Health Dashboard
@@ -34,9 +35,9 @@ const initialState: HealthDashboardState = {
     hasMore: false,
   },
   filters: {
-    // default sort for logs aligns with backend default 'timestamp' desc
-    sortBy: 'timestamp',
-    sortOrder: 'desc',
+    // Explicitly use enums for typing correctness
+    sortBy: HealthMetricsSortBy.Timestamp,
+    sortOrder: SortOrder.Desc,
     limit: 50,
     offset: 0,
   },
@@ -82,8 +83,8 @@ export const HealthDashboardStore = signalStore(
       };
 
       // Ensure limit/offset are synced to state
-      const limit = typeof mergedFilters.limit === 'number' ? mergedFilters.limit : initialState.filters.limit!;
-      const offset = typeof mergedFilters.offset === 'number' ? mergedFilters.offset : initialState.filters.offset!;
+      const limit = typeof mergedFilters.limit === 'number' ? mergedFilters.limit : initialState.logs.limit;
+      const offset = typeof mergedFilters.offset === 'number' ? mergedFilters.offset : initialState.logs.offset;
 
       patchState(store, {
         loadingLogs: true,
