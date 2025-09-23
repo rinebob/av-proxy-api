@@ -40,5 +40,13 @@ export const NAV_ITEMS: NavItem[] = [
     exact: false,
     requiredRole: 'admin',
     tooltip: 'Manage company logos'
+  },
+  {
+    displayName: 'System Health',
+    iconName: 'monitor_heart',
+    route: '/system-health',
+    exact: false,
+    requiredRole: 'admin',
+    tooltip: 'Health metrics and request logs'
   }
 ];

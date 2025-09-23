@@ -8,6 +8,7 @@ import { DataMaintainerViewComponent } from './feat/data-maintainer-view/data-ma
 import { authGuard } from './core/auth/auth.guard';
 import { SymbolManagerComponent } from './feat/symbol-manager-view/components/symbol-manager/symbol-manager.component';
 import { DashboardLayoutComponent } from './feat/admin-dashboard/components/dashboard-layout/dashboard-layout.component';
+import { HealthDashboardComponent } from './feat/health-view/comps/health-dashboard/health-dashboard.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -16,6 +17,7 @@ export const routes: Routes = [
   { path: 'data-maintainer', component: DataMaintainerViewComponent, canActivate: [authGuard] },
   { path: 'symbol-manager', component: SymbolManagerComponent, canActivate: [authGuard] },
   { path: 'logos', component: CompanyLogoGalleryComponent, canActivate: [authGuard] },
+  { path: 'system-health', component: HealthDashboardComponent, canActivate: [authGuard] },
   { path: 'admin', component: DashboardLayoutComponent, canActivate: [authGuard] },
   // Redirect root path to login by default
   { path: '', redirectTo: '/login', pathMatch: 'full' },
