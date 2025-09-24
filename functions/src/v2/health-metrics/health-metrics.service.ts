@@ -2,7 +2,8 @@ import { db } from '../../firebase-admin-init';
 import { 
   AlphaVantageEndpoint, 
   AV_ENDPOINT_CONFIGS, 
-  AV_TIME_SERIES_ENDPOINT_CONFIGS 
+  AV_TIME_SERIES_ENDPOINT_CONFIGS,
+  AV_IMPLEMENTED_ENDPOINTS
 } from '@shared/alpha-vantage';
 import { FirestoreCollection, RefreshStatus } from '@shared/firestore';
 import { 
@@ -71,6 +72,49 @@ export class HealthMetricsService {
       healthMetrics.error = latest.error;
     }
     
+    // Aggregate per-symbol status for this endpoint
+    try {
+      const symbolsSnap = await db
+        .collection(FirestoreCollection.ENDPOINT_SYMBOLS)
+        .doc(endpointId)
+        .collection(FirestoreCollection.STATUS)
+        .get();
+
+      let total = 0;
+      let fresh = 0;
+      let stale = 0;
+      let errorCount = 0;
+      let lastUpdatedMax: Date | undefined;
+
+      for (const doc of symbolsSnap.docs) {
+        total++;
+        const data = doc.data() as any;
+        const status = (data?.status ?? SymbolHealthState.Unknown) as SymbolHealthState;
+        if (status === SymbolHealthState.Success) fresh++;
+        else if (status === SymbolHealthState.Stale) stale++;
+        else if (status === SymbolHealthState.Error) errorCount++;
+
+        const lu: any = data?.lastUpdated;
+        let luDate: Date | undefined;
+        if (lu) {
+          if (typeof lu.toDate === 'function') luDate = lu.toDate();
+          else if (typeof lu === 'number') luDate = new Date(lu);
+          else if (typeof lu === 'string') luDate = new Date(Number(lu));
+        }
+        if (luDate && (!lastUpdatedMax || luDate > lastUpdatedMax)) lastUpdatedMax = luDate;
+      }
+
+      healthMetrics.symbols = {
+        total,
+        fresh,
+        stale,
+        error: errorCount,
+        lastUpdated: lastUpdatedMax || healthMetrics.lastUpdated || new Date(),
+      };
+    } catch (e) {
+      // Best-effort aggregation; keep defaults on failure
+    }
+    
     return healthMetrics;
   }
 
@@ -89,7 +133,7 @@ export class HealthMetricsService {
     
     throw new Error(`No configuration found for endpoint: ${endpointId}`);
   }
-  
+
   private calculateRefreshStatus(nextRefreshAt?: Date, ttlSeconds?: number): RefreshRecency {
     if (!nextRefreshAt) return RefreshRecency.Never;
     const now = new Date();
@@ -261,6 +305,21 @@ export class HealthMetricsService {
     };
 
     batch.set(statusRef, statusUpdate, { merge: true });
+
+    // Update endpoint-level metadata under endpoint-symbols/{endpoint}
+    const endpointMetaRef = db
+      .collection(FirestoreCollection.ENDPOINT_SYMBOLS)
+      .doc(endpointId);
+    const endpointMetaUpdate = {
+      endpointId,
+      lastUpdated: now,
+      lastStatus: status,
+      lastSymbol: symbol,
+      lastError: error || null,
+      lastDurationMs: durationMs,
+    };
+    batch.set(endpointMetaRef, endpointMetaUpdate, { merge: true });
+
     await batch.commit();
   }
 
@@ -292,7 +351,8 @@ export class HealthMetricsService {
    * Gets health metrics for all endpoints with aggregated data
    */
   async getHealthSummary(): Promise<HealthSummary> {
-    const endpoints = Object.values(AlphaVantageEndpoint);
+    // Use only actively implemented endpoints to reflect real system state
+    const endpoints = Array.from(AV_IMPLEMENTED_ENDPOINTS) as AlphaVantageEndpoint[];
     const now = new Date();
     
     const metrics = await Promise.all(

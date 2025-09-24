@@ -11,7 +11,7 @@ import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-fa
 
 import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval, AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
-import { FirestoreCollection } from '@shared/firestore';
+import { FirestoreCollection, RefreshStatus } from '@shared/firestore';
 
 import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE } from '../../common/function-schedules';
 
@@ -22,9 +22,11 @@ import { refreshLogger } from '../../services/refresh-logger.service';
 import { enqueueDataReadyInternal } from '../../partner/data-ready.handler';
 import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema';
 import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase } from '../../partner/constants';
+import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 
 // Structured logger (shared)
 const log = createLogger('av.refresh');
+const healthMetricsService = new HealthMetricsService();
 
 // Stats collected per endpoint for clearer summaries
 interface EndpointStats {
@@ -140,6 +142,8 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
       failures: 0,
     };
     endpointStatsMap.set(endpoint, eStats);
+
+    const endpointAttemptStart = Date.now();
 
     // 3. For each symbol
     for (const symbol of symbols) {
@@ -296,6 +300,8 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
           eStats.refreshed++;
           updatedSymbols.add(symbol);
           log.info('refresh.persist.skip_manager_write', { endpointId: endpoint, endpointName, symbol, reason: 'handled_by_handler_sharded_writes' });
+          // Log success event to unified request logs and per-symbol status
+          await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.SUCCESS, durationMs);
         } else {
           // Standard endpoints: write data + metadata and log history
           const updateData = {
@@ -338,6 +344,8 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
             timestamp: now,
           });
           log.debug('history.written', { endpointId: endpoint, endpointName, symbol, refreshEventId });
+          // Log success event to unified request logs and per-symbol status
+          await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.SUCCESS, durationMs);
         }
       } catch (error: any) {
         const durationMs = Date.now() - apiStart;
@@ -359,6 +367,8 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
           });
           log.debug('history.failure_written', { endpointId: endpoint, endpointName, symbol, refreshEventId });
         }
+        // Log failure event to unified request logs and per-symbol status
+        await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.FAILURE, durationMs, String(error?.message || error));
       }
       hr('av.refresh', `--- SYMBOL END: ${symbol} ---`);
       hrBlank(3);
@@ -372,6 +382,16 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
     hr('av.refresh', `Endpoint Summary [${s.endpointName}] checked=${s.checked} refreshed=${s.refreshed} fresh-skips=${s.skippedFresh} no-path=${s.skippedNoPath} empty=${s.skippedEmpty} failures=${s.failures}`);
     // Structured endpoint summary
     log.info('endpoint.summary', { endpointId: s.endpointId, endpointName: s.endpointName, checked: s.checked, refreshed: s.refreshed, skippedFresh: s.skippedFresh, skippedNoPath: s.skippedNoPath, skippedEmpty: s.skippedEmpty, failures: s.failures });
+
+    // Write endpoint-level health metadata so health-metrics/{endpoint} is populated immediately
+    try {
+      const endpointDuration = Date.now() - endpointAttemptStart;
+      const status = s.failures > 0 ? RefreshStatus.FAILURE : RefreshStatus.SUCCESS;
+      const errorMsg = s.failures > 0 ? `one_or_more_symbol_failures (${s.failures})` : undefined;
+      await healthMetricsService.recordRefreshAttempt(endpoint as any, status, errorMsg, endpointDuration);
+    } catch (e: any) {
+      log.warn('endpoint.health_record_failed', { endpointId: endpoint, error: String(e?.message || e) });
+    }
   }
   const duration = Date.now() - batchStart;
   log.info('refresh.complete', { durationMs: duration, symbolsUpdatedCount: updatedSymbols.size, symbolsChecked, freshCount, staleCount, force });
