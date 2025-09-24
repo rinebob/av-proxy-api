@@ -372,7 +372,7 @@ export class HealthMetricsService {
       recentErrors: []
     };
 
-    // Get recent errors
+    // Get recent errors (requires composite index on status ASC, timestamp DESC)
     const errorLogs = await db
       .collection(FirestoreCollection.REQUEST_LOGS)
       .where('status', '==', 'failure')
