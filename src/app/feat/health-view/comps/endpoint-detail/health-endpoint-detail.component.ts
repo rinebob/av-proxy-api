@@ -1,10 +1,13 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { HealthViewBase } from '../health-view-base/health-view-base.component';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-health-endpoint-detail',
   standalone: true,
+  imports: [CommonModule],
   templateUrl: './health-endpoint-detail.component.html',
-  styleUrl: './health-endpoint-detail.component.scss',
+  styleUrls: ['./health-endpoint-detail.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class HealthEndpointDetailComponent {}
+export class HealthEndpointDetailComponent extends HealthViewBase {}

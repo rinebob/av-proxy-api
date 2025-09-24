@@ -1,14 +1,48 @@
 <div class="summary-cards">
-  <div class="card" aria-label="Endpoints summary">
-    <h3 class="heading">Endpoints</h3>
-    <p>Total / Healthy / Degraded / Error</p>
+  <div class="card" aria-label="Summary raw json">
+    <h3 class="heading">Summary (raw)</h3>
+    @if (healthStore.loadingSummary()) {
+      <p>Loading summary…</p>
+    } @else if (healthStore.errorSummary()) {
+      <p class="error">Error: {{ healthStore.errorSummary() }}</p>
+    } @else {
+      <pre>{{ healthStore.summary() | json }}</pre>
+    }
   </div>
-  <div class="card" aria-label="Symbols summary">
-    <h3 class="heading">Symbols</h3>
-    <p>Total / Stale / Error</p>
+
+  <div class="card" aria-label="Quick counts">
+    <h3 class="heading">Quick Counts</h3>
+    @if (healthStore.summary(); as s) {
+      <ul>
+        <li>Total Endpoints: {{ s?.totalEndpoints }}</li>
+        <li>Healthy: {{ s?.healthyEndpoints }}</li>
+        <li>Degraded: {{ s?.degradedEndpoints }}</li>
+        <li>Error: {{ s?.errorEndpoints }}</li>
+        <li>Total Symbols: {{ s?.totalSymbols }}</li>
+        <li>Stale Symbols: {{ s?.staleSymbols }}</li>
+        <li>Error Symbols: {{ s?.errorSymbols }}</li>
+      </ul>
+    } @else {
+      <p>No summary yet.</p>
+    }
   </div>
+
   <div class="card" aria-label="Recent errors">
     <h3 class="heading">Recent Errors</h3>
-    <p>Latest failures will appear here.</p>
+    @if (healthStore.summary(); as s) {
+      @if (s?.recentErrors?.length) {
+        <ul>
+          @for (err of s.recentErrors; track err.id) {
+            <li>
+              [{{ $any(err.timestamp)?.seconds ?? err.timestamp }}] {{ err.endpointId }} / {{ err.symbol }} — {{ err.error }}
+            </li>
+          }
+        </ul>
+      } @else {
+        <p>No recent errors.</p>
+      }
+    } @else {
+      <p>No recent errors.</p>
+    }
   </div>
 </div>

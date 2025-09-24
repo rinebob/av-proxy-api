@@ -7,5 +7,5 @@ import { HealthDashboardStore } from '../../store/health-dashboard.store';
  * a shared HealthDashboardStore instance without re-injecting it everywhere.
  */
 export abstract class HealthViewBase {
-  protected readonly healthStore = inject(HealthDashboardStore);
+  public readonly healthStore = inject(HealthDashboardStore);
 }

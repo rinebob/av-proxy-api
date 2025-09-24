@@ -1,4 +1,27 @@
 <div class="endpoint-detail" role="region" aria-label="Endpoint detail">
-  <h3 class="heading">Endpoint Detail</h3>
-  <p>Endpoint metadata and compact charts will appear here.</p>
+  <h3 class="heading">Endpoint Detail (raw)</h3>
+
+  @if (healthStore.loadingLogs()) {
+    <p>Loading…</p>
+  } @else if (healthStore.errorLogs()) {
+    <p class="error">Error: {{ healthStore.errorLogs() }}</p>
+  } @else {
+    <p>Showing first few logs for quick inspection:</p>
+    <ul>
+      @for (item of healthStore.logs().data; track item.id; let i = $index) {
+        @if (i < 5) {
+          <li>
+            [{{ $any(item.timestamp)?._seconds ?? $any(item.timestamp)?.seconds ?? item.timestamp }}]
+            <strong>{{ item.endpointId }}</strong> — {{ item.symbol }} — {{ item.status }}
+            <small>({{ item.durationMs }} ms)</small>
+          </li>
+        }
+      }
+    </ul>
+
+    <details>
+      <summary>Logs (raw JSON)</summary>
+      <pre>{{ healthStore.logs() | json }}</pre>
+    </details>
+  }
 </div>

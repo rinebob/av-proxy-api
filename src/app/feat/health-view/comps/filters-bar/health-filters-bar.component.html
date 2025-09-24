@@ -3,7 +3,12 @@
     <span class="label">Filters</span>
   </div>
   <div class="right">
-    <button type="button" class="btn" aria-label="Apply filters">Apply</button>
-    <button type="button" class="btn" aria-label="Reset filters">Reset</button>
+    <button type="button" class="btn" (click)="healthStore.loadSummary()">Refresh Summary</button>
+    <button type="button" class="btn" (click)="healthStore.loadLogs()">Refresh Logs</button>
+  </div>
+
+  <div class="raw">
+    <h4>Current Filters (raw)</h4>
+    <pre>{{ healthStore.filters() | json }}</pre>
   </div>
 </div>

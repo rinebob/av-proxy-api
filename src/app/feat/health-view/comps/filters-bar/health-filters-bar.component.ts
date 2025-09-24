@@ -1,10 +1,13 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { HealthViewBase } from '../health-view-base/health-view-base.component';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-health-filters-bar',
   standalone: true,
+  imports: [CommonModule],
   templateUrl: './health-filters-bar.component.html',
-  styleUrl: './health-filters-bar.component.scss',
+  styleUrls: ['./health-filters-bar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class HealthFiltersBarComponent {}
+export class HealthFiltersBarComponent extends HealthViewBase {}

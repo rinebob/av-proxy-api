@@ -1,22 +1,41 @@
-<div class="request-log-table">
-  <div class="table-header">
+<section class="request-logs" aria-label="Request logs">
+  <header class="header">
     <h3 class="heading">Request Logs</h3>
-  </div>
-  <table class="table" aria-label="Health request logs table">
-    <thead>
-      <tr>
-        <th>Timestamp</th>
-        <th>Endpoint</th>
-        <th>Symbol</th>
-        <th>Status</th>
-        <th>Duration (ms)</th>
-        <th>Error</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td colspan="6" class="empty">Logs will appear here.</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+    <div class="meta">
+      <span>Total: {{ healthStore.logs().total }}</span>
+      <span>Limit: {{ healthStore.logs().limit }}</span>
+      <span>Offset: {{ healthStore.logs().offset }}</span>
+      <span>Has More: {{ healthStore.logs().hasMore }}</span>
+    </div>
+  </header>
+
+  @if (healthStore.loadingLogs()) {
+    <p>Loading logs…</p>
+  } @else if (healthStore.errorLogs()) {
+    <p class="error">Error: {{ healthStore.errorLogs() }}</p>
+  } @else {
+    <pre class="raw-json">{{ healthStore.logs() | json }}</pre>
+
+    <div class="pager">
+      <button type="button"
+              (click)="healthStore.setPage(((healthStore.logs().offset - healthStore.logs().limit) > 0) ? (healthStore.logs().offset - healthStore.logs().limit) : 0)"
+              [disabled]="healthStore.logs().offset <= 0">
+        Prev
+      </button>
+      <button type="button"
+              (click)="healthStore.setPage(healthStore.logs().offset + healthStore.logs().limit)"
+              [disabled]="!healthStore.logs().hasMore">
+        Next
+      </button>
+
+      <label>
+        Page Size
+        <select #ps (change)="healthStore.setPageSize(+ps.value || 50)">
+          <option [selected]="healthStore.logs().limit === 25" [value]="25">25</option>
+          <option [selected]="healthStore.logs().limit === 50" [value]="50">50</option>
+          <option [selected]="healthStore.logs().limit === 100" [value]="100">100</option>
+        </select>
+      </label>
+    </div>
+  }
+</section>

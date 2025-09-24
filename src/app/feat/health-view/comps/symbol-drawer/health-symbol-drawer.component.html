@@ -1,4 +1,21 @@
 <aside class="symbol-drawer" role="complementary" aria-label="Symbol drawer">
-  <h3 class="heading">Symbol Detail</h3>
-  <p>Symbol status and metrics will appear here.</p>
+  <h3 class="heading">Symbol Detail (raw)</h3>
+
+  @if (healthStore.loadingSummary()) {
+    <p>Loading summary…</p>
+  } @else if (healthStore.errorSummary()) {
+    <p class="error">Error: {{ healthStore.errorSummary() }}</p>
+  } @else if (healthStore.summary()) {
+    <ul>
+      <li>Total Endpoints: {{ healthStore.summary()!.totalEndpoints }}</li>
+      <li>Total Symbols: {{ healthStore.summary()!.totalSymbols }}</li>
+      <li>Errors: E={{ healthStore.summary()!.errorEndpoints }}, S={{ healthStore.summary()!.errorSymbols }}</li>
+    </ul>
+    <details>
+      <summary>Summary (raw JSON)</summary>
+      <pre>{{ healthStore.summary() | json }}</pre>
+    </details>
+  } @else {
+    <p>No summary loaded.</p>
+  }
 </aside>
