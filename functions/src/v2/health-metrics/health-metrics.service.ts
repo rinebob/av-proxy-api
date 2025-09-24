@@ -27,7 +27,7 @@ export class HealthMetricsService {
     const historyRef = db
       .collection(FirestoreCollection.HEALTH_METRICS)
       .doc(endpointId)
-      .collection('history')
+      .collection(FirestoreCollection.HEALTH_HISTORY)
       .orderBy('timestamp', 'desc')
       .limit(1);
     
@@ -121,7 +121,7 @@ export class HealthMetricsService {
     const historyRef = db
       .collection(FirestoreCollection.HEALTH_METRICS)
       .doc(endpointId)
-      .collection('history')
+      .collection(FirestoreCollection.HEALTH_HISTORY)
       .doc();
     
     const historyData = {
@@ -144,7 +144,7 @@ export class HealthMetricsService {
     const latestRef = db
       .collection(FirestoreCollection.HEALTH_METRICS)
       .doc(endpointId)
-      .collection('latest')
+      .collection(FirestoreCollection.LATEST)
       .doc('status');
       
     const latestUpdate = {
@@ -244,7 +244,7 @@ export class HealthMetricsService {
     const statusRef = db
       .collection(FirestoreCollection.ENDPOINT_SYMBOLS)
       .doc(endpointId)
-      .collection('status')
+      .collection(FirestoreCollection.STATUS)
       .doc(symbol);
 
     const statusUpdate: Partial<SymbolStatus> = {
@@ -275,7 +275,7 @@ export class HealthMetricsService {
     const snapshot = await db
       .collection(FirestoreCollection.ENDPOINT_SYMBOLS)
       .doc(endpointId)
-      .collection('status')
+      .collection(FirestoreCollection.STATUS)
       .where('status', '==', status)
       .orderBy('lastUpdated', 'desc')
       .limit(limit)
@@ -429,7 +429,7 @@ export class HealthMetricsService {
    */
   async getSymbolStatus(symbol: string): Promise<SymbolStatus | null> {
     const snapshot = await db
-      .collectionGroup('status')
+      .collectionGroup(FirestoreCollection.STATUS)
       .where('symbol', '==', symbol)
       .limit(1)
       .get();
@@ -468,7 +468,7 @@ export class HealthMetricsService {
       const pageSize = Math.min(remaining, 500); // Firestore batch limit
 
       const snapshot = await db
-        .collectionGroup('history')
+        .collectionGroup(FirestoreCollection.HEALTH_HISTORY)
         .where('timestamp', '<', cutoff)
         .orderBy('timestamp', 'asc')
         .limit(pageSize)

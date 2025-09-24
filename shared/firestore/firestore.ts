@@ -98,7 +98,11 @@ export enum FirestoreCollection {
 
     HEALTH_METRICS = 'health-metrics',
     REQUEST_LOGS = 'request-logs',
-    ENDPOINT_SYMBOLS = 'endpoint-symbols',    
+    ENDPOINT_SYMBOLS = 'endpoint-symbols',
+    // Subcollections
+    STATUS = 'status',
+    HEALTH_HISTORY = 'history',
+    LATEST = 'latest',
 
     //////////// END HEALTH METRICS DASHBOARD ///////////////////
 
