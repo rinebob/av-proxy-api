@@ -1,5 +1,7 @@
 import { AvCompanyOverview } from '@shared/alpha-vantage';
 import { environment } from '../../../../environments/environment';
+import { inject } from '@angular/core';
+import { API_BASES } from '../../../core/api/api.tokens';
 
 /**
  * Enum for Data Maintainer Cloud Function names.
@@ -16,27 +18,27 @@ export enum DataMaintainerFunctionName {
   LIST_SYMBOLS_V2 = 'listSymbolsV2',
 }
 
-// Production URLs for each Data Maintainer Cloud Function
-const DM_PROD_URLS = {
-  [DataMaintainerFunctionName.FETCH_AND_STORE_DATA]: 'https://fetchandstoredata-lsluydmucq-uc.a.run.app',
-  [DataMaintainerFunctionName.CHECK_MOCK_DATA]: 'https://checkmockdata-lsluydmucq-uc.a.run.app',
-  [DataMaintainerFunctionName.LIST_SYMBOLS]: 'https://listsymbols-lsluydmucq-uc.a.run.app',
-  [DataMaintainerFunctionName.GET_SYMBOL_DETAILS]: 'https://getsymboldetails-lsluydmucq-uc.a.run.app',
-  [DataMaintainerFunctionName.SYNC_SYMBOLS]: 'https://syncsymbols-lsluydmucq-uc.a.run.app',
-
-  // V2 endpoints
-  [DataMaintainerFunctionName.SAVE_TRACKED_SYMBOL]: 'https://savetrackedsymbol-lsluydmucq-uc.a.run.app',
-  [DataMaintainerFunctionName.LIST_SYMBOLS_V2]: 'https://listsymbolsv2-lsluydmucq-uc.a.run.app',
-} as const;
-
-// Development URL base
+// Deprecated: legacy base/url constants. Prefer API_BASES.dm.
+const DM_PROD_URLS = {} as const;
 const DM_DEV_URL_BASE = 'http://localhost:5001/alpha-vantage-proxy-api/us-central1';
 
 /**
+ * Resolve Data Maintainer base URL from DI (API_BASES.dm) when available; fallback to legacy env logic.
+ */
+function getDataMaintainerBaseUrl(): string {
+  try {
+    const bases = inject(API_BASES);
+    if (bases?.dm) return bases.dm;
+  } catch {}
+  // Fallback for environments/tests without DI context
+  return DM_DEV_URL_BASE; // dev-style default; prefer API_BASES in production apps
+}
+
+/**
  * All possible backend URLs for Data Maintainer functions (for use in interceptors).
+ * Deprecated: the interceptor now relies on API_BASES values.
  */
 export const DataMaintainerBackendUrls = [
-  ...Object.values(DM_PROD_URLS),
   ...Object.values(DataMaintainerFunctionName).map(name => `${DM_DEV_URL_BASE}/${name}`)
 ];
 
@@ -44,12 +46,9 @@ export const DataMaintainerBackendUrls = [
  * Returns the correct Data Maintainer function URL for the current environment.
  */
 export function getDataMaintainerFunctionUrl(functionName: DataMaintainerFunctionName): string {
-  if (environment.production) {
-    return DM_PROD_URLS[functionName];
-  }
-  return `${DM_DEV_URL_BASE}/${functionName}`;
+  const base = getDataMaintainerBaseUrl();
+  return `${base}/${functionName}`;
 }
-
 
 /////////////////////////////// INTERFACES /////////////////////////
 
@@ -73,7 +72,7 @@ export interface AvSymbolSearchMatchResult {
 // TODO: This interface should be replaced with the one from shared/alpha-vantage/av-symbol-search.ts
 // Remove this interface after migration is complete
 export interface AvSymbolSearchResult {
-    bestMatches: AvSymbolSearchMatchResult[];
+  bestMatches: AvSymbolSearchMatchResult[];
 }
 
 /**
@@ -84,77 +83,22 @@ export interface AvSymbolSearchResult {
  * Remove this interface after migration is complete
  */
 export interface SvtAvSymbolMatch {
-    symbol: string;
-    name: string;
-    type: string;
-    region: string;
-    marketOpen: string;
-    marketClose: string;
-    timezone: string;
-    currency: string;
-    matchScore: string;
+  symbol: string;
+  name: string;
+  type: string;
+  region: string;
+  marketOpen: string;
+  marketClose: string;
+  timezone: string;
+  currency: string;
+  matchScore: string;
 }
 
 /**
  * Interface for the Alpha Vantage company overview data payload.
+ * Use the shared type to avoid divergence.
  */
-// export interface AvCompanyOverview {
-//   Symbol: string;
-//   AssetType: string;
-//   Name: string;
-//   Description: string;
-//   CIK: string;
-//   Exchange: string;
-//   Currency: string;
-//   Country: string;
-//   Sector: string;
-//   Industry: string;
-//   Address: string;
-//   OfficialSite: string;
-//   FiscalYearEnd: string;
-//   LatestQuarter: string;
-//   MarketCapitalization: string;
-//   EBITDA: string;
-//   PERatio: string;
-//   PEGRatio: string;
-//   BookValue: string;
-//   DividendPerShare: string;
-//   DividendYield: string;
-//   EPS: string;
-//   RevenuePerShareTTM: string;
-//   ProfitMargin: string;
-//   OperatingMarginTTM: string;
-//   ReturnOnAssetsTTM: string;
-//   ReturnOnEquityTTM: string;
-//   RevenueTTM: string;
-//   GrossProfitTTM: string;
-//   DilutedEPSTTM: string;
-//   QuarterlyEarningsGrowthYOY: string;
-//   QuarterlyRevenueGrowthYOY: string;
-//   AnalystTargetPrice: string;
-//   AnalystRatingStrongBuy: string;
-//   AnalystRatingBuy: string;
-//   AnalystRatingHold: string;
-//   AnalystRatingSell: string;
-//   AnalystRatingStrongSell: string;
-//   TrailingPE: string;
-//   ForwardPE: string;
-//   PriceToSalesRatioTTM: string;
-//   PriceToBookRatio: string;
-//   EVToRevenue: string;
-//   EVToEBITDA: string;
-//   Beta: string;
-//   "52WeekHigh": string;
-//   "52WeekLow": string;
-//   "50DayMovingAverage": string;
-//   "200DayMovingAverage": string;
-//   SharesOutstanding: string;
-//   SharesFloat: string;
-//   PercentInsiders: string;
-//   PercentInstitutions: string;
-//   DividendDate: string;
-//   ExDividendDate: string;
-// }
+// AvCompanyOverview is imported from @shared/alpha-vantage
 
 export interface ApiResponse<T> {
   ok: boolean;
@@ -295,5 +239,3 @@ export interface RefreshEvent {
 // Specific endpoint data types
 export type CompanyOverviewData = EndpointData<AvCompanyOverview>;
 // Add other endpoint-specific types as needed
-
-///////////////////////////////////////////////////////////////////

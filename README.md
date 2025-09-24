@@ -10,6 +10,47 @@ A secure proxy service for Alpha Vantage and Benzinga APIs with Firebase Authent
 - 🌐 CORS support with origin whitelisting
 - 📊 Supports multiple API endpoints (Alpha Vantage & Benzinga)
 
+---
+
+## Backend URL Strategy (API_BASES vs run.app v2)
+
+This app centralizes all backend base URLs behind a single Angular DI token `API_BASES` (`src/app/core/api/api.tokens.ts`). Each frontend client composes URLs as `base + path`, which works the same in the emulator and production.
+
+- Emulator base: `http://127.0.0.1:5001/<projectId>/us-central1`
+- Production base (default): `https://us-central1-<projectId>.cloudfunctions.net`
+- Production custom domain (optional): set `environment.apiBaseProd` to your domain, e.g. `https://savantapi.com`
+
+Clients then build final URLs by appending function paths:
+
+- Health Metrics (`src/app/services/health-metrics-api.service.ts`)
+  - `${apiBases.health}/getHealthSummary`
+  - `${apiBases.health}/getRequestLogs`
+  - `${apiBases.health}/getSymbolStatus`
+  - `${apiBases.health}/getSymbolMetrics`
+- Alpha Vantage helper (`src/app/feat/data-maintainer-view/common/fe-common-av-api.ts`)
+  - Dev/emulator: `${apiBases.av}/alphaVantageApiV2/${endpoint}`
+  - Prod: `${apiBases.av}/${endpoint}`
+- Data Maintainer helper (`src/app/feat/data-maintainer-view/common/fe-common-dm-api.ts`)
+  - `${apiBases.dm}/${functionName}` (e.g. `listSymbolsV2`, `saveTrackedSymbol`)
+
+Why not per-function run.app URLs?
+
+- 2nd‑gen Functions (V2) provide per-function `run.app` URLs (e.g., `https://gethealthsummary-...run.app`). Those are ideal for back‑end wiring and IAM, but force the frontend to maintain a map of many absolute URLs.
+- `API_BASES` keeps the frontend simple and environment‑agnostic. If you later need to target specific run.app services, add an optional override map and keep the base approach for everything else.
+
+Interceptor behavior:
+
+- The `authInterceptor` (`src/app/core/auth/auth.interceptor.ts`) attaches Firebase ID tokens to any request whose URL starts with a value from `API_BASES`.
+- This covers emulator, cloudfunctions.net, and your custom domain uniformly.
+
+Custom domain:
+
+- To serve through your own domain, set `environment.apiBaseProd` in the prod environment to your base, e.g.:
+  - `https://savantapi.com` or `https://api.savantapi.com`
+- If your reverse proxy mounts functions under a path prefix, include it in `apiBaseProd` (e.g., `https://savantapi.com/api`).
+
+---
+
 ## Local Emulator Quickstart (HTTP-first)
 
 For a simplified local workflow that starts all emulators and triggers refresh over HTTP (no Functions shell), see:

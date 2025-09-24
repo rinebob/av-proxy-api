@@ -1,22 +1,11 @@
-import { Injectable, InjectionToken, inject } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 // Shared types (ensure tsconfig paths map '@shared/*' to project shared/)
 import type { HealthSummary, HealthMetricsFilter, HealthMetricsResponse, RefreshRequestLog, SymbolStatus, SymbolRefreshMetrics } from '@shared/health-metrics';
-
-/**
- * Injection token for the base URL to the Health Metrics HTTPS functions.
- * Example values:
- * - Firebase hosted: https://<region>-<project>.cloudfunctions.net
- * - Emulator/local: http://localhost:5001/<project>/<region>
- * - Cloud Run/API Gateway routed path: https://api.example.com/health
- */
-export const HEALTH_METRICS_API_BASE_URL = new InjectionToken<string>(
-  'HEALTH_METRICS_API_BASE_URL',
-  { factory: () => '/api/health' } // safe default if routed via dev proxy
-);
+import { API_BASES, type ApiBases } from '../core/api/api.tokens';
 
 /**
  * HealthMetricsApiService
@@ -32,7 +21,8 @@ export const HEALTH_METRICS_API_BASE_URL = new InjectionToken<string>(
 @Injectable({ providedIn: 'root' })
 export class HealthMetricsApiService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = inject(HEALTH_METRICS_API_BASE_URL);
+  private readonly apiBases = inject(API_BASES);
+  private readonly baseUrl: string = this.apiBases.health;
 
   // ---- Public API ----
 

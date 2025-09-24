@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { StockDataUrl } from '../../common/fe-common-app';
 import { DataMaintainerBackendUrls } from '../../feat/data-maintainer-view/common/fe-common-dm-api';
 import { AlphaVantageBackendUrls } from '../../feat/data-maintainer-view/common/fe-common-av-api';
+import { API_BASES } from '../api/api.tokens';
 
 const pr = false;
 
@@ -17,16 +18,20 @@ export const authInterceptor: HttpInterceptorFn = (
 ) => {
   const authService = inject(AuthService);
   const router = inject(Router);
+  const apiBases = inject(API_BASES);
   
   // Get all possible backend URLs
   const backendUrls = [
     ...Object.values(StockDataUrl),
     ...DataMaintainerBackendUrls,
     ...AlphaVantageBackendUrls,
-    'alphaVantageApi' // Add this to match the actual endpoint path
+    apiBases.health,
+    apiBases.av,
+    apiBases.dm,
+    apiBases.benzinga,
   ];
 
-  if (pr) console.group('🔐 Auth Interceptor - Request Info');
+  if (pr) console.group(' Auth Interceptor - Request Info');
   if (pr) console.log('Request URL:', req.url);
   if (pr) console.log('Request Method:', req.method);
 
@@ -34,16 +39,10 @@ export const authInterceptor: HttpInterceptorFn = (
   const isBackendRequest = backendUrls.some(backendUrl => {
     if (pr) console.log(`Checking backend URL: ${backendUrl}`);
     
-    // Special case for Alpha Vantage API
-    if (req.url.includes('alphaVantageApi')) {
-      if (pr) console.log('  - Alpha Vantage API request detected');
-      return true;
-    }
-    
     // For absolute URLs, check if the request URL starts with the backend URL
     if (req.url.startsWith('http')) {
       const matches = req.url.startsWith(backendUrl as string);
-      if (pr) console.log(`  - Absolute URL check: ${matches ? '✅ MATCH' : '❌ NO MATCH'}`);
+      if (pr) console.log(`  - Absolute URL check: ${matches ? ' MATCH' : ' NO MATCH'}`);
       return matches;
     }
     
@@ -51,17 +50,17 @@ export const authInterceptor: HttpInterceptorFn = (
     try {
       const urlObj = new URL(backendUrl as string, window.location.origin);
       const pathMatch = req.url.startsWith(urlObj.pathname);
-      if (pr) console.log(`  - Relative path check (${urlObj.pathname}): ${pathMatch ? '✅ MATCH' : '❌ NO MATCH'}`);
+      if (pr) console.log(`  - Relative path check (${urlObj.pathname}): ${pathMatch ? ' MATCH' : ' NO MATCH'}`);
       return pathMatch;
     } catch (e) {
       // Fallback to simple includes check if URL parsing fails
       const includesMatch = req.url.includes(backendUrl as string);
-      if (pr) console.warn(`  - Fallback includes check (${backendUrl}): ${includesMatch ? '✅ MATCH' : '❌ NO MATCH'}`, e);
+      if (pr) console.warn(`  - Fallback includes check (${backendUrl}): ${includesMatch ? ' MATCH' : ' NO MATCH'}`, e);
       return includesMatch;
     }
   });
 
-  if (pr) console.log(`Is backend request: ${isBackendRequest ? '✅ YES' : '❌ NO'}`);
+  if (pr) console.log(`Is backend request: ${isBackendRequest ? ' YES' : ' NO'}`);
   if (pr) console.groupEnd();
 
   if (!isBackendRequest) {

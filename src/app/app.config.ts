@@ -15,6 +15,8 @@ import { provideNativeDateAdapter } from '@angular/material/core';
 
 import { environment } from '../environments/environment';
 import { routes } from './app.routes';
+import { API_BASES, type ApiBases } from './core/api/api.tokens';
+import { Observable } from 'rxjs';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -66,5 +68,23 @@ export const appConfig: ApplicationConfig = {
         return functions;
       });
     }),
+
+    // Centralized API bases (health, av, dm, benzinga)
+    {
+      provide: API_BASES,
+      deps: [FirebaseApp],
+      useFactory: (app: FirebaseApp): ApiBases => {
+        const projectId = app.options.projectId as string;
+        const fnBase = (!environment.production && environment.useEmulator)
+          ? `http://127.0.0.1:5001/${projectId}/us-central1`
+          : `https://us-central1-${projectId}.cloudfunctions.net`;
+        return {
+          health: fnBase,
+          av: fnBase,
+          dm: fnBase,
+          benzinga: fnBase,
+        };
+      },
+    },
   ]
 };

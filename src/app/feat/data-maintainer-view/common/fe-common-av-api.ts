@@ -1,25 +1,36 @@
 import { environment } from '../../../../environments/environment';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { inject } from '@angular/core';
+import { API_BASES } from '../../../core/api/api.tokens';
 
 /**
  * Production URL for the Alpha Vantage API Gateway
+ * (Deprecated: prefer API_BASES.av)
  */
 const AV_GATEWAY_PROD_URL = 'https://alphavantageapiv2-lsluydmucq-uc.a.run.app';
 
 /**
  * Development URL base for the Alpha Vantage API Gateway
+ * (Deprecated: prefer API_BASES.av)
  */
 const AV_DEV_URL_BASE = 'http://localhost:5001/alpha-vantage-proxy-api/us-central1';
 
 /**
- * Returns the correct Alpha Vantage gateway URL for the current environment
+ * Returns the correct Alpha Vantage gateway base URL using DI if available; falls back to environment.
  */
 function getAlphaVantageBaseUrl(): string {
+  try {
+    // Prefer centralized API bases when an injection context is available
+    const bases = inject(API_BASES);
+    if (bases?.av) return bases.av;
+  } catch {}
+  // Fallback to legacy env-based logic for non-DI contexts (tests, early bootstrap)
   return environment.production ? AV_GATEWAY_PROD_URL : AV_DEV_URL_BASE;
 }
 
 /**
  * All possible backend URLs for Alpha Vantage functions (for use in interceptors)
+ * (Deprecated: auth interceptor now relies on API_BASES)
  */
 export const AlphaVantageBackendUrls = [
   AV_GATEWAY_PROD_URL,
@@ -41,10 +52,9 @@ function endpointToPath(endpoint: AlphaVantageEndpoint): string {
 export function getAlphaVantageEndpointUrl(endpoint: AlphaVantageEndpoint): string {
   const baseUrl = getAlphaVantageBaseUrl();
   console.log(`av-api gAEU Using base URL: ${baseUrl}, endpoint: ${endpoint}`);
-  
-  // For production, use the direct path (e.g., https://alpha-vantage-gateway-lsluydmucq-uc.a.run.app/TIME_SERIES_DAILY)
-  // For development, use the full path with function name
-  return environment.production 
+  // For production, use the direct path (e.g., https://alpha-...run.app/TIME_SERIES_DAILY)
+  // For development/emulator, use the full path with function name
+  return environment.production
     ? `${baseUrl}/${endpoint}`
     : `${baseUrl}/alphaVantageApiV2/${endpoint}`;
 }
