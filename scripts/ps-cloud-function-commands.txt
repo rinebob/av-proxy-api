@@ -1,0 +1,4 @@
+
+
+== INVOKE DATA REFRESH AND UPDATING HEALTH METRICS ========
+Invoke-WebRequest -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantageDataV2Http" -UseBasicParsing | Select-Object -ExpandProperty Content | ConvertFrom-Json
