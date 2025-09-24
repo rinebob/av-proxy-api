@@ -1,11 +1,57 @@
 <div class="filters-bar" role="region" aria-label="Health filters">
-  <div class="left">
-    <span class="label">Filters</span>
+  <div class="top">
+    <span class="title">Filters</span>
+    <div class="actions">
+      <button type="button" class="btn" (click)="healthStore.loadSummary()">Refresh Summary</button>
+      <button type="button" class="btn" (click)="healthStore.loadLogs()">Refresh Logs</button>
+    </div>
   </div>
-  <div class="right">
-    <button type="button" class="btn" (click)="healthStore.loadSummary()">Refresh Summary</button>
-    <button type="button" class="btn" (click)="healthStore.loadLogs()">Refresh Logs</button>
-  </div>
+
+  <form class="controls" (submit)="$event.preventDefault(); applyFilters(endpoints.value, symbols.value, from.value, to.value, sortBy.value, sortOrder.value)">
+    <!-- Endpoint IDs (comma-separated) -->
+    <label class="field">
+      <span>Endpoints</span>
+      <input #endpoints type="text" placeholder="e.g. GLOBAL_QUOTE,TIME_SERIES_DAILY_ADJUSTED" />
+    </label>
+
+    <!-- Symbols (comma-separated) -->
+    <label class="field">
+      <span>Symbols</span>
+      <input #symbols type="text" placeholder="e.g. AAPL,MSFT,NVDA" />
+    </label>
+
+    <!-- Date Range -->
+    <label class="field">
+      <span>From</span>
+      <input #from type="datetime-local" />
+    </label>
+    <label class="field">
+      <span>To</span>
+      <input #to type="datetime-local" />
+    </label>
+
+    <!-- Sorting -->
+    <label class="field">
+      <span>Sort By</span>
+      <select #sortBy>
+        <option value="timestamp" selected>timestamp</option>
+        <option value="symbol">symbol</option>
+        <option value="endpointId">endpointId</option>
+      </select>
+    </label>
+    <label class="field">
+      <span>Order</span>
+      <select #sortOrder>
+        <option value="desc" selected>desc</option>
+        <option value="asc">asc</option>
+      </select>
+    </label>
+
+    <div class="field buttons">
+      <button type="submit" class="btn primary">Apply</button>
+      <button type="button" class="btn" (click)="clearFilters(endpoints, symbols, from, to, sortBy, sortOrder)">Clear</button>
+    </div>
+  </form>
 
   <div class="raw">
     <h4>Current Filters (raw)</h4>

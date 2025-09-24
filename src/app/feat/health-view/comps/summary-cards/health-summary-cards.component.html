@@ -1,48 +1,67 @@
-<div class="summary-cards">
-  <div class="card" aria-label="Summary raw json">
-    <h3 class="heading">Summary (raw)</h3>
-    @if (healthStore.loadingSummary()) {
-      <p>Loading summary…</p>
-    } @else if (healthStore.errorSummary()) {
-      <p class="error">Error: {{ healthStore.errorSummary() }}</p>
-    } @else {
-      <pre>{{ healthStore.summary() | json }}</pre>
-    }
+<div class="summary-cards" role="region" aria-label="Health summary">
+  <div class="cards-row">
+    <div class="card kpi" aria-label="Totals">
+      <h4 class="label">Total Endpoints</h4>
+      <div class="value">{{ healthStore.summary()?.totalEndpoints ?? 0 }}</div>
+      <div class="sub">Last Updated: {{ healthStore.summary()?.lastUpdated | tsToIso:'local' }}</div>
+    </div>
+
+    <div class="card kpi healthy" aria-label="Healthy endpoints">
+      <h4 class="label">Healthy</h4>
+      <div class="value">{{ healthStore.summary()?.healthyEndpoints ?? 0 }}</div>
+    </div>
+
+    <div class="card kpi warn" aria-label="Degraded endpoints">
+      <h4 class="label">Degraded</h4>
+      <div class="value">{{ healthStore.summary()?.degradedEndpoints ?? 0 }}</div>
+    </div>
+
+    <div class="card kpi error" aria-label="Error endpoints">
+      <h4 class="label">Error</h4>
+      <div class="value">{{ healthStore.summary()?.errorEndpoints ?? 0 }}</div>
+    </div>
   </div>
 
-  <div class="card" aria-label="Quick counts">
-    <h3 class="heading">Quick Counts</h3>
-    @if (healthStore.summary(); as s) {
-      <ul>
-        <li>Total Endpoints: {{ s?.totalEndpoints }}</li>
-        <li>Healthy: {{ s?.healthyEndpoints }}</li>
-        <li>Degraded: {{ s?.degradedEndpoints }}</li>
-        <li>Error: {{ s?.errorEndpoints }}</li>
-        <li>Total Symbols: {{ s?.totalSymbols }}</li>
-        <li>Stale Symbols: {{ s?.staleSymbols }}</li>
-        <li>Error Symbols: {{ s?.errorSymbols }}</li>
-      </ul>
-    } @else {
-      <p>No summary yet.</p>
-    }
+  <div class="cards-row">
+    <div class="card kpi" aria-label="Total symbols">
+      <h4 class="label">Total Symbols</h4>
+      <div class="value">{{ healthStore.summary()?.totalSymbols ?? 0 }}</div>
+    </div>
+
+    <div class="card kpi warn" aria-label="Stale symbols">
+      <h4 class="label">Stale Symbols</h4>
+      <div class="value">{{ healthStore.summary()?.staleSymbols ?? 0 }}</div>
+    </div>
+
+    <div class="card kpi error" aria-label="Error symbols">
+      <h4 class="label">Error Symbols</h4>
+      <div class="value">{{ healthStore.summary()?.errorSymbols ?? 0 }}</div>
+    </div>
+
+    <div class="card" aria-label="Refresh actions">
+      <div class="actions">
+        <button type="button" class="btn" (click)="healthStore.loadSummary()">Refresh Summary</button>
+        <button type="button" class="btn" (click)="healthStore.loadLogs()">Refresh Logs</button>
+      </div>
+    </div>
   </div>
 
-  <div class="card" aria-label="Recent errors">
-    <h3 class="heading">Recent Errors</h3>
-    @if (healthStore.summary(); as s) {
-      @if (s?.recentErrors?.length) {
-        <ul>
-          @for (err of s.recentErrors; track err.id) {
+  <div class="cards-row">
+    <div class="card wide" aria-label="Recent errors">
+      <h4 class="label">Recent Errors</h4>
+      @if (healthStore.summary()?.recentErrors?.length) {
+        <ul class="errors">
+          @for (err of healthStore.summary()!.recentErrors; track err.id) {
             <li>
-              [{{ $any(err.timestamp)?.seconds ?? err.timestamp }}] {{ err.endpointId }} / {{ err.symbol }} — {{ err.error }}
+              <span class="when">{{ err.timestamp | tsToIso:'local' }}</span>
+              <span class="where">{{ err.endpointId }} / {{ err.symbol }}</span>
+              <span class="msg">{{ err.error }}</span>
             </li>
           }
         </ul>
       } @else {
-        <p>No recent errors.</p>
+        <p class="muted">No recent errors.</p>
       }
-    } @else {
-      <p>No recent errors.</p>
-    }
+    </div>
   </div>
 </div>

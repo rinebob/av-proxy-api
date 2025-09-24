@@ -14,7 +14,32 @@
   } @else if (healthStore.errorLogs()) {
     <p class="error">Error: {{ healthStore.errorLogs() }}</p>
   } @else {
-    <pre class="raw-json">{{ healthStore.logs() | json }}</pre>
+    <div class="table-wrapper">
+      <table class="logs-table" role="table" aria-label="Refresh request logs">
+        <thead>
+          <tr role="row">
+            <th role="columnheader">Time</th>
+            <th role="columnheader">Endpoint</th>
+            <th role="columnheader">Symbol</th>
+            <th role="columnheader">Status</th>
+            <th role="columnheader">Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of healthStore.logs().data; track row.id) {
+            <tr role="row">
+              <td role="cell">{{ row.timestamp | tsToIso:'local' }}</td>
+              <td role="cell">{{ row.endpointId }}</td>
+              <td role="cell">{{ row.symbol }}</td>
+              <td role="cell" [class.ok]="row.status === RefreshStatus.SUCCESS" [class.err]="row.status !== RefreshStatus.SUCCESS">
+                {{ row.status }}
+              </td>
+              <td role="cell">{{ row.durationMs }} ms</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
 
     <div class="pager">
       <button type="button"
