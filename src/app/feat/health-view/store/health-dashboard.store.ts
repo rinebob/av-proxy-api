@@ -21,8 +21,8 @@ export interface HealthDashboardState {
   // UI state
   loadingSummary: boolean;
   loadingLogs: boolean;
-  errorSummary?: string;
-  errorLogs?: string;
+  errorSummary: string; // non-optional: use empty string when no error
+  errorLogs: string; // non-optional: use empty string when no error
 }
 
 const initialState: HealthDashboardState = {
@@ -43,8 +43,8 @@ const initialState: HealthDashboardState = {
   },
   loadingSummary: false,
   loadingLogs: false,
-  errorSummary: undefined,
-  errorLogs: undefined,
+  errorSummary: '',
+  errorLogs: '',
 };
 
 export const HealthDashboardStore = signalStore(
@@ -59,7 +59,7 @@ export const HealthDashboardStore = signalStore(
   withMethods((store, api = inject(HealthMetricsApiService)) => ({
     // Load the aggregated summary
     loadSummary(): void {
-      patchState(store, { loadingSummary: true, errorSummary: undefined });
+      patchState(store, { loadingSummary: true, errorSummary: '' });
       api
         .getHealthSummary()
         .pipe(
@@ -88,7 +88,7 @@ export const HealthDashboardStore = signalStore(
 
       patchState(store, {
         loadingLogs: true,
-        errorLogs: undefined,
+        errorLogs: '',
         filters: { ...mergedFilters, limit, offset },
       });
 
