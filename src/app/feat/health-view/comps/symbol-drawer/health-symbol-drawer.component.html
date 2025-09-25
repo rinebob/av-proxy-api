@@ -1,21 +1,46 @@
 <aside class="symbol-drawer" role="complementary" aria-label="Symbol drawer">
-  <h3 class="heading">Symbol Detail (raw)</h3>
+  <header class="header">
+    <h3 class="heading">Symbol Detail</h3>
+    @if (healthStore.hasSelectedSymbol()) {
+      <button type="button" class="btn" (click)="healthStore.clearSelectedSymbol()">Close</button>
+    }
+  </header>
 
-  @if (healthStore.loadingSummary()) {
-    <p>Loading summary…</p>
-  } @else if (healthStore.errorSummary()) {
-    <p class="error">Error: {{ healthStore.errorSummary() }}</p>
-  } @else if (healthStore.summary()) {
-    <ul>
-      <li>Total Endpoints: {{ healthStore.summary()!.totalEndpoints }}</li>
-      <li>Total Symbols: {{ healthStore.summary()!.totalSymbols }}</li>
-      <li>Errors: E={{ healthStore.summary()!.errorEndpoints }}, S={{ healthStore.summary()!.errorSymbols }}</li>
-    </ul>
-    <details>
-      <summary>Summary (raw JSON)</summary>
-      <pre>{{ healthStore.summary() | json }}</pre>
-    </details>
+  @if (!healthStore.hasSelectedSymbol()) {
+    <p class="muted">Select a symbol from the logs to view detail.</p>
+  } @else if (healthStore.loadingSymbol()) {
+    <p>Loading symbol…</p>
+  } @else if (healthStore.errorSymbol()) {
+    <p class="error">{{ healthStore.errorSymbol() }}</p>
   } @else {
-    <p>No summary loaded.</p>
+    <section class="summary">
+      <div class="row">
+        <div class="item">
+          <div class="label">Symbol</div>
+          <div class="value">{{ healthStore.selectedSymbol() }}</div>
+        </div>
+        <div class="item">
+          <div class="label">Last Status</div>
+          <div class="value">{{ healthStore.symbolStatus()?.status || 'unknown' }}</div>
+        </div>
+        <div class="item">
+          <div class="label">Last Updated</div>
+          <div class="value">{{ healthStore.symbolStatus()?.lastUpdated | tsToIso:'local' }}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <h4 class="subheading">Refresh Metrics</h4>
+      <ul class="list">
+        <li><span class="k">Refresh Count</span><span class="v">{{ healthStore.symbolMetrics()?.refreshCount ?? 0 }}</span></li>
+        <li><span class="k">Success Count</span><span class="v">{{ healthStore.symbolMetrics()?.successCount ?? 0 }}</span></li>
+        <li><span class="k">Failure Count</span><span class="v">{{ healthStore.symbolMetrics()?.failureCount ?? 0 }}</span></li>
+        <li><span class="k">Avg Duration</span><span class="v">{{ healthStore.symbolMetrics()?.avgDurationMs ?? 0 }} ms</span></li>
+        <li><span class="k">Last Duration</span><span class="v">{{ healthStore.symbolMetrics()?.avgDurationMs ?? 0 }} ms</span></li>
+        <li><span class="k">First Seen</span><span class="v">{{ healthStore.symbolMetrics()?.firstSeen | tsToIso:'local' }}</span></li>
+        <li><span class="k">Last Seen</span><span class="v">{{ healthStore.symbolMetrics()?.lastSeen | tsToIso:'local' }}</span></li>
+      </ul>
+    </section>
   }
 </aside>

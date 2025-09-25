@@ -1,27 +1,38 @@
 <div class="endpoint-detail" role="region" aria-label="Endpoint detail">
-  <h3 class="heading">Endpoint Detail (raw)</h3>
+  <h3 class="heading">Endpoint Detail</h3>
 
   @if (healthStore.loadingLogs()) {
     <p>Loading…</p>
   } @else if (healthStore.errorLogs()) {
     <p class="error">Error: {{ healthStore.errorLogs() }}</p>
+  } @else if (healthStore.logs().data.length === 0) {
+    <p class="muted">No logs for current filters.</p>
   } @else {
-    <p>Showing first few logs for quick inspection:</p>
-    <ul>
-      @for (item of healthStore.logs().data; track item.id; let i = $index) {
-        @if (i < 5) {
-          <li>
-            [{{ $any(item.timestamp)?._seconds ?? $any(item.timestamp)?.seconds ?? item.timestamp }}]
-            <strong>{{ item.endpointId }}</strong> — {{ item.symbol }} — {{ item.status }}
-            <small>({{ item.durationMs }} ms)</small>
-          </li>
-        }
-      }
-    </ul>
-
-    <details>
-      <summary>Logs (raw JSON)</summary>
-      <pre>{{ healthStore.logs() | json }}</pre>
-    </details>
+    <div class="table-wrapper">
+      <table class="logs-table" role="table" aria-label="Endpoint request logs (recent)">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Endpoint</th>
+            <th>Symbol</th>
+            <th>Status</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of healthStore.logs().data; track row.id; let i = $index) {
+            @if (i < 10) {
+              <tr (click)="healthStore.selectSymbol(row.symbol || '')" title="View symbol detail">
+                <td>{{ row.timestamp | tsToIso:'local' }}</td>
+                <td>{{ row.endpointId }}</td>
+                <td>{{ row.symbol }}</td>
+                <td>{{ row.status }}</td>
+                <td>{{ row.durationMs }} ms</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </div>

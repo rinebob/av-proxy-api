@@ -7,17 +7,27 @@
     </div>
   </div>
 
-  <form class="controls" (submit)="$event.preventDefault(); applyFilters(endpoints.value, symbols.value, from.value, to.value, sortBy.value, sortOrder.value)">
-    <!-- Endpoint IDs (comma-separated) -->
+  <form class="controls" (submit)="$event.preventDefault(); applyFilters(endpointsSel, symbolsSel, from.value, to.value, sortBy.value, sortOrder.value)">
+    <!-- Endpoint ID dropdown -->
     <label class="field">
       <span>Endpoints</span>
-      <input #endpoints type="text" placeholder="e.g. GLOBAL_QUOTE,TIME_SERIES_DAILY_ADJUSTED" />
+      <select #endpointsSel>
+        <option value="">(any)</option>
+        @for (ep of endpointsList; track ep) {
+          <option [value]="ep">{{ ep }}</option>
+        }
+      </select>
     </label>
 
-    <!-- Symbols (comma-separated) -->
+    <!-- Symbol dropdown -->
     <label class="field">
       <span>Symbols</span>
-      <input #symbols type="text" placeholder="e.g. AAPL,MSFT,NVDA" />
+      <select #symbolsSel>
+        <option value="">(any)</option>
+        @for (sym of symbolsList(); track sym) {
+          <option [value]="sym">{{ sym }}</option>
+        }
+      </select>
     </label>
 
     <!-- Date Range -->
@@ -49,7 +59,7 @@
 
     <div class="field buttons">
       <button type="submit" class="btn primary">Apply</button>
-      <button type="button" class="btn" (click)="clearFilters(endpoints, symbols, from, to, sortBy, sortOrder)">Clear</button>
+      <button type="button" class="btn" (click)="clearFilters(endpointsSel, symbolsSel, from, to, sortBy, sortOrder)">Clear</button>
     </div>
   </form>
 
