@@ -7,6 +7,9 @@ import { of, forkJoin } from 'rxjs';
 import type { HealthSummary, HealthMetricsFilter, HealthMetricsResponse, RefreshRequestLog, SymbolStatus, SymbolRefreshMetrics } from '@shared/health-metrics';
 import { HealthMetricsSortBy, SortOrder } from '@shared/health-metrics';
 import { HealthMetricsApiService } from '../../../services/health-metrics-api.service';
+import type { EndpointGroup } from '../utils/health-constants';
+import { PRIORITY_INDEX } from '../utils/health-constants';
+import { groupByEndpoint, computeLatest, getTimeMs } from '../utils/health-transforms';
 
 // State shape for the Health Dashboard
 export interface HealthDashboardState {
@@ -63,13 +66,51 @@ const initialState: HealthDashboardState = {
 export const HealthDashboardStore = signalStore(
   { providedIn: 'root' },
   withState<HealthDashboardState>(initialState),
-  withComputed((store) => ({
+  withComputed((store) => {
     // Derived flags
-    isBusy: computed(() => store.loadingSummary() || store.loadingLogs()),
-    hasSummary: computed(() => !!store.summary()),
-    logsCount: computed(() => store.logs().data.length),
-    hasSelectedSymbol: computed(() => !!store.selectedSymbol()),
-  })),
+    const isBusy = computed(() => store.loadingSummary() || store.loadingLogs());
+    const hasSummary = computed(() => !!store.summary());
+    const logsCount = computed(() => store.logs().data.length);
+    const hasSelectedSymbol = computed(() => !!store.selectedSymbol());
+
+    // Group logs by endpoint and prepare latest-first base ordering (no UI-specific sorting)
+    const endpointGroupsRaw = computed<EndpointGroup[]>(() => {
+      const items = store.logs().data as RefreshRequestLog[];
+      const selected = (store.filters().endpointIds || []) as string[];
+
+      // 1) group
+      const map = groupByEndpoint(items);
+
+      // 2) ensure selected endpoints exist (even if empty) so user intent is honored
+      for (const ep of selected) if (!map.has(ep)) map.set(ep, []);
+
+      // 3) for each group: base sort by latest timestamp desc and compute latest
+      const groups: EndpointGroup[] = [];
+      for (const [endpointId, events] of map.entries()) {
+        const baseSorted = [...events].sort((a, b) => getTimeMs(b.timestamp) - getTimeMs(a.timestamp));
+        const latest = computeLatest(baseSorted);
+        groups.push({ endpointId, events: baseSorted, latest });
+      }
+      return groups;
+    });
+
+    // Sort groups: priority list first, then by latest timestamp desc, then by id asc
+    const sortedEndpointGroupsByPriority = computed<EndpointGroup[]>(() => {
+      const groups = [...endpointGroupsRaw()];
+      groups.sort((a, b) => {
+        const ai = PRIORITY_INDEX.has(a.endpointId) ? PRIORITY_INDEX.get(a.endpointId)! : Number.POSITIVE_INFINITY;
+        const bi = PRIORITY_INDEX.has(b.endpointId) ? PRIORITY_INDEX.get(b.endpointId)! : Number.POSITIVE_INFINITY;
+        if (ai !== bi) return ai - bi;
+        const ta = a.latest ? getTimeMs(a.latest.timestamp as any) : 0;
+        const tb = b.latest ? getTimeMs(b.latest.timestamp as any) : 0;
+        if (tb !== ta) return tb - ta;
+        return a.endpointId.localeCompare(b.endpointId);
+      });
+      return groups;
+    });
+
+    return { isBusy, hasSummary, logsCount, hasSelectedSymbol, endpointGroupsRaw, sortedEndpointGroupsByPriority };
+  }),
   withMethods((store, api = inject(HealthMetricsApiService)) => ({
     // Load the aggregated summary
     loadSummary(): void {
