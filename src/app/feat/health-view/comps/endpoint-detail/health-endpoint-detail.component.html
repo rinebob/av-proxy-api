@@ -5,34 +5,123 @@
     <p>Loading…</p>
   } @else if (healthStore.errorLogs()) {
     <p class="error">Error: {{ healthStore.errorLogs() }}</p>
-  } @else if (healthStore.logs().data.length === 0) {
+  } @else if (groupedByEndpoint().length === 0) {
     <p class="muted">No logs for current filters.</p>
   } @else {
-    <div class="table-wrapper">
-      <table class="logs-table" role="table" aria-label="Endpoint request logs (recent)">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Endpoint</th>
-            <th>Symbol</th>
-            <th>Status</th>
-            <th>Duration</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of healthStore.logs().data; track row.id; let i = $index) {
-            @if (i < 10) {
-              <tr (click)="healthStore.selectSymbol(row.symbol || '')" title="View symbol detail">
-                <td>{{ row.timestamp | tsToIso:'local' }}</td>
-                <td>{{ row.endpointId }}</td>
-                <td>{{ row.symbol }}</td>
-                <td>{{ row.status }}</td>
-                <td>{{ row.durationMs }} ms</td>
-              </tr>
-            }
+    <mat-accordion multi>
+      @for (group of groupedByEndpoint(); track group.endpointId) {
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              {{ group.endpointId }}
+            </mat-panel-title>
+            <mat-panel-description>
+              <mat-chip-set aria-label="endpoint-latest-status">
+                <mat-chip [color]="group.latest?.status === 'SUCCESS' ? 'primary' : 'warn'" selected>
+                  {{ group.latest?.status || 'UNKNOWN' }}
+                </mat-chip>
+              </mat-chip-set>
+              <span class="latest-time" *ngIf="group.latest"> • {{ group.latest.timestamp | tsToIso:'local' }}</span>
+            </mat-panel-description>
+          </mat-expansion-panel-header>
+
+          @if (group.events.length === 0) {
+            <p class="muted" aria-live="polite">No events for this endpoint in the selected range.</p>
+          } @else {
+            <div class="table-wrapper">
+              <table mat-table [dataSource]="group.events" [trackBy]="trackByEvent" class="mat-elevation-z1 compact-table" aria-label="Endpoint refresh events">
+                <!-- Time -->
+                <ng-container matColumnDef="time">
+                  <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort('time')" style="cursor:pointer" [attr.aria-sort]="sortField() === 'time' ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                    <span class="header-content">
+                      <span>Time</span>
+                      <mat-icon inline class="sort-icon" [class.active]="sortField() === 'time'">
+                        {{ sortField() === 'time' ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                      </mat-icon>
+                    </span>
+                  </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.timestamp | tsToIso:'local' }} </td>
+                </ng-container>
+
+                <!-- Symbol -->
+                <ng-container matColumnDef="symbol">
+                  <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort('symbol')" style="cursor:pointer" [attr.aria-sort]="sortField() === 'symbol' ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                    <span class="header-content">
+                      <span>Symbol</span>
+                      <mat-icon inline class="sort-icon" [class.active]="sortField() === 'symbol'">
+                        {{ sortField() === 'symbol' ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                      </mat-icon>
+                    </span>
+                  </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.symbol || '-' }} </td>
+                </ng-container>
+
+                <!-- Status -->
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort('status')" style="cursor:pointer" [attr.aria-sort]="sortField() === 'status' ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                    <span class="header-content">
+                      <span>Status</span>
+                      <mat-icon inline class="sort-icon" [class.active]="sortField() === 'status'">
+                        {{ sortField() === 'status' ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                      </mat-icon>
+                    </span>
+                  </th>
+                  <td mat-cell *matCellDef="let row">
+                    <mat-chip-set aria-label="status">
+                      <mat-chip [color]="row.status === 'SUCCESS' ? 'primary' : 'warn'" selected>
+                        {{ row.status }}
+                      </mat-chip>
+                    </mat-chip-set>
+                  </td>
+                </ng-container>
+
+                <!-- Duration -->
+                <ng-container matColumnDef="duration">
+                  <th mat-header-cell *matHeaderCellDef> Duration </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.durationMs }} ms </td>
+                </ng-container>
+
+                <!-- Trigger -->
+                <ng-container matColumnDef="trigger">
+                  <th mat-header-cell *matHeaderCellDef> Trigger </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.metadata?.trigger || '-' }} </td>
+                </ng-container>
+
+                <!-- Response Size -->
+                <ng-container matColumnDef="responseSize">
+                  <th mat-header-cell *matHeaderCellDef> Size </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.responseSize || '-' }} </td>
+                </ng-container>
+
+                <!-- Error -->
+                <ng-container matColumnDef="error">
+                  <th mat-header-cell *matHeaderCellDef> Error </th>
+                  <td mat-cell *matCellDef="let row">
+                    <span [matTooltip]="row.error || ''">{{ row.error || '-' }}</span>
+                  </td>
+                </ng-container>
+
+                <!-- User / Agent (metadata) -->
+                <ng-container matColumnDef="user">
+                  <th mat-header-cell *matHeaderCellDef> User </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.metadata?.userId || '-' }} </td>
+                </ng-container>
+                <ng-container matColumnDef="agent">
+                  <th mat-header-cell *matHeaderCellDef> Agent </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.metadata?.userAgent || '-' }} </td>
+                </ng-container>
+                <ng-container matColumnDef="ip">
+                  <th mat-header-cell *matHeaderCellDef> IP </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.metadata?.ipAddress || '-' }} </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+              </table>
+            </div>
           }
-        </tbody>
-      </table>
-    </div>
+        </mat-expansion-panel>
+      }
+    </mat-accordion>
   }
 </div>

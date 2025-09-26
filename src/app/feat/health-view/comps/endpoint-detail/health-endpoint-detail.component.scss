@@ -1,11 +1,77 @@
 .endpoint-detail {
   border: 1px solid rgba(0,0,0,0.1);
   border-radius: 0.5rem;
-  padding: 1rem;
+  padding: 0.5rem;
 
   .heading {
     margin: 0 0 0.5rem 0;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.95rem;
+    color: var(--mat-sys-on-surface, #111827);
+  }
+
+  .table-wrapper {
+    overflow: auto;
+  }
+
+  table.compact-table {
+    width: 100%;
+    border-spacing: 0;
+
+    th[mat-header-cell], td[mat-cell], td[mat-footer-cell] {
+      padding: 0.35rem 0.5rem; 
+      font-size: 0.85rem;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    th[mat-header-cell] {
+      font-weight: 600;
+      color: var(--mat-sys-on-surface-variant, #4b5563);
+      user-select: none;
+
+      // Keep header as table-cell for proper column sizing; flex the inner wrapper instead
+      .header-content {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      // Only color the icon when active; leave header text color unchanged
+      .sort-icon {
+        font-size: 18px;
+        line-height: 1;
+        width: 18px;
+        height: 18px;
+        color: var(--mat-sys-on-surface-variant, #4b5563);
+        opacity: 0.6;
+        transition: color 120ms ease, opacity 120ms ease;
+      }
+
+      .sort-icon.active {
+        color: var(--mat-sys-primary, #1d4ed8);
+        opacity: 0.95;
+      }
+    }
+
+    tr[mat-row] {
+      cursor: pointer;
+      transition: background-color 120ms ease;
+
+      &:hover {
+        background-color: rgba(0,0,0,0.04);
+      }
+    }
+
+    mat-chip-set {
+      --mdc-chip-container-height: 22px;
+      --mdc-chip-with-trailing-icon-container-height: 22px;
+      --mdc-chip-label-text-size: 11px;
+
+      mat-chip {
+        line-height: 22px;
+      }
+    }
   }
 }
