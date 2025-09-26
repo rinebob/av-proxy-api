@@ -1,19 +1,45 @@
 <section class="health-dashboard">
     <header class="header">
-      <h1 class="title">Health Metrics Dashboard</h1>
-      <p class="subtitle">System health, endpoint status, and request logs</p>
+        <div class="title">
+            <h1 class="title">Health Metrics Dashboard</h1>
+            <p class="subtitle">System health, endpoint status, and request logs</p>
+
+        </div>
+        <div class="summary-header">
+            <div class="header-actions">
+                <button class="mat-compact-btn" mat-stroked-button color="primary" (click)="healthStore.loadSummary()">
+                    <mat-icon fontIcon="sync"></mat-icon>
+                    Summary
+                </button>
+                <button class="mat-compact-btn" mat-stroked-button color="primary" (click)="healthStore.loadLogs()">
+                    <mat-icon fontIcon="sync"></mat-icon>
+                    Logs
+                </button>
+                <span class="last-updated" aria-label="Last updated">
+                    <span class="label">Last updated:</span>
+                    <span class="value">{{ healthStore.summary()?.lastUpdated | tsToIso:'local' }}</span>
+                </span>
+            </div>
+        </div>
     </header>
-  
+
     <div class="content">
-      <app-health-summary-cards />
-  
-      <app-health-filters-bar />
-  
-      <app-health-endpoint-detail />
-  
-      <app-health-request-log-table />
-  
-      <app-health-symbol-drawer />
+        <app-health-summary-cards />
+
+        <app-health-filters-bar />
+
+        <mat-tab-group animationDuration="200ms" fitInkBarToContent mat-align-tabs="start" mat-stretch-tabs="false">
+            <mat-tab label="Endpoint Detail">
+                <app-health-endpoint-detail />
+            </mat-tab>
+            <mat-tab label="Request Logs">
+                <ng-template matTabContent>
+                    <app-health-request-log-table />
+                </ng-template>
+            </mat-tab>
+            <mat-tab label="Symbols">
+                <app-health-symbol-drawer />
+            </mat-tab>
+        </mat-tab-group>
     </div>
-  </section>
-  
+</section>

@@ -1,4 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatTabsModule } from '@angular/material/tabs';
 import { HealthSummaryCardsComponent } from '../summary-cards/health-summary-cards.component';
 import { HealthFiltersBarComponent } from '../filters-bar/health-filters-bar.component';
 import { HealthRequestLogTableComponent } from '../request-log-table/health-request-log-table.component';
@@ -13,16 +17,22 @@ import { Firestore } from '@angular/fire/firestore';
 // Endpoints map to listen for time-series
 import { AV_TIME_SERIES_ENDPOINT_CONFIGS } from '@shared/alpha-vantage';
 import { FirestoreCollection } from '@shared/firestore';
+import { TsToIsoPipe } from '../../pipes/ts-to-iso.pipe';
 
 @Component({
   selector: 'app-health-dashboard',
   standalone: true,
   imports: [
+    MatIconModule,
+    MatButtonModule,
+    MatToolbarModule,
+    MatTabsModule,
     HealthSummaryCardsComponent,
     HealthFiltersBarComponent,
     HealthRequestLogTableComponent,
     HealthEndpointDetailComponent,
     HealthSymbolDrawerComponent,
+    TsToIsoPipe,
   ],
   templateUrl: './health-dashboard.component.html',
   styleUrls: ['./health-dashboard.component.scss'],
