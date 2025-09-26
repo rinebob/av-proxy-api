@@ -1,0 +1,14 @@
+// Global design variables
+// Button density
+$btn-compact-height: 30px;
+$btn-compact-line-height: 28px;
+$btn-compact-padding-x: 0.5rem;
+$btn-compact-icon-size: 18px;
+
+// Form field compact sizing
+$form-field-compact-height: 40px; // legacy if needed elsewhere
+$form-field-compact-vpad: 6px;    // legacy if needed elsewhere
+
+// MDC form-field internals for compact controls
+$form-field-min-height: 40px;
+$form-field-infix-pad-y: 4px;
