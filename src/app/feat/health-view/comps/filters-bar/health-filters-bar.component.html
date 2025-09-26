@@ -1,70 +1,88 @@
 <div class="filters-bar" role="region" aria-label="Health filters">
-  <div class="top">
+  <div class="filters-toolbar" role="group" aria-label="Filters toolbar">
     <span class="title">Filters</span>
-    <div class="actions">
-      <button type="button" class="btn" (click)="healthStore.loadSummary()">Refresh Summary</button>
-      <button type="button" class="btn" (click)="healthStore.loadLogs()">Refresh Logs</button>
-    </div>
-  </div>
+    <form class="controls" (submit)="$event.preventDefault(); applyFilters()">
+      <!-- Endpoint ID dropdown -->
+      <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
+        <mat-label>Endpoints</mat-label>
+        <mat-select multiple [value]="selectedEndpointIds()" (selectionChange)="selectedEndpointIds.set($event.value)">
+          <mat-select-trigger>
+            @if (selectedEndpointIds().length === 0) {
+              <span class="select-placeholder">Endpoints</span>
+            } @else {
+              <span>{{ selectedEndpointIds().length }} selected</span>
+            }
+          </mat-select-trigger>
+          @for (ep of endpointsList; track ep) {
+            <mat-option [value]="ep">{{ ep }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
 
-  <form class="controls" (submit)="$event.preventDefault(); applyFilters(endpointsSel, symbolsSel, from.value, to.value, sortBy.value, sortOrder.value)">
-    <!-- Endpoint ID dropdown -->
-    <label class="field">
-      <span>Endpoints</span>
-      <select #endpointsSel>
-        <option value="">(any)</option>
-        @for (ep of endpointsList; track ep) {
-          <option [value]="ep">{{ ep }}</option>
-        }
-      </select>
-    </label>
+      <!-- Symbol dropdown -->
+      <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
+        <mat-label>Symbols</mat-label>
+        <mat-select multiple [value]="selectedSymbols()" (selectionChange)="selectedSymbols.set($event.value)">
+          <mat-select-trigger>
+            @if (selectedSymbols().length === 0) {
+              <span class="select-placeholder">Symbols</span>
+            } @else {
+              <span>{{ selectedSymbols().length }} selected</span>
+            }
+          </mat-select-trigger>
+          @for (sym of symbolsList(); track sym) {
+            <mat-option [value]="sym">{{ sym }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
 
-    <!-- Symbol dropdown -->
-    <label class="field">
-      <span>Symbols</span>
-      <select #symbolsSel>
-        <option value="">(any)</option>
-        @for (sym of symbolsList(); track sym) {
-          <option [value]="sym">{{ sym }}</option>
-        }
-      </select>
-    </label>
+      <!-- Sorting -->
+      <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
+        <mat-label>Sort By</mat-label>
+        <mat-select [value]="sortBySig()" (selectionChange)="sortBySig.set($event.value)">
+          <mat-option [value]="'timestamp'">timestamp</mat-option>
+          <mat-option [value]="'symbol'">symbol</mat-option>
+          <mat-option [value]="'endpointId'">endpointId</mat-option>
+        </mat-select>
+      </mat-form-field>
 
-    <!-- Date Range -->
-    <label class="field">
-      <span>From</span>
-      <input #from type="datetime-local" />
-    </label>
-    <label class="field">
-      <span>To</span>
-      <input #to type="datetime-local" />
-    </label>
+      <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
+        <mat-label>Order</mat-label>
+        <mat-select [value]="sortOrderSig()" (selectionChange)="sortOrderSig.set($event.value)">
+          <mat-option [value]="'desc'">desc</mat-option>
+          <mat-option [value]="'asc'">asc</mat-option>
+        </mat-select>
+      </mat-form-field>
 
-    <!-- Sorting -->
-    <label class="field">
-      <span>Sort By</span>
-      <select #sortBy>
-        <option value="timestamp" selected>timestamp</option>
-        <option value="symbol">symbol</option>
-        <option value="endpointId">endpointId</option>
-      </select>
-    </label>
-    <label class="field">
-      <span>Order</span>
-      <select #sortOrder>
-        <option value="desc" selected>desc</option>
-        <option value="asc">asc</option>
-      </select>
-    </label>
+      <!-- Date Range using Material Datepicker (like data-maintainer view) -->
+      <div class="date-input">
+        <mat-form-field appearance="fill" class="date-field dense-field" floatLabel="auto">
+          <mat-label>Date From</mat-label>
+          <input matInput [matDatepicker]="fromPicker" (dateChange)="onFromDateChange($event.value)" />
+          <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
+        </mat-form-field>
+      </div>
 
-    <div class="field buttons">
-      <button type="submit" class="btn primary">Apply</button>
-      <button type="button" class="btn" (click)="clearFilters(endpointsSel, symbolsSel, from, to, sortBy, sortOrder)">Clear</button>
-    </div>
-  </form>
+      <div class="date-input">
+        <mat-form-field appearance="fill" class="date-field dense-field" floatLabel="auto">
+          <mat-label>Date To</mat-label>
+          <input matInput [matDatepicker]="toPicker" (dateChange)="onToDateChange($event.value)" />
+          <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
+        </mat-form-field>
+      </div>
 
-  <div class="raw">
-    <h4>Current Filters (raw)</h4>
-    <pre>{{ healthStore.filters() | json }}</pre>
+      <div class="buttons">
+        <button type="submit" mat-raised-button color="primary">
+          <mat-icon fontIcon="filter_alt"></mat-icon>
+          Apply
+        </button>
+        <button type="button" mat-stroked-button (click)="clearFilters()">
+          <mat-icon fontIcon="backspace"></mat-icon>
+          Clear
+        </button>
+      </div>
+    </form>
   </div>
 </div>
