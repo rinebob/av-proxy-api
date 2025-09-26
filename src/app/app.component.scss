@@ -225,12 +225,8 @@ mat-toolbar {
   flex: 1;
   width: 100%;
   min-height: 0; /* Allows the content to shrink below its minimum content size */
-  overflow-y: hidden;
+  overflow-y: auto; /* always allow vertical scrolling */
   -webkit-overflow-scrolling: touch;
-  
-  @media (max-width: 1199px) {
-    overflow-y: auto;
-  }
 }
 
 .footer {
