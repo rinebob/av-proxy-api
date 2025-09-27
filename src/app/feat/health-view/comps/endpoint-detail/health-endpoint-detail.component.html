@@ -1,10 +1,10 @@
 <div class="endpoint-detail" role="region" aria-label="Endpoint detail">
   <h3 class="heading">Endpoint Detail</h3>
 
-  @if (healthStore.loadingLogs()) {
-    <p>Loading…</p>
-  } @else if (healthStore.errorLogs()) {
+  @if (healthStore.errorLogs()) {
     <p class="error">Error: {{ healthStore.errorLogs() }}</p>
+  } @else if (healthStore.loadingLogs() && groupedByEndpoint().length === 0) {
+    <p>Loading…</p>
   } @else if (groupedByEndpoint().length === 0) {
     <p class="muted">No logs for current filters.</p>
   } @else {
@@ -17,11 +17,16 @@
             </mat-panel-title>
             <mat-panel-description>
               <mat-chip-set aria-label="endpoint-latest-status">
-                <mat-chip [color]="group.latest?.status === 'SUCCESS' ? 'primary' : 'warn'" selected>
+                <mat-chip [color]="group.latest?.status === RefreshStatus.SUCCESS ? 'primary' : 'warn'" selected>
                   {{ group.latest?.status || 'UNKNOWN' }}
                 </mat-chip>
               </mat-chip-set>
-              <span class="latest-time" *ngIf="group.latest"> • {{ group.latest.timestamp | tsToIso:'local' }}</span>
+              @if (group.latest) {
+                <span class="latest-time"> • {{ group.latest.timestamp | tsToIso:'local' }}</span>
+              }
+              @if (healthStore.loadingLogs()) {
+                <span class="refreshing" aria-live="polite" style="margin-left: .5rem; opacity:.7">(refreshing…)</span>
+              }
             </mat-panel-description>
           </mat-expansion-panel-header>
 
@@ -32,11 +37,11 @@
               <table mat-table [dataSource]="group.events" [trackBy]="trackByEvent" class="mat-elevation-z1 compact-table" aria-label="Endpoint refresh events">
                 <!-- Time -->
                 <ng-container matColumnDef="time">
-                  <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort('time')" style="cursor:pointer" [attr.aria-sort]="sortField() === 'time' ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                  <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKeys.timestamp)" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKeys.timestamp ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
                     <span class="header-content">
                       <span>Time</span>
-                      <mat-icon inline class="sort-icon" [class.active]="sortField() === 'time'">
-                        {{ sortField() === 'time' ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                      <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKeys.timestamp">
+                        {{ sortField() === SortKeys.timestamp ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                       </mat-icon>
                     </span>
                   </th>
@@ -45,11 +50,11 @@
 
                 <!-- Symbol -->
                 <ng-container matColumnDef="symbol">
-                  <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort('symbol')" style="cursor:pointer" [attr.aria-sort]="sortField() === 'symbol' ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                  <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKeys.symbol)" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKeys.symbol ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
                     <span class="header-content">
                       <span>Symbol</span>
-                      <mat-icon inline class="sort-icon" [class.active]="sortField() === 'symbol'">
-                        {{ sortField() === 'symbol' ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                      <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKeys.symbol">
+                        {{ sortField() === SortKeys.symbol ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                       </mat-icon>
                     </span>
                   </th>
@@ -58,17 +63,17 @@
 
                 <!-- Status -->
                 <ng-container matColumnDef="status">
-                  <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort('status')" style="cursor:pointer" [attr.aria-sort]="sortField() === 'status' ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                  <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKeys.status)" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKeys.status ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
                     <span class="header-content">
                       <span>Status</span>
-                      <mat-icon inline class="sort-icon" [class.active]="sortField() === 'status'">
-                        {{ sortField() === 'status' ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                      <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKeys.status">
+                        {{ sortField() === SortKeys.status ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                       </mat-icon>
                     </span>
                   </th>
                   <td mat-cell *matCellDef="let row">
                     <mat-chip-set aria-label="status">
-                      <mat-chip [color]="row.status === 'SUCCESS' ? 'primary' : 'warn'" selected>
+                      <mat-chip [color]="row.status === RefreshStatus.SUCCESS ? 'primary' : 'warn'" selected>
                         {{ row.status }}
                       </mat-chip>
                     </mat-chip-set>
