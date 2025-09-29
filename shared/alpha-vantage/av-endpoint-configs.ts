@@ -13,6 +13,8 @@ import { FirestoreCollection } from '../firestore/firestore';
 
 export interface TimeSeriesEndpointConfig<TId extends string = string> extends EndpointConfig<TId> {
     interval: string;
+     /** UI display ordering within time series (lower renders first). Optional */
+     displayOrder?: number;
 }
 
 /**
@@ -461,7 +463,8 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
         default: OutputSize.COMPACT
       }
     },
-    interval: TimeSeriesInterval.DAILY
+    interval: TimeSeriesInterval.DAILY,
+    displayOrder: 1
   },
   [AlphaVantageEndpoint.TIME_SERIES_WEEKLY]: {
     id: AlphaVantageEndpoint.TIME_SERIES_WEEKLY,
@@ -484,7 +487,8 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
         default: OutputSize.COMPACT
       }
     },
-    interval: TimeSeriesInterval.WEEKLY
+    interval: TimeSeriesInterval.WEEKLY,
+    displayOrder: 2
   },
   [AlphaVantageEndpoint.TIME_SERIES_MONTHLY]: {
     id: AlphaVantageEndpoint.TIME_SERIES_MONTHLY,
@@ -507,7 +511,8 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
         default: OutputSize.COMPACT
       }
     },
-    interval: TimeSeriesInterval.MONTHLY
+    interval: TimeSeriesInterval.MONTHLY,
+    displayOrder: 3
   },
   // TODO: Work on this later
 //   [AlphaVantageEndpoint.TIME_SERIES_INTRADAY]: {
@@ -550,7 +555,8 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
         default: OutputSize.COMPACT
       }
     },
-    interval: TimeSeriesInterval.DAILY
+    interval: TimeSeriesInterval.DAILY,
+    displayOrder: 1
   },
   [AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED]: {
     id: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
@@ -573,7 +579,8 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
         default: OutputSize.COMPACT
       }
     },
-    interval: TimeSeriesInterval.WEEKLY
+    interval: TimeSeriesInterval.WEEKLY,
+    displayOrder: 2 
   },
   [AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED]: {
     id: AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
@@ -596,10 +603,23 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
         default: OutputSize.COMPACT
       }
     },
-    interval: TimeSeriesInterval.MONTHLY
+    interval: TimeSeriesInterval.MONTHLY,
+    displayOrder: 3
   },
 };
 
 export function isTimeSeriesConfig(config: EndpointConfig): config is TimeSeriesEndpointConfig {
   return (config as TimeSeriesEndpointConfig).interval !== undefined;
 }
+
+/** Build a Map of endpointId -> displayOrder for time series endpoints. */
+export function getTimeSeriesPriorityIndex(): Map<AlphaVantageEndpoint, number> {
+    const index = new Map<AlphaVantageEndpoint, number>();
+    for (const [key, cfg] of Object.entries(AV_TIME_SERIES_ENDPOINT_CONFIGS)) {
+      const id = key as AlphaVantageEndpoint;
+      const c = cfg as TimeSeriesEndpointConfig | undefined;
+      if (!c || c.displayOrder == null) continue;
+      index.set(id, c.displayOrder);
+    }
+    return index;
+  }

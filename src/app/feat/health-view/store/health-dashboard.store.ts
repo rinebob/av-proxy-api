@@ -8,8 +8,12 @@ import type { HealthSummary, HealthMetricsFilter, HealthMetricsResponse, Refresh
 import { HealthMetricsSortBy, SortOrder } from '@shared/health-metrics';
 import { HealthMetricsApiService } from '../../../services/health-metrics-api.service';
 import type { EndpointGroup } from '../utils/health-constants';
-import { PRIORITY_INDEX } from '../utils/health-constants';
+import { getTimeSeriesPriorityIndex } from '@shared/alpha-vantage/av-endpoint-configs';
 import { groupByEndpoint, computeLatest, getTimeMs } from '../utils/health-transforms';
+import type { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+
+// Build priority map from AV time-series configs (displayOrder)
+const TIME_SERIES_PRIORITY = getTimeSeriesPriorityIndex();
 
 // State shape for the Health Dashboard
 export interface HealthDashboardState {
@@ -98,8 +102,8 @@ export const HealthDashboardStore = signalStore(
     const sortedEndpointGroupsByPriority = computed<EndpointGroup[]>(() => {
       const groups = [...endpointGroupsRaw()];
       groups.sort((a, b) => {
-        const ai = PRIORITY_INDEX.has(a.endpointId) ? PRIORITY_INDEX.get(a.endpointId)! : Number.POSITIVE_INFINITY;
-        const bi = PRIORITY_INDEX.has(b.endpointId) ? PRIORITY_INDEX.get(b.endpointId)! : Number.POSITIVE_INFINITY;
+        const ai = TIME_SERIES_PRIORITY.get(a.endpointId as AlphaVantageEndpoint) ?? Number.POSITIVE_INFINITY;
+        const bi = TIME_SERIES_PRIORITY.get(b.endpointId as AlphaVantageEndpoint) ?? Number.POSITIVE_INFINITY;
         if (ai !== bi) return ai - bi;
         const ta = a.latest ? getTimeMs(a.latest.timestamp as any) : 0;
         const tb = b.latest ? getTimeMs(b.latest.timestamp as any) : 0;
