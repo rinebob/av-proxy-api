@@ -222,7 +222,8 @@ export class HealthMetricsService {
     symbol: string,
     status: RefreshStatus,
     durationMs: number,
-    error?: string
+    error?: string,
+    metadata?: Record<string, any>
   ): Promise<void> {
     const batch = db.batch();
     const now = new Date();
@@ -281,7 +282,7 @@ export class HealthMetricsService {
       status,
       durationMs,
       error,
-      metadata: {}
+      metadata: metadata || {}
     });
 
     // Update the symbol status
@@ -543,6 +544,43 @@ export class HealthMetricsService {
       deletedCount += snapshot.size;
 
       // If we fetched less than requested, no more matching docs
+      if (snapshot.size < pageSize) break;
+    }
+
+    return { deletedCount };
+  }
+
+  /**
+   * Purge request log documents older than the provided cutoff date.
+   * Deletes in batches (<=500 writes per batch) and returns the number of
+   * deleted documents. A maxDelete cap can be provided to bound execution time.
+   *
+   * # Reason: Keep request logs bounded (e.g., last 30 days) to control costs
+   * and ensure dashboard queries remain efficient.
+   */
+  async purgeOldRequestLogs(cutoff: Date, maxDelete: number = 5000): Promise<{ deletedCount: number }> {
+    let deletedCount = 0;
+
+    while (deletedCount < maxDelete) {
+      const remaining = maxDelete - deletedCount;
+      const pageSize = Math.min(remaining, 500);
+
+      let snapshot: FirebaseFirestore.QuerySnapshot;
+      snapshot = await db
+        .collection(FirestoreCollection.REQUEST_LOGS)
+        .where('timestamp', '<', cutoff)
+        .orderBy('timestamp', 'asc')
+        .limit(pageSize)
+        .get();
+
+      if (snapshot.empty) break;
+
+      const batch = db.batch();
+      snapshot.docs.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+
+      deletedCount += snapshot.size;
+
       if (snapshot.size < pageSize) break;
     }
 
