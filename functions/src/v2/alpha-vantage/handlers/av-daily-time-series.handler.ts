@@ -52,20 +52,41 @@ export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<
    * Derive compact bars array for storage from the normalized object.
    */
   protected toBarsArray(seriesByDate: Record<string, AvOhlcEntry>): StorageBar[] {
-    // AV returns newest-first in the API; order is not guaranteed in object keys. We preserve as-is; storage will handle sorting.
-    return Object.entries(seriesByDate).map(([date, v]) => ({
-      date,
-      open: Number(v.open),
-      high: Number(v.high),
-      low: Number(v.low),
-      // Prefer adjustedClose when present for storage default
-      close: Number((v as AvOhlcEntry).adjustedClose ?? v.close),
-      volume: Number(v.volume),
-      // Preserve optional adjusted series fields when present
-      ...(v.adjustedClose != null ? { adjustedClose: Number(v.adjustedClose) } : {}),
-      ...(v.dividendAmount != null ? { dividendAmount: Number(v.dividendAmount) } : {}),
-      ...(v.splitCoefficient != null ? { splitCoefficient: Number(v.splitCoefficient) } : {}),
-    }));
+    // Turn map into array
+    const entries = Object.entries(seriesByDate).map(([date, v]) => ({ date, v }));
+    // Sort ascending by date so we can compute previousClose and deltas deterministically
+    entries.sort((a, b) => new Date(`${a.date}T00:00:00.000Z`).getTime() - new Date(`${b.date}T00:00:00.000Z`).getTime());
+
+    let prevAdjClose: number | undefined = undefined;
+    const out: StorageBar[] = [];
+    for (const { date, v } of entries) {
+      const closeForStorage = Number((v as AvOhlcEntry).adjustedClose ?? v.close);
+      const previousClose = prevAdjClose;
+      const change = previousClose != null ? (closeForStorage - previousClose) : undefined;
+      const changePercent = previousClose != null && previousClose !== 0 ? (change! / previousClose) * 100 : undefined;
+
+      out.push({
+        date,
+        open: Number(v.open),
+        high: Number(v.high),
+        low: Number(v.low),
+        // Prefer adjustedClose when present for storage default
+        close: closeForStorage,
+        volume: Number(v.volume),
+        // Preserve optional adjusted series fields when present
+        ...(v.adjustedClose != null ? { adjustedClose: Number(v.adjustedClose) } : {}),
+        ...(v.dividendAmount != null ? { dividendAmount: Number(v.dividendAmount) } : {}),
+        ...(v.splitCoefficient != null ? { splitCoefficient: Number(v.splitCoefficient) } : {}),
+        // Derived fields for consistency with 2025 bars
+        ...(previousClose != null ? { previousClose } : {}),
+        ...(change != null ? { change } : {}),
+        ...(changePercent != null ? { changePercent } : {}),
+      });
+
+      prevAdjClose = closeForStorage;
+    }
+
+    return out;
   }
 
   /**

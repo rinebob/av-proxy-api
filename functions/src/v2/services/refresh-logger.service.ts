@@ -1,7 +1,7 @@
 import { db } from '../../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
 
-import { DocumentPathOptions, RefreshEvent, RefreshStatus, RefreshTrigger } from '@shared/firestore';
+import { DocumentPathOptions, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 import type { TimeSeriesDocumentMetadata, TimeSeriesInterval } from '@shared/alpha-vantage';
 
 import { formatTtlSeconds } from '../utils/utils';
@@ -29,52 +29,19 @@ export interface LogRefreshEventOptions {
 
 export class RefreshLoggerService {
   /**
-   * Logs a refresh event and updates the parent document's metadata
+   * [DEPRECATED NO-OP]
+   * Previously logged a refresh event into the parent document's refreshHistory array.
+   * HealthView no longer reads per-doc refreshHistory; request-logs and health-metrics
+   * are the canonical sources. This method is intentionally a no-op to avoid
+   * writing redundant data into symbol-data docs.
    */
   public async logRefreshEvent(
     pathOptions: RefreshLoggerPathOptions,
     event: RefreshEventInput,
     options?: LogRefreshEventOptions
   ): Promise<void> {
-    if (!pathOptions.docPath) {
-      throw new Error('logRefreshEvent: docPath must be provided in pathOptions. No fallback to internal path construction is allowed.');
-    }
-    const parentDocPath = pathOptions.docPath;
-    const docRef = db.doc(parentDocPath);
-    const now = Timestamp.now();
-    const refreshedAt = options?.refreshedAt ?? now;
-    const nextRefreshAt = Timestamp.fromDate(new Date(refreshedAt.toMillis() + pathOptions.ttlSeconds * 1000));
-    const ttlHuman = formatTtlSeconds(pathOptions.ttlSeconds);
-
-    const refreshEvent: RefreshEvent = {
-      eventId: this.createEventId(pathOptions, now),
-      refreshedAt,
-      refreshedBy: event.refreshedBy,
-      status: event.status,
-      triggeredBy: event.triggeredBy,
-      durationMs: event.durationMs,
-      errorDetails: event.errorDetails || null,
-      httpStatus: event.httpStatus,
-      nextRefreshAt,
-      nextRefreshBy: event.refreshedBy,
-      ttlHuman,
-    };
-
-    console.log('rLSvc lRE: Logging refresh event:', refreshEvent);
-
-    try {
-      await db.runTransaction(async (transaction) => {
-        const doc = await transaction.get(docRef);
-        const existingHistory = doc.data()?.refreshHistory || [];
-        // Prepend the new event and cap the history
-        const newHistory = [refreshEvent, ...existingHistory].slice(0, 10);
-        transaction.set(docRef, {
-          refreshHistory: newHistory
-        }, { merge: true });
-      });
-    } catch (error) {
-      console.error('rLSvc lRE: Error logging refresh event:', error);
-    }
+    // Intentionally no-op
+    return;
   }
 
   /**
@@ -101,12 +68,6 @@ export class RefreshLoggerService {
       nextRefreshBy: endpointName,
       ttlHuman: formatTtlSeconds(ttl),
     }, { merge: true });
-  }
-
-  private createEventId(pathOptions: RefreshLoggerPathOptions, timestamp: Timestamp): string {
-    const { vendor, endpoint, symbol } = pathOptions;
-    const dateStr = timestamp.toDate().toISOString().replace(/[:.]/g, '-');
-    return `${vendor}-${endpoint}-${symbol || 'market'}-${dateStr}`;
   }
 
   /**

@@ -139,13 +139,8 @@ export async function saveAvTimeSeriesData(
     }
   }
   // 1. Compute metadata fields
-  const histDataPoints = Array.isArray(data) ? data.length : 0;
-  const histStartDate = histDataPoints > 0 && data[histDataPoints - 1]?.date
-    ? Timestamp.fromDate(new Date(data[histDataPoints - 1].date))
-    : null;
-  const histEndDate = histDataPoints > 0 && data[0]?.date
-    ? Timestamp.fromDate(new Date(data[0].date))
-    : null;
+  let histStartDate: Timestamp | null = null;
+  let histEndDate: Timestamp | null = null;
 
   // 2. Canonical doc path for time series
   const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
@@ -215,6 +210,10 @@ export async function saveAvTimeSeriesData(
     compactBars.sort((a, b) => a.t - b.t);
     for (const arr of barsByYear.values()) arr.sort((a, b) => a.t - b.t);
 
+    // Now that compactBars are sorted, compute robust metadata regardless of input order
+    histStartDate = compactBars[0]?.t != null ? Timestamp.fromMillis(compactBars[0].t) : null;
+    histEndDate = compactBars[compactBars.length - 1]?.t != null ? Timestamp.fromMillis(compactBars[compactBars.length - 1].t) : null;
+
     // Batched writes
     const BATCH_LIMIT = 400;
     let batch: WriteBatch = db.batch();
@@ -261,7 +260,6 @@ export async function saveAvTimeSeriesData(
       throw new Error(`aFH sATSD TTL (ttlSeconds) must be specified in AV_TIME_SERIES_ENDPOINT_CONFIGS for endpoint: ${endpoint}`);
     }
     const ttlSeconds = endpointConfig.ttl;
-    const availableYears = Array.from(barsByYear.keys()).sort((a, b) => a - b);
     const histStartTs = compactBars[0]?.t ?? null;
     const histEndTs = compactBars[compactBars.length - 1]?.t ?? null;
     const latestBarIso = histEndTs != null ? new Date(histEndTs).toISOString() : 'null';
@@ -271,7 +269,6 @@ export async function saveAvTimeSeriesData(
       metadata: {
         symbol,
         interval,
-        histDataPoints,
         histStartDate,
         histEndDate,
         lastUpdated: Timestamp.now(),
@@ -279,7 +276,6 @@ export async function saveAvTimeSeriesData(
         ttlSeconds,
         vendor: ApiProvider.ALPHA_VANTAGE,
         endpoint: endpoint,
-        availableYears,
         histStartTs,
         histEndTs,
       },
@@ -410,12 +406,15 @@ export async function upsertAvDailyBar(options: {
   endpoint?: AlphaVantageEndpoint; // defaults to DAILY_ADJUSTED
 }): Promise<void> {
   const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED } = options;
-  const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
-  const dataRef = db.collection(`${docPath}/data`).doc(date);
-  const data = await dataRef.get();
-  const bars: CompactBar[] = data.exists ? data.get('bars') : [];
+  const vendor = ApiProvider.ALPHA_VANTAGE;
 
   const t = new Date(`${date}T00:00:00.000Z`).getTime();
+  const y = getYearFromEpochMillis(t);
+  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y);
+  const yearRef = db.doc(yearDocPath);
+  const snap = await yearRef.get();
+  const bars: CompactBar[] = snap.exists ? (snap.get('bars') ?? []) : [];
+
   const idx = bars.findIndex((b) => b.t === t);
   if (idx >= 0) {
     const existing = bars[idx];
@@ -424,11 +423,10 @@ export async function upsertAvDailyBar(options: {
       ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io))
       : existing.it;
     const patchBar = {
-      o: Number(patch.o ?? existing.o),
-      h: Number(patch.h ?? existing.h),
-      l: Number(patch.l ?? existing.l),
-      c: Number(patch.c ?? existing.c),
-      // Ensure required compact fields are set; provide defaults if patch values are missing
+      o: Number(patch.o ?? existing.o ?? 0),
+      h: Number(patch.h ?? existing.h ?? patch.o ?? 0),
+      l: Number(patch.l ?? existing.l ?? patch.o ?? 0),
+      c: Number(patch.c ?? existing.c ?? 0),
       v: Number(patch.v ?? existing.v ?? 0),
       ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
       dv: Number(patch.dv ?? existing.dv ?? 0),
@@ -467,6 +465,22 @@ export async function upsertAvDailyBar(options: {
     bars.push(newBar);
   }
 
+  // Sort ascending for deterministic writes and update year doc aggregate fields
+  bars.sort((a, b) => a.t - b.t);
+  await yearRef.set({
+    bars,
+    count: bars.length,
+    firstBarTs: bars[0]?.t ?? null,
+    lastBarTs: bars[bars.length - 1]?.t ?? null,
+    updatedAt: Timestamp.now(),
+  }, { merge: true });
+
+  await bumpTimeSeriesTopLevelMetadata({
+    symbol,
+    endpoint,
+    interval: TimeSeriesInterval.DAILY,
+    latestDate: date,
+  });
 }
 
 /**
@@ -527,6 +541,13 @@ export async function upsertAvWeeklyBar(options: {
     lastBarTs: bars[bars.length - 1]?.t ?? null,
     updatedAt: Timestamp.now(),
   }, { merge: true });
+
+  await bumpTimeSeriesTopLevelMetadata({
+    symbol,
+    endpoint,
+    interval: TimeSeriesInterval.WEEKLY,
+    latestDate: date,
+  });
 }
 
 /**
@@ -586,4 +607,53 @@ export async function upsertAvMonthlyBar(options: {
     lastBarTs: bars[bars.length - 1]?.t ?? null,
     updatedAt: Timestamp.now(),
   }, { merge: true });
+
+  await bumpTimeSeriesTopLevelMetadata({
+    symbol,
+    endpoint,
+    interval: TimeSeriesInterval.MONTHLY,
+    latestDate: date,
+  });
+}
+
+/**
+ * Bumps the top-level time-series metadata after a compact upsert so the parent
+ * doc reflects current freshness in Console. HealthView does not require this,
+ * but it improves operator UX.
+ */
+export async function bumpTimeSeriesTopLevelMetadata(options: {
+  symbol: string;
+  endpoint: AlphaVantageEndpoint;
+  interval: TimeSeriesInterval;
+  latestDate: string; // YYYY-MM-DD (UTC)
+  vendor?: ApiProvider;
+}): Promise<void> {
+  const { symbol, endpoint, interval, latestDate, vendor = ApiProvider.ALPHA_VANTAGE } = options;
+  try {
+    const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpoint];
+    if (!endpointConfig || typeof endpointConfig.ttl !== 'number') {
+      throw new Error(`bumpTSMeta ttl missing for endpoint=${endpoint}`);
+    }
+    const ttlSeconds = endpointConfig.ttl;
+    const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor);
+    const docRef = db.doc(docPath);
+    const latestTs = new Date(`${latestDate}T00:00:00.000Z`).getTime();
+    const now = Timestamp.now();
+    await docRef.set({
+      metadata: {
+        symbol,
+        interval,
+        lastUpdated: now,
+        nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttlSeconds * 1000)),
+        ttlSeconds,
+        vendor,
+        endpoint,
+        histEndDate: Number.isFinite(latestTs) ? Timestamp.fromMillis(latestTs) : null,
+        histEndTs: Number.isFinite(latestTs) ? latestTs : null,
+      },
+      latestBarTimestamp: Number.isFinite(latestTs) ? Timestamp.fromMillis(latestTs) : null,
+    }, { merge: true });
+  } catch (e: any) {
+    console.error('bumpTSMeta error', String(e?.message || e));
+  }
 }

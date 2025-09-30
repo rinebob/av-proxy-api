@@ -24,6 +24,10 @@ export interface StorageBar {
   intradayPrice?: number;        // intraday mark price
   intradayObservedAt?: number;   // epoch ms when the intraday price was observed
   intradayTime?: string;         // human-readable HH:mm (derived from intradayObservedAt)
+  // Derived fields for deltas (computed from previous adjusted close)
+  previousClose?: number;
+  change?: number;
+  changePercent?: number;
 }
 
 /**
@@ -99,7 +103,37 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
             latestIdx = i;
           }
         }
-        bars = latestIdx >= 0 ? [bars[latestIdx]] : bars;
+        // Compute derived deltas from the next-most-recent bar if available
+        let prevAdjClose: number | undefined = undefined;
+        if (bars.length > 1) {
+          // Find the previous bar by date
+          let prevTs = Number.NEGATIVE_INFINITY;
+          let prevIdx = -1;
+          for (let i = 0; i < bars.length; i++) {
+            if (i === latestIdx) continue;
+            const t = new Date(`${bars[i].date}T00:00:00.000Z`).getTime();
+            if (Number.isFinite(t) && t > prevTs && t < latestTs) {
+              prevTs = t;
+              prevIdx = i;
+            }
+          }
+          if (prevIdx >= 0) {
+            const prev = bars[prevIdx];
+            // Prefer adjustedClose when present
+            prevAdjClose = typeof prev.adjustedClose === 'number' ? prev.adjustedClose : prev.close;
+          }
+        }
+        const latest = bars[latestIdx];
+        if (prevAdjClose != null) {
+          // Enrich latest with pc/ch/cp for upsert path
+          const pc = prevAdjClose;
+          const ch = latest.close - pc;
+          const cp = pc !== 0 ? (ch / pc) * 100 : 0;
+          latest.previousClose = pc as any;
+          (latest as any).change = ch;
+          (latest as any).changePercent = cp;
+        }
+        bars = [latest];
       }
 
       // Default: check write toggle (UI/gateway). Backend callers should pass __checkWriteToggle: false
@@ -117,7 +151,7 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           const latest = bars[0];
           hr('aVTS.H', `upsert ${endpoint} ${symbol} date=${latest.date} [${(this as any).requestId}]`);
           log.info('firestore.upsert', { endpointId: endpoint, symbol, date: latest.date, requestId: (this as any).requestId });
-          const patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number } = {
+          const patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number } = {
             o: latest.open,
             h: latest.high,
             l: latest.low,
@@ -126,6 +160,10 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
             ac: latest.adjustedClose,
             dv: latest.dividendAmount,
             sc: latest.splitCoefficient,
+            // include derived fields when available
+            pc: (latest as any).previousClose,
+            ch: (latest as any).change,
+            cp: (latest as any).changePercent,
           };
           switch (this.config.interval) {
             case TimeSeriesInterval.DAILY:
