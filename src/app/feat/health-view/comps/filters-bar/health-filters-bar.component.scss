@@ -18,7 +18,7 @@
   .filters-toolbar {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-start;
+    align-items: center; // align vertically on one row when possible
     align-content: flex-start;
     gap: 0.5rem;
     width: 100%;
@@ -31,6 +31,19 @@
       letter-spacing: 0.2px;
       margin-right: 0.5rem;
       padding-top: 2px; // slight tweak to better align with form field caps
+    }
+
+    // New: quick time range buttons next to the title
+    .quick-buttons {
+      display: inline-flex;
+      gap: 0.4rem;
+      align-items: center;
+
+      button[mat-stroked-button] {
+        height: v.$form-field-min-height;
+        line-height: calc(v.$form-field-min-height - 2px);
+        padding: 0 0.6rem;
+      }
     }
 
     .spacer { flex: 1; }
@@ -147,12 +160,18 @@
 
 // Responsive tweaks: reduce field widths and allow action buttons to drop to a new row
 @media (max-width: 64rem) { // ~1024px
+  .filters-bar .filters-toolbar {
+    gap: 0.4rem 0.5rem;
+  }
   .filters-bar .filters-toolbar .controls {
     --filters-field-width: 12.5rem; // 200px
   }
 }
 
 @media (max-width: 48rem) { // ~768px
+  .filters-bar .filters-toolbar {
+    align-items: flex-start; // allow wrapping
+  }
   .filters-bar .filters-toolbar .controls {
     --filters-field-width: 11.25rem; // 180px
     .buttons { flex-basis: 100%; padding-top: 0.25rem; }

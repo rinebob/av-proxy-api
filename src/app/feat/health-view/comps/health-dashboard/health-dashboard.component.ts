@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject, signal, effect } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -45,6 +45,21 @@ export class HealthDashboardComponent extends HealthViewBase implements OnInit, 
 
   // Use AngularFire's Firestore instance to avoid multiple Firestore providers
   private readonly afs = inject(Firestore);
+
+  // Track active tab; 0=Endpoint Detail, 1=Request Logs, 2=Symbols
+  readonly tabIndex = signal(0);
+
+  constructor() {
+    super();
+    // When a symbol becomes selected, navigate to the Symbols tab
+    effect(() => {
+      const sym = this.healthStore.selectedSymbol();
+      if (sym && this.tabIndex() !== 2) {
+        this.tabIndex.set(2);
+      }
+      console.log('[HealthDashboard] effect selectedSymbol=', sym);
+    });
+  }
 
   ngOnInit(): void {
     // Kick off initial loads

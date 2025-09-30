@@ -1,5 +1,17 @@
 <div class="endpoint-detail" role="region" aria-label="Endpoint detail">
-  <h3 class="heading">Endpoint Detail</h3>
+  <div class="heading-row">
+    <h3 class="heading">Endpoint</h3>
+    <div class="expand-controls">
+      <button type="button" mat-stroked-button (click)="expandAll()">
+        <mat-icon fontIcon="unfold_more"></mat-icon>
+        Expand all
+      </button>
+      <button type="button" mat-stroked-button (click)="collapseAll()">
+        <mat-icon fontIcon="unfold_less"></mat-icon>
+        Collapse all
+      </button>
+    </div>
+  </div>
 
   @if (healthStore.errorLogs()) {
     <p class="error">Error: {{ healthStore.errorLogs() }}</p>
@@ -16,17 +28,30 @@
               {{ group.endpointId }}
             </mat-panel-title>
             <mat-panel-description>
-              <mat-chip-set aria-label="endpoint-latest-status">
-                <mat-chip [color]="group.latest?.status === RefreshStatus.SUCCESS ? 'primary' : 'warn'" selected>
-                  {{ group.latest?.status || 'UNKNOWN' }}
-                </mat-chip>
-              </mat-chip-set>
-              @if (group.latest) {
-                <span class="latest-time"> • {{ group.latest.timestamp | tsToIso:'local' }}</span>
-              }
-              @if (healthStore.loadingLogs()) {
-                <span class="refreshing" aria-live="polite" style="margin-left: .5rem; opacity:.7">(refreshing…)</span>
-              }
+              <div class="header-line">
+                <div class="meta-row" style="width: 100%">
+                  <span class="meta">Symbols: <strong>{{ group.symbolCount }}</strong></span>
+                  <span class="sep">•</span>
+                  <span class="meta">Requests: <strong>{{ group.requestCount }}</strong></span>
+                  <span class="sep">•</span>
+                  <span class="meta">Most recent:</span>
+                  <span class="meta"><strong>{{ (group.latest?.symbol || '-').toUpperCase() }}</strong></span>
+                  <span class="sep">•</span>
+                  <mat-chip-set aria-label="endpoint-latest-status">
+                    <mat-chip [color]="group.latest?.status === RefreshStatus.SUCCESS ? 'primary' : 'warn'" selected>
+                      {{ group.latest?.status || 'UNKNOWN' }}
+                    </mat-chip>
+                  </mat-chip-set>
+                  @if (group.latest) {
+                    <span class="latest-time">{{ group.latest.timestamp | tsToIso:'local' }}</span>
+                    <span class="sep">•</span>
+                    <span class="meta time-ago">{{ group.latest.timestamp | timeAgo }}</span>
+                  }
+                  @if (healthStore.loadingLogs()) {
+                    <span class="refreshing" aria-live="polite">(refreshing…)</span>
+                  }
+                </div>
+              </div>
             </mat-panel-description>
           </mat-expansion-panel-header>
 
@@ -46,6 +71,12 @@
                     </span>
                   </th>
                   <td mat-cell *matCellDef="let row"> {{ row.timestamp | tsToIso:'local' }} </td>
+                </ng-container>
+
+                <!-- Ago -->
+                <ng-container matColumnDef="timeAgo">
+                  <th mat-header-cell *matHeaderCellDef> Ago </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.timestamp | timeAgo }} </td>
                 </ng-container>
 
                 <!-- Symbol -->
@@ -120,8 +151,8 @@
                   <td mat-cell *matCellDef="let row"> {{ row.metadata?.ipAddress || '-' }} </td>
                 </ng-container>
 
-                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+                <tr mat-header-row *matHeaderRowDef="['time', 'timeAgo', 'symbol', 'status', 'duration', 'trigger', 'responseSize', 'error', 'user', 'agent', 'ip']"></tr>
+                <tr mat-row *matRowDef="let row; columns: ['time', 'timeAgo', 'symbol', 'status', 'duration', 'trigger', 'responseSize', 'error', 'user', 'agent', 'ip']"></tr>
               </table>
             </div>
           }

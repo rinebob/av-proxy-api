@@ -46,6 +46,9 @@ export class HealthFiltersBarComponent extends HealthViewBase {
   readonly sortBySig = signal<HealthMetricsSortBy | null>(null);
   readonly sortOrderSig = signal<SortOrder | null>(null);
 
+  // Quick time range selection
+  readonly activeQuickRange = signal<'today' | '24h' | 'week' | 'all' | null>('all');
+
   constructor() {
     super();
 
@@ -86,10 +89,44 @@ export class HealthFiltersBarComponent extends HealthViewBase {
 
   onFromDateChange(d: Date | null): void {
     this.fromStr.set(d ? this.startOfDayIsoLocal(d) : '');
+    this.activeQuickRange.set(null);
   }
 
   onToDateChange(d: Date | null): void {
     this.toStr.set(d ? this.endOfDayIsoLocal(d) : '');
+    this.activeQuickRange.set(null);
+  }
+
+  // Quick range helpers
+  setQuickRange(range: 'today' | '24h' | 'week' | 'all'): void {
+    const now = new Date();
+    let from = '';
+    let to = '';
+
+    if (range === 'today') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      from = start.toISOString();
+      to = end.toISOString();
+    } else if (range === '24h') {
+      const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      from = start.toISOString();
+      to = now.toISOString();
+    } else if (range === 'week') {
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      from = start.toISOString();
+      to = now.toISOString();
+    } else if (range === 'all') {
+      from = '';
+      to = '';
+    }
+
+    this.fromStr.set(from);
+    this.toStr.set(to);
+    this.activeQuickRange.set(range);
+
+    // Apply immediately
+    this.applyFilters();
   }
 
   applyFilters(): void {
@@ -118,6 +155,7 @@ export class HealthFiltersBarComponent extends HealthViewBase {
     this.toStr.set('');
     this.sortBySig.set(null);
     this.sortOrderSig.set(null);
+    this.activeQuickRange.set(null);
 
     // Reset store filters and reload
     const resetFilters: Partial<HealthMetricsFilter> = {

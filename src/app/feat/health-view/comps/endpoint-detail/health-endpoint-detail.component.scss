@@ -1,7 +1,104 @@
 .endpoint-detail {
-  border: 1px solid rgba(0,0,0,0.1);
-  border-radius: 0.5rem;
-  padding: 0.5rem;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-top: 0.5rem;
+
+  .heading-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start; // place buttons right after the label
+    gap: 0.5rem;
+
+    .heading { margin: 0 20px 0 0; }
+
+    .expand-controls {
+      display: inline-flex;
+      gap: 0.5rem;
+
+      // compact buttons (~75% of prior height)
+      button[mat-stroked-button] {
+        height: 24px;
+        line-height: 22px;
+        padding: 0 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+    }
+  }
+
+  // Ensure accordion spans full available width like Symbol Detail
+  mat-accordion {
+    width: 100%;
+    overflow: visible; // allow header shadows to render outside
+  }
+
+  // Consistent vertical spacing between panels
+  mat-expansion-panel {
+    margin: 6px 0; // top/bottom spacing between panels
+    background: transparent; // let header shadow be visible
+    box-shadow: none;        // remove default panel shadow
+    overflow: visible;       // allow header shadow to render outside bounds
+    padding: 0 6px;          // lateral gutters so header shadow shows on left/right
+  }
+
+  // Header layout: split space between title and description; space items evenly in description
+  .mat-expansion-panel-header {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    padding-top: 8px; // add vertical breathing room
+    padding-bottom: 8px;
+    background: #fff; // ensure shadow renders cleanly
+    border-radius: 6px;
+    // Box shadow on all sides (subtle, matches surface style)
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.06);
+
+    .mat-expansion-panel-header-title {
+      // Bold/extra-bold endpoint id
+      font-weight: 700;
+      // Reserve ~28% for the title; prevents description from being cramped to the right
+      flex: 0 0 28%;
+      margin-right: 0.75rem;
+      min-width: 180px; // keep reasonable title width on small screens
+    }
+
+    .mat-expansion-panel-header-description {
+      // Take the remaining space
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      
+      // Single row that holds the meta items and spreads them evenly
+      .header-line {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        
+        .meta-row {
+          display: flex;
+          align-items: baseline; // align text with chip label baseline
+          justify-content: space-evenly; // evenly distribute across the row
+          width: 100%;
+          flex-wrap: wrap;
+          row-gap: 0.25rem;
+          
+          // Normalize text to align with chip label height
+          > * { line-height: 22px; display: inline-flex; align-items: baseline; }
+          
+          // Separators would distort even spacing; hide when using space-evenly
+          .sep { display: none; }
+          
+          mat-chip-set {
+            --mdc-chip-container-height: 22px;
+            --mdc-chip-with-trailing-icon-container-height: 22px;
+            --mdc-chip-label-text-size: 11px;
+          }
+        }
+      }
+    }
+  }
 
   .heading {
     margin: 0 0 0.5rem 0;
@@ -10,9 +107,7 @@
     color: var(--mat-sys-on-surface, #111827);
   }
 
-  .table-wrapper {
-    overflow: auto;
-  }
+  .table-wrapper { overflow: auto; }
 
   table.compact-table {
     width: 100%;
@@ -31,14 +126,8 @@
       color: var(--mat-sys-on-surface-variant, #4b5563);
       user-select: none;
 
-      // Keep header as table-cell for proper column sizing; flex the inner wrapper instead
-      .header-content {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-      }
+      .header-content { display: inline-flex; align-items: center; gap: 0.35rem; }
 
-      // Only color the icon when active; leave header text color unchanged
       .sort-icon {
         font-size: 18px;
         line-height: 1;
@@ -49,29 +138,30 @@
         transition: color 120ms ease, opacity 120ms ease;
       }
 
-      .sort-icon.active {
-        color: var(--mat-sys-primary, #1d4ed8);
-        opacity: 0.95;
-      }
+      .sort-icon.active { color: var(--mat-sys-primary, #1d4ed8); opacity: 0.95; }
     }
 
-    tr[mat-row] {
-      cursor: pointer;
-      transition: background-color 120ms ease;
-
-      &:hover {
-        background-color: rgba(0,0,0,0.04);
-      }
-    }
+    tr[mat-row] { cursor: pointer; transition: background-color 120ms ease; }
+    tr[mat-row]:hover { background-color: rgba(0,0,0,0.04); }
 
     mat-chip-set {
       --mdc-chip-container-height: 22px;
       --mdc-chip-with-trailing-icon-container-height: 22px;
       --mdc-chip-label-text-size: 11px;
 
-      mat-chip {
-        line-height: 22px;
-      }
+      mat-chip { line-height: 22px; }
     }
+  }
+
+  // Remove inner tab content scrollbar within this view (match Symbol tab)
+  :host ::ng-deep .mat-mdc-tab-body-content {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  :host ::ng-deep .mat-mdc-tab-body {
+    overflow: visible !important;
+  }
+  :host ::ng-deep .mat-mdc-tab-body-wrapper {
+    overflow: visible !important;
   }
 }

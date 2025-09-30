@@ -9,11 +9,18 @@ import { HealthMetricsSortBy, SortOrder } from '@shared/health-metrics';
 import { HealthMetricsApiService } from '../../../services/health-metrics-api.service';
 import type { EndpointGroup } from '../utils/health-constants';
 import { getTimeSeriesPriorityIndex } from '@shared/alpha-vantage/av-endpoint-configs';
-import { groupByEndpoint, computeLatest, getTimeMs } from '../utils/health-transforms';
+import { groupByEndpoint, computeLatest, getTimeMs, buildEventComparator } from '../utils/health-transforms';
+import type { SortField } from '../utils/health-transforms';
 import type { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { getEndpointTtlSecondsById } from '@shared/alpha-vantage';
 
 // Build priority map from AV time-series configs (displayOrder)
 const TIME_SERIES_PRIORITY = getTimeSeriesPriorityIndex();
+
+// Default logs window: last 30 days
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const NOW = new Date();
+const DEFAULT_FROM_30D = new Date(Date.now() - THIRTY_DAYS_MS);
 
 // State shape for the Health Dashboard
 export interface HealthDashboardState {
@@ -37,6 +44,13 @@ export interface HealthDashboardState {
   symbolMetrics: SymbolRefreshMetrics | null | undefined;
   loadingSymbol: boolean;
   errorSymbol: string;
+
+  // UI: active tab index for health dashboard (0=Endpoint Detail, 1=Symbol Detail, 2=Request Logs)
+  activeTabIndex: number;
+
+  // UI: Request Logs table sort state (shared across components)
+  logsSortField: SortField;
+  logsSortDir: 'asc' | 'desc';
 }
 
 const initialState: HealthDashboardState = {
@@ -44,15 +58,16 @@ const initialState: HealthDashboardState = {
   logs: {
     data: [],
     total: 0,
-    limit: 50,
+    limit: 1000,
     offset: 0,
     hasMore: false,
   },
   filters: {
-    // Explicitly use enums for typing correctness
+    // Default to last 30 days; newest first
+    timeRange: { from: DEFAULT_FROM_30D, to: NOW },
     sortBy: HealthMetricsSortBy.Timestamp,
     sortOrder: SortOrder.Desc,
-    limit: 50,
+    limit: 1000,
     offset: 0,
   },
   loadingSummary: false,
@@ -65,6 +80,11 @@ const initialState: HealthDashboardState = {
   symbolMetrics: undefined,
   loadingSymbol: false,
   errorSymbol: '',
+  // ui
+  activeTabIndex: 0,
+  // request logs sort defaults: newest first
+  logsSortField: 'timestamp',
+  logsSortDir: 'desc',
 };
 
 export const HealthDashboardStore = signalStore(
@@ -76,6 +96,22 @@ export const HealthDashboardStore = signalStore(
     const hasSummary = computed(() => !!store.summary());
     const logsCount = computed(() => store.logs().data.length);
     const hasSelectedSymbol = computed(() => !!store.selectedSymbol());
+
+    // Sorted logs for Request Logs tab (UI-specific sorting centralized here)
+    const sortedLogs = computed<RefreshRequestLog[]>(() => {
+      const rows = store.logs().data as RefreshRequestLog[];
+      if (!rows?.length) return [];
+      // Stable newest-first baseline
+      const baseOrder = [...rows].sort((a, b) => getTimeMs(b.timestamp) - getTimeMs(a.timestamp));
+      const baseIndex = new Map<RefreshRequestLog, number>();
+      baseOrder.forEach((ev, i) => baseIndex.set(ev, i));
+
+      const active = store.logsSortField();
+      const dir = store.logsSortDir();
+      if (active === 'timestamp' && dir === 'desc') return baseOrder;
+      const comparator = buildEventComparator(active, dir, baseIndex);
+      return [...rows].sort(comparator);
+    });
 
     // Group logs by endpoint and prepare latest-first base ordering (no UI-specific sorting)
     const endpointGroupsRaw = computed<EndpointGroup[]>(() => {
@@ -113,7 +149,115 @@ export const HealthDashboardStore = signalStore(
       return groups;
     });
 
-    return { isBusy, hasSummary, logsCount, hasSelectedSymbol, endpointGroupsRaw, sortedEndpointGroupsByPriority };
+    // Helper to get TTL seconds for an endpoint id
+    const getTtlSeconds = (endpointId: string): number => getEndpointTtlSecondsById(endpointId);
+
+    // Endpoint KPIs in current time window based on latest log per endpoint
+    const endpointWindowKpis = computed(() => {
+      const rows = store.logs().data as RefreshRequestLog[];
+      if (!rows?.length) return { total: 0, healthy: 0, error: 0, degraded: 0 } as const;
+      // Sort by timestamp desc and iterate to capture latest per endpoint
+      const sorted = [...rows].sort((a, b) => getTimeMs(b.timestamp) - getTimeMs(a.timestamp));
+      const seen = new Map<string, { latest: 'SUCCESS' | 'FAILURE'; seenSuccess: boolean; seenFailure: boolean }>();
+      for (const r of sorted) {
+        const id = r.endpointId;
+        const status = String(r.status).toUpperCase() === 'SUCCESS' ? 'SUCCESS' : 'FAILURE';
+        const entry = seen.get(id) || { latest: status, seenSuccess: false, seenFailure: false };
+        // Only set latest the first time we encounter (newest-first)
+        if (!seen.has(id)) entry.latest = status;
+        if (status === 'SUCCESS') entry.seenSuccess = true; else entry.seenFailure = true;
+        seen.set(id, entry);
+      }
+      let healthy = 0, error = 0, degraded = 0;
+      for (const v of seen.values()) {
+        const hasBoth = v.seenSuccess && v.seenFailure;
+        if (hasBoth && v.latest === 'FAILURE') degraded++;
+        else if (v.latest === 'SUCCESS') healthy++;
+        else error++;
+      }
+      return { total: seen.size, healthy, error, degraded } as const;
+    });
+
+    // Symbol KPIs in current time window at endpoint+symbol level using TTL
+    const symbolWindowKpis = computed(() => {
+      const rows = store.logs().data as RefreshRequestLog[];
+      if (!rows?.length) return { total: 0, fresh: 0, stale: 0, error: 0 } as const;
+      // Latest per endpoint+symbol
+      const sorted = [...rows].sort((a, b) => getTimeMs(b.timestamp) - getTimeMs(a.timestamp));
+      const keyLatest = new Map<string, RefreshRequestLog>();
+      for (const r of sorted) {
+        if (!r.symbol) continue;
+        const key = `${r.endpointId}|${String(r.symbol).toUpperCase()}`;
+        if (!keyLatest.has(key)) keyLatest.set(key, r);
+      }
+      let fresh = 0, stale = 0, error = 0;
+      const nowMs = Date.now();
+      const symbolSet = new Set<string>();
+      for (const [key, ev] of keyLatest.entries()) {
+        const latestStatus = String(ev.status).toUpperCase();
+        if (latestStatus === 'FAILURE') {
+          error++;
+          continue;
+        }
+        const ttlSeconds = getTtlSeconds(ev.endpointId);
+        const ageMs = nowMs - getTimeMs(ev.timestamp);
+        if (ttlSeconds > 0 && ageMs > ttlSeconds * 1000) stale++; else fresh++;
+        if (ev.symbol) symbolSet.add(String(ev.symbol).toUpperCase());
+      }
+      // Total should reflect unique symbols in the window (not endpoint+symbol pairs)
+      return { total: symbolSet.size, fresh, stale, error } as const;
+    });
+
+    // Aggregated request counters derived from current logs
+    const requestTotals = computed(() => {
+      const rows = store.logs().data as RefreshRequestLog[];
+      let success = 0;
+      let failure = 0;
+      // For degraded: endpoints that have both statuses in window and latest is FAILURE
+      const sorted = [...rows].sort((a, b) => getTimeMs(b.timestamp) - getTimeMs(a.timestamp));
+      const seen = new Map<string, { latest: 'SUCCESS' | 'FAILURE'; seenSuccess: boolean; seenFailure: boolean }>();
+      for (const r of rows) {
+        if (!r?.status) continue;
+        if (String(r.status).toUpperCase() === 'SUCCESS') success++;
+        else if (String(r.status).toUpperCase() === 'FAILURE') failure++;
+      }
+      for (const r of sorted) {
+        const id = r.endpointId;
+        const status = String(r.status).toUpperCase() === 'SUCCESS' ? 'SUCCESS' : 'FAILURE';
+        const entry = seen.get(id) || { latest: status, seenSuccess: false, seenFailure: false };
+        if (!seen.has(id)) entry.latest = status;
+        if (status === 'SUCCESS') entry.seenSuccess = true; else entry.seenFailure = true;
+        seen.set(id, entry);
+      }
+      let degraded = 0;
+      for (const v of seen.values()) if (v.seenSuccess && v.seenFailure && v.latest === 'FAILURE') degraded++;
+      const totalFromBackend = store.logs().total || 0;
+      const cap = store.filters().limit ?? 1000;
+      return { total: Math.min(totalFromBackend, cap), success, failure, degraded } as const;
+    });
+
+    // Unique symbol count based on currently loaded logs
+    const uniqueSymbolsCount = computed(() => {
+      const rows = store.logs().data as RefreshRequestLog[];
+      if (!rows?.length) return 0;
+      const set = new Set<string>();
+      for (const r of rows) if (r?.symbol) set.add(String(r.symbol).toUpperCase());
+      return set.size;
+    });
+
+    return { 
+      isBusy, 
+      hasSummary, 
+      logsCount, 
+      hasSelectedSymbol, 
+      sortedLogs, 
+      endpointGroupsRaw, 
+      sortedEndpointGroupsByPriority, 
+      requestTotals, 
+      uniqueSymbolsCount, 
+      endpointWindowKpis, 
+      symbolWindowKpis 
+    };
   }),
   withMethods((store, api = inject(HealthMetricsApiService)) => ({
     // Load the aggregated summary
@@ -197,6 +341,17 @@ export const HealthDashboardStore = signalStore(
       this.loadLogs({ limit, offset: 0, sortBy: f.sortBy, sortOrder: f.sortOrder });
     },
 
+    // Request Logs: update/toggle sort state
+    setLogsSort(field: SortField): void {
+      const active = store.logsSortField();
+      const dir = store.logsSortDir();
+      if (active === field) {
+        patchState(store, { logsSortDir: dir === 'desc' ? 'asc' : 'desc' });
+      } else {
+        patchState(store, { logsSortField: field, logsSortDir: field === 'timestamp' ? 'desc' : 'asc' });
+      }
+    },
+
     // Convenience to refresh both summary and logs
     refreshAll(): void {
       const ts = new Date().toISOString();
@@ -204,6 +359,17 @@ export const HealthDashboardStore = signalStore(
       this.loadSummary();
       this.loadLogs();
       console.log('[HealthStore] refreshAll() queued', { ts });
+    },
+
+    // ---------------- Tabs ----------------
+    setActiveTab(index: number): void {
+      patchState(store, { activeTabIndex: index });
+    },
+
+    // Open a symbol in the drawer (single-call convenience)
+    openSymbol(symbol: string): void {
+      this.selectSymbol(symbol);
+      this.setActiveTab(1);
     },
 
     // ---------------- Symbol Detail ----------------

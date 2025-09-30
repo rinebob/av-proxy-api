@@ -5,11 +5,33 @@ import { RefreshStatus } from '@shared/firestore';
 export function getTimeMs(val: unknown): number {
   if (!val) return 0;
   try {
-    // Firestore Timestamp has toDate()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const v: any = val as any;
+
+    // Firestore Timestamp object with toDate()
     if (typeof v?.toDate === 'function') return v.toDate().getTime();
+
+    // Already a Date instance
     if (val instanceof Date) return (val as Date).getTime();
+
+    // Firestore REST/serialized shapes
+    if (typeof v === 'object') {
+      if (typeof v.seconds === 'number') return Math.floor(v.seconds * 1000);
+      if (typeof v._seconds === 'number') return Math.floor(v._seconds * 1000);
+    }
+
+    // Numbers or numeric strings (epoch seconds vs ms)
+    if (typeof v === 'number' || typeof v === 'string') {
+      const num = Number(v);
+      if (!Number.isNaN(num) && Number.isFinite(num)) {
+        const abs = Math.abs(Math.trunc(num));
+        // Heuristic: 10 digits => seconds, 13 digits => ms
+        if (abs < 1e11) return Math.trunc(num) * 1000; // seconds
+        return Math.trunc(num); // ms
+      }
+    }
+
+    // Fallback to Date parsing
     const d = new Date(val as any);
     const t = d.getTime();
     return isNaN(t) ? 0 : t;
@@ -54,6 +76,7 @@ const cmpString: (a: FieldValue, b: FieldValue) => number = (a, b) => String(a).
 export const SORTABLE_KEYS = [
   'timestamp',
   'symbol',
+  'endpointId',
   'status',
   'durationMs',
   'responseSize',
@@ -88,6 +111,10 @@ export const EVENT_FIELDS = {
   },
   symbol: {
     select: (e: RefreshRequestLog) => (e.symbol || '').toUpperCase(),
+    compare: cmpString,
+  },
+  endpointId: {
+    select: (e: RefreshRequestLog) => (e.endpointId || '').toUpperCase(),
     compare: cmpString,
   },
   status: {

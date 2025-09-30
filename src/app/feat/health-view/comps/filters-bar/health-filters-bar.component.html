@@ -1,6 +1,23 @@
 <div class="filters-bar" role="region" aria-label="Health filters">
   <div class="filters-toolbar" role="group" aria-label="Filters toolbar">
     <span class="title">Filters</span>
+
+    <!-- Quick time ranges: sit to the right of the label on the same row -->
+    <div class="quick-buttons" aria-label="Quick time ranges">
+      <button type="button" mat-stroked-button [color]="activeQuickRange() === 'today' ? 'primary' : undefined" (click)="setQuickRange('today')">
+        Today
+      </button>
+      <button type="button" mat-stroked-button [color]="activeQuickRange() === '24h' ? 'primary' : undefined" (click)="setQuickRange('24h')">
+        Last 24 hours
+      </button>
+      <button type="button" mat-stroked-button [color]="activeQuickRange() === 'week' ? 'primary' : undefined" (click)="setQuickRange('week')">
+        One week
+      </button>
+      <button type="button" mat-stroked-button [color]="activeQuickRange() === 'all' ? 'primary' : undefined" (click)="setQuickRange('all')">
+        All data
+      </button>
+    </div>
+
     <form class="controls" (submit)="$event.preventDefault(); applyFilters()">
       <!-- Endpoint ID dropdown -->
       <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">

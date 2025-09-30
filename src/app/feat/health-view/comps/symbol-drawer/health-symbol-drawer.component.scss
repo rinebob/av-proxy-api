@@ -1,0 +1,216 @@
+/* Symbol Drawer Base Styles */
+.symbol-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  padding: 0; // let parent container manage outer padding for consistency
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start !important; // keep controls next to label
+    margin-top: 16px; // add spacing below tabs
+
+    .heading {
+      margin: 0 20px 0 0; // ~20px spacing before buttons
+      font-weight: 600;
+      font-size: 1rem;
+      color: #333;
+    }
+
+    // Expand/Collapse controls positioned next to the label
+    .expand-controls {
+      display: inline-flex;
+      gap: 1rem;
+      margin-left: 0; // avoid auto-push to the right
+      flex: 0 0 auto; // do not grow; stay next to heading
+
+      // compact buttons (~75% of previous height)
+      button[mat-stroked-button] {
+        height: 24px;
+        line-height: 22px;
+        padding: 0 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+    }
+  }
+
+  .muted {
+    color: #777;
+    font-size: 0.9rem;
+  }
+
+  .error {
+    color: #b42318;
+    font-weight: 600;
+  }
+
+  mat-accordion { 
+    width: 100%; 
+    overflow: visible; // allow header shadows to render outside
+  }
+
+  // Consistent vertical spacing between panels (match Endpoint Detail)
+  mat-expansion-panel {
+    margin: 6px 0; // top/bottom spacing between panels
+    background: transparent; // let header shadow be visible
+    box-shadow: none;        // remove default panel shadow
+    overflow: visible;       // allow header shadow to render outside bounds
+    padding: 0 6px;          // lateral gutters so header shadow shows on left/right
+  }
+
+  /* Header alignment within expansion panels (mirror Endpoint Detail) */
+  .mat-expansion-panel-header {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    padding-top: 8px;   // add vertical breathing room (match Endpoint Detail)
+    padding-bottom: 8px;
+    background: #fff; // ensure shadow renders cleanly like Endpoint Detail
+    border-radius: 6px;
+    // Box shadow on all sides (subtle)
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.06);
+
+    /* Match endpoint: give title a fixed basis so description has room */
+    .mat-expansion-panel-header-title {
+      // Bold/extra-bold symbol text
+      font-weight: 700;
+      flex: 0 0 16%;
+      margin-right: 0.5rem;
+      min-width: 120px;
+    }
+
+    .mat-expansion-panel-header-description {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+
+      .header-line {
+        display: flex;
+        align-items: center;
+        width: 100%;
+
+        .meta-row {
+          display: flex;
+          align-items: baseline; // align text with chip label baseline
+          justify-content: space-between; // even distribution across full width
+          width: 100%;
+          flex-wrap: wrap;
+          gap: 0.75rem 0.5rem; // col/row gaps
+
+          // Normalize text to align with chip label height
+          > * { line-height: 22px; display: inline-flex; align-items: baseline; }
+
+          // Ensure chips vertically align to text baseline
+          mat-chip-set { align-items: center; }
+
+          // Show separators now that we're using space-between
+          .sep { opacity: 0.5; }
+
+          mat-chip-set {
+            --mdc-chip-container-height: 22px;
+            --mdc-chip-with-trailing-icon-container-height: 22px;
+            --mdc-chip-label-text-size: 11px;
+          }
+        }
+      }
+    }
+  }
+
+  .table-wrapper {
+    width: 100%;
+    overflow: auto;
+  }
+
+  /* Match endpoint detail: header/icon styling for sortable columns */
+  table.compact-table {
+    width: 100%;
+    border-spacing: 0;
+
+    th[mat-header-cell], td[mat-cell], td[mat-footer-cell] {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.85rem;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    th[mat-header-cell] {
+      font-weight: 600;
+      color: var(--mat-sys-on-surface-variant, #4b5563);
+      user-select: none;
+
+      .header-content {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .sort-icon {
+        font-size: 18px;
+        line-height: 1;
+        width: 18px;
+        height: 18px;
+        color: var(--mat-sys-on-surface-variant, #4b5563);
+        opacity: 0.6;
+        transition: color 120ms ease, opacity 120ms ease;
+      }
+
+      .sort-icon.active {
+        color: var(--mat-sys-primary, #1d4ed8);
+        opacity: 0.95;
+      }
+
+      &.sorted { color: var(--mat-sys-primary, #1d4ed8); }
+    }
+
+    tr[mat-row] {
+      cursor: pointer;
+      transition: background-color 120ms ease;
+
+      &:hover { background-color: rgba(0,0,0,0.04); }
+    }
+  }
+
+  .logs-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th,
+    td {
+      text-align: left;
+      border-bottom: 1px solid #eee;
+      padding: 0.5rem 0.75rem;
+      white-space: nowrap;
+      color: #222;
+      font-size: 0.9rem;
+    }
+
+    thead th {
+      background: #fafafa;
+      font-weight: 600;
+      color: #333;
+    }
+
+    td.ok { color: #1a7f37; font-weight: 600; }
+    td.err { color: #b42318; font-weight: 600; }
+  }
+
+  // Remove any legacy cards
+  .summary-card, .metrics-card { display: none; }
+
+  // Remove inner tab content scrollbar within this view
+  :host ::ng-deep .mat-mdc-tab-body-content {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  :host ::ng-deep .mat-mdc-tab-body {
+    overflow: visible !important;
+  }
+  :host ::ng-deep .mat-mdc-tab-body-wrapper {
+    overflow: visible !important;
+  }
+}

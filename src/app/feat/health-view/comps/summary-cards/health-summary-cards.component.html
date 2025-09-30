@@ -30,6 +30,22 @@
     </div>
   </div>
 
+  <!-- New Requests KPI row -->
+  <div class="cards-row grouped">
+    <div class="row-label" aria-label="Requests section">Requests:</div>
+    <div class="row-cards">
+      @for (c of requestCards(); track c.key) {
+        <mat-card class="kpi-card" [ngClass]="c.clazz">
+          <div class="kpi-header">
+            <mat-icon [fontIcon]="c.icon"></mat-icon>
+            <span class="label">{{ c.label }}</span>
+            <span class="value">{{ c.value }}</span>
+          </div>
+        </mat-card>
+      }
+    </div>
+  </div>
+
   <!-- Recent errors row remains below -->
   <div class="cards-row">
     <mat-card class="wide">
