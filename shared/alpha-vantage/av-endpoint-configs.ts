@@ -623,3 +623,15 @@ export function getTimeSeriesPriorityIndex(): Map<AlphaVantageEndpoint, number> 
     }
     return index;
   }
+
+/**
+ * Resolve the configured TTL (in seconds) for a given Alpha Vantage endpoint id.
+ * Checks time-series configs first, then general endpoint configs. Falls back to 0 when unknown.
+ */
+export function getEndpointTtlSecondsById(endpointId: string): number {
+  const tsCfg: any = (AV_TIME_SERIES_ENDPOINT_CONFIGS as any)[endpointId as any];
+  if (tsCfg?.ttl != null) return Number(tsCfg.ttl) || 0;
+  const cfg: any = (AV_ENDPOINT_CONFIGS as any)[endpointId as any];
+  if (cfg?.ttl != null) return Number(cfg.ttl) || 0;
+  return 0;
+}
