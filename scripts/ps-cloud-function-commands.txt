@@ -2,3 +2,119 @@
 
 == INVOKE DATA REFRESH AND UPDATING HEALTH METRICS ========
 Invoke-WebRequest -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantageDataV2Http" -UseBasicParsing | Select-Object -ExpandProperty Content | ConvertFrom-Json
+
+
+=== INVOKE TIME SERIES BACKFILL ===
+PS from functions dir
+// for dry run in emulators for AAPL daily only
+$env:FIRESTORE_EMULATOR_HOST="localhost:8080"; `  // remove to run on prod db
+$env:LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY="IXUJMB1Q6OMCUBR0"; `  // for emulators only - remove for prod run
+$env:DRY_RUN="1"; `  // set to 0 for actual
+$env:SYMBOLS="AAPL"; `  // remove to run all symbols
+$env:INCLUDE_WEEKLY="0"; `  // set to 1 to include weekly
+$env:INCLUDE_MONTHLY="0"; `  // set to 1 to include monthly
+npx ts-node -r tsconfig-paths/register ./scripts/backfill-av-daily-adjusted.ts
+
+// prod all symbols not dry run daily only
+
+Remove-Item Env:FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue; `
+$env:ALPHAVANTAGE_API_KEY="IXUJMB1Q6OMCUBR0"; `
+$env:DRY_RUN="0"; `
+$env:INCLUDE_WEEKLY="0"; `
+$env:INCLUDE_MONTHLY="0"; `
+$env:DELAY_MS="2000"; `
+npx ts-node -r tsconfig-paths/register ./scripts/backfill-av-daily-adjusted.ts
+
+// emulators all symbols not dry run daily only
+
+$env:FIRESTORE_EMULATOR_HOST="localhost:8080"; `
+$env:FUNCTIONS_EMULATOR="true"; `
+Remove-Item Env:ALPHAVANTAGE_API_KEY -ErrorAction SilentlyContinue; `
+$env:LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY="IXUJMB1Q6OMCUBR0"; `
+$env:DRY_RUN="0"; `
+$env:INCLUDE_WEEKLY="0"; `
+$env:INCLUDE_MONTHLY="0"; `
+$env:DELAY_MS="2000"; `
+npx ts-node -r tsconfig-paths/register ./scripts/backfill-av-daily-adjusted.ts
+
+// emulators all symbols not dry run all intervals
+Remove-Item Env:SYMBOLS -ErrorAction SilentlyContinue; `
+$env:FIRESTORE_EMULATOR_HOST="localhost:8080"; `
+$env:FUNCTIONS_EMULATOR="true"; `
+Remove-Item Env:ALPHAVANTAGE_API_KEY -ErrorAction SilentlyContinue; `
+$env:LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY="IXUJMB1Q6OMCUBR0"; `
+$env:DRY_RUN="0"; `
+$env:INCLUDE_WEEKLY="1"; `
+$env:INCLUDE_MONTHLY="1"; `
+$env:DELAY_MS="2000"; `
+npx ts-node -r tsconfig-paths/register ./scripts/backfill-av-daily-adjusted.ts
+
+
+// prod dry run aapl only daily only
+# Clear any emulator targeting
+Remove-Item Env:FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue; `
+Remove-Item Env:FUNCTIONS_EMULATOR -ErrorAction SilentlyContinue; `
+# Set project context (explicit for clarity)
+$env:GOOGLE_CLOUD_PROJECT="alpha-vantage-proxy-api"; `
+$env:GCLOUD_PROJECT="alpha-vantage-proxy-api"; `
+# Use your PROD AV key (standalone script needs it in env)
+$env:ALPHAVANTAGE_API_KEY="<YOUR_PROD_KEY>"; `
+# Script controls
+$env:DRY_RUN="1"; `
+$env:SYMBOLS="AAPL"; `
+$env:INCLUDE_WEEKLY="0"; `
+$env:INCLUDE_MONTHLY="0"; `
+$env:DELAY_MS="2000"; `
+# Optional: prefer IPv4 DNS resolution for local Node
+$env:NODE_OPTIONS="--dns-result-order=ipv4first"; `
+# Run
+npx ts-node -r tsconfig-paths/register ./scripts/backfill-av-daily-adjusted.ts
+
+// prod not dry run aapl only daily only
+# Clear any emulator targeting
+Remove-Item Env:FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue; `
+Remove-Item Env:FUNCTIONS_EMULATOR -ErrorAction SilentlyContinue; `
+# Project context (explicit)
+$env:GOOGLE_CLOUD_PROJECT="alpha-vantage-proxy-api"; `
+$env:GCLOUD_PROJECT="alpha-vantage-proxy-api"; `
+# Use your PROD AV key (standalone script needs it)
+$env:ALPHAVANTAGE_API_KEY="<YOUR_PROD_KEY>"; `
+# Script controls
+$env:DRY_RUN="0"; `
+$env:SYMBOLS="AAPL"; `
+$env:INCLUDE_WEEKLY="0"; `
+$env:INCLUDE_MONTHLY="0"; `
+$env:DELAY_MS="2000"; `
+# Optional: prefer IPv4 DNS resolution for local Node
+$env:NODE_OPTIONS="--dns-result-order=ipv4first"; `
+# Run
+npx ts-node -r tsconfig-paths/register ./scripts/backfill-av-daily-adjusted.ts
+
+
+// prod not dry run all symbols all intervals# Clear emulator targeting and symbol filters
+Remove-Item Env:FIRESTORE_EMULATOR_HOST -ErrorAction SilentlyContinue; `
+Remove-Item Env:FUNCTIONS_EMULATOR -ErrorAction SilentlyContinue; `
+Remove-Item Env:SYMBOLS -ErrorAction SilentlyContinue; `
+# Project context
+$env:GOOGLE_CLOUD_PROJECT="alpha-vantage-proxy-api"; `
+$env:GCLOUD_PROJECT="alpha-vantage-proxy-api"; `
+# AV key
+$env:ALPHAVANTAGE_API_KEY="IXUJMB1Q6OMCUBR0"; `
+# Prefer IPv4 DNS
+$env:NODE_OPTIONS="--dns-result-order=ipv4first"; `
+# Script controls
+$env:DRY_RUN="0"; `
+$env:INCLUDE_WEEKLY="1"; `
+$env:INCLUDE_MONTHLY="1"; `
+$env:DELAY_MS="2000"; `
+# Stronger network retries & symbol-level retries
+$env:SCRIPT_HTTP_MAX_RETRIES="6"; `
+$env:SCRIPT_HTTP_RETRY_BASE_MS="2000"; `
+$env:SYMBOL_MAX_ATTEMPTS="3"; `
+$env:SYMBOL_RETRY_BASE_MS="30000"; `
+# Run
+npx ts-node -r tsconfig-paths/register ./scripts/backfill-av-daily-adjusted.ts
+
+
+
+
