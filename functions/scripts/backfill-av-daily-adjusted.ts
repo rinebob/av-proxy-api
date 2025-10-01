@@ -44,6 +44,9 @@ import {
   getSymbolTimeSeriesAllDocPath,
 } from '../src/v2/common/firestore/firestore-paths';
 
+import { HealthMetricsService } from '../src/v2/health-metrics/health-metrics.service';
+import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
+
 // Basic logger
 function log(...args: any[]) { console.log('[backfill-av-daily-adjusted]', ...args); }
 function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)); }
@@ -180,28 +183,94 @@ async function backfillSymbol(symbol: string, delayMs: number, dryRun: boolean):
     }
   };
 
+  const hms = new HealthMetricsService();
+
   // DAILY
   let started = Date.now();
-  await fetchWithRetry(AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, { symbol, outputsize: OutputSize.FULL, __checkWriteToggle: false });
-  let duration = Date.now() - started;
-  log(`seeded DAILY ${symbol} in ${duration}ms`);
+  try {
+    await fetchWithRetry(AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, { symbol, outputsize: OutputSize.FULL, __checkWriteToggle: false });
+    let duration = Date.now() - started;
+    await hms.recordSymbolRefresh(
+      AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED as any,
+      symbol,
+      RefreshStatus.SUCCESS,
+      duration,
+      undefined,
+      { trigger: RefreshTrigger.BACKFILL_SCRIPT }
+    );
+    let durationLog = duration;
+    log(`seeded DAILY ${symbol} in ${durationLog}ms`);
+  } catch (e: any) {
+    let duration = Date.now() - started;
+    await hms.recordSymbolRefresh(
+      AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED as any,
+      symbol,
+      RefreshStatus.FAILURE,
+      duration,
+      String(e?.message || e),
+      { trigger: RefreshTrigger.BACKFILL_SCRIPT }
+    );
+    throw e;
+  }
   if (delayMs > 0) await sleep(delayMs);
 
   // WEEKLY (optional)
   if (process.env.INCLUDE_WEEKLY === '1') {
     started = Date.now();
-    await fetchWithRetry(AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED, { symbol, outputsize: OutputSize.FULL, __checkWriteToggle: false });
-    duration = Date.now() - started;
-    log(`seeded WEEKLY ${symbol} in ${duration}ms`);
+    try {
+      await fetchWithRetry(AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED, { symbol, outputsize: OutputSize.FULL, __checkWriteToggle: false });
+      const duration = Date.now() - started;
+      await hms.recordSymbolRefresh(
+        AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED as any,
+        symbol,
+        RefreshStatus.SUCCESS,
+        duration,
+        undefined,
+        { trigger: RefreshTrigger.BACKFILL_SCRIPT }
+      );
+      log(`seeded WEEKLY ${symbol} in ${duration}ms`);
+    } catch (e: any) {
+      const duration = Date.now() - started;
+      await hms.recordSymbolRefresh(
+        AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED as any,
+        symbol,
+        RefreshStatus.FAILURE,
+        duration,
+        String(e?.message || e),
+        { trigger: RefreshTrigger.BACKFILL_SCRIPT }
+      );
+      throw e;
+    }
     if (delayMs > 0) await sleep(delayMs);
   }
 
   // MONTHLY (optional)
   if (process.env.INCLUDE_MONTHLY === '1') {
     started = Date.now();
-    await fetchWithRetry(AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED, { symbol, outputsize: OutputSize.FULL, __checkWriteToggle: false });
-    duration = Date.now() - started;
-    log(`seeded MONTHLY ${symbol} in ${duration}ms`);
+    try {
+      await fetchWithRetry(AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED, { symbol, outputsize: OutputSize.FULL, __checkWriteToggle: false });
+      const duration = Date.now() - started;
+      await hms.recordSymbolRefresh(
+        AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED as any,
+        symbol,
+        RefreshStatus.SUCCESS,
+        duration,
+        undefined,
+        { trigger: RefreshTrigger.BACKFILL_SCRIPT }
+      );
+      log(`seeded MONTHLY ${symbol} in ${duration}ms`);
+    } catch (e: any) {
+      const duration = Date.now() - started;
+      await hms.recordSymbolRefresh(
+        AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED as any,
+        symbol,
+        RefreshStatus.FAILURE,
+        duration,
+        String(e?.message || e),
+        { trigger: RefreshTrigger.BACKFILL_SCRIPT }
+      );
+      throw e;
+    }
     if (delayMs > 0) await sleep(delayMs);
   }
 }

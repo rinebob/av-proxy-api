@@ -2,13 +2,15 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { db } from '../../../firebase-admin-init';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { initializeTimeSeriesIfMissing } from '../firestore/av-firestore-helper';
-import { FirestoreCollection } from '@shared/firestore';
+import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 import { AlphaVantageEndpoint, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { createLogger } from '../../utils/utils';
+import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 
 const log = createLogger('ts.http');
+const hms = new HealthMetricsService();
 
 function parseBool(v: unknown): boolean {
   const s = String(v ?? '').toLowerCase();
@@ -82,6 +84,9 @@ export const refreshAvTimeSeriesHttp = onRequest(async (req, res) => {
 
     log.info('start', { interval, endpoint, count: symbols.length, force, init, symbols });
 
+    // Manual trigger: log only trigger field to keep logs minimal
+    const commonMeta = { trigger: RefreshTrigger.UPDATER_MANUAL } as Record<string, any>;
+
     for (const symbol of symbols) {
       try {
         const perStart = Date.now();
@@ -100,12 +105,22 @@ export const refreshAvTimeSeriesHttp = onRequest(async (req, res) => {
             const nrd = typeof nextRefreshAt?.toDate === 'function' ? nextRefreshAt.toDate() : nextRefreshAt ? new Date(nextRefreshAt) : null;
             nextRefreshIso = nrd ? nrd.toISOString() : null;
           } catch {}
-          log.info('symbol.init', { symbol, interval, endpoint, ok, durationMs: Date.now() - perStart, docPath, latestBarIso, nextRefreshIso });
+          const duration = Date.now() - perStart;
+          // Log request event for init path
+          await hms.recordSymbolRefresh(
+            endpoint as any,
+            symbol,
+            ok ? RefreshStatus.SUCCESS : RefreshStatus.FAILURE,
+            duration,
+            ok ? undefined : 'init-no-data',
+            { ...commonMeta }
+          );
+          log.info('symbol.init', { symbol, interval, endpoint, ok, durationMs: duration, docPath, latestBarIso, nextRefreshIso });
           results.push({
             symbol,
             status: ok ? 'initialized' : 'skipped',
             message: ok ? 'initialized or exists' : 'no data from provider',
-            durationMs: Date.now() - perStart,
+            durationMs: duration,
             docPath,
             latestBarIso,
             nextRefreshIso,
@@ -125,9 +140,31 @@ export const refreshAvTimeSeriesHttp = onRequest(async (req, res) => {
           const nrd = typeof nextRefreshAt?.toDate === 'function' ? nextRefreshAt.toDate() : nextRefreshAt ? new Date(nextRefreshAt) : null;
           nextRefreshIso = nrd ? nrd.toISOString() : null;
         } catch {}
-        log.info('symbol.refresh', { symbol, interval, endpoint, durationMs: Date.now() - perStart, docPath, latestBarIso, nextRefreshIso });
-        results.push({ symbol, status: 'refreshed', durationMs: Date.now() - perStart, docPath, latestBarIso, nextRefreshIso });
+        const duration = Date.now() - perStart;
+        // Log request event for refresh path
+        await hms.recordSymbolRefresh(
+          endpoint as any,
+          symbol,
+          RefreshStatus.SUCCESS,
+          duration,
+          undefined,
+          { ...commonMeta }
+        );
+        log.info('symbol.refresh', { symbol, interval, endpoint, durationMs: duration, docPath, latestBarIso, nextRefreshIso });
+        results.push({ symbol, status: 'refreshed', durationMs: duration, docPath, latestBarIso, nextRefreshIso });
       } catch (err: any) {
+        const duration = undefined; // unknown duration for failure in this block
+        // Attempt to log failure event
+        try {
+          await hms.recordSymbolRefresh(
+            endpoint as any,
+            symbol,
+            RefreshStatus.FAILURE,
+            typeof duration === 'number' ? duration : 0,
+            String(err?.message || err),
+            { ...commonMeta }
+          );
+        } catch {}
         log.error('symbol.error', { symbol, interval, endpoint, error: String(err?.message || err) });
         results.push({ symbol, status: 'error', message: String(err?.message || err) });
       }

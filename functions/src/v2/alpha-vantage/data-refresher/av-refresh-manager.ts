@@ -11,7 +11,7 @@ import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-fa
 
 import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval, AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
-import { FirestoreCollection, RefreshStatus } from '@shared/firestore';
+import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
 import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE } from '../../common/function-schedules';
 
@@ -301,7 +301,7 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
           updatedSymbols.add(symbol);
           log.info('refresh.persist.skip_manager_write', { endpointId: endpoint, endpointName, symbol, reason: 'handled_by_handler_sharded_writes' });
           // Log success event to unified request logs and per-symbol status
-          await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.SUCCESS, durationMs);
+          await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.SUCCESS, durationMs, undefined, { trigger: RefreshTrigger.AV_REFRESH_MANAGER });
         } else {
           // Standard endpoints: write data + metadata and log history
           const updateData = {
@@ -345,7 +345,7 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
           });
           log.debug('history.written', { endpointId: endpoint, endpointName, symbol, refreshEventId });
           // Log success event to unified request logs and per-symbol status
-          await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.SUCCESS, durationMs);
+          await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.SUCCESS, durationMs, undefined, { trigger: RefreshTrigger.AV_REFRESH_MANAGER });
         }
       } catch (error: any) {
         const durationMs = Date.now() - apiStart;
@@ -368,7 +368,7 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
           log.debug('history.failure_written', { endpointId: endpoint, endpointName, symbol, refreshEventId });
         }
         // Log failure event to unified request logs and per-symbol status
-        await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.FAILURE, durationMs, String(error?.message || error));
+        await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.FAILURE, durationMs, String(error?.message || error), { trigger: RefreshTrigger.AV_REFRESH_MANAGER });
       }
       hr('av.refresh', `--- SYMBOL END: ${symbol} ---`);
       hrBlank(3);

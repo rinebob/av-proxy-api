@@ -10,6 +10,7 @@ import { FirestoreCollection, RefreshTrigger, RefreshStatus } from '@shared/fire
 
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
+import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 
 /**
  * Cloud Function that triggers when a new symbol is added to the tracked-symbols collection.
@@ -38,6 +39,8 @@ export const onSymbolAdded = onDocumentCreated(
     });
 
     try {
+      const hms = new HealthMetricsService();
+      const startedAt = Date.now();
       // Get the Alpha Vantage handler for adjusted daily time series
       const handler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
 
@@ -49,6 +52,7 @@ export const onSymbolAdded = onDocumentCreated(
         datatype: 'json',
         __checkWriteToggle: false // backend-triggered init should bypass manual write toggle
       });
+      const durationMs = Date.now() - startedAt;
 
       // Calculate tomorrow's date
       const tomorrow = new Date();
@@ -85,6 +89,16 @@ export const onSymbolAdded = onDocumentCreated(
       console.log(`oSA.f oSA: ------------ save to firestore ------------`);
       // Commit the batch
       await batch.commit();
+
+      // Record request log and endpoint-symbols status for visibility
+      await hms.recordSymbolRefresh(
+        AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED as any,
+        symbol,
+        RefreshStatus.SUCCESS,
+        durationMs,
+        undefined,
+        { trigger: RefreshTrigger.SYMBOL_ADDED }
+      );
 
       console.log(`oSA.f oSA: Successfully initialized adjusted daily time series for symbol: ${symbol}`);
 

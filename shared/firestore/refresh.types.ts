@@ -22,7 +22,10 @@ export enum RefreshTrigger {
   RETRY = 'retry',
   API = 'api',
   SYSTEM = 'system',
-  SYMBOL_ADDED = 'symbol-added'
+  SYMBOL_ADDED = 'symbol-added',
+  AV_REFRESH_MANAGER = 'av-refresh-manager',
+  BACKFILL_SCRIPT = 'backfill-script',
+  UPDATER_MANUAL = 'updater-manual'
 }
 
 export interface RefreshEvent {
