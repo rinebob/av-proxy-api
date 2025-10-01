@@ -66,6 +66,11 @@
                 </mat-icon>
               </span>
             </th>
+            <th role="columnheader">
+              <span class="header-content">
+                <span>Trigger</span>
+              </span>
+            </th>
             <th role="columnheader"
                 (click)="onHeaderSort(SortKeys.durationMs)"
                 [class.sorted]="healthStore.logsSortField() === 'durationMs'"
@@ -89,6 +94,7 @@
               <td role="cell" [class.ok]="row.status === RefreshStatus.SUCCESS" [class.err]="row.status !== RefreshStatus.SUCCESS">
                 {{ row.status }}
               </td>
+              <td role="cell">{{ row.metadata?.trigger || '-' }}</td>
               <td role="cell">{{ row.durationMs }} ms</td>
             </tr>
           }

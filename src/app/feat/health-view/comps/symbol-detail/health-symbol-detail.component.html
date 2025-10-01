@@ -101,6 +101,12 @@
                 </td>
               </ng-container>
 
+              <!-- Trigger -->
+              <ng-container matColumnDef="trigger">
+                <th mat-header-cell *matHeaderCellDef> Trigger </th>
+                <td mat-cell *matCellDef="let row"> {{ row.metadata?.trigger || '-' }} </td>
+              </ng-container>
+
               <!-- Duration -->
               <ng-container matColumnDef="duration">
                 <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKeys.durationMs)" [class.sorted]="sortField() === SortKeys.durationMs" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKeys.durationMs ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">

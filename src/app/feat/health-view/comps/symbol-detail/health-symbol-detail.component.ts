@@ -66,7 +66,7 @@ export class HealthSymbolDetailComponent extends HealthViewBase {
   }
 
   // Table columns used inside each expansion panel
-  readonly displayedColumns: ReadonlyArray<string> = ['time', 'timeAgo', 'endpoint', 'status', 'duration'];
+  readonly displayedColumns: ReadonlyArray<string> = ['time', 'timeAgo', 'endpoint', 'status', 'trigger', 'duration'];
 
   // Group all current-page logs by symbol, sorted by latest event desc, with events sorted latest-first
   readonly symbolGroups = computed<SymbolGroup[]>(() => {
