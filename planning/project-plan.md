@@ -155,6 +155,31 @@ A comprehensive dashboard to monitor the health and status of all automated Alph
    - Interactive charts and visualizations
    - Filtering and search capabilities
 
+#### Health View UI: Components and Current Behavior
+
+- __Endpoint Detail__
+  - Shows endpoint-centric request histories, grouped by endpoint.
+  - UI-specific sorting is applied in `src/app/feat/health-view/comps/endpoint-detail/health-endpoint-detail.component.ts`.
+  - Grouping, base sorting, and priority ordering are centralized in the store `src/app/feat/health-view/store/health-dashboard.store.ts` via computed selectors (`endpointGroupsRaw`, `sortedEndpointGroupsByPriority`).
+
+- __Request Logs Table__
+  - Paginated, filterable, and sortable feed of request events from Cloud Functions (`getRequestLogs`).
+  - Used as the source for both endpoint and symbol–centric views.
+
+- __Symbol Detail (Updated)__
+  - Purpose: a symbol‑centric list of all requests for the chosen symbol, across endpoints; conceptually similar to Endpoint Detail but pivoted by symbol rather than endpoint.
+  - Data: request history for the symbol (from `request-logs` via Cloud Functions), with optional status/metrics aggregated server‑side from `endpoint-symbols` and `health-metrics`.
+  - Important: prior behavior that auto‑navigated to the Symbol tab based on external symbol selection is deprecated. The Symbol Detail view stands alone as a symbol‑centric view; there is no implicit cross‑feature navigation triggering it.
+  - Key files: `src/app/feat/health-view/comps/symbol-detail/health-symbol-detail.component.ts`, `src/app/services/health-metrics-api.service.ts`, and `src/app/feat/health-view/store/health-dashboard.store.ts`.
+
+- __Data flow and refresh__
+  - Cloud Functions provide: `getHealthSummary`, `getRequestLogs`, `getSymbolStatus`, `getSymbolMetrics`.
+  - `HealthDashboardComponent` listens to `health-metrics/{endpoint}/latest/status` for time‑series endpoints and triggers `refreshAll()` to reload summary and logs.
+
+- __Store responsibilities__
+  - Centralizes endpoint grouping, priority, and KPI derivations from the current logs window.
+  - UI components keep only presentation sorting and rendering concerns.
+
 3. **Data Collection**
    - Instrument existing refresh functions to log health metrics
    - Track success/failure of each update operation

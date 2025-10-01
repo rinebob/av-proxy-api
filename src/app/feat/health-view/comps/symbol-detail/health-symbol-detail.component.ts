@@ -23,7 +23,7 @@ interface SymbolGroup {
 }
 
 @Component({
-  selector: 'app-health-symbol-drawer',
+  selector: 'app-health-symbol-detail',
   standalone: true,
   imports: [
     CommonModule,
@@ -38,11 +38,11 @@ interface SymbolGroup {
     MatTableModule,
     MatExpansionModule,
   ],
-  templateUrl: './health-symbol-drawer.component.html',
-  styleUrls: ['./health-symbol-drawer.component.scss'],
+  templateUrl: './health-symbol-detail.component.html',
+  styleUrls: ['./health-symbol-detail.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class HealthSymbolDrawerComponent extends HealthViewBase {
+export class HealthSymbolDetailComponent extends HealthViewBase {
   // Sorting state shared by all per-symbol tables
   readonly SortKeys = SortKeys;
   readonly sortField = signal<SortField | null>(SortKeys.timestamp);

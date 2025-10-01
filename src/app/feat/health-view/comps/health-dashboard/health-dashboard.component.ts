@@ -7,7 +7,7 @@ import { HealthSummaryCardsComponent } from '../summary-cards/health-summary-car
 import { HealthFiltersBarComponent } from '../filters-bar/health-filters-bar.component';
 import { HealthRequestLogTableComponent } from '../request-log-table/health-request-log-table.component';
 import { HealthEndpointDetailComponent } from '../endpoint-detail/health-endpoint-detail.component';
-import { HealthSymbolDrawerComponent } from '../symbol-drawer/health-symbol-drawer.component';
+import { HealthSymbolDetailComponent } from '../symbol-detail/health-symbol-detail.component';
 import { HealthViewBase } from '../health-view-base/health-view-base.component';
 
 // Firestore listener bits
@@ -31,7 +31,7 @@ import { TsToIsoPipe } from '../../pipes/ts-to-iso.pipe';
     HealthFiltersBarComponent,
     HealthRequestLogTableComponent,
     HealthEndpointDetailComponent,
-    HealthSymbolDrawerComponent,
+    HealthSymbolDetailComponent,
     TsToIsoPipe,
   ],
   templateUrl: './health-dashboard.component.html',
