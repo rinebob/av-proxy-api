@@ -22,7 +22,7 @@ import { BZ_CALENDAR_REFRESH_SCHEDULE } from '../../common/function-schedules';
 import { 
   resolveFirestorePath
 } from '../../utils/firestore-utils';
-import { RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
+import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
 // Logging helper
 const pr = true;

@@ -6,7 +6,7 @@ import {
   OutputSize,
   TimeSeriesInterval
 } from '@shared/alpha-vantage';
-import { FirestoreCollection, RefreshTrigger } from '@shared/firestore';
+import { FirestoreCollection, RefreshTrigger, RefreshStatus } from '@shared/firestore';
 
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { RefreshLoggerService } from '../../services/refresh-logger.service';

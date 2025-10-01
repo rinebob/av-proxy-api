@@ -6,11 +6,11 @@ import { ApiProvider, ApiResponse } from '@shared/core';
 import { FirestoreCollection } from '@shared/firestore';
 import type { EndpointConfig } from '@shared/core';
 import type { CompactBar } from '@shared/alpha-vantage';
+import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 
 import { isManualWriteEnabled } from '../../common/firestore/manual-write-toggle';
-import { RefreshStatus, RefreshTrigger } from '../../common/refresh.types';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import {
   getSymbolTimeSeriesYearDocPath,

@@ -5,7 +5,7 @@ import {
   RefreshEvent,
   RefreshStatus,
   RefreshTrigger,
-} from '../common/refresh.types';
+} from '@shared/firestore';
 import { formatTtlSeconds } from '../utils/utils';
 
 const MAX_HISTORY_LENGTH = 10;
