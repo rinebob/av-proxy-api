@@ -133,7 +133,8 @@ export class SymbolManagerComponent implements OnInit {
       next: () => {
         this.showResult(`Successfully added ${symbols.length} symbol(s)`);
         this.symbolsToAdd.set('');
-        this.store.listSymbols();
+        // Use V2 listing explicitly to avoid legacy schema path
+        this.store.listSymbolsV2();
       },
       error: (error) => this.showError(`Failed to add symbols: ${error.message}`)
     });

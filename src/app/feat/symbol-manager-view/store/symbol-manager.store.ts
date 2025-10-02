@@ -91,25 +91,8 @@ export const SymbolManagerStore = signalStore(
         },
 
         listSymbols(): void {
-            patchState(store, { loading: true, error: null });
-
-            symbolService.listSymbols().pipe(
-                tap({
-                    next: (response) => {
-                        patchState(store, {
-                            loading: false,
-                            symbols: response.symbols || []
-                        });
-                    },
-                    error: (error) => {
-                        console.error('Error listing symbols:', error);
-                        patchState(store, {
-                            loading: false,
-                            error: error.message || 'Failed to load symbols'
-                        });
-                    }
-                }),
-            ).subscribe();
+            // Delegate to V2 to avoid legacy schema mismatches
+            this.listSymbolsV2();
         },
 
         getSymbolDetails: rxMethod<string>(
@@ -400,6 +383,8 @@ export const SymbolManagerStore = signalStore(
                     next: (response) => {
                         patchState(store, {
                             loading: false,
+                            // Keep legacy symbols state in sync for any consumers still reading it
+                            symbols: (response.symbols as any) || [],
                             v2Symbols: response.symbols || []
                         });
                     },
