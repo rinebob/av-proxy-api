@@ -21,13 +21,13 @@ import {
     SyncSymbolsRequest, 
     SyncSymbolsResponse,
     TrackedSymbol,
-    getDataMaintainerFunctionUrl,
  } from '../../data-maintainer-view/common/fe-common-dm-api';
 import {
     getAlphaVantageEndpointUrl, 
     AlphaVantageApiResponse,
     SaveTrackedSymbolRequest
  } from '../../data-maintainer-view/common/fe-common-av-api';
+import { API_BASES, type ApiBases } from '../../../core/api/api.tokens';
 
 /**
  * Service responsible for managing stock symbols in the data maintainer system.
@@ -39,6 +39,7 @@ import {
 export class SymbolManagerService {
   private readonly http = inject(HttpClient);
   private readonly functions = inject(Functions);
+  private readonly apiBases = inject(API_BASES);
 
   // Store the callable function as a class property to ensure it's created in the injection context
   private getSymbolDetailsFn = httpsCallable<{ symbol: string }, { exists: boolean; data?: TrackedSymbol }>(
@@ -67,7 +68,7 @@ export class SymbolManagerService {
       sortDirection: 'asc'
     });
 
-    const url = `${getDataMaintainerFunctionUrl(DataMaintainerFunctionName.LIST_SYMBOLS)}?${params.toString()}`;
+    const url = `${this.apiBases.dm}/${DataMaintainerFunctionName.LIST_SYMBOLS}?${params.toString()}`;
     
     return this.http.get<ListSymbolsResponse>(url).pipe(
       map(response => {
@@ -168,7 +169,7 @@ export class SymbolManagerService {
       timestamp: new Date(),
       remove: true // This will trigger removal in the backend
     };
-    const url = getDataMaintainerFunctionUrl(DataMaintainerFunctionName.SYNC_SYMBOLS);
+    const url = `${this.apiBases.dm}/${DataMaintainerFunctionName.SYNC_SYMBOLS}`;
 
     console.log('FE sMS rS [SymbolManager] removeSymbol called', {
       symbol,
@@ -271,7 +272,7 @@ export class SymbolManagerService {
       timestamp: new Date()
     };
     
-    const url = getDataMaintainerFunctionUrl(DataMaintainerFunctionName.SYNC_SYMBOLS);
+    const url = `${this.apiBases.dm}/${DataMaintainerFunctionName.SYNC_SYMBOLS}`;
     
     console.log(`FE sMS aS [${requestId}] Sending request:`, {
       url,
@@ -477,7 +478,7 @@ export class SymbolManagerService {
       sortDirection: 'asc'
     });
 
-    const url = `${getDataMaintainerFunctionUrl(DataMaintainerFunctionName.LIST_SYMBOLS_V2)}?${params.toString()}`;
+    const url = `${this.apiBases.dm}/${DataMaintainerFunctionName.LIST_SYMBOLS_V2}?${params.toString()}`;
 
     console.log('*************** FE sMSvc lSV2 *************************');
     console.log('sMSvc lSV2 listSymbolsV2 url:', url);
