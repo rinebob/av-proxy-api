@@ -1,105 +1,129 @@
-<div class="filters-bar" role="region" aria-label="Health filters">
-  <div class="filters-toolbar" role="group" aria-label="Filters toolbar">
-    <span class="title">Filters</span>
-
-    <!-- Quick time ranges: sit to the right of the label on the same row -->
-    <div class="quick-buttons" aria-label="Quick time ranges">
-      <button type="button" mat-stroked-button [color]="activeQuickRange() === 'today' ? 'primary' : undefined" (click)="setQuickRange('today')">
-        Today
-      </button>
-      <button type="button" mat-stroked-button [color]="activeQuickRange() === '24h' ? 'primary' : undefined" (click)="setQuickRange('24h')">
-        Last 24 hours
-      </button>
-      <button type="button" mat-stroked-button [color]="activeQuickRange() === 'week' ? 'primary' : undefined" (click)="setQuickRange('week')">
-        One week
-      </button>
-      <button type="button" mat-stroked-button [color]="activeQuickRange() === 'all' ? 'primary' : undefined" (click)="setQuickRange('all')">
-        All data
-      </button>
-    </div>
-
-    <form class="controls" (submit)="$event.preventDefault(); applyFilters()">
-      <!-- Endpoint ID dropdown -->
-      <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
-        <mat-label>Endpoints</mat-label>
-        <mat-select multiple [value]="selectedEndpointIds()" (selectionChange)="selectedEndpointIds.set($event.value)">
-          <mat-select-trigger>
-            @if (selectedEndpointIds().length === 0) {
-              <span class="select-placeholder">Endpoints</span>
-            } @else {
-              <span>{{ selectedEndpointIds().length }} selected</span>
-            }
-          </mat-select-trigger>
-          @for (ep of endpointsList; track ep) {
-            <mat-option [value]="ep">{{ ep }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-
-      <!-- Symbol dropdown -->
-      <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
-        <mat-label>Symbols</mat-label>
-        <mat-select multiple [value]="selectedSymbols()" (selectionChange)="selectedSymbols.set($event.value)">
-          <mat-select-trigger>
-            @if (selectedSymbols().length === 0) {
-              <span class="select-placeholder">Symbols</span>
-            } @else {
-              <span>{{ selectedSymbols().length }} selected</span>
-            }
-          </mat-select-trigger>
-          @for (sym of symbolsList(); track sym) {
-            <mat-option [value]="sym">{{ sym }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-
-      <!-- Sorting -->
-      <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
-        <mat-label>Sort By</mat-label>
-        <mat-select [value]="sortBySig()" (selectionChange)="sortBySig.set($event.value)">
-          <mat-option [value]="'timestamp'">timestamp</mat-option>
-          <mat-option [value]="'symbol'">symbol</mat-option>
-          <mat-option [value]="'endpointId'">endpointId</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
-        <mat-label>Order</mat-label>
-        <mat-select [value]="sortOrderSig()" (selectionChange)="sortOrderSig.set($event.value)">
-          <mat-option [value]="'desc'">desc</mat-option>
-          <mat-option [value]="'asc'">asc</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <!-- Date Range using Material Datepicker (like data-maintainer view) -->
-      <div class="date-input">
-        <mat-form-field appearance="fill" class="date-field dense-field" floatLabel="auto">
-          <mat-label>Date From</mat-label>
-          <input matInput [matDatepicker]="fromPicker" (dateChange)="onFromDateChange($event.value)" />
-          <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
-          <mat-datepicker #fromPicker></mat-datepicker>
-        </mat-form-field>
-      </div>
-
-      <div class="date-input">
-        <mat-form-field appearance="fill" class="date-field dense-field" floatLabel="auto">
-          <mat-label>Date To</mat-label>
-          <input matInput [matDatepicker]="toPicker" (dateChange)="onToDateChange($event.value)" />
-          <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
-          <mat-datepicker #toPicker></mat-datepicker>
-        </mat-form-field>
-      </div>
-
-      <div class="buttons">
-        <button type="submit" mat-raised-button color="primary">
-          <mat-icon fontIcon="filter_alt"></mat-icon>
-          Apply
-        </button>
-        <button type="button" mat-stroked-button (click)="clearFilters()">
-          <mat-icon fontIcon="backspace"></mat-icon>
-          Clear
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
+<mat-accordion class="filters-accordion" multi>
+  <mat-expansion-panel togglePosition="after">
+     <mat-expansion-panel-header>
+       <mat-panel-title>
+         Filters
+       </mat-panel-title>
+       <mat-panel-description>
+         <div class="header-summary" aria-label="Current filters">
+           @for (pair of headerPairs(); track pair.key) {
+             <span class="pair"><span class="key">{{ pair.key }}:</span><span class="value">{{ pair.value }}</span></span>
+           }
+         </div>
+       </mat-panel-description>
+     </mat-expansion-panel-header>
+ 
+     <div class="filters-panel" role="region" aria-label="Health filters">
+       <div class="quick-buttons" aria-label="Quick time ranges">
+         <button type="button" mat-stroked-button [color]="activeQuickRange() === 'today' ? 'primary' : undefined" (click)="setQuickRange('today')">
+           Today
+         </button>
+         <button type="button" mat-stroked-button [color]="activeQuickRange() === '24h' ? 'primary' : undefined" (click)="setQuickRange('24h')">
+           Last 24 hours
+         </button>
+         <button type="button" mat-stroked-button [color]="activeQuickRange() === 'week' ? 'primary' : undefined" (click)="setQuickRange('week')">
+           One week
+         </button>
+         <button type="button" mat-stroked-button [color]="activeQuickRange() === 'all' ? 'primary' : undefined" (click)="setQuickRange('all')">
+           All data
+         </button>
+       </div>
+ 
+       <!-- Row 2: Filter form -->
+       <form class="controls" (submit)="$event.preventDefault(); applyFilters()">
+         <!-- Endpoint ID dropdown -->
+         <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
+           <mat-label>Endpoints</mat-label>
+           <mat-select multiple [value]="selectedEndpointIds()" (selectionChange)="selectedEndpointIds.set($event.value)">
+             <mat-select-trigger>
+               @if (selectedEndpointIds().length === 0) {
+                 <span class="select-placeholder">Endpoints</span>
+               } @else {
+                 <span>{{ selectedEndpointIds().length }} selected</span>
+               }
+             </mat-select-trigger>
+             @for (ep of endpointsList; track ep) {
+               <mat-option [value]="ep">{{ ep }}</mat-option>
+             }
+           </mat-select>
+         </mat-form-field>
+ 
+         <!-- Symbol dropdown -->
+         <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
+           <mat-label>Symbols</mat-label>
+           <mat-select multiple [value]="selectedSymbols()" (selectionChange)="selectedSymbols.set($event.value)">
+             <mat-select-trigger>
+               @if (selectedSymbols().length === 0) {
+                 <span class="select-placeholder">Symbols</span>
+               } @else {
+                 <span>{{ selectedSymbols().length }} selected</span>
+               }
+             </mat-select-trigger>
+             @for (sym of symbolsList(); track sym) {
+               <mat-option [value]="sym">{{ sym }}</mat-option>
+             }
+           </mat-select>
+         </mat-form-field>
+ 
+         <!-- Sorting -->
+         <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
+           <mat-label>Sort By</mat-label>
+           <mat-select [value]="sortBySig()" (selectionChange)="sortBySig.set($event.value)">
+             <mat-option [value]="'timestamp'">timestamp</mat-option>
+             <mat-option [value]="'symbol'">symbol</mat-option>
+             <mat-option [value]="'endpointId'">endpointId</mat-option>
+           </mat-select>
+         </mat-form-field>
+ 
+         <mat-form-field appearance="fill" class="dense-field" floatLabel="auto">
+           <mat-label>Order</mat-label>
+           <mat-select [value]="sortOrderSig()" (selectionChange)="sortOrderSig.set($event.value)">
+             <mat-option [value]="'desc'">desc</mat-option>
+             <mat-option [value]="'asc'">asc</mat-option>
+           </mat-select>
+         </mat-form-field>
+ 
+         <!-- Date Range on a single row -->
+         <div class="date-row">
+           <div class="date-input">
+             <mat-form-field appearance="fill" class="date-field dense-field" floatLabel="auto">
+               <mat-label>Date From</mat-label>
+               <input matInput [matDatepicker]="fromPicker"
+                      [value]="fromDate()"
+                      [min]="minDate()"
+                      [max]="toDate() ?? maxDate()"
+                      (dateChange)="onFromDateChange($event.value)" />
+               <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+               <mat-datepicker #fromPicker></mat-datepicker>
+             </mat-form-field>
+           </div>
+ 
+           <div class="date-input">
+             <mat-form-field appearance="fill" class="date-field dense-field" floatLabel="auto">
+               <mat-label>Date To</mat-label>
+               <input matInput [matDatepicker]="toPicker"
+                      [value]="toDate()"
+                      [min]="fromDate() ?? minDate()"
+                      [max]="maxDate()"
+                      (dateChange)="onToDateChange($event.value)" />
+               <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+               <mat-datepicker #toPicker></mat-datepicker>
+             </mat-form-field>
+           </div>
+         </div>
+ 
+         <!-- Buttons bottom-right -->
+         <div class="buttons-row">
+           <button type="submit" mat-raised-button color="primary">
+             <mat-icon fontIcon="filter_alt"></mat-icon>
+             Apply
+           </button>
+           <button type="button" mat-stroked-button (click)="clearFilters()">
+             <mat-icon fontIcon="backspace"></mat-icon>
+             Clear
+           </button>
+         </div>
+       </form>
+     </div>
+   </mat-expansion-panel>
+ </mat-accordion>
