@@ -22,7 +22,7 @@ export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * *';   // 3:30 PM ET
 // for refreshAlphaVantageDataV2
 // functions/src/alpha-vantage/data-refresher/av-refresh-manager.ts
 // export const AV_REFRESH_MANAGER_SCHEDULE = 'every 15 minutes'; 
-export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * *';  // 12:45 PM ET (13:45 UTC)
+export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * *';  // Cloud Scheduler runs in UTC; 13:45 UTC = 9:45 AM ET (EDT) / 6:45 AM PT
 
 // New schedules for time-series-only refresh cadence
 export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 16 * * *';  // 4:35 PM ET
