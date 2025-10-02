@@ -13,166 +13,6 @@
    - Ensures full-width usage and single-line ellipsis for long values
    ============================================================= */
 
-/* -------------------------------
-   Container
--------------------------------- */
-.filters-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.25rem 0 0.5rem 0;
-
-  /* Per-component dense form-field using Material density API */
-  .dense-field {
-    @include mat.form-field-density(-3);
-    // Normalize container height across all fields (selects and date inputs)
-    --mat-form-field-container-height: #{v.$form-field-min-height};
-  }
-
-  /* Toolbar + Controls Row */
-  .filters-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    align-content: flex-start;
-    gap: 0.5rem;
-    width: 100%;
-    overflow: visible;
-    padding-block: 0.25rem;
-
-    .title {
-      font-weight: 700;
-      color: var(--mat-sys-on-surface, #111827);
-      letter-spacing: 0.2px;
-      margin-right: 0.5rem;
-      padding-top: 2px;
-    }
-
-    // New: quick time range buttons next to the title
-    .quick-buttons {
-      display: inline-flex;
-      gap: 0.4rem;
-      align-items: center;
-
-      button[mat-stroked-button] {
-        height: v.$form-field-min-height;
-        line-height: calc(v.$form-field-min-height - 2px);
-        padding: 0 0.6rem;
-      }
-    }
-
-    .controls {
-      // Unified fixed basis for all fields so widths match
-      --filters-field-width: 14rem; // 224px
-
-      margin-left: auto;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      gap: 0.75rem 1rem; /* row-gap | column-gap */
-
-      // Baseline alignment + min widths
-      mat-form-field {
-        flex: 0 0 var(--filters-field-width);
-        max-width: var(--filters-field-width);
-        min-width: var(--filters-field-width);
-        margin: 0;
-        // Ensure floating label is rendered in filled appearance (acts as placeholder when empty)
-        --mat-form-field-filled-label-display: block;
-
-        /* MDC tokens for compact form layout */
-        --mdc-filled-text-field-container-height: #{v.$form-field-min-height};
-        --mdc-filled-text-field-with-leading-icon-container-height: #{v.$form-field-min-height};
-        --mdc-filled-text-field-with-trailing-icon-container-height: #{v.$form-field-min-height};
-        --mdc-filled-text-field-content-padding-top: 0px;
-        --mdc-filled-text-field-content-padding-bottom: 0px;
-        --mdc-filled-text-field-active-indicator-height: 1px;
-
-        // Remove reserved subscript (hint/error) space so fields and buttons share a baseline
-        .mat-mdc-form-field-subscript-wrapper { display: none; height: 0; min-height: 0; padding: 0; margin: 0; }
-
-        // Compact/normalize internals so heights and bottom borders align
-        .mat-mdc-form-field-flex { align-items: center; }
-        // Remove internal padding so the underline baseline is consistent across control types
-        .mat-mdc-text-field-wrapper { height: v.$form-field-min-height; align-items: center; padding: 0 !important; }
-        .mat-mdc-form-field-infix { display: flex; align-items: center; padding-block: 0 !important; }
-
-        // Ensure underline sits at the same baseline across controls (strong override)
-        .mdc-line-ripple { bottom: 0 !important; transform: none !important; }
-
-        // Normalize native input heights (affects date inputs)
-        input.mat-mdc-input-element { height: v.$form-field-min-height; line-height: v.$form-field-min-height; padding: 0; }
-      }
-
-      /* Datepicker field alignment */
-      .date-field {
-        // Re-assert trailing icon container height so suffix doesn’t push baseline
-        --mdc-filled-text-field-with-trailing-icon-container-height: #{v.$form-field-min-height};
-        --mdc-filled-text-field-content-padding-top: 0px;
-        --mdc-filled-text-field-content-padding-bottom: 0px;
-
-        .mat-mdc-form-field-icon-suffix { display: flex; align-items: center; align-self: stretch; }
-        .mat-mdc-form-field-icon-suffix .mat-mdc-icon-button {
-          height: v.$form-field-min-height;
-          width: v.$form-field-min-height;
-          min-width: v.$form-field-min-height;
-          padding: 0;
-          margin: 0;
-        }
-        .mat-mdc-form-field-icon-suffix .mat-icon { font-size: v.$btn-compact-icon-size; line-height: v.$form-field-min-height; }
-        // Prevent the toggle's extra touch target from expanding height
-        .mat-mdc-form-field-icon-suffix .mat-mdc-button-touch-target { height: 100%; width: 100%; }
-        // Note: date label/input indent is handled via scoped deep override
-      }
-
-      /* Custom placeholders inside mat-select */
-      .mat-mdc-select-trigger { display: inline-flex; align-items: center; gap: 0.25rem; min-height: v.$form-field-min-height; }
-      .select-placeholder { color: var(--mat-sys-on-surface-variant, #6b7280); }
-
-      .buttons {
-        display: flex;
-        align-items: center;
-        align-self: flex-start;
-        gap: 0.5rem;
-
-        button[mat-raised-button], button[mat-stroked-button] {
-          height: v.$form-field-min-height;
-          line-height: calc(v.$form-field-min-height - 2px);
-          padding: 0 0.6rem;
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-        }
-      }
-
-      /* Baseline alignment tweaks */
-      mat-form-field.mat-mdc-form-field.mat-mdc-form-field-type-mat-select {
-        .mdc-line-ripple { transform: translateY(-1px); }
-      }
-      .date-field.mat-mdc-form-field { .mdc-line-ripple { transform: translateY(0.5px); } }
-
-      /* Date row (From/To on same line) */
-      .date-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-        width: 100%;
-      }
-
-      /* Buttons bottom-right */
-      .buttons-row {
-        margin-top: 0.5rem;
-        width: 100%;
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.5rem;
-      }
-    }
-  }
-
-  /* Vertical space between quick buttons and form */
-  .quick-buttons { margin-bottom: 1rem; }
-}
 
 /* -------------------------------
    Panel Content (Spacing & Layout)
@@ -183,7 +23,7 @@
     display: flex;
     align-items: center;
     gap: 1rem; /* 1rem spacing between range buttons */
-    margin-bottom: 0.75rem;
+    margin-bottom: 0; /* now inline with date fields */
   }
 
   /* 2) Controls layout + top-row spacing */
@@ -193,12 +33,86 @@
     gap: 0.75rem 1rem; /* row-gap | column-gap */
     width: 100%;
 
-    /* 3) Date From/To on the same row */
+    /* Normalize Material date field height and baseline (scoped to real DOM) */
+    .date-field {
+      /* Always render the filled label so baseline stays consistent */
+      --mat-form-field-filled-label-display: block;
+      /* Set container heights to our compact size */
+      --mdc-filled-text-field-container-height: #{v.$form-field-min-height};
+      --mdc-filled-text-field-with-trailing-icon-container-height: #{v.$form-field-min-height};
+      /* Remove extra vertical padding inside the container */
+      --mdc-filled-text-field-content-padding-top: 0px;
+      --mdc-filled-text-field-content-padding-bottom: 0px;
+    }
+
+    /* 3) Date From/To grouping inside form.controls (mirror DOM) */
     .date-row {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
+      flex-direction: column; /* label on its own line */
+      gap: 0.5rem;
       width: 100%;
+      align-items: stretch;
+
+      .date-row-label {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 2rem;
+        width: 100%;
+
+        .date-range-label {
+          display: inline-block;
+          font-weight: 600;
+          color: var(--mat-sys-on-surface, #111827);
+        }
+
+        .date-range-note {
+          color: var(--mat-sys-on-surface-variant, #6b7280);
+          font-size: 0.75rem; /* ~14px */
+          white-space: nowrap;
+        }
+      }
+
+      .date-row-content {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        width: 100%;
+
+        .quick-buttons {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+          flex: 0 0 auto; /* do not grow; date inputs sit immediately after */
+          min-width: auto;
+          margin-right: 2rem;
+        }
+
+        .date-inputs {
+          display: inline-flex; /* ensure flex, not block */
+          align-items: center;
+          gap: 0.75rem;
+          flex-wrap: nowrap;  /* keep From/To together */
+          flex: 0 0 auto;     /* fixed-size chunk */
+
+          .date-input {
+            display: inline-flex;   /* override block */
+            flex: 0 0 auto;         /* size to content */
+            width: auto;            /* do not stretch */
+            max-width: none;
+
+            > .mat-mdc-form-field {
+              display: inline-flex;   /* avoid block expansion */
+              width: 12.5rem !important;   /* fixed field width */
+              max-width: 12.5rem !important;
+              min-width: 12.5rem !important;
+              box-sizing: border-box;
+            }
+          }
+        }
+      }
     }
 
     /* 4) Apply/Clear in the bottom-right corner */
@@ -310,6 +224,13 @@
     overflow: auto;
     font-size: 0.8rem;
   }
+}
+
+/* Root-level label styling to ensure application */
+.date-range-label {
+  font-weight: 600;
+  color: var(--mat-sys-on-surface, #111827);
+  margin-right: 0.25rem;
 }
 
 /* -------------------------------

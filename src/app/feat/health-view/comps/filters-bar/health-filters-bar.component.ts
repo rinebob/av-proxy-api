@@ -25,6 +25,15 @@ import { MatExpansionModule } from '@angular/material/expansion';
 // 30-day window used for historical review bounds
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
+const PERSIST_FILTERS = false; // set to true if you want filter state to survive route transitions
+
+export enum QuickRange {
+  TODAY = 'today',
+  LAST_24H = '24h',
+  WEEK = 'week',
+  ALL = 'all',
+}
+
 @Component({
   selector: 'app-health-filters-bar',
   standalone: true,
@@ -35,6 +44,9 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 })
 export class HealthFiltersBarComponent extends HealthViewBase {
   private readonly http = inject(HttpClient);
+
+  // Expose enum to template
+  readonly QuickRange = QuickRange;
 
   // Endpoints from shared implemented set
   readonly endpointsList = Array.from(AV_IMPLEMENTED_ENDPOINTS) as AlphaVantageEndpoint[];
@@ -49,6 +61,11 @@ export class HealthFiltersBarComponent extends HealthViewBase {
   readonly toStr = signal<string>('');   // ISO local datetime string
   readonly sortBySig = signal<HealthMetricsSortBy | null>(null);
   readonly sortOrderSig = signal<SortOrder | null>(null);
+  // Show/hide custom date pickers
+  readonly showCustomDates = signal<boolean>(false);
+
+  // Quick time range selection (default set in constructor)
+  readonly activeQuickRange = signal<QuickRange | null>(null);
 
   // Computed Date objects for binding the datepicker values
   readonly fromDate = computed<Date | null>(() => this.parseDate(this.fromStr()) ?? null);
@@ -64,9 +81,6 @@ export class HealthFiltersBarComponent extends HealthViewBase {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate()); // start of today
   });
 
-  // Quick time range selection
-  readonly activeQuickRange = signal<'today' | '24h' | 'week' | 'all' | null>('all');
-
   // Header summary for expansion panel description
   readonly headerSummary = computed(() => {
     const epCount = this.selectedEndpointIds().length;
@@ -74,19 +88,7 @@ export class HealthFiltersBarComponent extends HealthViewBase {
     const sortBy = this.sortBySig() ?? HealthMetricsSortBy.Timestamp;
     const sortOrder = this.sortOrderSig() ?? SortOrder.Desc;
 
-    // Range label
-    let range = 'All';
-    const qr = this.activeQuickRange();
-    if (qr) {
-      if (qr === '24h') range = 'Last 24h';
-      else if (qr === 'week') range = '1 week';
-      else if (qr === 'today') range = 'Today';
-      else range = 'All';
-    } else if (this.fromStr() || this.toStr()) {
-      const from = this.fromStr() ? new Date(this.fromStr()).toLocaleString() : '—';
-      const to = this.toStr() ? new Date(this.toStr()).toLocaleString() : '—';
-      range = `${from} → ${to}`;
-    }
+    const range = this.buildRangeLabel();
 
     return `Endpoints: ${epCount || 'All'} • Symbols: ${symCount || 'All'} • Range: ${range} • Sort: ${sortBy}/${sortOrder}`;
   });
@@ -98,18 +100,7 @@ export class HealthFiltersBarComponent extends HealthViewBase {
     const sortBy = this.sortBySig() ?? HealthMetricsSortBy.Timestamp;
     const sortOrder = this.sortOrderSig() ?? SortOrder.Desc;
 
-    let range = 'All';
-    const qr = this.activeQuickRange();
-    if (qr) {
-      if (qr === '24h') range = 'Last 24h';
-      else if (qr === 'week') range = '1 week';
-      else if (qr === 'today') range = 'Today';
-      else range = 'All';
-    } else if (this.fromStr() || this.toStr()) {
-      const from = this.fromStr() ? new Date(this.fromStr()).toLocaleString() : '—';
-      const to = this.toStr() ? new Date(this.toStr()).toLocaleString() : '—';
-      range = `${from} → ${to}`;
-    }
+    const range = this.buildRangeLabel();
 
     return [
       { key: 'Endpoints', value: String(epCount || 'All') },
@@ -124,6 +115,15 @@ export class HealthFiltersBarComponent extends HealthViewBase {
 
     // Hydrate UI signals from store filters on first load (persists across refresh)
     this.hydrateFromStoreFilters();
+
+    if (!PERSIST_FILTERS) {
+      // Always start from a known default when entering the view
+      this.setQuickRange(QuickRange.LAST_24H);
+      this.showCustomDates.set(false);
+    } else {
+      // Try to map existing dates to a quick range; otherwise mark as Custom
+      this.deriveQuickRangeFromCurrent();
+    }
 
     // Load tracked symbols once
     const url = getDataMaintainerFunctionUrl(DataMaintainerFunctionName.LIST_SYMBOLS_V2);
@@ -201,7 +201,7 @@ export class HealthFiltersBarComponent extends HealthViewBase {
   }
 
   // Quick range helpers (restored)
-  setQuickRange(range: 'today' | '24h' | 'week' | 'all'): void {
+  setQuickRange(range: QuickRange): void {
     const now = new Date();
     const max = this.maxDate();
     const min = this.minDate();
@@ -209,22 +209,22 @@ export class HealthFiltersBarComponent extends HealthViewBase {
     let fromISO = '';
     let toISO = '';
 
-    if (range === 'today') {
+    if (range === QuickRange.TODAY) {
       const start = new Date(max.getFullYear(), max.getMonth(), max.getDate(), 0, 0, 0, 0);
       const end = new Date(max.getFullYear(), max.getMonth(), max.getDate(), 23, 59, 59, 999);
       fromISO = start.toISOString();
       toISO = end.toISOString();
-    } else if (range === '24h') {
+    } else if (range === QuickRange.LAST_24H) {
       const end = new Date(Math.min(now.getTime(), max.getTime()));
       const start = new Date(Math.max(end.getTime() - 24 * 60 * 60 * 1000, min.getTime()));
       fromISO = start.toISOString();
       toISO = end.toISOString();
-    } else if (range === 'week') {
+    } else if (range === QuickRange.WEEK) {
       const end = new Date(Math.min(now.getTime(), max.getTime()));
       const start = new Date(Math.max(end.getTime() - 7 * 24 * 60 * 60 * 1000, min.getTime()));
       fromISO = start.toISOString();
       toISO = end.toISOString();
-    } else if (range === 'all') {
+    } else if (range === QuickRange.ALL) {
       // Full available window
       fromISO = new Date(min.getFullYear(), min.getMonth(), min.getDate(), 0, 0, 0, 0).toISOString();
       const end = new Date(max.getFullYear(), max.getMonth(), max.getDate(), 23, 59, 59, 999);
@@ -234,9 +234,16 @@ export class HealthFiltersBarComponent extends HealthViewBase {
     this.fromStr.set(fromISO);
     this.toStr.set(toISO);
     this.activeQuickRange.set(range);
+    this.showCustomDates.set(false); // hide pickers on non-custom
 
     // Apply immediately so logs refresh and datepickers reflect values
     this.applyFilters();
+  }
+
+  // Show the custom date pickers and mark quick range as custom
+  onCustomClick(): void {
+    this.showCustomDates.set(true);
+    this.activeQuickRange.set(null);
   }
 
   applyFilters(): void {
@@ -258,28 +265,17 @@ export class HealthFiltersBarComponent extends HealthViewBase {
   }
 
   clearFilters(): void {
-    // Reset UI state
+    // Reset UI state (except time range, which we set to default below)
     this.selectedEndpointIds.set([]);
     this.selectedSymbols.set([]);
     this.fromStr.set('');
     this.toStr.set('');
     this.sortBySig.set(null);
     this.sortOrderSig.set(null);
-    this.activeQuickRange.set(null);
+    this.showCustomDates.set(false);
 
-    // Reset store filters and reload
-    const resetFilters: Partial<HealthMetricsFilter> = {
-      endpointIds: undefined,
-      symbols: undefined,
-      timeRange: undefined,
-      sortBy: HealthMetricsSortBy.Timestamp,
-      sortOrder: SortOrder.Desc,
-      limit: this.healthStore.logs().limit,
-      offset: 0,
-    };
-
-    this.healthStore.setFilters(resetFilters);
-    this.healthStore.loadLogs();
+    // Set default quick range to Last 24 hours (also applies filters)
+    this.setQuickRange(QuickRange.LAST_24H);
   }
 
   // Sync UI signals from store filters (called on init)
@@ -297,7 +293,97 @@ export class HealthFiltersBarComponent extends HealthViewBase {
     this.sortBySig.set((f?.sortBy as HealthMetricsSortBy) ?? null);
     this.sortOrderSig.set((f?.sortOrder as SortOrder) ?? null);
 
-    // Quick range is unknown after a refresh; leave as null so header shows explicit range
+    // Quick range is derived after hydration in constructor
+  }
+
+  /** Try to infer the active quick range from current from/to.
+   * If matches Today, Last 24 hrs, 1 week, or All data, set the active range and hide custom pickers.
+   * Otherwise mark as Custom and show pickers so the Custom button highlights. */
+  private deriveQuickRangeFromCurrent(): void {
+    const from = this.parseDate(this.fromStr());
+    const to = this.parseDate(this.toStr());
+    const now = new Date();
+
+    if (!from || !to) {
+      // No explicit dates; treat as default
+      this.setQuickRange(QuickRange.LAST_24H);
+      return;
+    }
+
+    const max = this.maxDate();
+    const min = this.minDate();
+
+    const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const ms = (d: Date) => d.getTime();
+    const within = (a: number, b: number, tolMs = 60 * 1000) => Math.abs(a - b) <= tolMs; // 1-minute tolerance
+
+    // Build canonical targets
+    const todayStart = new Date(max.getFullYear(), max.getMonth(), max.getDate(), 0, 0, 0, 0);
+    const todayEnd = new Date(max.getFullYear(), max.getMonth(), max.getDate(), 23, 59, 59, 999);
+
+    const end24 = new Date(Math.min(now.getTime(), max.getTime()));
+    const start24 = new Date(Math.max(end24.getTime() - 24 * 60 * 60 * 1000, min.getTime()));
+
+    const end7 = new Date(Math.min(now.getTime(), max.getTime()));
+    const start7 = new Date(Math.max(end7.getTime() - 7 * 24 * 60 * 60 * 1000, min.getTime()));
+
+    if (sameDay(from, todayStart) && sameDay(to, todayEnd)) {
+      this.setQuickRange(QuickRange.TODAY);
+      return;
+    }
+    if (within(ms(from), ms(start24)) && within(ms(to), ms(end24))) {
+      this.setQuickRange(QuickRange.LAST_24H);
+      return;
+    }
+    if (within(ms(from), ms(start7)) && within(ms(to), ms(end7))) {
+      this.setQuickRange(QuickRange.WEEK);
+      return;
+    }
+
+    // If dates span min->max window approximately, treat as All
+    if (within(ms(from), ms(new Date(min.getFullYear(), min.getMonth(), min.getDate(), 0, 0, 0, 0))) &&
+        within(ms(to), ms(todayEnd))) {
+      this.setQuickRange(QuickRange.ALL);
+      return;
+    }
+
+    // Fallback: Custom
     this.activeQuickRange.set(null);
+    this.showCustomDates.set(true); // highlight Custom
+  }
+
+  /** Build the Range label with optional prefix (Today/Last 24 hrs/1 week/All data/Custom)
+   * and a formatted date span without seconds. */
+  private buildRangeLabel(): string {
+    const qr = this.activeQuickRange();
+    const from = this.parseDate(this.fromStr());
+    const to = this.parseDate(this.toStr());
+
+    const fmt = (d?: Date | null) => d ? this.formatDateTime(d) : '—';
+
+    if (qr === QuickRange.TODAY) {
+      return `Today: ${fmt(from)} → ${fmt(to)}`;
+    }
+    if (qr === QuickRange.LAST_24H) {
+      return `Last 24 hrs: ${fmt(from)} → ${fmt(to)}`;
+    }
+    if (qr === QuickRange.WEEK) {
+      return `1 week: ${fmt(from)} → ${fmt(to)}`;
+    }
+    if (qr === QuickRange.ALL) {
+      return `All data: ${fmt(from)} → ${fmt(to)}`;
+    }
+    if (from || to) {
+      return `Custom: ${fmt(from)} → ${fmt(to)}`;
+    }
+    return 'All';
+  }
+
+  /** Format date without seconds, with hours:minutes and am/pm. */
+  private formatDateTime(d: Date): string {
+    return d.toLocaleString(undefined, {
+      year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    } as Intl.DateTimeFormatOptions);
   }
 }
