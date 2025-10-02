@@ -5,12 +5,11 @@ import { take, catchError, finalize } from 'rxjs/operators';
 import { of, forkJoin } from 'rxjs';
 
 import type { HealthSummary, HealthMetricsFilter, HealthMetricsResponse, RefreshRequestLog, SymbolStatus, SymbolRefreshMetrics } from '@shared/health-metrics';
-import { HealthMetricsSortBy, SortOrder } from '@shared/health-metrics';
+import { HealthMetricsSortBy, SortOrder, SortDir, SortKey } from '@shared/health-metrics';
 import { HealthMetricsApiService } from '../../../services/health-metrics-api.service';
 import type { EndpointGroup } from '../utils/health-constants';
-import { getTimeSeriesPriorityIndex } from '@shared/alpha-vantage/av-endpoint-configs';
+import { getTimeSeriesPriorityIndex } from '@shared/alpha-vantage';
 import { groupByEndpoint, computeLatest, getTimeMs, buildEventComparator } from '../utils/health-transforms';
-import type { SortField } from '../utils/health-transforms';
 import type { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { getEndpointTtlSecondsById } from '@shared/alpha-vantage';
 
@@ -49,8 +48,9 @@ export interface HealthDashboardState {
   activeTabIndex: number;
 
   // UI: Request Logs table sort state (shared across components)
-  logsSortField: SortField;
-  logsSortDir: 'asc' | 'desc';
+  logsSortField: SortKey;
+  logsSortDir: SortDir;
+
 }
 
 const initialState: HealthDashboardState = {
@@ -83,8 +83,8 @@ const initialState: HealthDashboardState = {
   // ui
   activeTabIndex: 0,
   // request logs sort defaults: newest first
-  logsSortField: 'timestamp',
-  logsSortDir: 'desc',
+  logsSortField: SortKey.TIMESTAMP,
+  logsSortDir: SortDir.DESC,
 };
 
 export const HealthDashboardStore = signalStore(
@@ -108,7 +108,7 @@ export const HealthDashboardStore = signalStore(
 
       const active = store.logsSortField();
       const dir = store.logsSortDir();
-      if (active === 'timestamp' && dir === 'desc') return baseOrder;
+      if (active === SortKey.TIMESTAMP && dir === SortDir.DESC) return baseOrder;
       const comparator = buildEventComparator(active, dir, baseIndex);
       return [...rows].sort(comparator);
     });
@@ -342,13 +342,13 @@ export const HealthDashboardStore = signalStore(
     },
 
     // Request Logs: update/toggle sort state
-    setLogsSort(field: SortField): void {
+    setLogsSort(field: SortKey): void {
       const active = store.logsSortField();
       const dir = store.logsSortDir();
       if (active === field) {
-        patchState(store, { logsSortDir: dir === 'desc' ? 'asc' : 'desc' });
+        patchState(store, { logsSortDir: dir === SortDir.DESC ? SortDir.ASC : SortDir.DESC });
       } else {
-        patchState(store, { logsSortField: field, logsSortDir: field === 'timestamp' ? 'desc' : 'asc' });
+        patchState(store, { logsSortField: field, logsSortDir: field === SortKey.TIMESTAMP ? SortDir.DESC : SortDir.ASC });
       }
     },
 
