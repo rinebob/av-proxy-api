@@ -135,6 +135,104 @@ The script provides the following output:
 
 ---
 
+## test-refresh-dispatcher.ts
+
+Tests the Alpha Vantage v2 refresh dispatcher end-to-end against the local Firebase emulators. It ensures a symbol exists in `tracked_symbols`, forces a refresh cycle via `runRefreshAlphaVantageDataV2({ force: true })`, and verifies expected Firestore writes for Daily Adjusted time-series.
+
+### Key Features
+
+- Ensures the provided symbol exists under `tracked_symbols/`
+- Forces a refresh cycle regardless of TTL using the v2 manager
+- Verifies the top-level `time-series/av-daily-adjusted` document exists and prints `metadata.lastUpdated`, `metadata.nextRefreshAt`, and `ttlSeconds`
+- Designed for the local emulator workflow with `local-dev.env.alpha-vantage-proxy-api`
+
+### Prerequisites
+
+1. Firebase emulators running (Functions + Firestore)
+2. `local-dev.env.alpha-vantage-proxy-api` present at `functions/local-dev.env.alpha-vantage-proxy-api` with at least:
+
+```env
+LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY=your_dev_av_key
+GCLOUD_PROJECT=alpha-vantage-proxy-api
+```
+
+3. Build and copy shared packages so `@shared/*` imports resolve:
+
+```bash
+# From repo root
+npm run build:shared
+npm --prefix functions run copy-shared
+```
+
+### Script Path
+
+- `functions/scripts/test-refresh-dispatcher.ts`
+
+### Usage
+
+Run from the `functions/` directory. You can optionally pass a symbol (defaults to `AAPL`).
+
+```powershell
+# From repo root
+npm run build:shared
+npm --prefix functions run copy-shared
+
+# Then from functions/
+cd functions
+
+# AAPL by default
+npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/test-refresh-dispatcher.ts
+
+# Specific symbol (e.g., MSFT)
+npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/test-refresh-dispatcher.ts MSFT
+```
+
+### What it does
+
+- Loads emulator env and `.env.alpha-vantage-proxy-api`
+- Adds the symbol to `tracked_symbols/{SYMBOL}` if missing
+- Invokes `runRefreshAlphaVantageDataV2({ force: true })` to trigger all due AV refreshers immediately
+- Reads `symbol-data/{SYMBOL}/time-series/av-daily-adjusted` and prints key metadata
+
+Internals and imports used:
+- `setupEmulator()` from `functions/scripts/scripts-util`
+- `runRefreshAlphaVantageDataV2` from `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager`
+- `getSymbolTimeSeriesDocPath` for canonical Firestore paths
+- `@shared/alpha-vantage`, `@shared/core`, `@shared/firestore` enums and types
+
+### Output / Verification
+
+You should see logs like:
+
+- "[dispatcher] adding <SYMBOL> to tracked_symbols..." or already present
+- "[dispatcher] running runRefreshAlphaVantageDataV2({ force: true })..."
+- Refresh result object
+- "✅ Found Daily Adjusted metadata for <SYMBOL>"
+- `lastUpdated=... nextRefreshAt=... ttlSeconds=...`
+
+If the Daily Adjusted doc is missing, you'll see:
+
+- `❌ Daily Adjusted doc not found for <SYMBOL>: <docPath>`
+
+### Troubleshooting
+
+- Cannot resolve `@shared/...` imports:
+  - Ensure you ran `npm run build:shared` at the repo root and `npm --prefix functions run copy-shared`.
+  - Invoke ts-node with `-r tsconfig-paths/register -r module-alias/register`.
+- Emulator writes missing:
+  - Confirm Firestore and Functions emulators are running.
+  - Verify `.env.alpha-vantage-proxy-api` exists at `functions/.env.alpha-vantage-proxy-api` and includes `LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY`.
+- AV key or networking issues:
+  - For emulator, set `LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY`.
+  - Optionally prefer IPv4 with `NODE_OPTIONS=--dns-result-order=ipv4first`.
+
+### Notes
+
+- This script is for local validation of the refresh manager. In production, the refresh is scheduled via `AV_REFRESH_MANAGER_SCHEDULE` and writes TTL/refresh metadata per endpoint.
+- The verification step currently checks the top-level `time-series/av-daily-adjusted` doc; sharded bar writes are handled by the respective handlers.
+
+---
+
 ## Testing Scripts for Cloud Functions
 
 This directory contains scripts for testing various Cloud Functions locally.
@@ -268,7 +366,7 @@ gcloud run services get-iam-policy "$SERVICE" \
 - Application code-level auth (Firebase ID token) remains in place for defense-in-depth.
 - After changing IAM on Cloud Run services, no redeploy is required; changes apply immediately.
 - For browser clients, consider enabling Firebase App Check for additional protection.
-- Keep internal refreshers/task handlers private (do not expose externally).
+- Keep IAM invoker allowlist minimal; remove `allUsers`.
 
 ---
 

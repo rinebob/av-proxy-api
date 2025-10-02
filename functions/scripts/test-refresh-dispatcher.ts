@@ -1,78 +1,78 @@
-import * as admin from 'firebase-admin';
-import { DataMaintainerEndpoint } from '../src/common/common-dm';
-import { TRACKED_SYMBOLS } from '../src/common/firestore-collections';
+// Set emulator env and load local .env before any Firebase/Admin imports
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+import { setupEmulator } from './scripts-util';
+setupEmulator();
+dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
 
-// Initialize Firebase Admin
-const serviceAccount = require('../../service-account.json');
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: `https://${process.env.GCLOUD_PROJECT}.firebaseio.com`
-});
+// Firebase Admin (centralized init used by other scripts)
+import { db, admin } from '../src/firebase-admin-init';
 
-const db = admin.firestore();
+// v2 refresh runner (Alpha Vantage)
+import { runRefreshAlphaVantageDataV2 } from '../src/v2/alpha-vantage/data-refresher/av-refresh-manager';
 
-// Test data
-const TEST_SYMBOL = 'AAPL';
-const TEST_ENDPOINTS: DataMaintainerEndpoint[] = [
-  DataMaintainerEndpoint.TIME_SERIES_DAILY_ADJUSTED,
-  DataMaintainerEndpoint.GLOBAL_QUOTE,
-  DataMaintainerEndpoint.COMPANY_OVERVIEW
-];
+// Shared Firestore enums and helpers
+import { FirestoreCollection } from '@shared/firestore';
+import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { ApiProvider } from '@shared/core';
+import { getSymbolTimeSeriesDocPath } from '../src/v2/common/firestore/firestore-paths';
 
-async function testRefreshDispatcher() {
-  console.log('Starting refresh dispatcher test...');
-  
-  // 1. Add a test symbol to tracked symbols if it doesn't exist
-  const symbolRef = db.collection(TRACKED_SYMBOLS).doc(TEST_SYMBOL);
-  const symbolDoc = await symbolRef.get();
-  
-  if (!symbolDoc.exists) {
-    console.log(`Adding test symbol ${TEST_SYMBOL} to tracked symbols...`);
-    await symbolRef.set({
-      symbol: TEST_SYMBOL,
+// Test symbol (can be overridden by CLI arg: npx ts-node scripts/test-refresh-dispatcher.ts MSFT)
+const TEST_SYMBOL = (process.argv[2] || 'AAPL').toUpperCase();
+
+async function ensureTrackedSymbol(symbol: string) {
+  const ref = db.collection(FirestoreCollection.TRACKED_SYMBOLS).doc(symbol);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    console.log(`[dispatcher] adding ${symbol} to ${FirestoreCollection.TRACKED_SYMBOLS}...`);
+    await ref.set({
+      symbol,
       isActive: true,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
-    });
-    console.log(`Added ${TEST_SYMBOL} to tracked symbols`);
+      _createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      _lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
   } else {
-    console.log(`Test symbol ${TEST_SYMBOL} already exists`);
+    console.log(`[dispatcher] ${symbol} already present in ${FirestoreCollection.TRACKED_SYMBOLS}`);
   }
-  
-  // 2. Import and call the refreshAllData function
-  const { refreshAllData } = await import('../src/data-maintainer/refreshDispatcher');
-  
-  console.log('Running refreshAllData...');
-  try {
-    await refreshAllData();
-    console.log('Refresh completed successfully');
-    
-    // 3. Verify data was refreshed
-    console.log('Verifying data was refreshed...');
-    for (const endpoint of TEST_ENDPOINTS) {
-      const docRef = db.collection('market_data')
-        .doc(TEST_SYMBOL)
-        .collection('data_points')
-        .doc(endpoint);
-      
-      const doc = await docRef.get();
-      if (doc.exists) {
-        const data = doc.data();
-        console.log(`✅ ${endpoint} data exists`);
-        console.log(`   Last refreshed: ${data?.lastRefreshed?.toDate?.() || 'N/A'}`);
-        console.log(`   Status: ${data?.status || 'N/A'}`);
-      } else {
-        console.log(`❌ ${endpoint} data does not exist`);
-      }
-    }
-  } catch (error) {
-    console.error('Error during refresh:', error);
-    process.exit(1);
-  }
-  
-  console.log('Test completed');
-  process.exit(0);
 }
 
-// Run the test
-testRefreshDispatcher().catch(console.error);
+async function verifyDailyAdjusted(symbol: string) {
+  try {
+    const docPath = getSymbolTimeSeriesDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED as any, ApiProvider.ALPHA_VANTAGE);
+    const snap = await db.doc(docPath).get();
+    if (!snap.exists) {
+      console.log(`❌ Daily Adjusted doc not found for ${symbol}: ${docPath}`);
+      return false;
+    }
+    const data = snap.data() as any;
+    const last = data?.metadata?.lastUpdated;
+    const next = data?.metadata?.nextRefreshAt;
+    const toIso = (t: any) => t?.toDate?.() ? t.toDate().toISOString() : (t ? String(t) : 'n/a');
+    console.log(`✅ Found Daily Adjusted metadata for ${symbol}`);
+    console.log(`   lastUpdated=${toIso(last)} nextRefreshAt=${toIso(next)} ttlSeconds=${data?.metadata?.ttlSeconds ?? 'n/a'}`);
+    return true;
+  } catch (e: any) {
+    console.log('verifyDailyAdjusted error:', e?.message || e);
+    return false;
+  }
+}
+
+async function main() {
+  console.log('[dispatcher] start');
+  await ensureTrackedSymbol(TEST_SYMBOL);
+
+  // Force a refresh cycle using the v2 manager
+  console.log('[dispatcher] running runRefreshAlphaVantageDataV2({ force: true })...');
+  const result = await runRefreshAlphaVantageDataV2({ force: true });
+  console.log('[dispatcher] refresh result:', result);
+
+  // Basic verification (time-series daily-adjusted top-level doc)
+  await verifyDailyAdjusted(TEST_SYMBOL);
+
+  console.log('[dispatcher] done');
+}
+
+main().catch(err => {
+  console.error('[dispatcher] fatal:', err?.message || err);
+  process.exit(1);
+});
