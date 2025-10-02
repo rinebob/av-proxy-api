@@ -1,4 +1,5 @@
 import type { RefreshRequestLog } from '@shared/health-metrics';
+import { SortDir, SortKey } from '@shared/health-metrics';
 import { RefreshStatus } from '@shared/firestore';
 
 /* Coerce Firestore Timestamp | Date | number | string to epoch ms safely */
@@ -69,41 +70,6 @@ type FieldValue = string | number;
 const cmpNumber: (a: FieldValue, b: FieldValue) => number = (a, b) => Number(a) - Number(b);
 const cmpString: (a: FieldValue, b: FieldValue) => number = (a, b) => String(a).localeCompare(String(b));
 
-/**
- * Declare sortable keys as a typed subset of RefreshRequestLog keys.
- * This keeps keys source-of-truth tied to the interface without magic strings elsewhere.
- */
-export const SORTABLE_KEYS = [
-  'timestamp',
-  'symbol',
-  'endpointId',
-  'status',
-  'durationMs',
-  'responseSize',
-] as const satisfies ReadonlyArray<Extract<keyof RefreshRequestLog, string>>;
-
-export type SortField = typeof SORTABLE_KEYS[number];
-
-/**
- * Programmatically build a constant object of keys for template/component use,
- * ensuring values always match SortField and stay in sync with SORTABLE_KEYS.
- */
-export const SortKeys = Object.freeze(
-  SORTABLE_KEYS.reduce((acc, k) => {
-    (acc as Record<string, SortField>)[k] = k;
-    return acc;
-  }, {} as Record<SortField, SortField>)
-);
-
-/** Descriptor type for field selectors and comparators */
-interface FieldDescriptor<T extends FieldValue> {
-  select: (e: RefreshRequestLog) => T;
-  compare: (a: FieldValue, b: FieldValue) => number;
-}
-
-/**
- * Strongly-typed descriptor map for sortable fields. Keys are derived from RefreshRequestLog.
- */
 export const EVENT_FIELDS = {
   timestamp: {
     select: (e: RefreshRequestLog) => getTimeMs(e.timestamp),
@@ -129,19 +95,19 @@ export const EVENT_FIELDS = {
     select: (e: RefreshRequestLog) => (typeof e.responseSize === 'number' ? e.responseSize : 0),
     compare: cmpNumber,
   },
-} satisfies Record<SortField, FieldDescriptor<FieldValue>>;
+} satisfies Record<SortKey, FieldDescriptor<FieldValue>>;
 
 /**
  * Builds a stable comparator for RefreshRequestLog arrays based on UI sort field and direction.
  * Stability: falls back to baseIndex (order from latest-first baseline) to avoid jitter.
  */
 export function buildEventComparator(
-  active: SortField | null,
-  dir: 'asc' | 'desc',
+  active: SortKey | null,
+  dir: SortDir,
   baseIndex: Map<RefreshRequestLog, number>
 ): (a: RefreshRequestLog, b: RefreshRequestLog) => number {
-  const factor = dir === 'asc' ? 1 : -1;
-  const key: SortField = (active ?? 'timestamp') as SortField;
+  const factor = dir === SortDir.ASC ? 1 : -1;
+  const key: SortKey = active ?? SortKey.TIMESTAMP;
   const { select, compare } = EVENT_FIELDS[key];
 
   return (a: RefreshRequestLog, b: RefreshRequestLog): number => {
@@ -156,4 +122,9 @@ export function buildEventComparator(
     const ib = baseIndex.get(b) ?? 0;
     return factor * (ia - ib);
   };
+}
+
+interface FieldDescriptor<T extends FieldValue> {
+  select: (e: RefreshRequestLog) => T;
+  compare: (a: FieldValue, b: FieldValue) => number;
 }

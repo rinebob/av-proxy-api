@@ -176,3 +176,50 @@ export interface HealthSummary {
     error: string;
   }>;
 }
+
+// ================= UI Enums/Types =================
+// Direction used across UI sorting
+export enum SortDir {
+  ASC = 'asc',
+  DESC = 'desc',
+}
+
+// Group sort modes for Symbol and Endpoint detail panels
+export enum SymbolGroupSortMode {
+  ALPHA = 'alpha',
+  RECENT = 'recent',
+}
+
+export enum EndpointGroupSortMode {
+  PRIORITY = 'priority',
+  ALPHA = 'alpha',
+  RECENT = 'recent',
+}
+
+// Sortable keys for Request Logs and detail tables
+export enum SortKey {
+  TIMESTAMP = 'timestamp',
+  SYMBOL = 'symbol',
+  ENDPOINT_ID = 'endpointId',
+  STATUS = 'status',
+  DURATION_MS = 'durationMs',
+  RESPONSE_SIZE = 'responseSize',
+}
+
+export enum FilterType {
+  SYMBOL = 'symbol',
+  ENDPOINT = 'endpoint',
+  STATUS = 'status',
+  TIME_RANGE = 'timeRange',
+}
+
+export interface FilterOption {
+  label: string;
+  value: string;
+}
+
+export interface FilterConfig {
+  type: FilterType;
+  options?: FilterOption[];
+  placeholder?: string;
+}
