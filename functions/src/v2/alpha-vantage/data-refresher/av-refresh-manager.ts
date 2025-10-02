@@ -108,6 +108,16 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
       continue;
     }
 
+    // IMPORTANT: Skip all time-series endpoints here. They are handled exclusively by
+    // the dedicated pre/post-close schedulers to avoid off-hours writes.
+    if (isTimeSeriesEndpoint(endpoint)) {
+      log.info('endpoint.skip', { endpointId: endpoint, reason: 'handled_by_pre_post_close_schedulers' });
+      hr('av.refresh', `skip endpoint [${endpoint}] handled by pre/post-close schedulers`);
+      hr('av.refresh', `=========== END ENDPOINT [${endpoint}] ===========`);
+      hrBlank(3);
+      continue;
+    }
+
     // TEMP: Skip historical options until sharded/GCS storage migration is implemented
     // # Reason: Options chains regularly exceed Firestore's 1MB document limit
     // TODO(pubsub-followup): Re-enable HISTORICAL_OPTIONS after migrating to sharded Firestore writes or GCS storage
@@ -468,36 +478,34 @@ async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: {
         if (type && !isEquity) continue;
       }
 
-      // Compute doc path for time-series endpoints (top-level metadata doc)
-      const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
-      const docRef = db.doc(docPath);
-      const docSnap = await docRef.get();
-      let needsRefresh = false;
-
-      if (!docSnap.exists) {
-        needsRefresh = true;
-      } else {
-        const metadata = docSnap.data()?.metadata;
-        const nextRefreshAt = metadata?.nextRefreshAt;
-        let nextRefreshDate: Date | null = null;
-        if (nextRefreshAt) {
-          if (typeof nextRefreshAt.toDate === 'function') nextRefreshDate = nextRefreshAt.toDate();
-          else if (typeof nextRefreshAt === 'number') nextRefreshDate = new Date(nextRefreshAt);
-          else if (typeof nextRefreshAt === 'string') nextRefreshDate = new Date(Number(nextRefreshAt));
-        }
-        const nowDate = new Date();
-        needsRefresh = options.force || !nextRefreshDate || nowDate >= nextRefreshDate;
-      }
-
-      if (!needsRefresh) continue;
-
+      // Compute handler and execute without freshness gating at scheduled times
       try {
+        const apiStart = Date.now();
         const handler = AlphaVantageHandlerFactory.createHandler(endpoint as any);
         await handler.fetch({ symbol, outputsize: 'compact', __checkWriteToggle: false });
-        // Handlers perform sharded writes and set nextRefreshAt based on TTL
+        const duration = Date.now() - apiStart;
+        // Handlers perform sharded writes; record HealthMetrics so the Health view shows this run
+        await healthMetricsService.recordSymbolRefresh(
+          endpoint as any,
+          symbol,
+          RefreshStatus.SUCCESS,
+          duration,
+          undefined,
+          { trigger: RefreshTrigger.SCHEDULER }
+        );
       } catch (error) {
         // swallow per-symbol errors here; main refresher has richer history writes
-        console.error('OptionA refresh error', endpointName, symbol, String((error as any)?.message || error));
+        console.error('Refresh error', endpointName, symbol, String((error as any)?.message || error));
+        try {
+          await healthMetricsService.recordSymbolRefresh(
+            endpoint as any,
+            symbol,
+            RefreshStatus.FAILURE,
+            0,
+            String((error as any)?.message || error),
+            { trigger: RefreshTrigger.SCHEDULER }
+          );
+        } catch {}
       }
     }
   }
