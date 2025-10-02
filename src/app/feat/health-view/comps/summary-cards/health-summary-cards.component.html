@@ -46,26 +46,39 @@
     </div>
   </div>
 
-  <!-- Recent errors row remains below -->
+  <!-- Recent errors row converted to expansion panel -->
   <div class="cards-row">
-    <mat-card class="wide">
-      <div class="kpi-header">
-        <mat-icon fontIcon="error_outline"></mat-icon>
-        <span class="label">Recent Errors</span>
-      </div>
-      @if (healthStore.summary()?.recentErrors?.length) {
-        <ul class="errors">
-          @for (err of healthStore.summary()!.recentErrors; track err.id) {
-            <li>
-              <span class="when">{{ err.timestamp | tsToIso:'local' }}</span>
-              <span class="where">{{ err.endpointId }} / {{ err.symbol }}</span>
-              <span class="msg">{{ err.error }}</span>
-            </li>
-          }
-        </ul>
-      } @else {
-        <p class="muted">No recent errors.</p>
-      }
-    </mat-card>
+    <mat-accordion class="errors-accordion" multi>
+      <mat-expansion-panel togglePosition="after" [expanded]="!!healthStore.summary()?.recentErrors?.length">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            Errors
+          </mat-panel-title>
+          <mat-panel-description>
+            <span class="errors-header-info">
+              @if (healthStore.summary()?.recentErrors?.length) {
+                <span>{{ healthStore.summary()!.recentErrors.length }} error(s)</span>
+              } @else {
+                <span class="muted">No recent errors</span>
+              }
+            </span>
+          </mat-panel-description>
+        </mat-expansion-panel-header>
+
+        @if (healthStore.summary()?.recentErrors?.length) {
+          <ul class="errors">
+            @for (err of healthStore.summary()!.recentErrors; track err.id) {
+              <li>
+                <span class="when">{{ err.timestamp | tsToIso:'local' }}</span>
+                <span class="where">{{ err.endpointId }} / {{ err.symbol }}</span>
+                <span class="msg">{{ err.error }}</span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="muted">No recent errors.</p>
+        }
+      </mat-expansion-panel>
+    </mat-accordion>
   </div>
 </div>

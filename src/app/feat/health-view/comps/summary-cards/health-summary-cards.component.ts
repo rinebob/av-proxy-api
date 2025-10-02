@@ -5,11 +5,12 @@ import { TsToIsoPipe } from '../../pipes/ts-to-iso.pipe';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatExpansionModule } from '@angular/material/expansion';
 
 @Component({
   selector: 'app-health-summary-cards',
   standalone: true,
-  imports: [CommonModule, TsToIsoPipe, MatCardModule, MatButtonModule, MatIconModule],
+  imports: [CommonModule, TsToIsoPipe, MatCardModule, MatButtonModule, MatIconModule, MatExpansionModule],
   templateUrl: './health-summary-cards.component.html',
   styleUrls: ['./health-summary-cards.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

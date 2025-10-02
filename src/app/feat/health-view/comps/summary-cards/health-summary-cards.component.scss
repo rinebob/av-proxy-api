@@ -171,4 +171,67 @@
 
   // Keep other rows aligned
   .cards-row { align-items: center; }
+
+  // Errors styles when rendered inside the expansion panel
+  .errors-accordion {
+    .errors {
+      display: grid;
+      grid-template-columns: 180px 1fr 2fr;
+      gap: 0.5rem;
+      padding: 0;
+      margin: 0.3rem 0 0;
+      list-style: none;
+
+      li {
+        display: contents;
+        .when { color: #374151; font-size: 0.82rem; }
+        .where { color: #111827; font-weight: 600; font-size: 0.88rem; }
+        .msg { color: #b42318; font-size: 0.88rem; }
+      }
+    }
+
+    .muted { color: #6b7280; font-size: 0.82rem; }
+  }
+}
+
+/* Match Filters expansion header styles for the Errors accordion */
+:host {
+  ::ng-deep .errors-accordion {
+    .mat-expansion-panel-header,
+    .mat-expansion-panel-header .mat-content {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .mat-expansion-panel-header-title {
+      flex: 0 0 auto;
+      max-width: none;
+      font-size: 1.125rem; /* ~18px */
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .mat-expansion-panel-header-description {
+      flex: 1 1 auto;
+      width: 100%;
+      max-width: none;
+      min-width: 0; /* allow children to shrink */
+      margin-left: 6rem; /* align with Filters header gap */
+      overflow: hidden; /* keep single-row height */
+      display: flex;
+      align-items: center; /* vertical center with title */
+    }
+
+    .mat-expansion-indicator { margin-left: 1rem; }
+  }
+}
+
+/* Responsive tweaks to mirror Filters header */
+@media (max-width: 64rem) { /* ~1024px */
+  :host ::ng-deep .errors-accordion .mat-expansion-panel-header-description { margin-left: 3rem; }
+}
+@media (max-width: 48rem) { /* ~768px */
+  :host ::ng-deep .errors-accordion .mat-expansion-panel-header-description { margin-left: 1.5rem; }
 }
