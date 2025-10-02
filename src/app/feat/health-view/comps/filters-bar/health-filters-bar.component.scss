@@ -32,6 +32,30 @@
     flex-wrap: wrap;
     gap: 0.75rem 1rem; /* row-gap | column-gap */
     width: 100%;
+    align-items: center; /* stabilize cross-axis alignment of first row */
+    /* Reserve at least one compact field height so first row doesn’t resize when date row appears */
+    min-height: #{v.$form-field-min-height};
+
+    /* Inline actions anchored to the right end of the first row */
+    .actions-inline {
+      margin-left: auto; /* push to the far right */
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      button[mat-raised-button],
+      button[mat-stroked-button] {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        /* Match compact form field height */
+        height: #{v.$form-field-min-height};
+        line-height: calc(#{v.$form-field-min-height} - 2px);
+        padding: 0 0.6rem;
+        min-width: 0;
+      }
+      .mat-icon { font-size: 18px; width: 18px; height: 18px; line-height: 18px; }
+    }
 
     /* Normalize Material date field height and baseline (scoped to real DOM) */
     .date-field {
@@ -75,24 +99,33 @@
 
       .date-row-content {
         display: flex;
-        align-items: center;
+        align-items: flex-start; /* pin quick buttons + date inputs to the top edge */
         flex-wrap: wrap;
         gap: 0.75rem;
         width: 100%;
 
         .quick-buttons {
           display: inline-flex;
-          align-items: center;
+          align-items: flex-start; /* top-align buttons in this block */
           gap: 0.75rem;
           flex-wrap: wrap;
           flex: 0 0 auto; /* do not grow; date inputs sit immediately after */
           min-width: auto;
           margin-right: 2rem;
+
+          button[mat-stroked-button],
+          button[mat-raised-button] {
+            height: #{v.$form-field-min-height};
+            line-height: calc(#{v.$form-field-min-height} - 2px);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+          }
         }
 
         .date-inputs {
           display: inline-flex; /* ensure flex, not block */
-          align-items: center;
+          align-items: flex-start; /* top-align with quick buttons */
           gap: 0.75rem;
           flex-wrap: nowrap;  /* keep From/To together */
           flex: 0 0 auto;     /* fixed-size chunk */
@@ -132,6 +165,19 @@
 :host {
   /* Scope to this component's accordion only */
   ::ng-deep .filters-accordion {
+    // Add subtle border/outline and background to delineate the Filters header
+    .mat-expansion-panel-header {
+      background: #fff; // ensure the header sits above the panel body
+      border-radius: 6px;
+      // Subtle border + soft shadow similar to Endpoint Detail header
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.06);
+      overflow: visible; // allow shadow to render outside
+      padding-top: 8px;
+      padding-bottom: 8px;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+
     .mat-expansion-panel-header,
     .mat-expansion-panel-header .mat-content {
       width: 100%;

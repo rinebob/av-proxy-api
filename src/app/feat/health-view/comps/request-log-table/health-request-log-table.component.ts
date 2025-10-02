@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { TsToIsoPipe } from '../../pipes/ts-to-iso.pipe';
 import { RefreshStatus } from '@shared/firestore';
 import { MatIconModule } from '@angular/material/icon';
-import { SortKeys, type SortField } from '../../utils/health-transforms';
+import { SortDir, SortKey } from '@shared/health-metrics';
 
 @Component({
   selector: 'app-health-request-log-table',
@@ -16,10 +16,11 @@ import { SortKeys, type SortField } from '../../utils/health-transforms';
 })
 export class HealthRequestLogTableComponent extends HealthViewBase {
   protected readonly RefreshStatus = RefreshStatus;
-  readonly SortKeys = SortKeys;
+  readonly SortKey = SortKey;
+  readonly Ui = { SortDir } as const;
 
   // Forward header sort events to the store so template bindings (healthStore.*) update correctly
-  onHeaderSort(field: SortField): void {
+  onHeaderSort(field: SortKey): void {
     this.healthStore.setLogsSort(field);
   }
 }

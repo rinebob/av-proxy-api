@@ -3,6 +3,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { HealthSummaryCardsComponent } from '../summary-cards/health-summary-cards.component';
 import { HealthFiltersBarComponent } from '../filters-bar/health-filters-bar.component';
 import { HealthRequestLogTableComponent } from '../request-log-table/health-request-log-table.component';
@@ -27,6 +28,7 @@ import { TsToIsoPipe } from '../../pipes/ts-to-iso.pipe';
     MatButtonModule,
     MatToolbarModule,
     MatTabsModule,
+    MatExpansionModule,
     HealthSummaryCardsComponent,
     HealthFiltersBarComponent,
     HealthRequestLogTableComponent,

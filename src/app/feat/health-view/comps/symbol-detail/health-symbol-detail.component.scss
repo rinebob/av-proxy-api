@@ -78,9 +78,10 @@
     .mat-expansion-panel-header-title {
       // Bold/extra-bold symbol text
       font-weight: 700;
-      flex: 0 0 16%;
+      font-size: 0.95rem; // reduce size for narrower viewport
+      flex: 0 1 14%; // smaller basis than before
       margin-right: 0.5rem;
-      min-width: 120px;
+      min-width: 110px;
     }
 
     .mat-expansion-panel-header-description {
@@ -99,15 +100,16 @@
           justify-content: space-between; // even distribution across full width
           width: 100%;
           flex-wrap: wrap;
-          gap: 0.75rem 0.5rem; // col/row gaps
+          gap: 0.5rem 0.5rem; // col/row gaps (tighter)
+          font-size: 0.82rem; // slightly smaller meta text
 
           // Normalize text to align with chip label height
-          > * { line-height: 22px; display: inline-flex; align-items: baseline; }
+          > * { line-height: 22px; display: inline-flex; align-items: baseline; min-width: 0; }
 
           // Ensure chips vertically align to text baseline
           mat-chip-set { align-items: center; }
 
-          // Show separators now that we're using space-between
+          // Subtle separators
           .sep { opacity: 0.5; }
 
           mat-chip-set {
@@ -115,6 +117,8 @@
             --mdc-chip-with-trailing-icon-container-height: 22px;
             --mdc-chip-label-text-size: 11px;
           }
+
+          .latest-time, .time-ago { white-space: nowrap; }
         }
       }
     }
@@ -212,5 +216,24 @@
   }
   :host ::ng-deep .mat-mdc-tab-body-wrapper {
     overflow: visible !important;
+  }
+
+  /* Responsive tweaks for narrower content area */
+  @media (max-width: 64rem) { // ~1024px
+    .mat-expansion-panel-header .mat-expansion-panel-header-title {
+      flex-basis: 12%;
+      min-width: 100px;
+    }
+  }
+  @media (max-width: 48rem) { // ~768px
+    .mat-expansion-panel-header .mat-expansion-panel-header-title {
+      flex-basis: 10%;
+      min-width: 90px;
+      font-size: 0.9rem;
+    }
+    .mat-expansion-panel-header .mat-expansion-panel-header-description .meta-row {
+      font-size: 0.8rem;
+      gap: 0.4rem 0.4rem;
+    }
   }
 }

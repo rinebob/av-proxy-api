@@ -12,7 +12,8 @@ import { MatListModule } from '@angular/material/list';
 import { MatTableModule } from '@angular/material/table';
 import { MatExpansionModule, MatExpansionPanel } from '@angular/material/expansion';
 import type { RefreshRequestLog } from '@shared/health-metrics';
-import { getTimeMs, buildEventComparator, SortKeys, type SortField } from '../../utils/health-transforms';
+import { getTimeMs, buildEventComparator } from '../../utils/health-transforms';
+import { SortKey, SortDir, SymbolGroupSortMode } from '@shared/health-metrics';
 
 interface SymbolGroup {
   symbol: string;
@@ -44,9 +45,14 @@ interface SymbolGroup {
 })
 export class HealthSymbolDetailComponent extends HealthViewBase {
   // Sorting state shared by all per-symbol tables
-  readonly SortKeys = SortKeys;
-  readonly sortField = signal<SortField | null>(SortKeys.timestamp);
-  readonly sortDir = signal<'asc' | 'desc'>('desc');
+  readonly SortKey = SortKey;
+  readonly Ui = { SortDir, GroupSortMode: SymbolGroupSortMode } as const;
+  readonly sortField = signal<SortKey | null>(SortKey.TIMESTAMP);
+  readonly sortDir = signal<SortDir>(SortDir.DESC);
+
+  // Group sort toggle for symbol panels: 'alpha' | 'recent'
+  readonly groupSortMode = signal<SymbolGroupSortMode>(SymbolGroupSortMode.ALPHA);
+  setGroupSort(mode: SymbolGroupSortMode) { this.groupSortMode.set(mode); }
 
   // Ref to all panels for expand/collapse all
   @ViewChildren(MatExpansionPanel) private panels!: QueryList<MatExpansionPanel>;
@@ -54,14 +60,14 @@ export class HealthSymbolDetailComponent extends HealthViewBase {
   expandAll(): void { this.panels?.forEach(p => p.open()); }
   collapseAll(): void { this.panels?.forEach(p => p.close()); }
 
-  onHeaderSort(field: SortField): void {
+  onHeaderSort(field: SortKey): void {
     const active = this.sortField();
     const dir = this.sortDir();
     if (active === field) {
-      this.sortDir.set(dir === 'desc' ? 'asc' : 'desc');
+      this.sortDir.set(dir === SortDir.DESC ? SortDir.ASC : SortDir.DESC);
     } else {
       this.sortField.set(field);
-      this.sortDir.set(field === SortKeys.timestamp ? 'desc' : 'asc');
+      this.sortDir.set(field === SortKey.TIMESTAMP ? SortDir.DESC : SortDir.ASC);
     }
   }
 
@@ -92,16 +98,24 @@ export class HealthSymbolDetailComponent extends HealthViewBase {
       const baseIndex = new Map<RefreshRequestLog, number>();
       sorted.forEach((ev, i) => baseIndex.set(ev, i));
       const comparator = buildEventComparator(active, dir, baseIndex);
-      const tableEvents = (active === SortKeys.timestamp && dir === 'desc') ? sorted : [...sorted].sort(comparator);
+      const tableEvents = (active === SortKey.TIMESTAMP && dir === SortDir.DESC) ? sorted : [...sorted].sort(comparator);
       groups.push({ symbol, events: tableEvents, latest, endpointCount, requestCount });
     }
 
-    groups.sort((a, b) => {
-      const ta = a.latest ? getTimeMs(a.latest.timestamp) : 0;
-      const tb = b.latest ? getTimeMs(b.latest.timestamp) : 0;
-      if (tb !== ta) return tb - ta;
-      return a.symbol.localeCompare(b.symbol);
-    });
+    // Apply group ordering based on toggle
+    const mode = this.groupSortMode();
+    if (mode === SymbolGroupSortMode.RECENT) {
+      // Order by latest activity (desc), tie-breaker by symbol
+      groups.sort((a, b) => {
+        const ta = a.latest ? getTimeMs(a.latest.timestamp) : 0;
+        const tb = b.latest ? getTimeMs(b.latest.timestamp) : 0;
+        if (tb !== ta) return tb - ta;
+        return a.symbol.localeCompare(b.symbol);
+      });
+    } else {
+      // Strict alphabetical A→Z
+      groups.sort((a, b) => a.symbol.localeCompare(b.symbol));
+    }
 
     return groups;
   });

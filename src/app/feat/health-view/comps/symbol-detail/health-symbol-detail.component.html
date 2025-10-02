@@ -10,6 +10,23 @@
         <mat-icon fontIcon="unfold_less"></mat-icon>
         Collapse all
       </button>
+      <!-- Group sort toggle: A→Z vs Recent -->
+      <button type="button"
+              mat-stroked-button
+              [class.active]="groupSortMode() === Ui.GroupSortMode.ALPHA"
+              [attr.aria-pressed]="groupSortMode() === Ui.GroupSortMode.ALPHA"
+              (click)="setGroupSort(Ui.GroupSortMode.ALPHA)">
+        <mat-icon fontIcon="sort_by_alpha"></mat-icon>
+        A→Z
+      </button>
+      <button type="button"
+              mat-stroked-button
+              [class.active]="groupSortMode() === Ui.GroupSortMode.RECENT"
+              [attr.aria-pressed]="groupSortMode() === Ui.GroupSortMode.RECENT"
+              (click)="setGroupSort(Ui.GroupSortMode.RECENT)">
+        <mat-icon fontIcon="schedule"></mat-icon>
+        Recent
+      </button>
     </div>
   </header>
 
@@ -39,7 +56,7 @@
                     </mat-chip>
                   </mat-chip-set>
                   @if (group.latest) {
-                    <span class="latest-time">{{ group.latest.timestamp | tsToIso:'local' }}</span>
+                    <span class="latest-time">{{ group.latest.timestamp | tsToIso:'local' }} PT</span>
                     <span class="sep">•</span>
                     <span class="meta time-ago">{{ group.latest.timestamp | timeAgo }}</span>
                   }
@@ -50,17 +67,17 @@
 
           <div class="table-wrapper">
             <table mat-table [dataSource]="group.events" class="mat-elevation-z1 compact-table" aria-label="Symbol requests table">
-              <!-- Time -->
+              <!-- Time (PT) -->
               <ng-container matColumnDef="time">
-                <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKeys.timestamp)" [class.sorted]="sortField() === SortKeys.timestamp" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKeys.timestamp ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKey.TIMESTAMP)" [class.sorted]="sortField() === SortKey.TIMESTAMP" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKey.TIMESTAMP ? (sortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
                   <span class="header-content">
-                    <span>Time</span>
-                    <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKeys.timestamp">
-                      {{ sortField() === SortKeys.timestamp ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                    <span>Time (PT)</span>
+                    <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKey.TIMESTAMP">
+                      {{ sortField() === SortKey.TIMESTAMP ? (sortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                     </mat-icon>
                   </span>
                 </th>
-                <td mat-cell *matCellDef="let row"> {{ row.timestamp | tsToIso:'local' }} </td>
+                <td mat-cell *matCellDef="let row"> {{ row.timestamp | tsToIso:'local' }} PT </td>
               </ng-container>
 
               <!-- Ago (not sortable) -->
@@ -71,11 +88,11 @@
 
               <!-- Endpoint -->
               <ng-container matColumnDef="endpoint">
-                <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKeys.endpointId)" [class.sorted]="sortField() === SortKeys.endpointId" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKeys.endpointId ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKey.ENDPOINT_ID)" [class.sorted]="sortField() === SortKey.ENDPOINT_ID" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKey.ENDPOINT_ID ? (sortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
                   <span class="header-content">
                     <span>Endpoint</span>
-                    <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKeys.endpointId">
-                      {{ sortField() === SortKeys.endpointId ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                    <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKey.ENDPOINT_ID">
+                      {{ sortField() === SortKey.ENDPOINT_ID ? (sortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                     </mat-icon>
                   </span>
                 </th>
@@ -84,11 +101,11 @@
 
               <!-- Status -->
               <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKeys.status)" [class.sorted]="sortField() === SortKeys.status" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKeys.status ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKey.STATUS)" [class.sorted]="sortField() === SortKey.STATUS" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKey.STATUS ? (sortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
                   <span class="header-content">
                     <span>Status</span>
-                    <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKeys.status">
-                      {{ sortField() === SortKeys.status ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                    <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKey.STATUS">
+                      {{ sortField() === SortKey.STATUS ? (sortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                     </mat-icon>
                   </span>
                 </th>
@@ -109,11 +126,11 @@
 
               <!-- Duration -->
               <ng-container matColumnDef="duration">
-                <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKeys.durationMs)" [class.sorted]="sortField() === SortKeys.durationMs" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKeys.durationMs ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                <th mat-header-cell *matHeaderCellDef (click)="onHeaderSort(SortKey.DURATION_MS)" [class.sorted]="sortField() === SortKey.DURATION_MS" style="cursor:pointer" [attr.aria-sort]="sortField() === SortKey.DURATION_MS ? (sortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
                   <span class="header-content">
                     <span>Duration</span>
-                    <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKeys.durationMs">
-                      {{ sortField() === SortKeys.durationMs ? (sortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                    <mat-icon inline class="sort-icon" [class.active]="sortField() === SortKey.DURATION_MS">
+                      {{ sortField() === SortKey.DURATION_MS ? (sortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                     </mat-icon>
                   </span>
                 </th>

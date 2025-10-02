@@ -69,7 +69,7 @@
           <ul class="errors">
             @for (err of healthStore.summary()!.recentErrors; track err.id) {
               <li>
-                <span class="when">{{ err.timestamp | tsToIso:'local' }}</span>
+                <span class="when">{{ err.timestamp | tsToIso:'local' }} PT</span>
                 <span class="where">{{ err.endpointId }} / {{ err.symbol }}</span>
                 <span class="msg">{{ err.error }}</span>
               </li>

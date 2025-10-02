@@ -68,6 +68,18 @@
           </mat-select>
         </mat-form-field>
 
+        <!-- Inline actions: right-justified on first row -->
+        <div class="actions-inline">
+          <button type="submit" mat-raised-button color="primary">
+            <mat-icon fontIcon="filter_alt"></mat-icon>
+            Apply
+          </button>
+          <button type="button" mat-stroked-button (click)="clearFilters()">
+            <mat-icon fontIcon="backspace"></mat-icon>
+            Clear
+          </button>
+        </div>
+
         <!-- Date Row: Label on its own line; Quick ranges + Date From/To on next line -->
         <div class="date-row">
           <div class="date-row-label">
@@ -124,18 +136,6 @@
             </div>
             }
           </div>
-        </div>
-
-        <!-- Buttons bottom-right -->
-        <div class="buttons-row">
-          <button type="submit" mat-raised-button color="primary">
-            <mat-icon fontIcon="filter_alt"></mat-icon>
-            Apply
-          </button>
-          <button type="button" mat-stroked-button (click)="clearFilters()">
-            <mat-icon fontIcon="backspace"></mat-icon>
-            Clear
-          </button>
         </div>
       </form>
     </div>

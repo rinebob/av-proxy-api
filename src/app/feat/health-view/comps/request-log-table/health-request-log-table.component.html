@@ -19,50 +19,50 @@
         <thead>
           <tr role="row">
             <th role="columnheader"
-                (click)="onHeaderSort(SortKeys.timestamp)"
-                [class.sorted]="healthStore.logsSortField() === 'timestamp'"
+                (click)="onHeaderSort(SortKey.TIMESTAMP)"
+                [class.sorted]="healthStore.logsSortField() === SortKey.TIMESTAMP"
                 style="cursor:pointer"
-                [attr.aria-sort]="healthStore.logsSortField() === 'timestamp' ? (healthStore.logsSortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                [attr.aria-sort]="healthStore.logsSortField() === SortKey.TIMESTAMP ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
               <span class="header-content">
-                <span>Time</span>
-                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === 'timestamp'">
-                  {{ healthStore.logsSortField() === 'timestamp' ? (healthStore.logsSortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                <span>Time (PT)</span>
+                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === SortKey.TIMESTAMP">
+                  {{ healthStore.logsSortField() === SortKey.TIMESTAMP ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                 </mat-icon>
               </span>
             </th>
             <th role="columnheader"
-                (click)="onHeaderSort(SortKeys.endpointId)"
-                [class.sorted]="healthStore.logsSortField() === 'endpointId'"
+                (click)="onHeaderSort(SortKey.ENDPOINT_ID)"
+                [class.sorted]="healthStore.logsSortField() === SortKey.ENDPOINT_ID"
                 style="cursor:pointer"
-                [attr.aria-sort]="healthStore.logsSortField() === 'endpointId' ? (healthStore.logsSortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                [attr.aria-sort]="healthStore.logsSortField() === SortKey.ENDPOINT_ID ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
               <span class="header-content">
                 <span>Endpoint</span>
-                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === 'endpointId'">
-                  {{ healthStore.logsSortField() === 'endpointId' ? (healthStore.logsSortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === SortKey.ENDPOINT_ID">
+                  {{ healthStore.logsSortField() === SortKey.ENDPOINT_ID ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                 </mat-icon>
               </span>
             </th>
             <th role="columnheader"
-                (click)="onHeaderSort(SortKeys.symbol)"
-                [class.sorted]="healthStore.logsSortField() === 'symbol'"
+                (click)="onHeaderSort(SortKey.SYMBOL)"
+                [class.sorted]="healthStore.logsSortField() === SortKey.SYMBOL"
                 style="cursor:pointer"
-                [attr.aria-sort]="healthStore.logsSortField() === 'symbol' ? (healthStore.logsSortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                [attr.aria-sort]="healthStore.logsSortField() === SortKey.SYMBOL ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
               <span class="header-content">
                 <span>Symbol</span>
-                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === 'symbol'">
-                  {{ healthStore.logsSortField() === 'symbol' ? (healthStore.logsSortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === SortKey.SYMBOL">
+                  {{ healthStore.logsSortField() === SortKey.SYMBOL ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                 </mat-icon>
               </span>
             </th>
             <th role="columnheader"
-                (click)="onHeaderSort(SortKeys.status)"
-                [class.sorted]="healthStore.logsSortField() === 'status'"
+                (click)="onHeaderSort(SortKey.STATUS)"
+                [class.sorted]="healthStore.logsSortField() === SortKey.STATUS"
                 style="cursor:pointer"
-                [attr.aria-sort]="healthStore.logsSortField() === 'status' ? (healthStore.logsSortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                [attr.aria-sort]="healthStore.logsSortField() === SortKey.STATUS ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
               <span class="header-content">
                 <span>Status</span>
-                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === 'status'">
-                  {{ healthStore.logsSortField() === 'status' ? (healthStore.logsSortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === SortKey.STATUS">
+                  {{ healthStore.logsSortField() === SortKey.STATUS ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                 </mat-icon>
               </span>
             </th>
@@ -72,14 +72,14 @@
               </span>
             </th>
             <th role="columnheader"
-                (click)="onHeaderSort(SortKeys.durationMs)"
-                [class.sorted]="healthStore.logsSortField() === 'durationMs'"
+                (click)="onHeaderSort(SortKey.DURATION_MS)"
+                [class.sorted]="healthStore.logsSortField() === SortKey.DURATION_MS"
                 style="cursor:pointer"
-                [attr.aria-sort]="healthStore.logsSortField() === 'durationMs' ? (healthStore.logsSortDir() === 'asc' ? 'ascending' : 'descending') : 'none'">
+                [attr.aria-sort]="healthStore.logsSortField() === SortKey.DURATION_MS ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
               <span class="header-content">
                 <span>Duration</span>
-                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === 'durationMs'">
-                  {{ healthStore.logsSortField() === 'durationMs' ? (healthStore.logsSortDir() === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === SortKey.DURATION_MS">
+                  {{ healthStore.logsSortField() === SortKey.DURATION_MS ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
                 </mat-icon>
               </span>
             </th>
@@ -88,7 +88,7 @@
         <tbody>
           @for (row of healthStore.sortedLogs(); track row.id) {
             <tr role="row" class="clickable" (click)="row.symbol && healthStore.openSymbol(row.symbol)" title="View {{ row.symbol }} details">
-              <td role="cell">{{ row.timestamp | tsToIso:'local' }}</td>
+              <td role="cell">{{ row.timestamp | tsToIso:'local' }} PT</td>
               <td role="cell">{{ row.endpointId }}</td>
               <td role="cell">{{ row.symbol }}</td>
               <td role="cell" [class.ok]="row.status === RefreshStatus.SUCCESS" [class.err]="row.status !== RefreshStatus.SUCCESS">

@@ -24,28 +24,59 @@
     </header>
 
     <div class="content">
-        <app-health-summary-cards />
+        <mat-accordion class="sections-accordion" multi>
+            <!-- Summary Section -->
+            <mat-expansion-panel togglePosition="after" [expanded]="true">
+                <mat-expansion-panel-header>
+                    <mat-panel-title>
+                        Summary
+                    </mat-panel-title>
+                    <mat-panel-description>
+                        <span class="panel-header-desc"></span>
+                    </mat-panel-description>
+                </mat-expansion-panel-header>
 
-        <app-health-filters-bar />
+                <app-health-summary-cards />
+            </mat-expansion-panel>
 
-        <!-- DO NOT DELETE - DEBUG -->
-        <!-- <div class="debug" aria-hidden="true" style="margin: 0.5rem 0; color: #888; font-size: 0.85rem;">
-            Tab: {{ healthStore.activeTabIndex() }} • Symbol: {{ healthStore.selectedSymbol() || '—' }}
-        </div> -->
+            <!-- Details Section -->
+            <mat-expansion-panel togglePosition="after" [expanded]="true">
+                <mat-expansion-panel-header>
+                    <mat-panel-title>
+                        Details
+                    </mat-panel-title>
+                    <mat-panel-description>
+                        <span class="panel-header-desc"></span>
+                    </mat-panel-description>
+                </mat-expansion-panel-header>
 
-        <mat-tab-group animationDuration="200ms" fitInkBarToContent mat-align-tabs="start" mat-stretch-tabs="false"
-                       [selectedIndex]="healthStore.activeTabIndex()" (selectedIndexChange)="healthStore.setActiveTab($event)">
-            <mat-tab label="Endpoint Detail">
-                <app-health-endpoint-detail />
-            </mat-tab>
-            <mat-tab label="Symbol Detail">
-                <app-health-symbol-detail />
-            </mat-tab>
-            <mat-tab label="Request Logs">
-                <ng-template matTabContent>
-                    <app-health-request-log-table />
-                </ng-template>
-            </mat-tab>
-        </mat-tab-group>
+                <app-health-filters-bar />
+
+                <!-- DO NOT DELETE - DEBUG -->
+                <!-- <div class="debug" aria-hidden="true" style="margin: 0.5rem 0; color: #888; font-size: 0.85rem;">
+                    Tab: {{ healthStore.activeTabIndex() }} • Symbol: {{ healthStore.selectedSymbol() || '—' }}
+                </div> -->
+
+                <mat-tab-group
+                    animationDuration="200ms"
+                    fitInkBarToContent
+                    mat-align-tabs="start"
+                    mat-stretch-tabs="false"
+                    [selectedIndex]="healthStore.activeTabIndex()"
+                    (selectedIndexChange)="healthStore.setActiveTab($event)">
+                    <mat-tab label="Endpoint Detail">
+                        <app-health-endpoint-detail />
+                    </mat-tab>
+                    <mat-tab label="Symbol Detail">
+                        <app-health-symbol-detail />
+                    </mat-tab>
+                    <mat-tab label="Request Logs">
+                        <ng-template matTabContent>
+                            <app-health-request-log-table />
+                        </ng-template>
+                    </mat-tab>
+                </mat-tab-group>
+            </mat-expansion-panel>
+        </mat-accordion>
     </div>
 </section>

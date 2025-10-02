@@ -103,3 +103,91 @@
     }
   }
 }
+
+/* Match Filters expansion header styles for the Summary/Details accordions */
+:host {
+  ::ng-deep .sections-accordion {
+    // Add vertical spacing between sibling panels so borders don't touch when collapsed
+    mat-expansion-panel,
+    .mat-expansion-panel { // target both element and class (Angular Material versions)
+      margin: 10px 0;           // slightly more space between panels (Summary vs Details)
+      background: transparent;  // let header/card styles stand out
+      border-radius: 6px;       // outer container rounding
+      // OUTER BORDER (wraps header + content) — use real 1px border to avoid subpixel double-lines
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    // Header: use inset stroke so it doesn't visually double-up with the outer panel border
+    .mat-expansion-panel-header {
+      background: #fff; // ensure the header sits above the panel body
+      border-radius: 6px;
+      // Draw side + top strokes with a light inset; leave bottom to a dedicated border for extra contrast
+      box-shadow:
+        inset 1px 0 0 rgba(0,0,0,0.06),   // left
+        inset -1px 0 0 rgba(0,0,0,0.06),  // right
+        inset 0 1px 0 rgba(0,0,0,0.06);   // top
+      border-bottom: 1px solid rgba(0,0,0,0.14); // crisper bottom edge
+      overflow: visible; // allow shadow to render outside
+      padding-top: 8px;
+      padding-bottom: 8px;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+
+    // Only add header-to-content spacing when expanded; remove header bottom border when collapsed to avoid double-line
+    .mat-expansion-panel.mat-expanded > .mat-expansion-panel-header { margin-bottom: 0.5rem; }
+    .mat-expansion-panel:not(.mat-expanded) > .mat-expansion-panel-header {
+      margin-bottom: 0;
+      border-bottom: 0; // rely solely on the outer panel 1px border, perfectly overlapping
+    }
+
+    // Content container: NO standalone border — top edge should visually be the header’s bottom edge
+    .mat-expansion-panel-content .mat-expansion-panel-body {
+      background: transparent;
+      box-shadow: none;
+      padding: 0.75rem; // breathing room under the header
+    }
+
+    .mat-expansion-panel-header,
+    .mat-expansion-panel-header .mat-content {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Title: emphasized but does not consume description width */
+    .mat-expansion-panel-header-title {
+      flex: 0 0 auto;
+      max-width: none;
+      font-size: 1.125rem; /* ~18px */
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    /* Description consumes remaining space */
+    .mat-expansion-panel-header-description {
+      flex: 1 1 auto;
+      width: 100%;
+      max-width: none;
+      min-width: 0; /* allow children to shrink */
+      margin-left: 6rem; /* align with Filters header gap */
+      overflow: hidden; /* keep single-row height */
+      display: flex;
+      align-items: center; /* vertical center with title */
+    }
+
+    /* Space before the chevron so content can fill the row */
+    .mat-expansion-indicator { margin-left: 1rem; }
+  }
+}
+
+/* Responsive tweaks to mirror Filters header */
+@media (max-width: 64rem) { /* ~1024px */
+  :host ::ng-deep .sections-accordion .mat-expansion-panel-header-description { margin-left: 3rem; }
+}
+
+@media (max-width: 48rem) { /* ~768px */
+  :host ::ng-deep .sections-accordion .mat-expansion-panel-header-description { margin-left: 1.5rem; }
+}
