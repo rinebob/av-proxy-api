@@ -18,6 +18,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 export class HealthSummaryCardsComponent extends HealthViewBase {
   // Endpoint KPI row (aligned to current time window via logs)
   readonly endpointCards = computed(() => {
+    console.log('hSC eC endpoint cards dude!')
     const k = this.healthStore.endpointWindowKpis();
     return [
       { key: 'totalEndpoints', label: 'Total', icon: 'dashboard', value: k.total },
