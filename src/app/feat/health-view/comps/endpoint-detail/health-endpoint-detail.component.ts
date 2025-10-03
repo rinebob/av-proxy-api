@@ -12,7 +12,7 @@ import { MatButtonModule } from '@angular/material/button';
 import type { RefreshRequestLog } from '@shared/health-metrics';
 import { RefreshStatus } from '@shared/firestore';
 import { SortKey, SortDir, EndpointGroupSortMode } from '@shared/health-metrics';
-import type { EndpointGroup } from '../../utils/health-constants';
+import type { EndpointGroup } from '../../common/health-constants';
 import { getTimeMs, buildEventComparator } from '../../utils/health-transforms';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 

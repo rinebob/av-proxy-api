@@ -7,7 +7,7 @@ import { of, forkJoin } from 'rxjs';
 import type { HealthSummary, HealthMetricsFilter, HealthMetricsResponse, RefreshRequestLog, SymbolStatus, SymbolRefreshMetrics } from '@shared/health-metrics';
 import { HealthMetricsSortBy, SortOrder, SortDir, SortKey } from '@shared/health-metrics';
 import { HealthMetricsApiService } from '../../../services/health-metrics-api.service';
-import type { EndpointGroup } from '../utils/health-constants';
+import type { EndpointGroup } from '../common/health-constants';
 import { getTimeSeriesPriorityIndex } from '@shared/alpha-vantage';
 import { groupByEndpoint, computeLatest, getTimeMs, buildEventComparator } from '../utils/health-transforms';
 import type { AlphaVantageEndpoint } from '@shared/alpha-vantage';

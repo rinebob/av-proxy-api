@@ -3,6 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { HealthViewBase } from '../health-view-base/health-view-base.component';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+import { SortDir, SortKey } from '@shared/health-metrics';
+import { HealthFilterLabel, HEALTH_LABEL_ALL, HEALTH_LABEL_EM_DASH } from '../../common/health-constants';
 
 // Shared types
 import { HealthMetricsSortBy, SortOrder, type HealthMetricsFilter } from '@shared/health-metrics';
@@ -55,6 +57,8 @@ export class HealthFiltersBarComponent extends HealthViewBase {
 
   // Tracked symbols populated from DM listSymbolsV2
   readonly symbolsList = signal<string[]>([]);
+  // Total tracked symbols (from backend response.total)
+  readonly totalSymbolsCount = signal<number>(0);
 
   // UI state (single source of truth)
   readonly selectedEndpointIds = signal<string[]>([]);
@@ -86,29 +90,35 @@ export class HealthFiltersBarComponent extends HealthViewBase {
   // Header summary for expansion panel description
   readonly headerSummary = computed(() => {
     const epCount = this.selectedEndpointIds().length;
-    const symCount = this.selectedSymbols().length;
+    const selectedCount = this.selectedSymbols().length;
+    const total = this.totalSymbolsCount();
     const sortBy = this.sortBySig() ?? HealthMetricsSortBy.Timestamp;
     const sortOrder = this.sortOrderSig() ?? SortOrder.Desc;
 
     const range = this.buildRangeLabel();
 
-    return `Endpoints: ${epCount || 'All'} • Symbols: ${symCount || 'All'} • Range: ${range} • Sort: ${sortBy}/${sortOrder}`;
+    // Show selection vs total when nothing selected
+    const symbolsLabel = selectedCount > 0
+      ? `${selectedCount}/${total || HEALTH_LABEL_EM_DASH}`
+      : `${HEALTH_LABEL_ALL}${total ? ` (${total})` : ''}`;
+    return `${HealthFilterLabel.ENDPOINTS}: ${epCount || HEALTH_LABEL_ALL} • ${HealthFilterLabel.SYMBOLS}: ${symbolsLabel} • ${HealthFilterLabel.RANGE}: ${range} • ${HealthFilterLabel.SORT}: ${sortBy}/${sortOrder}`;
   });
 
   // Structured header segments for precise spacing in the panel header
   readonly headerPairs = computed((): { key: string; value: string }[] => {
     const epCount = this.selectedEndpointIds().length;
-    const symCount = this.selectedSymbols().length;
+    const selectedCount = this.selectedSymbols().length;
+    const total = this.totalSymbolsCount();
     const sortBy = this.sortBySig() ?? HealthMetricsSortBy.Timestamp;
     const sortOrder = this.sortOrderSig() ?? SortOrder.Desc;
 
     const range = this.buildRangeLabel();
 
     return [
-      { key: 'Endpoints', value: String(epCount || 'All') },
-      { key: 'Symbols', value: String(symCount || 'All') },
-      { key: 'Range', value: range },
-      { key: 'Sort', value: `${sortBy}/${sortOrder}` },
+      { key: HealthFilterLabel.ENDPOINTS, value: String(epCount || HEALTH_LABEL_ALL) },
+      { key: HealthFilterLabel.SYMBOLS, value: selectedCount > 0 ? `${selectedCount}/${total || HEALTH_LABEL_EM_DASH}` : `${HEALTH_LABEL_ALL}${total ? ` (${total})` : ''}` },
+      { key: HealthFilterLabel.RANGE, value: range },
+      { key: HealthFilterLabel.SORT, value: `${sortBy}/${sortOrder}` },
     ];
   });
 
@@ -127,12 +137,21 @@ export class HealthFiltersBarComponent extends HealthViewBase {
       this.deriveQuickRangeFromCurrent();
     }
 
-    // Load tracked symbols once
-    const url = getDataMaintainerFunctionUrl(DataMaintainerFunctionName.LIST_SYMBOLS_V2);
-    this.http.get<ListSymbolsResponse>(url).subscribe({
+    // Load tracked symbols once (build from DI-provided base to avoid localhost in prod)
+    // Request active-only with a higher limit to avoid pagination undercount
+    const params = new URLSearchParams({
+      activeOnly: 'true',
+      limit: '1000',
+      offset: '0',
+      sortBy: SortKey.SYMBOL,
+      sortDirection: SortDir.ASC
+    });
+    const url = `${this.apiBases.dm}/${DataMaintainerFunctionName.LIST_SYMBOLS_V2}?${params.toString()}`;
+    this.http.get<ListSymbolsV2Response>(url).subscribe({
       next: (res) => {
         const symbols = (res?.symbols || []).map(s => s.symbol).filter(Boolean);
         this.symbolsList.set(symbols);
+        if (typeof (res as any)?.total === 'number') this.totalSymbolsCount.set((res as any).total as number);
 
         // Auto-select default symbol if none selected, so Symbol Detail always shows something
         if (!this.healthStore.hasSelectedSymbol() && symbols.length > 0) {
@@ -141,6 +160,7 @@ export class HealthFiltersBarComponent extends HealthViewBase {
       },
       error: () => {
         this.symbolsList.set([]);
+        this.totalSymbolsCount.set(0);
       }
     });
   }
