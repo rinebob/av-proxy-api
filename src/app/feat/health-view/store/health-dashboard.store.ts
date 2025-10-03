@@ -195,6 +195,7 @@ export const HealthDashboardStore = signalStore(
       const symbolSet = new Set<string>();
       for (const [key, ev] of keyLatest.entries()) {
         const latestStatus = String(ev.status).toUpperCase();
+        if (ev.symbol) symbolSet.add(String(ev.symbol).toUpperCase());
         if (latestStatus === 'FAILURE') {
           error++;
           continue;
@@ -202,7 +203,6 @@ export const HealthDashboardStore = signalStore(
         const ttlSeconds = getTtlSeconds(ev.endpointId);
         const ageMs = nowMs - getTimeMs(ev.timestamp);
         if (ttlSeconds > 0 && ageMs > ttlSeconds * 1000) stale++; else fresh++;
-        if (ev.symbol) symbolSet.add(String(ev.symbol).toUpperCase());
       }
       // Total should reflect unique symbols in the window (not endpoint+symbol pairs)
       return { total: symbolSet.size, fresh, stale, error } as const;
