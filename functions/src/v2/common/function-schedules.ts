@@ -1,102 +1,121 @@
 /**
  * Schedule properties for Firebase Functions
  */
-import { DataMaintainerEndpoint } from "./common-dm";
-
- 
 
 // for updateAllDailyTimeSeriesBulk
 // functions/src/alpha-vantage/data-refresher/av-daily-time-series-bulk-updater.ts
-// export const BULK_QUOTE_UPDATE_SCHEDULE = '20 20 * * *';  // 4:20 PM ET (20:20 UTC during EDT, 21:20 UTC during EST)
-export const BULK_QUOTE_UPDATE_SCHEDULE = '12 13 * * *';  // 12:12 PM ET (13:12 UTC)
-
+/**
+ * Alpha Vantage bulk quote updater schedule.
+ *
+ * Purpose: legacy bulk updater timing retained for reference/tools.
+ * Cron: 12 13 * * * (13:12 UTC)
+ * Timezone: Cloud Scheduler runs in UTC; corresponds to ~9:12 AM ET (EDT) / 6:12 AM PT.
+ */
+export const BULK_QUOTE_UPDATE_SCHEDULE = '12 13 * * *';
 
 // for updateDailyTimeSeries
 // functions/src/alpha-vantage/data-refresher/av-daily-time-series-updater.ts
-// Run at market close: 16:30 PM ET
-export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * *';  // 16:30 PM ET
+/**
+ * Daily time-series updater at regular market close boundary.
+ *
+ * Purpose: historical/legacy daily-close cycle at 16:30 ET.
+ * Cron: 30 16 * * *
+ * Timezone: America/New_York (set at function registration).
+ */
+export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * *';
 
 // Pre-close run (time-series daily compact)
-export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * *';   // 3:30 PM ET
+/**
+ * Pre-close daily time-series run (compact write only).
+ *
+ * Purpose: writes PRE phase snapshot fields (intraday price/deltas) without finalizing bar.
+ * Cron: 30 15 * * * (3:30 PM ET)
+ * Timezone: America/New_York (set at function registration).
+ */
+export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * *';
 
 // for refreshAlphaVantageDataV2
 // functions/src/alpha-vantage/data-refresher/av-refresh-manager.ts
-// export const AV_REFRESH_MANAGER_SCHEDULE = 'every 15 minutes'; 
-export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * *';  // Cloud Scheduler runs in UTC; 13:45 UTC = 9:45 AM ET (EDT) / 6:45 AM PT
+/**
+ * Alpha Vantage non-time-series refresh manager schedule.
+ *
+ * Purpose: scans tracked symbols and non-TS endpoints; refreshes when stale per TTL.
+ * Cron: 45 13 * * * (13:45 UTC)
+ * Timezone: Cloud Scheduler is UTC; ~9:45 AM ET (EDT) / 6:45 AM PT.
+ */
+export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * *';
 
 // New schedules for time-series-only refresh cadence
-export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 16 * * *';  // 4:35 PM ET
-export const TS_POST_CLOSE_SCHEDULE = '40 16 * * *';        // 4:40 PM ET (generic post-close)
+/**
+ * Post-close daily time-series run (daily only).
+ *
+ * Purpose: writes finalized daily bars and bumps freshness metadata.
+ * Cron: 35 16 * * * (4:35 PM ET)
+ * Timezone: America/New_York (set at function registration).
+ */
+export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 16 * * *';
+
+/**
+ * Generic post-close schedule used by weekly/monthly time-series runs.
+ *
+ * Purpose: writes finalized weekly/monthly bars each trading day after close.
+ * Cron: 40 16 * * * (4:40 PM ET)
+ * Timezone: America/New_York (set at function registration).
+ */
+export const TS_POST_CLOSE_SCHEDULE = '40 16 * * *';
 
 // for refreshBenzingaCalendarDataV2
 // functions/src/benzinga/data-refresher/bz-calendar-refresh-manager.ts
+/**
+ * Benzinga Calendar refresh cadence.
+ *
+ * Purpose: periodically refresh calendar endpoints based on per-endpoint TTLs.
+ * Cron: every 15 minutes
+ * Timezone: explicit on function registration (America/Los_Angeles).
+ */
 export const BZ_CALENDAR_REFRESH_SCHEDULE = 'every 15 minutes';
-
 
 // for refreshBenzingaNewsEndpointsV2
 // functions/src/benzinga/data-refresher/bz-news-refresh-manager.ts
+/**
+ * Benzinga News refresh cadence.
+ *
+ * Purpose: periodically request news batches; handlers apply their own TTLs.
+ * Cron: every 15 minutes
+ * Timezone: set on function registration.
+ */
 export const BZ_NEWS_REFRESH_SCHEDULE = 'every 15 minutes';
-
 
 // for cleanupInactiveSymbols
 // functions/src/common/symbol-cleanup.ts
-export const INACTIVE_SYMBOL_CLEANUP_SCHEDULE = '0 0 * * *'; // Every day at midnight
-
+/**
+ * Inactive symbol cleanup cadence.
+ *
+ * Purpose: remove or mark symbols no longer tracked/active to control storage.
+ * Cron: 0 0 * * * (midnight daily, UTC)
+ * Timezone: UTC (unless overridden at registration).
+ */
+export const INACTIVE_SYMBOL_CLEANUP_SCHEDULE = '0 0 * * *';
 
 // for cleanupOldSyncRequests
 // functions/src/common/symbol-cleanup.ts
-export const OLD_SYNC_REQUEST_CLEANUP_SCHEDULE = '0 0 * * 0'; // Every Sunday at midnight
-
+/**
+ * Old sync request cleanup cadence.
+ *
+ * Purpose: prune stale synchronization requests and ephemeral artifacts weekly.
+ * Cron: 0 0 * * 0 (Sundays at 00:00 UTC)
+ * Timezone: UTC (unless overridden at registration).
+ */
+export const OLD_SYNC_REQUEST_CLEANUP_SCHEDULE = '0 0 * * 0';
 
 // Central trading phase enum for time-series runs
+/**
+ * Trading phase used by time-series schedulers and handlers.
+ *
+ * PRE: Intraday snapshot writes; do not finalize bars or bump parent metadata.
+ * POST: Post-close finalized writes; persist latest bar and update freshness.
+ */
 export enum TradingPhase {
   PRE = 'pre',
   POST = 'post',
 }
-
-/**
- * TTL configuration in seconds for each endpoint
- * These values should match the TTLs specified in data-maintainer.md
- */
-export const ENDPOINT_TTLS: Record<DataMaintainerEndpoint, number> = {
-    // Benzinga Endpoints (alphabetical order)
-    [DataMaintainerEndpoint.ANALYST_INSIGHTS]: 72 * 60 * 60, // 72 hours
-    [DataMaintainerEndpoint.ANALYST_RATINGS]: 72 * 60 * 60, // 72 hours
-    [DataMaintainerEndpoint.DIVIDENDS]: 24 * 60 * 60, // 24 hours (recent), Indefinite handled in code
-    [DataMaintainerEndpoint.ECONOMIC_CALENDAR]: 24 * 60 * 60, // 24 hours (future), Indefinite handled in code
-    [DataMaintainerEndpoint.FUTURE_EARNINGS]: 4 * 60 * 60, // 4 hours (pre-release), Indefinite handled in code
-    [DataMaintainerEndpoint.INSIDER_TRADES]: 24 * 60 * 60, // 24 hours (recent), 7 days handled in code
-    [DataMaintainerEndpoint.MERGERS_ACQUISITIONS]: 24 * 60 * 60, // 24 hours (minimum, up to 7 days)
-    [DataMaintainerEndpoint.TRENDING_TICKERS]: 15 * 60, // 15 minutes (trading hours)
-    [DataMaintainerEndpoint.UNUSUAL_OPTIONS]: 5 * 60, // 5 minutes (trading hours)
-    
-    // Alpha Vantage Endpoints (alphabetical order)
-    [DataMaintainerEndpoint.BALANCE_SHEET]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
-    [DataMaintainerEndpoint.CASH_FLOW]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
-    [DataMaintainerEndpoint.COMPANY_OVERVIEW]: 8 * 60 * 60, // 8 hours (temporary for production testing)
-    [DataMaintainerEndpoint.ECONOMIC_INDICATORS]: 24 * 60 * 60, // 24 hours (most recent), Indefinite handled in code
-    [DataMaintainerEndpoint.EARNINGS_CALENDAR]: 7 * 24 * 60 * 60, // 7 days
-    [DataMaintainerEndpoint.GLOBAL_QUOTE]: 30, // 30 seconds
-    [DataMaintainerEndpoint.HISTORICAL_EPS]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
-    [DataMaintainerEndpoint.HISTORICAL_OPTIONS]: 30 * 24 * 60 * 60, // 30 days (indefinite in doc, using 30 days as default)
-    [DataMaintainerEndpoint.INCOME_STATEMENT]: 30 * 24 * 60 * 60, // 30 days (quarterly refresh)
-    [DataMaintainerEndpoint.INSIDER_TRANSACTIONS]: 24 * 60 * 60, // 24 hours (recent), 7 days handled in code
-    [DataMaintainerEndpoint.IPO_CALENDAR]: 24 * 60 * 60, // 24 hours
-    [DataMaintainerEndpoint.NEWS_SENTIMENT]: 15 * 60, // 15 minutes (recent), Indefinite handled in code
-    [DataMaintainerEndpoint.OPTIONS_CHAIN]: 30, // 30 seconds
-    [DataMaintainerEndpoint.SECTOR]: 15 * 60, // 15 minutes (trading hours)
-    [DataMaintainerEndpoint.SYMBOL_SEARCH]: 30 * 24 * 60 * 60, // 30 days (indefinite in doc, using 30 days as default)
-    [DataMaintainerEndpoint.TECHNICAL_INDICATORS]: 5 * 60, // 5 minutes (intraday), 24h handled in code
-    [DataMaintainerEndpoint.TIME_SERIES_DAILY_ADJUSTED]: 24 * 60 * 60, // 24 hours
-    [DataMaintainerEndpoint.TIME_SERIES_INTRADAY]: 5 * 60, // 5 minutes (current day), Indefinite handled in code
-    [DataMaintainerEndpoint.TOP_GAINERS_LOSERS]: 15 * 60, // 15 minutes (trading hours)
-    [DataMaintainerEndpoint.TREASURY_YIELD]: 24 * 60 * 60, // 24 hours
-    
-    // Legacy/Deprecated - keeping these for backward compatibility (alphabetical order)
-    [DataMaintainerEndpoint.EARNINGS]: 24 * 60 * 60, // 24 hours
-    [DataMaintainerEndpoint.LISTING_STATUS]: 7 * 24 * 60 * 60, // 7 days
-    [DataMaintainerEndpoint.OVERVIEW]: 24 * 60 * 60, // 24 hours
-    [DataMaintainerEndpoint.QUOTE_ENDPOINT]: 5 * 60, // 5 minutes
-    [DataMaintainerEndpoint.SECTOR_PERFORMANCE]: 60 * 60, // 1 hour
-    [DataMaintainerEndpoint.TIME_SERIES]: 60 * 60, // 1 hour
-  };
