@@ -217,6 +217,8 @@ export async function saveAvTimeSeriesData(
         ip: b.intradayPrice != null ? Number(b.intradayPrice) : undefined,
         io: intradayObservedAt,
         it: intradayTime,
+        ic: (b as any).intradayChange != null ? Number((b as any).intradayChange) : null,
+        ipc: (b as any).intradayPercentChange != null ? Number((b as any).intradayPercentChange) : null,
       };
       compactBars.push(bar);
       const y = getYearFromEpochMillis(t);
@@ -443,12 +445,13 @@ export async function upsertAvDailyBar(options: {
   symbol: string;
   date: string; // YYYY-MM-DD (UTC day)
   // Partial compact fields to merge onto the bar. Use numeric values only.
-  patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number; ip?: number; io?: number };
+  patch: Partial<CompactBar>;
   endpoint?: AlphaVantageEndpoint; // defaults to DAILY_ADJUSTED
+  // When true, do not bump the top-level time-series metadata. Used for pre-close intraday snapshots
+  skipParentMetaBump?: boolean;
 }): Promise<void> {
-  const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED } = options;
+  const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, skipParentMetaBump } = options;
   const vendor = ApiProvider.ALPHA_VANTAGE;
-
   const t = new Date(`${date}T00:00:00.000Z`).getTime();
   const y = getYearFromEpochMillis(t);
   const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y);
@@ -478,6 +481,8 @@ export async function upsertAvDailyBar(options: {
       ip: patch.ip != null ? Number(patch.ip) : existing.ip,
       io,
       it,
+      ic: patch.ic != null ? Number(patch.ic) : ((existing as any).ic ?? null),
+      ipc: patch.ipc != null ? Number(patch.ipc) : ((existing as any).ipc ?? null),
     } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
 
     bars[idx] = { ...existing, ...patchBar } as CompactBar;
@@ -502,6 +507,8 @@ export async function upsertAvDailyBar(options: {
       it: patch.io != null && Number.isFinite(patch.io)
         ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(patch.io))
         : undefined,
+      ic: patch.ic != null ? Number(patch.ic) : null,
+      ipc: patch.ipc != null ? Number(patch.ipc) : null,
     };
     bars.push(newBar);
   }
@@ -516,12 +523,14 @@ export async function upsertAvDailyBar(options: {
     updatedAt: Timestamp.now(),
   }, { merge: true });
 
-  await bumpTimeSeriesTopLevelMetadata({
-    symbol,
-    endpoint,
-    interval: TimeSeriesInterval.DAILY,
-    latestDate: date,
-  });
+  if (!skipParentMetaBump) {
+    await bumpTimeSeriesTopLevelMetadata({
+      symbol,
+      endpoint,
+      interval: TimeSeriesInterval.DAILY,
+      latestDate: date,
+    });
+  }
 }
 
 /**
@@ -536,7 +545,7 @@ export async function upsertAvDailyBar(options: {
 export async function upsertAvWeeklyBar(options: {
   symbol: string;
   date: string; // YYYY-MM-DD (UTC day)
-  patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number };
+  patch: Partial<CompactBar>;
   endpoint?: AlphaVantageEndpoint; // defaults to WEEKLY_ADJUSTED
 }): Promise<void> {
   const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED } = options;
@@ -574,6 +583,8 @@ export async function upsertAvWeeklyBar(options: {
       ac: Number(patch.ac ?? patch.c ?? 0),
       dv: Number(patch.dv ?? 0),
       sc: Number(patch.sc ?? 1),
+      ic: null,
+      ipc: null,
     };
     bars.push(newBar);
   }
@@ -612,7 +623,7 @@ export async function upsertAvWeeklyBar(options: {
 export async function upsertAvMonthlyBar(options: {
   symbol: string;
   date: string; // YYYY-MM-DD (UTC day)
-  patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number };
+  patch: Partial<CompactBar>;
   endpoint?: AlphaVantageEndpoint; // defaults to MONTHLY_ADJUSTED
 }): Promise<void> {
   const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED } = options;
@@ -649,6 +660,8 @@ export async function upsertAvMonthlyBar(options: {
       ac: Number(patch.ac ?? patch.c ?? 0),
       dv: Number(patch.dv ?? 0),
       sc: Number(patch.sc ?? 1),
+      ic: null,
+      ipc: null,
     };
     bars.push(newBar);
   }
@@ -723,4 +736,50 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
   } catch (e: any) {
     console.error('bumpTSMeta error', String(e?.message || e));
   }
+}
+
+/**
+ * Fetch the previous trading day's adjusted close for a given symbol and endpoint.
+ * Strategy: compute prevDate = date - 1 day (UTC), derive its epoch midnight, look up
+ * the exact bar in the year doc for that year; if not present, also check the prior year doc.
+ * Returns `ac` if present, else `c`, else null.
+ */
+export async function getPreviousAdjustedClose(options: {
+  symbol: string;
+  date: string; // YYYY-MM-DD UTC current trading day
+  endpoint?: AlphaVantageEndpoint; // defaults to DAILY_ADJUSTED
+}): Promise<number | null> {
+  const { symbol, date, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED } = options;
+  const vendor = ApiProvider.ALPHA_VANTAGE;
+  // Current day midnight UTC and year docs to check
+  const currTs = new Date(`${date}T00:00:00.000Z`).getTime();
+  if (!Number.isFinite(currTs)) return null;
+  const currYear = getYearFromEpochMillis(currTs);
+  const prevYear = currYear - 1;
+  const paths = [
+    getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, currYear),
+    getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, prevYear),
+  ];
+  let candidate: CompactBar | null = null;
+  for (const path of paths) {
+    const ref = db.doc(path);
+    const snap = await ref.get();
+    const bars: CompactBar[] = snap.exists ? (snap.get('bars') ?? []) : [];
+    if (!Array.isArray(bars) || bars.length === 0) continue;
+    // Bars are persisted sorted ascending by t.
+    // We want the most recent prior trading day: last bar with t < currTs.
+    for (let i = bars.length - 1; i >= 0; i--) {
+      const bt = bars[i]?.t;
+      if (typeof bt !== 'number') continue;
+      if (bt < currTs) {
+        candidate = bars[i];
+        break;
+      }
+    }
+    if (candidate) break; // found in current year; no need to check prior year
+  }
+  if (!candidate) return null;
+  if (typeof candidate.ac === 'number' && Number.isFinite(candidate.ac)) return candidate.ac;
+  if (typeof candidate.c === 'number' && Number.isFinite(candidate.c)) return candidate.c;
+  return null;
 }

@@ -318,7 +318,7 @@ This project uses a Time Series endpoint–driven update flow for Alpha Vantage 
   - Do not calculate or persist synthetic fields derived from GLOBAL_QUOTE such as previous close, change, or change percent for time-series documents.
 
 - Scheduling:
-  - Daily time series: run twice each trading day — pre-close and post-close — calling the daily time-series endpoint with `outputsize=compact` and applying the most recent bar.
+  - Daily time series: run twice each trading day — pre-close and post-close — calling the daily time-series endpoint with `outputsize=compact` and applying the most recent element.
   - Weekly and monthly time series: run every trading day post-close (also with `outputsize=compact`). There is no special week/month-end rollup; we always request the same endpoints each trading day and use the most recent element.
   - There is no separate boundary-window logic.
 
@@ -329,4 +329,29 @@ This project uses a Time Series endpoint–driven update flow for Alpha Vantage 
 - Company Overview (OVERVIEW):
   - Unchanged: skip for non-company symbols (e.g., ETFs, crypto). The refresher reads `tracked-symbols/{symbol}.type` and only calls OVERVIEW for equities/companies.
 
-This approach minimizes provider calls to the necessary cadence, preserves sharded storage, and keeps series current by reusing the time-series endpoints with compact output for updates.
+### Pre-close vs Post-close Behavior (Daily)
+
+- Pre-close (purpose): capture a real-time price snapshot close to the market close to inform trading decisions. It is not a full bar update.
+- Pre-close write model:
+  - Endpoint: TIME_SERIES_DAILY_ADJUSTED with `outputsize=compact`.
+  - Persist intraday-only fields on the current trading-day bar into the correct year-sharded document under `symbol-data/{symbol}/time-series/av-daily-adjusted/years/{YYYY}`.
+  - Intraday fields:
+    - `ip`: intraday price (mark price at snapshot time)
+    - `io`: intraday observed-at time (epoch ms)
+    - `it`: intraday time derived as `HH:mm` America/New_York from `io`
+    - `ic`: intraday change = `ip - previousClose`
+    - `ipc`: intraday percent change = `(ic / previousClose) * 100`
+  - Do not include or modify non-intraday fields during the pre-close write. That means no updates to: `o/h/l/c/v`, `ac`, `dv`, `sc`, or derived daily deltas `pc/ch/cp`.
+  - A single bar document for that trading day will therefore initially contain only the intraday fields above.
+
+- Post-close (finalization):
+  - Endpoint: TIME_SERIES_DAILY_ADJUSTED with `outputsize=compact`.
+  - Read the same day’s bar (containing intraday fields from pre-close) and update it with the finalized daily fields: `o/h/l/c/v`, `ac`, `dv`, `sc`, plus daily deltas `pc/ch/cp` computed against the prior adjusted close when available.
+  - The outcome is a single document for the day that contains both pre-close intraday snapshot fields and post-close finalized daily fields.
+
+- Freshness signaling:
+  - Operational note: the top-level provider/interval doc (`symbol-data/{symbol}/time-series/av-daily-adjusted`) should reflect finalized freshness at post-close. Pre-close writes are snapshots and should not be interpreted as a finalized daily refresh.
+
+### Future Improvement (TODO)
+
+- TODO: When real-time subscription is enabled, migrate pre-close snapshots to use Alpha Vantage BULK_QUOTE (or equivalent real-time quote stream) for higher fidelity and lower latency. Until then, pre-close uses `TIME_SERIES_DAILY_ADJUSTED` (compact) per above.

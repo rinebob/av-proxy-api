@@ -67,4 +67,8 @@ export interface CompactBar {
   ip?: number; // intradayPrice (mark price) observed during the session
   io?: number; // intradayObservedAt epoch ms (wall-clock when snapshot was taken)
   it?: string; // intradayTime derived as 'HH:mm' in America/New_York from io
+
+  // Intraday delta metrics (computed at pre-close snapshot time)
+  ic: number | null; // intradayChange = ip - previousClose (null when no prior bar)
+  ipc: number | null; // intradayPercentChange = (ic / previousClose) * 100 (null when no prior bar)
 }

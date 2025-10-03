@@ -13,7 +13,7 @@ import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
-import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE } from '../../common/function-schedules';
+import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE, TradingPhase } from '../../common/function-schedules';
 
 import { createLogger, hr, hrBlank, formatPST } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
@@ -452,33 +452,37 @@ export const refreshAlphaVantageDataV2 = onSchedule(
     await runRefreshAlphaVantageDataV2();
   }
 );
+
 /**
  * Time-series write flow (overview)
  *
  * Schedulers:
- * - refreshAvDailyTimeSeriesPreClose (3:30 PM ET) → runs DAILY_ADJUSTED
- * - refreshAvDailyTimeSeriesPostClose (post-close) → runs DAILY_ADJUSTED
- * - refreshAvWeeklyMonthlyTimeSeriesPostClose (post-close) → runs WEEKLY_ADJUSTED + MONTHLY_ADJUSTED
+ * - refreshAvDailyTimeSeriesPreClose (pre-close) → runs DAILY_ADJUSTED with phase PRE (intraday-only write)
+ * - refreshAvDailyTimeSeriesPostClose (post-close) → runs DAILY_ADJUSTED with phase POST (finalized bar write)
+ * - refreshAvWeeklyMonthlyTimeSeriesPostClose (post-close) → runs WEEKLY_ADJUSTED + MONTHLY_ADJUSTED with phase POST
  *
  * Execution path:
- * onSchedule → refreshForEndpoints([endpoint...]) → AlphaVantageHandlerFactory.createHandler(endpoint).fetch({ outputsize:'compact', __checkWriteToggle:false })
+ * onSchedule → refreshForEndpoints([endpoint...], { phase }) →
+ *   AlphaVantageHandlerFactory.createHandler(endpoint).fetch({ outputsize:'compact', __checkWriteToggle:false, __phase: phase })
+ *   - For PRE + DAILY: fetch best-effort intraday price (GLOBAL_QUOTE) and pass __intradayPrice/__intradayObservedAt
  *
  * Persistence (inside handler base):
- * - For compact updates: upsert the latest bar via upsert helpers
- *   - upsertAvDailyBar / upsertAvWeeklyBar / upsertAvMonthlyBar
- * - For full/backfill: saveAvTimeSeriesData(bars,...)
+ * - PRE + DAILY (compact): upsert intraday snapshot fields only (ip/io/it/ic/ipc), skip parent meta bump
+ * - POST + DAILY/WEEKLY/MONTHLY (compact): upsert latest bar OHLC (+ deltas) and bump parent freshness
+ * - Full/backfill (rare): saveAvTimeSeriesData(bars,...)
  *
  * Schema:
  * - Top-level provider/interval doc holds metadata + latestBarTimestamp (no large arrays)
- * - Bars are stored in CompactBar shape under year-sharded docs (DAILY/WEEKLY) or single 'all' doc (MONTHLY)
+ * - Bars are stored in CompactBar shape under sharded docs (DAILY/WEEKLY by year; MONTHLY single 'all')
  */
+
 // Daily time series: pre-close (daily only)
 export const refreshAvDailyTimeSeriesPreClose = onSchedule({
   schedule: TS_DAILY_PRE_CLOSE_SCHEDULE,
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]);
+  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED], { phase: TradingPhase.PRE });
 });
 
 // Daily time series: post-close (daily only)
@@ -487,7 +491,7 @@ export const refreshAvDailyTimeSeriesPostClose = onSchedule({
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]);
+  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED], { phase: TradingPhase.POST });
 });
 
 // Weekly + Monthly time series: post-close every trading day
@@ -499,7 +503,7 @@ export const refreshAvWeeklyMonthlyTimeSeriesPostClose = onSchedule({
   await refreshForEndpoints([
     AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
     AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
-  ]);
+  ], { phase: TradingPhase.POST });
 });
 
 /**
@@ -510,7 +514,7 @@ export const refreshAvWeeklyMonthlyTimeSeriesPostClose = onSchedule({
  * - Calls handler.fetch({ outputsize:'compact', __checkWriteToggle:false })
  * - Handlers persist the latest bar (CompactBar) and record Health Metrics
  */
-async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: { force?: boolean } = {}) {
+async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: { force?: boolean; phase?: TradingPhase } = {}) {
   // Load tracked symbols and types
   const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
   const symbols = symbolsSnap.docs.map(d => d.id);
@@ -538,7 +542,39 @@ async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: {
       try {
         const apiStart = Date.now();
         const handler = AlphaVantageHandlerFactory.createHandler(endpoint as any);
-        await handler.fetch({ symbol, outputsize: 'compact', __checkWriteToggle: false });
+        // Build base params and propagate phase
+        const baseParams: any = { symbol, outputsize: 'compact', __checkWriteToggle: false, __phase: options.phase ?? TradingPhase.POST };
+        // For pre-close DAILY, enrich with a best-effort intraday price snapshot from GLOBAL_QUOTE
+        if ((options.phase ?? TradingPhase.POST) === TradingPhase.PRE && endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED) {
+          try {
+            const gqHandler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.GLOBAL_QUOTE);
+            const gqRes: any = await gqHandler.fetch({ symbol });
+            const price = Number((gqRes?.data?.price ?? gqRes?.data?.c ?? gqRes?.data?.['05_price']));
+            if (Number.isFinite(price)) {
+              baseParams.__intradayPrice = price;
+              baseParams.__intradayObservedAt = Date.now();
+            }
+            // Also forward provider deltas when available
+            const prevCloseRaw = (gqRes?.data?.previousClose ?? gqRes?.data?.pc ?? gqRes?.data?.['08_previous_close']);
+            const changeRaw = (gqRes?.data?.change ?? gqRes?.data?.d ?? gqRes?.data?.['09_change']);
+            const changePctRaw = (gqRes?.data?.changePercent ?? gqRes?.data?.dp ?? gqRes?.data?.['10_change_percent']);
+            const prevClose = prevCloseRaw != null ? Number(prevCloseRaw) : undefined;
+            const change = changeRaw != null ? Number(changeRaw) : undefined;
+            // changePercent may be a string with a trailing '%'; normalize to number
+            let changePercent: number | undefined = undefined;
+            if (changePctRaw != null) {
+              const s = String(changePctRaw).trim();
+              changePercent = Number(s.endsWith('%') ? s.slice(0, -1) : s);
+              if (!Number.isFinite(changePercent)) changePercent = undefined;
+            }
+            if (Number.isFinite(prevClose as number)) baseParams.__gqPrevClose = prevClose;
+            if (Number.isFinite(change as number)) baseParams.__gqChange = change;
+            if (Number.isFinite(changePercent as number)) baseParams.__gqChangePercent = changePercent;
+          } catch (e) {
+            // best-effort only; continue without ip/io or provider deltas
+          }
+        }
+        await handler.fetch(baseParams);
         const duration = Date.now() - apiStart;
         // Handlers perform sharded writes; record HealthMetrics so the Health view shows this run
         await healthMetricsService.recordSymbolRefresh(

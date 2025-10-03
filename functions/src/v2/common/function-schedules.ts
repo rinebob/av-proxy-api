@@ -48,6 +48,12 @@ export const INACTIVE_SYMBOL_CLEANUP_SCHEDULE = '0 0 * * *'; // Every day at mid
 export const OLD_SYNC_REQUEST_CLEANUP_SCHEDULE = '0 0 * * 0'; // Every Sunday at midnight
 
 
+// Central trading phase enum for time-series runs
+export enum TradingPhase {
+  PRE = 'pre',
+  POST = 'post',
+}
+
 /**
  * TTL configuration in seconds for each endpoint
  * These values should match the TTLs specified in data-maintainer.md
