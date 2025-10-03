@@ -66,6 +66,8 @@ function getHistoryPathFor(docPath: string): string {
 
 /**
  * Run the Alpha Vantage refresh cycle once and return minimal stats.
+ * Supports non-time series endpoint only.  Time series endpoints are
+ * refreshed separately.
  * Exported so HTTP wrapper can invoke the same logic as the scheduler.
  */
 export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } = {}): Promise<{ durationMs: number; symbolsUpdatedCount: number; symbolsChecked: number; freshCount: number; staleCount: number; force: boolean }> {
@@ -450,11 +452,64 @@ export const refreshAlphaVantageDataV2 = onSchedule(
     await runRefreshAlphaVantageDataV2();
   }
 );
+/**
+ * Time-series write flow (overview)
+ *
+ * Schedulers:
+ * - refreshAvDailyTimeSeriesPreClose (3:30 PM ET) → runs DAILY_ADJUSTED
+ * - refreshAvDailyTimeSeriesPostClose (post-close) → runs DAILY_ADJUSTED
+ * - refreshAvWeeklyMonthlyTimeSeriesPostClose (post-close) → runs WEEKLY_ADJUSTED + MONTHLY_ADJUSTED
+ *
+ * Execution path:
+ * onSchedule → refreshForEndpoints([endpoint...]) → AlphaVantageHandlerFactory.createHandler(endpoint).fetch({ outputsize:'compact', __checkWriteToggle:false })
+ *
+ * Persistence (inside handler base):
+ * - For compact updates: upsert the latest bar via upsert helpers
+ *   - upsertAvDailyBar / upsertAvWeeklyBar / upsertAvMonthlyBar
+ * - For full/backfill: saveAvTimeSeriesData(bars,...)
+ *
+ * Schema:
+ * - Top-level provider/interval doc holds metadata + latestBarTimestamp (no large arrays)
+ * - Bars are stored in CompactBar shape under year-sharded docs (DAILY/WEEKLY) or single 'all' doc (MONTHLY)
+ */
+// Daily time series: pre-close (daily only)
+export const refreshAvDailyTimeSeriesPreClose = onSchedule({
+  schedule: TS_DAILY_PRE_CLOSE_SCHEDULE,
+  timeZone: 'America/New_York',
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, async () => {
+  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]);
+});
 
-// ===============================
-// Option A: Explicit scheduled wrappers by cadence
-// ===============================
+// Daily time series: post-close (daily only)
+export const refreshAvDailyTimeSeriesPostClose = onSchedule({
+  schedule: TS_DAILY_POST_CLOSE_SCHEDULE,
+  timeZone: 'America/New_York',
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, async () => {
+  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]);
+});
 
+// Weekly + Monthly time series: post-close every trading day
+export const refreshAvWeeklyMonthlyTimeSeriesPostClose = onSchedule({
+  schedule: TS_POST_CLOSE_SCHEDULE,
+  timeZone: 'America/New_York',
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, async () => {
+  await refreshForEndpoints([
+    AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
+    AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
+  ]);
+});
+
+/**
+ * Helper used by schedulers to run specific endpoints at fixed times without freshness gating.
+ *
+ * For each endpoint and symbol:
+ * - Creates the appropriate handler via AlphaVantageHandlerFactory
+ * - Calls handler.fetch({ outputsize:'compact', __checkWriteToggle:false })
+ * - Handlers persist the latest bar (CompactBar) and record Health Metrics
+ */
 async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: { force?: boolean } = {}) {
   // Load tracked symbols and types
   const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
@@ -511,33 +566,3 @@ async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: {
     }
   }
 }
-
-// Daily time series: pre-close (daily only)
-export const refreshAvDailyTimeSeriesPreClose = onSchedule({
-  schedule: TS_DAILY_PRE_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]);
-});
-
-// Daily time series: post-close (daily only)
-export const refreshAvDailyTimeSeriesPostClose = onSchedule({
-  schedule: TS_DAILY_POST_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]);
-});
-
-// Weekly + Monthly time series: post-close every trading day
-export const refreshAvWeeklyMonthlyTimeSeriesPostClose = onSchedule({
-  schedule: TS_POST_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints([
-    AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
-    AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
-  ]);
-});

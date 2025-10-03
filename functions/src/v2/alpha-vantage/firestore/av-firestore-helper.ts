@@ -102,11 +102,30 @@ export async function saveAvData(
 
 /**
  * Saves Alpha Vantage TIME SERIES data to Firestore, using the normalized, non-deprecated schema.
- * @param data - The time series data array
- * @param symbol - The symbol
- * @param endpoint - The Alpha Vantage endpoint
- * @param interval - The time series interval
- * @param checkManualWriteEnabled - REQUIRED: must always be set by caller. If true, enforces the manual Firestore write toggle. Pass false for scheduled jobs.
+ *
+ * Write model (Alpha Vantage, provider = AV):
+ * - Top-level provider/interval doc (metadata only):
+ *   path = getSymbolTimeSeriesDocPath(symbol, endpoint, AV)
+ *   fields: metadata{ symbol, interval, histStart/EndDate + histStart/EndTs, lastUpdated, nextRefreshAt, ttlSeconds, vendor, endpoint }, latestBarTimestamp
+ *
+ * - DAILY/WEEKLY (year-sharded):
+ *   path = getSymbolTimeSeriesYearDocPath(symbol, endpoint, AV, {YYYY})
+ *   doc = { bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }
+ *
+ * - MONTHLY (single ‘all’ doc):
+ *   path = getSymbolTimeSeriesAllDocPath(symbol, endpoint, AV)
+ *   doc = { bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }
+ *
+ * Caller guidance:
+ * - Use this function for full/backfill writes (large arrays). For compact updates (latest bar only), use
+ *   upsert helpers: upsertAvDailyBar / upsertAvWeeklyBar / upsertAvMonthlyBar to minimize write sizes.
+ * - Pass `checkManualWriteEnabled=false` from schedulers; UI/gateway-triggered calls may pass true to honor the toggle.
+ *
+ * @param data Array of StorageBar-like entries already transformed by handler; will be mapped to CompactBar
+ * @param symbol Stock symbol
+ * @param endpoint AV endpoint id (e.g., TIME_SERIES_DAILY_ADJUSTED)
+ * @param interval Shared TimeSeriesInterval (DAILY/WEEKLY/MONTHLY)
+ * @param checkManualWriteEnabled Honor the manual write toggle (true for UI flows, false for schedulers)
  */
 export async function saveAvTimeSeriesData(
   data: any[],
@@ -321,8 +340,21 @@ export async function saveAvTimeSeriesData(
 
 /**
  * Ensures the time series exists for a symbol/interval in Firestore.
- * If missing, fetches full time series from Alpha Vantage and writes it.
- * Returns true if initialized (or already exists), false if fetch failed.
+ * If missing, it fetches a full series via the appropriate handler and relies on that handler
+ * to perform normalized writes (year-sharded or monthly ‘all’ doc) and refresh logging.
+ *
+ * Use cases:
+ * - Initialization when a symbol is newly tracked
+ * - Emergency re-seeding when a series doc was deleted
+ *
+ * Notes:
+ * - Prefers adjusted DAILY on initializer for consistent persisted shape
+ * - Does not call saveAvTimeSeriesData directly; handler owns persistence
+ *
+ * @param symbol Stock symbol
+ * @param interval TimeSeriesInterval
+ * @param endpoint AV endpoint (DAILY_ADJUSTED | WEEKLY_ADJUSTED | MONTHLY_ADJUSTED)
+ * @returns true if the series existed or was written successfully; false if provider returned no data
  */
 export async function initializeTimeSeriesIfMissing(
   symbol: string,
@@ -395,8 +427,17 @@ export async function initializeTimeSeriesIfMissing(
 }
 
 /**
- * Upserts a single daily bar for the given symbol and date.
- * @param options - The upsert options
+ * Upserts a single daily bar (YYYY-MM-DD) into the DAILY year-sharded doc.
+ *
+ * Behavior:
+ * - Reads the year doc bars[], merges or inserts the target bar based on epoch day (t)
+ * - Recomputes count/firstBarTs/lastBarTs, sets updatedAt
+ * - Calls bumpTimeSeriesTopLevelMetadata to refresh parent doc freshness
+ *
+ * @param options.symbol Stock symbol
+ * @param options.date ISO date (UTC day)
+ * @param options.patch Partial CompactBar fields to merge (numeric only)
+ * @param options.endpoint Defaults to TIME_SERIES_DAILY_ADJUSTED
  */
 export async function upsertAvDailyBar(options: {
   symbol: string;
@@ -484,8 +525,13 @@ export async function upsertAvDailyBar(options: {
 }
 
 /**
- * Upserts a single weekly bar for the given symbol and date (YYYY-MM-DD),
- * writing into the year-sharded WEEKLY doc.
+ * Upserts a single weekly bar (YYYY-MM-DD) into the WEEKLY year-sharded doc.
+ * See upsertAvDailyBar for flow details; this variant targets WEEKLY and does not include intraday fields.
+ *
+ * @param options.symbol Stock symbol
+ * @param options.date ISO date (UTC week anchor)
+ * @param options.patch Partial CompactBar fields to merge (numeric only)
+ * @param options.endpoint Defaults to TIME_SERIES_WEEKLY_ADJUSTED
  */
 export async function upsertAvWeeklyBar(options: {
   symbol: string;
@@ -551,8 +597,17 @@ export async function upsertAvWeeklyBar(options: {
 }
 
 /**
- * Upserts a single monthly bar for the given symbol and date (YYYY-MM-DD),
- * writing into the single 'all' MONTHLY doc.
+ * Upserts a single monthly bar (YYYY-MM-DD) into the MONTHLY single ‘all’ doc.
+ *
+ * Behavior:
+ * - Reads the ‘all’ doc bars[], merges or inserts the target bar
+ * - Recomputes aggregates and sets updatedAt
+ * - Calls bumpTimeSeriesTopLevelMetadata to refresh parent doc freshness
+ *
+ * @param options.symbol Stock symbol
+ * @param options.date ISO date (UTC month anchor)
+ * @param options.patch Partial CompactBar fields to merge (numeric only)
+ * @param options.endpoint Defaults to TIME_SERIES_MONTHLY_ADJUSTED
  */
 export async function upsertAvMonthlyBar(options: {
   symbol: string;
@@ -618,8 +673,20 @@ export async function upsertAvMonthlyBar(options: {
 
 /**
  * Bumps the top-level time-series metadata after a compact upsert so the parent
- * doc reflects current freshness in Console. HealthView does not require this,
- * but it improves operator UX.
+ * doc reflects current freshness in Console.
+ *
+ * When to use:
+ * - After upsertAvDailyBar/Weekly/Monthly so operators see updated lastUpdated/nextRefreshAt
+ *
+ * Fields set on parent doc:
+ * - metadata: { symbol, interval, lastUpdated, nextRefreshAt (now+ttl), ttlSeconds, vendor, endpoint, histEndDate/histEndTs }
+ * - latestBarTimestamp: Timestamp of latest bar
+ *
+ * @param options.symbol Stock symbol
+ * @param options.endpoint AV endpoint id
+ * @param options.interval TimeSeriesInterval
+ * @param options.latestDate ISO date (YYYY-MM-DD, UTC) to derive latestTs
+ * @param options.vendor Defaults to ApiProvider.ALPHA_VANTAGE
  */
 export async function bumpTimeSeriesTopLevelMetadata(options: {
   symbol: string;

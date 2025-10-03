@@ -7,7 +7,15 @@ import { createLogger, hr } from '../../utils/utils';
 const log = createLogger('av.handler.ts-base'); // Abbrev: aVTS.H
 
 /**
- * Compact bar shape persisted to Firestore for time-series.
+ * Compact bar shape produced by AV time-series handlers prior to persistence.
+ *
+ * Lifecycle:
+ * 1) Subclasses implement getBarsForStorage() to return StorageBar[] from the transformed AV payload.
+ * 2) fetch() optionally reduces to the latest bar when outputsize=compact and computes deltas from previous adjusted close.
+ * 3) Firestore persistence occurs via upsert helpers (daily/weekly/monthly) or saveAvTimeSeriesData() for full/backfill.
+ *
+ * This is an intermediate representation. The persisted schema is the shared CompactBar
+ * (short-key form) defined in `shared/alpha-vantage/av-time-series.types.ts`.
  */
 export interface StorageBar {
   date: string;
@@ -32,8 +40,20 @@ export interface StorageBar {
 
 /**
  * Abstract base handler for Alpha Vantage time series endpoints.
- * Handles parameter validation, request preparation, fetch orchestration,
- * Firestore write (normalized schema), and error handling for time series endpoints.
+ *
+ * Responsibilities:
+ * - Validate params and prepare AV request params.
+ * - Transform raw provider payload into a typed shape (T) consumable by clients.
+ * - Produce StorageBar[] for persistence via `getBarsForStorage()`.
+ * - Persist bars to Firestore using:
+ *   - Daily: upsertAvDailyBar()
+ *   - Weekly: upsertAvWeeklyBar()
+ *   - Monthly: upsertAvMonthlyBar()
+ *   - Full/backfill: saveAvTimeSeriesData()
+ *
+ * Notes:
+ * - When `outputsize=compact`, only the most recent bar is upserted to minimize writes.
+ * - Derived deltas (pc/ch/cp) are computed from the previous adjusted close when available.
  */
 export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVantageBaseHandler<T> {
   protected readonly config: TimeSeriesEndpointConfig;
@@ -43,6 +63,10 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
     this.config = config;
   }
 
+  /**
+   * Ensure required fields are present (e.g., symbol) prior to calling AV.
+   * @throws Error when required params are missing.
+   */
   protected validateParams(params: Record<string, any>): void {
     if (!params.symbol) {
       throw new Error('Missing required parameter: symbol');
@@ -54,19 +78,29 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
   }
 
   /**
-   * Subclasses must provide the storage bars extracted from the transformed payload.
-   * Return null/empty array if there are no bars to persist for this endpoint.
+   * Hook for subclasses to map the transformed payload into StorageBar[] used for persistence.
+   * Return null/empty array when there are no bars to persist.
    */
   protected abstract getBarsForStorage(transformed: T): StorageBar[] | null;
 
   /**
-   * Transform raw provider payload into the type returned to clients.
+   * Transform raw AV response payload into the public/typed shape T.
+   * Implementations should not perform Firestore writes directly; persistence is orchestrated by fetch().
    */
   protected abstract transformResponse(data: any): T;
 
   /**
-   * Fetches time series data, transforms, optionally saves bars to Firestore, and returns ApiResponse.
-   * Respects manual Firestore write toggle when params.__checkWriteToggle !== false (default true).
+   * Fetches AV time series, transforms, prepares StorageBar[], and persists to Firestore.
+   *
+   * Behavior:
+   * - Strips internal params before calling AV.
+   * - If outputsize=compact, reduces to the most recent bar and computes deltas from the previous bar.
+   * - Uses upsert helpers for compact updates; uses saveAvTimeSeriesData() for full/backfill writes.
+   * - Respects manual write toggle unless caller passes `__checkWriteToggle: false`.
+   *
+   * @param params symbol, outputsize=('compact'|'full'), and internal flags like __checkWriteToggle
+   * @returns ApiResponse<T> containing transformed data and TTL metadata
+   * @throws Normalized provider or network errors
    */
   public async fetch(params: any = {}): Promise<ApiResponse<T>> {
     super.logRequest(params, 'AVTimeSeriesHandlerBase.fetch');
@@ -151,6 +185,23 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           const latest = bars[0];
           hr('aVTS.H', `upsert ${endpoint} ${symbol} date=${latest.date} [${(this as any).requestId}]`);
           log.info('firestore.upsert', { endpointId: endpoint, symbol, date: latest.date, requestId: (this as any).requestId });
+          /**
+           * Map handler StorageBar → persisted CompactBar patch
+           *
+           * StorageBar fields:
+           * - open/high/low/close/volume
+           * - adjustedClose?, dividendAmount?, splitCoefficient?
+           * - previousClose?/change?/changePercent? (enriched above for compact path)
+           * - intradayPrice?/intradayObservedAt?/intradayTime? (optional)
+           *
+           * CompactBar short keys:
+           * - o/h/l/c/v, ac (adjusted close), dv (dividend), sc (split coeff)
+           * - pc/ch/cp for derived deltas
+           * - ip/io/it for intraday snapshot fields
+           *
+           * Note: Daily upsert helper derives `it` (HH:mm America/New_York) from `io` when provided.
+           * We intentionally omit intraday fields here unless provided by the handler payload.
+           */
           const patch: { o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; dv?: number; sc?: number; pc?: number; ch?: number; cp?: number } = {
             o: latest.open,
             h: latest.high,
@@ -165,6 +216,12 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
             ch: (latest as any).change,
             cp: (latest as any).changePercent,
           };
+          // Intraday mapping semantics (documented, optional):
+          // If the handler provides intradayPrice/ObservedAt, they can be forwarded as ip/io on the patch.
+          // The daily upsert helper will derive `it` from `io`.
+          // Example (left commented to avoid behavior change):
+          // if ((latest as any).intradayPrice != null) (patch as any).ip = (latest as any).intradayPrice;
+          // if ((latest as any).intradayObservedAt != null) (patch as any).io = (latest as any).intradayObservedAt;
           switch (this.config.interval) {
             case TimeSeriesInterval.DAILY:
               await upsertAvDailyBar({ symbol, date: latest.date, patch });

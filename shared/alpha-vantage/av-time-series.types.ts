@@ -63,8 +63,8 @@ export interface CompactBar {
   ch?: number; // change vs prior close (rounded 2dp)
   cp?: number; // percent change vs prior close (rounded 2dp)
 
-  // Intraday provider extras (if/when present)
-  ip?: number; // implied price or provider-specific
-  io?: number; // implied open or provider-specific
-  it?: string; // ISO timestamp for intraday bar
+  // Intraday snapshot fields (set by time-series writers when available)
+  ip?: number; // intradayPrice (mark price) observed during the session
+  io?: number; // intradayObservedAt epoch ms (wall-clock when snapshot was taken)
+  it?: string; // intradayTime derived as 'HH:mm' in America/New_York from io
 }
