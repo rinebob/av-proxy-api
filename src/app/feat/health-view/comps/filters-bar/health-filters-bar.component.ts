@@ -6,10 +6,10 @@ import { HttpClient } from '@angular/common/http';
 
 // Shared types
 import { HealthMetricsSortBy, SortOrder, type HealthMetricsFilter } from '@shared/health-metrics';
-import { AV_IMPLEMENTED_ENDPOINTS, type AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { AV_IMPLEMENTED_ENDPOINTS, type AlphaVantageEndpoint, type ListSymbolsV2Response } from '@shared/alpha-vantage';
 
 // DM helpers
-import { DataMaintainerFunctionName, getDataMaintainerFunctionUrl, type ListSymbolsResponse } from '../../../data-maintainer-view/common/fe-common-dm-api';
+import { DataMaintainerFunctionName } from '../../../data-maintainer-view/common/fe-common-dm-api';
 
 // Angular Material
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -21,6 +21,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { API_BASES } from 'src/app/core/api/api.tokens';
 
 // 30-day window used for historical review bounds
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -44,6 +45,7 @@ export enum QuickRange {
 })
 export class HealthFiltersBarComponent extends HealthViewBase {
   private readonly http = inject(HttpClient);
+  private readonly apiBases = inject(API_BASES);
 
   // Expose enum to template
   readonly QuickRange = QuickRange;
