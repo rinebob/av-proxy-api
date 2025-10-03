@@ -43,3 +43,22 @@ firebase deploy --only functions
   1. Check Firestore for an override
   2. Fall back to the endpoint config default
 - This enables changing TTLs without redeploying functions and provides an audit trail for changes.
+
+---
+
+## Module Resolution and Import Style
+
+- We use TypeScript `module: commonjs` and `moduleResolution: Node` with `outDir: lib`.
+- In `src/`, always use extensionless imports for local modules, for example:
+  ```ts
+  // Good
+  export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-refresh-manager'
+
+  // Avoid in TS source
+  // export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-refresh-manager.js'
+  ```
+- Rationale:
+  - Keeps TypeScript source decoupled from compiled file extensions.
+  - The compiler emits `.js` to `lib/`, and Node resolves them at runtime.
+  - Better editor/refactor support and less brittle imports.
+- Scripts under `functions/scripts/` run via `ts-node`; the same extensionless import convention applies there as well.
