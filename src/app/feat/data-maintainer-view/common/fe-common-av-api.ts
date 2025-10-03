@@ -24,8 +24,12 @@ function getAlphaVantageBaseUrl(): string {
     const bases = inject(API_BASES);
     if (bases?.av) return bases.av;
   } catch {}
-  // Fallback to legacy env-based logic for non-DI contexts (tests, early bootstrap)
-  return environment.production ? AV_GATEWAY_PROD_URL : AV_DEV_URL_BASE;
+  // In production, do not fallback to localhost; fail fast to avoid prod calling dev emulator
+  if (environment.production) {
+    throw new Error('[fe-common-av-api] API_BASES.av unavailable in production; refusing to fallback to localhost. Ensure API_BASES is provided.');
+  }
+  // Dev-only fallback to emulator base
+  return AV_DEV_URL_BASE;
 }
 
 /**

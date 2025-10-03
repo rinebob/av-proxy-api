@@ -12,6 +12,8 @@ import {
 } from '@shared/benzinga';
 
 import { environment } from '../../../../environments/environment';
+import { inject } from '@angular/core';
+import { API_BASES } from '../../../core/api/api.tokens';
 
 /**
  * Production URL for the Benzinga API Gateway
@@ -27,7 +29,16 @@ const BZ_DEV_URL_BASE = 'http://localhost:5001/alpha-vantage-proxy-api/us-centra
  * Returns the correct Benzinga gateway URL for the current environment
  */
 function getBenzingaBaseUrl(): string {
-  return environment.production ? BZ_GATEWAY_PROD_URL : BZ_DEV_URL_BASE;
+  try {
+    const bases = inject(API_BASES);
+    if (bases?.benzinga) return bases.benzinga;
+  } catch {}
+  // In production, refuse localhost fallback to avoid cross-wiring
+  if (environment.production) {
+    throw new Error('[fe-common-bz-api] API_BASES.benzinga unavailable in production; refusing to fallback to localhost. Ensure API_BASES is provided.');
+  }
+  // Dev-only fallback
+  return BZ_DEV_URL_BASE;
 }
 
 /**
