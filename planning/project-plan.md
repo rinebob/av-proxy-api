@@ -263,9 +263,27 @@ Once the core proxy workbench is functional and stable, the following can be con
 - Notify via email/Slack/PagerDuty.
 
 ### Scheduler Configuration (Prod)
-- Confirm CRON in `functions/src/v2/common/function-schedules.ts` (e.g., 12:45 PM ET daily) and trading-hours alignment.
-- Ensure Cloud Scheduler job exists, targets the correct function, and has proper IAM.
-- Verify rate limits and concurrency settings for Functions meet AV/Firestore constraints.
+— BEFORE DEPLOY: Export all new scheduled/HTTP functions from `functions/src/index.ts`.
+  - This is mandatory. If a function is not exported in `functions/src/index.ts`, Firebase will NOT deploy it and Cloud Scheduler jobs will NOT be created.
+  - Example:
+    - `export { refreshAvDailyTimeSeriesPreClose, refreshAvDailyTimeSeriesPostClose } from './v2/alpha-vantage/data-refresher/av-refresh-manager.js';`
+— Confirm CRON specs in `functions/src/v2/common/function-schedules.ts` (e.g., 3:30 PM and 4:15 PM ET) match trading-hours alignment.
+— Ensure each `onSchedule({ ... })` includes `timeZone: 'America/New_York'` for ET wall‑clock execution.
+— After deploy, verify Cloud Scheduler created the jobs and that they have the correct time zone and Next run:
+  - In Console: Scheduler → find jobs named `firebase-schedule-*`, open detail, check `Schedule` shows `(America/New_York)` and `Next run` matches ET (convert from your local display if needed).
+  - CLI: `gcloud scheduler jobs list --location=us-central1` and `gcloud scheduler jobs describe <job> --location=us-central1`.
+— Verify rate limits and concurrency settings for Functions meet AV/Firestore constraints.
+
+### Pre‑Deploy CI/Validation (Required for Functions)
+- Grep for all `onSchedule(` and `onRequest(` declarations and ensure corresponding exports exist in `functions/src/index.ts`.
+- Example script idea (CI): fail build if any function name is missing from `index.ts`.
+
+### Runbook Quick Checks
+- If a newly added scheduler is missing from Cloud Scheduler after deploy:
+  1) Confirm it’s exported from `functions/src/index.ts`.
+  2) Re‑deploy Functions and refresh the Scheduler page.
+  3) Confirm `timeZone` is set in `onSchedule` options and that Next run aligns to ET.
+  4) Use `gcloud scheduler jobs list --location=us-central1` for source of truth.
 
 ### Secrets and Config
 - Store API keys in Secret Manager; grant access to Functions runtime service account.

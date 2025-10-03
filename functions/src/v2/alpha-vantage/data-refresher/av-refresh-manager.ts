@@ -443,6 +443,7 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
 export const refreshAlphaVantageDataV2 = onSchedule(
   {
     schedule: AV_REFRESH_MANAGER_SCHEDULE,
+    timeZone: 'America/New_York',
     secrets: ['ALPHAVANTAGE_API_KEY'],
   },
   async () => {
@@ -514,6 +515,7 @@ async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: {
 // Daily time series: pre-close (daily only)
 export const refreshAvDailyTimeSeriesPreClose = onSchedule({
   schedule: TS_DAILY_PRE_CLOSE_SCHEDULE,
+  timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
   await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]);
@@ -522,6 +524,7 @@ export const refreshAvDailyTimeSeriesPreClose = onSchedule({
 // Daily time series: post-close (daily only)
 export const refreshAvDailyTimeSeriesPostClose = onSchedule({
   schedule: TS_DAILY_POST_CLOSE_SCHEDULE,
+  timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
   await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]);
@@ -530,6 +533,7 @@ export const refreshAvDailyTimeSeriesPostClose = onSchedule({
 // Weekly + Monthly time series: post-close every trading day
 export const refreshAvWeeklyMonthlyTimeSeriesPostClose = onSchedule({
   schedule: TS_POST_CLOSE_SCHEDULE,
+  timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
   await refreshForEndpoints([

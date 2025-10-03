@@ -18,6 +18,12 @@ export { partnerTimeSeriesV2 } from './v2/partner/time-series-partner';
 // New AlphaVantage Data Refresher
 export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-refresh-manager.js';
 
+export {
+  refreshAvDailyTimeSeriesPreClose,
+  refreshAvDailyTimeSeriesPostClose,
+  refreshAvWeeklyMonthlyTimeSeriesPostClose,
+} from './v2/alpha-vantage/data-refresher/av-refresh-manager.js';
+
 // New HTTP wrapper for emulator testing only
 export { refreshAlphaVantageDataV2Http } from './v2/alpha-vantage/data-refresher/av-refresh-http.js';
 
