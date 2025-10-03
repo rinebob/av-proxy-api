@@ -14,6 +14,7 @@ import { MatExpansionModule, MatExpansionPanel } from '@angular/material/expansi
 import type { RefreshRequestLog } from '@shared/health-metrics';
 import { getTimeMs, buildEventComparator } from '../../utils/health-transforms';
 import { SortKey, SortDir, SymbolGroupSortMode } from '@shared/health-metrics';
+import { HEALTH_LABEL_EM_DASH } from '../../common/health-constants';
 
 interface SymbolGroup {
   symbol: string;
@@ -80,7 +81,7 @@ export class HealthSymbolDetailComponent extends HealthViewBase {
     const map = new Map<string, RefreshRequestLog[]>();
 
     for (const r of rows) {
-      const sym = (r.symbol || '—').toUpperCase();
+      const sym = (r.symbol || HEALTH_LABEL_EM_DASH).toUpperCase();
       const arr = map.get(sym);
       if (arr) arr.push(r); else map.set(sym, [r]);
     }
