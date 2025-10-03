@@ -1,8 +1,8 @@
 import { onRequest } from 'firebase-functions/v2/https';
-import { runRefreshAlphaVantageDataV2 } from './av-refresh-manager';
-import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
+import { runRefreshAlphaVantageDataV2 } from '../src/v2/alpha-vantage/data-refresher/av-refresh-manager';
+import { HealthMetricsService } from '../src/v2/health-metrics/health-metrics.service';
 import { RefreshStatus } from '@shared/firestore';
-import { createLogger } from '../../utils/utils';
+import { createLogger } from '../src/v2/utils/utils';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 
 const logger = createLogger('av-refresh-http');

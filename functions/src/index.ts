@@ -24,11 +24,6 @@ export {
   refreshAvWeeklyMonthlyTimeSeriesPostClose,
 } from './v2/alpha-vantage/data-refresher/av-refresh-manager.js';
 
-// New HTTP wrapper for emulator testing only
-export { refreshAlphaVantageDataV2Http } from './v2/alpha-vantage/data-refresher/av-refresh-http.js';
-
-// Emulator-only HTTP for time-series (DAILY/WEEKLY/MONTHLY) refresh/init
-export { refreshAvTimeSeriesHttp } from './v2/alpha-vantage/data-refresher/av-timeseries-http.js';
 
 // New Benzinga Data Refresher
 export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager.js';

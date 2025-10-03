@@ -1,13 +1,13 @@
 import { onRequest } from 'firebase-functions/v2/https';
-import { db } from '../../../firebase-admin-init';
-import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
-import { initializeTimeSeriesIfMissing } from '../firestore/av-firestore-helper';
+import { db } from '../src/firebase-admin-init';
+import { AlphaVantageHandlerFactory } from '../src/v2/alpha-vantage/alpha-vantage-factory';
+import { initializeTimeSeriesIfMissing } from '../src/v2/alpha-vantage/firestore/av-firestore-helper';
 import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 import { AlphaVantageEndpoint, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
-import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
-import { createLogger } from '../../utils/utils';
-import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
+import { getSymbolTimeSeriesDocPath } from '../src/v2/common/firestore/firestore-paths';
+import { createLogger } from '../src/v2/utils/utils';
+import { HealthMetricsService } from '../src/v2/health-metrics/health-metrics.service';
 
 const log = createLogger('ts.http');
 const hms = new HealthMetricsService();

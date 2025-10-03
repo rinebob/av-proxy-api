@@ -17,6 +17,4 @@ export {
   refreshAvWeeklyMonthlyTimeSeriesPostClose,
 } from './data-refresher/av-refresh-manager';
 
-export { refreshAvTimeSeriesHttp } from './data-refresher/av-timeseries-http';
-
 export default AlphaVantageHandlerFactory;
