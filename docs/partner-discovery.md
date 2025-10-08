@@ -2,7 +2,7 @@
 
 Audience: External partner engineering/admin teams integrating with Savant partner endpoints. This document explains partner-facing surfaces, authentication, data schemas, and operational expectations.
 
-Last updated: 2025-09-10
+Last updated: 2025-10-08
 
 > Start here: Read this discovery guide first to understand the surface area, data shapes, and auth model. When ready to make requests, proceed to `docs/partner-integration.md` for step-by-step integration examples.
 
@@ -14,6 +14,15 @@ SavantApi.com maintains a centralized, Firestore-backed market data service. Par
 
 For server-to-server integrations, partners should use Google OIDC (service account identity tokens) with allowlisting. See `docs/partner-integration.md` for end-to-end examples.
 
+### Operational Checklist (Quick Start)
+- Ensure Cloud Run requires authentication; remove `allUsers` from invokers
+- Grant `roles/run.invoker` to each partner service account
+- Configure partner auth via Secret Manager (not plain env vars):
+  - `ALLOWED_SERVICE_ACCOUNT_EMAILS` → comma-separated SA emails
+  - `EXPECTED_GOOGLE_AUDIENCE` → exact deployed service URL (Cloud Run)
+- Partner mints Google OIDC ID token with exact `aud` = service URL and `--include-email`
+- Test with curl; expect 200 for allowlisted SA, 403 for anonymous
+
 ---
 
 ## Partner Endpoint Surface
@@ -23,14 +32,43 @@ For server-to-server integrations, partners should use Google OIDC (service acco
   - Canonical function name (current): `partnerTimeSeriesV2`
   - Purpose: Deliver normalized OHLCV bars for common intervals without hitting upstream providers directly
 
-- Data provider (current primary): Alpha Vantage (AV)
-  - Daily-adjusted time series normalized in Firestore
-  - Weekly and Monthly supported with sensible defaults
+### Authentication Notes
+- Dual-auth middleware accepts either:
+  - Google OIDC ID token (preferred for partners), with `email` claim present and `aud` equal to the deployed Cloud Run URL
+  - Firebase ID token (used internally)
+- Allowlist and audience are sourced from Secret Manager:
+  - `ALLOWED_SERVICE_ACCOUNT_EMAILS`
+  - `EXPECTED_GOOGLE_AUDIENCE`
+- See `docs/partner-integration.md` for exact setup commands and request examples.
 
-- Storage model (internal reference): Firestore sharded time-series per symbol and interval
-  - `symbol-data/{SYMBOL}/time-series/{provider-interval}/years/{YYYY}` with bar docs under the year doc
-  - Top-level time-series doc holds metadata such as `latestBarTimestamp`
-  - Bars are compact objects with numeric timestamps and OHLCV values (see Data Schema)
+> Preflight: Before requesting access, confirm your real service account email(s) and the exact Cloud Run URL for `partnerTimeSeriesV2`. Partner calls must target the Cloud Run service URL and mint tokens with that URL as the audience. See the "Partner Preflight Checklist" in `docs/partner-integration.md`.
+
+---
+
+## Data Provider & Storage Model (Overview)
+
+- Provider (current primary): Alpha Vantage (AV)
+  - We persist adjusted series by default for `DAILY`, `WEEKLY`, and `MONTHLY`.
+
+- Canonical Firestore paths (non-intraday):
+  - Top-level provider/interval doc (metadata only):
+    - `symbol-data/{SYMBOL}/time-series/{av-daily-adjusted|av-weekly-adjusted|av-monthly-adjusted}`
+    - Fields: `metadata{ symbol, interval, histStartTs, histEndTs, lastUpdated, nextRefreshAt, ttlSeconds, vendor, endpoint }`, and `latestBarTimestamp` (Firestore Timestamp for the latest bar)
+  - Year‑sharded docs for `DAILY`/`WEEKLY`:
+    - `symbol-data/{SYMBOL}/time-series/{docId}/years/{YYYY}` → `{ bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }`
+  - Single ‘all’ doc for `MONTHLY`:
+    - `symbol-data/{SYMBOL}/time-series/{docId}/all/data` → `{ bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }`
+
+- Compact bar schema (subset):
+  - `t` (epoch ms, UTC day)
+  - `d` (optional `YYYY-MM-DD` UTC)
+  - `o,h,l,c` (OHLC), `v` (volume)
+  - Adjusted series fields: `ac` (adjusted close), `dv` (dividend), `sc` (split coefficient)
+  - Derived: `ch` (change), `cp` (percent change)
+  - Intraday snapshot fields may be present on the latest bar: `ip, io, it, ic, ipc`
+
+- Reader behavior (what partners receive):
+  - The partner reader clamps requested windows using numeric `histStartTs`/`histEndTs` from metadata, loads relevant year docs, filters bars by `from`/`to` (or presets like `1y`), sorts ascending, and returns `availableYears`, `count`, and `bars`.
 
 ---
 
@@ -43,8 +81,21 @@ We use dual-auth middleware to validate partner requests. Recommended approach i
   - Header: `Authorization: Bearer <id_token>`
   - Token must include an `email` claim matching an allowlisted service account
   - `aud` (audience) must equal the deployed function URL
-
+- IAM lockdown: Cloud Run invoker is restricted; anonymous/public invocations are blocked
 - Alternate auth (case-by-case): Firebase ID token
+
+---
+
+## IAM Lockdown (Summary)
+
+Partner endpoints are protected by both IAM (Cloud Run invoker) and application-level allowlisting (dual-auth with email allowlist).
+
+- Remove public invoker (`allUsers`); require authentication on `partnerTimeSeriesV2`
+- Grant `roles/run.invoker` to partner service accounts only
+- Set `ALLOWED_SERVICE_ACCOUNT_EMAILS` to the same partner SA emails and deploy a new revision
+- Partner must send OIDC ID token with `aud` = exact service URL and include the `email` claim
+
+For full CLI and Console steps, see “IAM Lockdown and Allowlisting (Required)” in `docs/partner-integration.md`.
 
 ---
 
@@ -99,16 +150,32 @@ Authorization: Bearer <id_token>
   "availableYears": [2023, 2024],
   "count": 252,
   "bars": [
-    { "t": 1725494400000, "o": 220.1, "h": 222.3, "l": 219.8, "c": 221.5, "v": 51234567, "d": "2024-09-05" }
+    {
+      "t": 1725494400000,
+      "d": "2024-09-05",
+      "o": 220.1,
+      "h": 222.3,
+      "l": 219.8,
+      "c": 221.5,
+      "v": 51234567,
+      "ac": 221.5,
+      "dv": 0,
+      "sc": 1,
+      "ch": 1.4,
+      "cp": 0.64,
+      "ic": null,
+      "ipc": null
+    }
   ],
   "timestamp": "2025-09-09T00:00:00.000Z",
   "truncated": false
 }
 ```
 
-- `bars[].t` is epoch milliseconds (UTC)
-- `bars[].d` is human-readable UTC date `YYYY-MM-DD` added to new writes for convenience
-- Prices are decimals; volume is integer; not all fields will be present for all providers
+- `bars[].t` is epoch milliseconds (UTC); `bars[].d` is optional `YYYY-MM-DD` (UTC) added on newer writes
+- Required adjusted fields for AV adjusted series: `ac` (adjusted close), `dv` (dividend), `sc` (split coefficient)
+- `ch`/`cp` are derived day-over-day change metrics; `ic`/`ipc` are intraday change metrics present on pre-close snapshots
+- Prices are decimals; volume is integer; not all optional fields will appear on every bar
 
 ### Limits and behavior
 - Soft cap: Data begins in 1999 so ~6500 bars is a safe limit
@@ -123,7 +190,8 @@ Authorization: Bearer <id_token>
 We normalize upstream data into a sharded Firestore schema to support high-volume writes and efficient reads.
 
 - Canonical collection: `symbol-data/{SYMBOL}/time-series/{provider-interval}`
-  - Sharding: `years/{YYYY}` (bar documents grouped under the year)
+  - Non-intraday sharding: `years/{YYYY}` (bar documents grouped under the year)
+  - Intraday sharding (optional): `days/{YYYY-MM-DD}/bars/{ISO_TIMESTAMP}`
   - Top-level doc stores metadata fields such as `latestBarTimestamp`
   - Provider-interval IDs:
     - `av-daily-adjusted`
@@ -158,7 +226,8 @@ A background refresher keeps Firestore current by reloading data from upstream a
 - AV time-series:
   - Daily cadence at pre-close and post-close (3:30PM and 4:30PM Eastern) 
   - After a successful refresh: set `metadata.lastUpdated`, `metadata.ttlSeconds`, `metadata.nextRefreshAt`
-  - TTLs are defined per endpoint in `shared/alpha-vantage/av-endpoint-configs.ts`
+  - TTLs are defined per endpoint in `shared/alpha-vantage/av-endpoint-configs.ts` and `AV_TIME_SERIES_ENDPOINT_CONFIGS`
+  - Cron schedules live in `functions/src/v2/common/function-schedules.ts` (source of cron truth only)
 
 > Partners do not need to orchestrate refresh; the API reads from Firestore only and does not fan-out upstream synchronously.
 
@@ -167,7 +236,7 @@ A background refresher keeps Firestore current by reloading data from upstream a
 ## Onboarding Checklist (Partner)
 
 1. Provide the service account email(s) your backend will use.
-2. We add them to `ALLOWED_SERVICE_ACCOUNT_EMAILS` on the deployed `partnerTimeSeriesV2` service.
+2. We add them to `ALLOWED_SERVICE_ACCOUNT_EMAILS` on the deployed `partnerTimeSeriesV2` service (Cloud Run env var; IAM invoker is locked down).
 3. Mint a Google OIDC ID token with `aud` equal to the exact function URL and include the `email` claim.
 4. Call the `partnerTimeSeriesV2` endpoint with `Authorization: Bearer <id_token>`.
 
@@ -178,7 +247,7 @@ See `docs/partner-integration.md` for cURL/Node/PowerShell examples.
 ## Error Handling and Troubleshooting
 
 - 401/403 Unauthorized/Forbidden
-  - Missing/invalid ID token, `aud` mismatch, or email not allowlisted
+  - Missing/invalid ID token, `aud` mismatch, email not allowlisted, or IAM invoker denies
 - 404 Not Found
   - Symbol not initialized in Firestore
 - 400 Bad Request

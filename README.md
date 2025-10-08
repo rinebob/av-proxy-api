@@ -12,12 +12,21 @@ A secure proxy service for Alpha Vantage and Benzinga APIs with Firebase Authent
 
 ---
 
+## Quick Links (Documentation)
+
+- Partner discovery: `docs/partner-discovery.md`
+- Partner integration (auth, requests, troubleshooting): `docs/partner-integration.md`
+
+These two docs are the source of truth for partner-facing endpoints (e.g., `partnerTimeSeriesV2`).
+
+---
+
 ## Backend URL Strategy (API_BASES vs run.app v2)
 
 This app centralizes all backend base URLs behind a single Angular DI token `API_BASES` (`src/app/core/api/api.tokens.ts`). Each frontend client composes URLs as `base + path`, which works the same in the emulator and production.
 
-- Emulator base: `http://127.0.0.1:5001/<projectId>/us-central1`
-- Production base (default): `https://us-central1-<projectId>.cloudfunctions.net`
+- Emulator base: `http://127.0.0.1:5001/alpha-vantage-proxy-api/us-central1`
+- Production base (default): `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net`
 - Production custom domain (optional): set `environment.apiBaseProd` to your domain, e.g. `https://savantapi.com`
 
 Clients then build final URLs by appending function paths:
@@ -105,7 +114,7 @@ GET http://127.0.0.1:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantag
    ```bash
    firebase login
    firebase init
-   firebase use your-project-id
+   firebase use alpha-vantage-proxy-api
    ```
 
 5. **Set Production Secrets**
@@ -116,6 +125,11 @@ GET http://127.0.0.1:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantag
    # Set Benzinga API Key (if using Benzinga features)
    firebase functions:secrets:set BENZINGA_CALENDAR_API_KEY
    firebase functions:secrets:set BENZINGA_WIIM_API_KEY
+   
+   # Partner endpoint configuration (Secret Manager)
+   # Used by partner HTTPS services like partnerTimeSeriesV2
+   firebase functions:secrets:set ALLOWED_SERVICE_ACCOUNT_EMAILS
+   firebase functions:secrets:set EXPECTED_GOOGLE_AUDIENCE
    ```
 
 ## Running Locally
@@ -213,19 +227,29 @@ GET /getBenzingaCalendar?parameters
 
 ## Authentication
 
-All API endpoints require a valid Firebase ID token in the `Authorization` header:
-```
-Authorization: Bearer <firebase-id-token>
-```
+### Internal (Savant web app and tools)
 
-### Getting an ID Token (Client-side)
+- Browser-facing gateways (e.g., `alphaVantageApiV2`, `benzingaApiV2`) require a Firebase ID token in the `Authorization` header.
+  ```
+  Authorization: Bearer <firebase-id-token>
+  ```
+- Obtaining a Firebase ID token (client-side example):
+  ```typescript
+  import { getAuth } from 'firebase/auth';
+  const auth = getAuth();
+  const idToken = await auth.currentUser?.getIdToken();
+  ```
 
-```typescript
-import { getAuth } from 'firebase/auth';
+### Partner (server‑to‑server)
 
-const auth = getAuth();
-const idToken = await auth.currentUser?.getIdToken();
-```
+- Partner endpoints (e.g., `partnerTimeSeriesV2`) are secured via dual‑auth with allowlisted service accounts.
+- Partners must send a Google OIDC ID token minted with:
+  - `aud` equal to the deployed Cloud Run service URL
+  - `--include-email` so the `email` claim is present
+- Application allowlist and audience values are stored in Secret Manager and mounted by the function:
+  - `ALLOWED_SERVICE_ACCOUNT_EMAILS`
+  - `EXPECTED_GOOGLE_AUDIENCE`
+- See `docs/partner-integration.md` for exact commands and end‑to‑end examples.
 
 ## CORS Configuration
 
@@ -293,7 +317,7 @@ ng e2e
 This repo includes emulator-only HTTP endpoints for manually triggering data refreshes during local development. These endpoints return 403 outside the Firebase emulators.
 
 - Functions emulator URL template:
-  - `http://localhost:5001/<projectId>/us-central1/<functionName>`
+  - `http://localhost:5001/alpha-vantage-proxy-api/us-central1/<functionName>`
 
 ### Time-Series Refresh/Init (Alpha Vantage)
 
@@ -305,20 +329,20 @@ This repo includes emulator-only HTTP endpoints for manually triggering data ref
   - `init` (optional): `true` to initialize the full series if missing
   - `force` (optional): `true` to bypass freshness at the wrapper level
 
-PowerShell one-liners (replace `<projectId>` as needed; default region is `us-central1`):
+PowerShell one-liners (replace `<functionName>` as needed):
 
 ```powershell
 # DAILY compact refresh for a single symbol
-Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAvTimeSeriesHttp?interval=DAILY&symbol=AAPL"
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAvTimeSeriesHttp?interval=DAILY&symbol=AAPL"
 
 # WEEKLY full init if missing
-Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAvTimeSeriesHttp?interval=WEEKLY&symbol=AAPL&init=true"
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAvTimeSeriesHttp?interval=WEEKLY&symbol=AAPL&init=true"
 
 # MONTHLY compact refresh for all tracked symbols
-Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAvTimeSeriesHttp?interval=MONTHLY"
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAvTimeSeriesHttp?interval=MONTHLY"
 
 # DAILY compact refresh with force
-Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAvTimeSeriesHttp?interval=DAILY&symbol=MSFT&force=true"
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAvTimeSeriesHttp?interval=DAILY&symbol=MSFT&force=true"
 ```
 
 Response shape includes: `startedAtIso`, `finishedAtIso`, `totalDurationMs`, `processed`, `refreshed`, `initialized`, `errors`, and per-symbol details like `durationMs`, `docPath`, `latestBarIso`, `nextRefreshIso`.
@@ -332,10 +356,10 @@ PowerShell one-liners:
 
 ```powershell
 # Run once (TTL-aware)
-Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAlphaVantageDataV2Http"
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantageDataV2Http"
 
 # With force
-Invoke-RestMethod -Method GET -Uri "http://localhost:5001/<projectId>/us-central1/refreshAlphaVantageDataV2Http?force=true"
+Invoke-RestMethod -Method GET -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantageDataV2Http?force=true"
 ```
 
 ## Emulator Behavior: Time-Series Trimming
@@ -399,15 +423,15 @@ This repo is configured to run the Angular app on App Hosting (Cloud Run) using 
 To ensure the Angular app resolves `@shared/*` imports from compiled outputs:
 
 1) Build shared first
-```
+```bash
 npm run build:shared
 ```
 2) Build the Angular app
-```
+```bash
 ng build --configuration production
 ```
 3) Local production run (uses the same runtime as App Hosting)
-```
+```bash
 $env:PORT=8080; npm run start:apphosting
 # or
 PORT=8080 npm run start:apphosting
