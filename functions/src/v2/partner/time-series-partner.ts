@@ -68,4 +68,6 @@ export const partnerTimeSeriesV2 = onRequest({
   memory: '256MiB',
   maxInstances: 20,
   timeoutSeconds: 60,
+  // Ensure auth config comes from Secret Manager in production
+  secrets: ['ALLOWED_SERVICE_ACCOUNT_EMAILS', 'EXPECTED_GOOGLE_AUDIENCE'],
 }, withCors(handler));

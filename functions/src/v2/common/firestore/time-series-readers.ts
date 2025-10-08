@@ -1,4 +1,5 @@
 import { db } from '../../../firebase-admin-init';
+import { createLogger } from '../../utils/utils';
 import { ApiProvider } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesInterval } from '@shared/alpha-vantage';
 import {
@@ -7,6 +8,8 @@ import {
   getSymbolTimeSeriesAllDocPath,
 } from '../firestore/firestore-paths';
 import type { CompactBar } from '@shared/alpha-vantage';
+
+const logger = createLogger('[time-series-readers]');
 
 export interface TimeSeriesReadParams {
   symbol: string;
@@ -72,19 +75,24 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
 
   const vendor = ApiProvider.ALPHA_VANTAGE;
   const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor);
+  logger.debug('reader.start', { symbol, interval, endpoint, docPath, params });
 
   try {
     // Monthly uses single 'all' doc
     if (interval === TimeSeriesInterval.MONTHLY) {
       const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
+      logger.debug('reader.monthly.doc', { allDocPath });
       const snap = await db.doc(allDocPath).get();
+      logger.debug('reader.monthly.doc.exists', { allDocPath, exists: snap.exists });
       if (!snap.exists) {
         return { ok: false, symbol, interval, provider: 'av', endpointDocId: docPath.split('/').pop()!, rangeUsed: { from, to, preset: presetApplied }, count: 0, bars: [], timestamp: new Date().toISOString(), error: 'NOT_FOUND', code: 'NOT_FOUND' };
       }
       const data = snap.data() as any;
       let bars: CompactBar[] = Array.isArray(data?.bars) ? data.bars : [];
+      logger.debug('reader.monthly.loaded', { allDocPath, count: bars.length });
       // Filter and sort ascending
       bars = bars.filter(b => (from == null || b.t >= from) && (to == null || b.t <= to)).sort((a, b) => a.t - b.t);
+      logger.debug('reader.monthly.filtered', { from, to, count: bars.length });
       // Enrich with ch/cp if missing
       if (bars.length && (bars[0].ch == null || bars[0].cp == null)) {
         bars = enrichWithChange(bars);
@@ -94,6 +102,7 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
         truncated = true;
         bars = bars.slice(-params.limit);
       }
+      logger.debug('reader.monthly.done', { truncated, finalCount: bars.length });
       return {
         ok: true,
         symbol,
@@ -111,31 +120,85 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
 
     // Daily/Weekly: read years
     const metaSnap = await db.doc(docPath).get();
+    logger.debug('reader.metaDoc', { docPath, exists: metaSnap.exists });
     if (!metaSnap.exists) {
       return { ok: false, symbol, interval, provider: 'av', endpointDocId: docPath.split('/').pop()!, rangeUsed: { from, to, preset: presetApplied }, count: 0, bars: [], timestamp: new Date().toISOString(), error: 'NOT_FOUND', code: 'NOT_FOUND' };
     }
     const meta = metaSnap.data() as any;
-    const availableYears: number[] = Array.isArray(meta?.metadata?.availableYears) ? meta.metadata.availableYears : [];
+    logger.debug('reader.meta', {
+      hasMeta: !!meta,
+      histStartTs: meta?.metadata?.histStartTs ?? meta?.histStartTs,
+      latestBarTimestamp: meta?.metadata?.latestBarTimestamp ?? meta?.latestBarTimestamp,
+    });
 
-    // Compute which years to read
-    const fromYear = from != null ? new Date(from).getUTCFullYear() : Math.min(...availableYears);
-    const toYear = to != null ? new Date(to).getUTCFullYear() : Math.max(...availableYears);
-    const yearsToRead = availableYears.filter(y => y >= fromYear && y <= toYear).sort((a, b) => a - b);
+    // Determine bounds from metadata (preferred) and clamp requested range
+    const lowerBoundMs: number | undefined = Number(meta?.metadata?.histStartTs ?? meta?.histStartTs ?? undefined);
+    // Use numeric histEndTs from metadata; latestBarTimestamp is a Firestore Timestamp object
+    const upperBoundMs: number | undefined = Number(meta?.metadata?.histEndTs ?? meta?.histEndTs ?? undefined);
+
+    // Start with requested years (from/to already resolved above)
+    let fromYear = from != null ? new Date(from).getUTCFullYear() : undefined;
+    let toYear = to != null ? new Date(to).getUTCFullYear() : undefined;
+
+    // If bounds exist, use them as defaults and clamps
+    if (fromYear == null && lowerBoundMs != null) fromYear = new Date(lowerBoundMs).getUTCFullYear();
+    if (toYear == null && upperBoundMs != null) toYear = new Date(upperBoundMs).getUTCFullYear();
+    if (lowerBoundMs != null && fromYear != null) {
+      const lbYear = new Date(lowerBoundMs).getUTCFullYear();
+      if (fromYear < lbYear) fromYear = lbYear;
+    }
+    if (upperBoundMs != null && toYear != null) {
+      const ubYear = new Date(upperBoundMs).getUTCFullYear();
+      if (toYear > ubYear) toYear = ubYear;
+    }
+
+    // If still undefined (no bounds and no explicit range), derive from preset defaults
+    if (fromYear == null || toYear == null) {
+      const nowYear = new Date(nowMs).getUTCFullYear();
+      // Conservative default windows mirror presets: DAILY=1y, WEEKLY=5y, MONTHLY=all (handled earlier)
+      const defaultSpanYears = interval === TimeSeriesInterval.WEEKLY ? 5 : 1;
+      toYear = toYear ?? nowYear;
+      fromYear = fromYear ?? (toYear - defaultSpanYears);
+    }
+
+    // Correct any inverted window after clamping (defensive)
+    if (fromYear != null && toYear != null && fromYear > toYear) {
+      logger.warn('reader.yearOrder.corrected', { fromYear, toYear, reason: 'inverted_after_clamp' });
+      const tmp = fromYear; fromYear = toYear; toYear = tmp;
+    }
+
+    // Generate inclusive list of years to read
+    const yearsToRead: number[] = [];
+    if (fromYear != null && toYear != null && fromYear <= toYear) {
+      for (let y = fromYear; y <= toYear; y++) yearsToRead.push(y);
+    }
+    logger.debug('reader.yearsToRead', { fromYear, toYear, yearsToRead });
 
     // Fetch all year docs in parallel
     const yearRefs = yearsToRead.map(y => db.doc(getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y)));
+    logger.debug('reader.yearDocs', { yearRefs });
     const yearSnaps = await Promise.all(yearRefs.map(r => r.get()));
 
     let allBars: CompactBar[] = [];
+    const existingYears: number[] = [];
     for (const s of yearSnaps) {
-      if (!s.exists) continue;
+      const yearId = Number(s.ref.id);
+      logger.debug('reader.yearDoc', { path: s.ref.path, yearId, exists: s.exists });
+      if (!s.exists) {
+        logger.debug('reader.year.missing', { path: s.ref.path, yearId });
+        continue;
+      }
       const d = s.data() as any;
       const yBars: CompactBar[] = Array.isArray(d?.bars) ? d.bars : [];
+      logger.debug('reader.year.loaded', { path: s.ref.path, yearId, count: yBars.length, firstBarTs: d?.firstBarTs, lastBarTs: d?.lastBarTs });
       allBars.push(...yBars);
+      if (!Number.isNaN(yearId)) existingYears.push(yearId);
     }
+    logger.debug('reader.yearsLoaded', { existingYears, preFilterCount: allBars.length });
 
     // Filter and sort ascending
     let bars = allBars.filter(b => (from == null || b.t >= from) && (to == null || b.t <= to)).sort((a, b) => a.t - b.t);
+    logger.debug('reader.postFilter', { from, to, count: bars.length });
 
     // Enrich with ch/cp if missing
     if (bars.length && (bars[0].ch == null || bars[0].cp == null)) {
@@ -148,6 +211,7 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
       truncated = true;
       bars = bars.slice(-params.limit);
     }
+    logger.debug('reader.done', { truncated, finalCount: bars.length });
 
     return {
       ok: true,
@@ -156,7 +220,7 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
       provider: 'av',
       endpointDocId: docPath.split('/').pop()!,
       rangeUsed: { from, to, preset: presetApplied },
-      availableYears,
+      availableYears: existingYears.length ? existingYears : undefined,
       count: bars.length,
       bars,
       timestamp: new Date().toISOString(),

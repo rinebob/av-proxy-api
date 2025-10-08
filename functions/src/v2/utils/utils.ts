@@ -14,6 +14,12 @@ export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVa
 // ------------------------------
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
 const LEVELS: Record<LogLevel, number> = { error: 0, warn: 1, info: 2, debug: 3 };
+/**
+ * Create a structured JSON logger with level-based filtering.
+ * Logs are emitted as single JSON objects for easy querying in Cloud Run.
+ * @param component A short name of the component/file to tag each entry.
+ * @returns An object with debug/info/warn/error functions.
+ */
 export function createLogger(component: string) {
   const envLevel = (process.env.LOG_LEVEL || 'info').toLowerCase() as LogLevel;
   const threshold = LEVELS[envLevel] ?? LEVELS.info;
@@ -40,10 +46,18 @@ export function createLogger(component: string) {
 const logger = createLogger('utils');
 
 export const HUMAN_LOGS = process.env.HUMAN_LOGS === 'true';
+/**
+ * Print a human-friendly line (disabled unless HUMAN_LOGS=true).
+ * Use for local debugging while keeping JSON logs clean in production.
+ */
 export function hr(component: string, message: string, ...args: unknown[]) {
   if (!HUMAN_LOGS) return;
   console.log(`${component} ${message}`, ...args);
 }
+/**
+ * Emit one or more blank lines to the human log stream.
+ * @param count Number of blank lines to print (default 1).
+ */
 export function hrBlank(count = 1) {
   if (!HUMAN_LOGS) return;
   for (let i = 0; i < count; i++) console.log('');
@@ -57,6 +71,10 @@ export function hrBlank(count = 1) {
 * Let's use a clear name for the parameter.
 */
 export const alphaVantageApiKeyParam = defineSecret("ALPHAVANTAGE_API_KEY");
+
+// Secrets for auth config (production). In emulator, fall back to process.env.
+const allowedServiceAccountsSecret = defineSecret("ALLOWED_SERVICE_ACCOUNT_EMAILS");
+const expectedGoogleAudienceSecret = defineSecret("EXPECTED_GOOGLE_AUDIENCE");
 
 // Only load .env in non-production environment
 if (process.env.FUNCTIONS_EMULATOR === 'true') {
@@ -147,24 +165,90 @@ async function validateGoogleOidcToken(idToken: string): Promise<any | null> {
   }
 }
 
-
 // Allowlisted service accounts are read from environment only.
 // Use uppercase key everywhere to satisfy Firebase env loader requirements.
 // i.e. ALLOWED_SERVICE_ACCOUNT_EMAILS="maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com"
 
+/**
+ * Read the allowlist of service account emails.
+ * Source: process.env.ALLOWED_SERVICE_ACCOUNT_EMAILS (comma-separated).
+ * Values are normalized to lowercase and trimmed.
+ */
 function getAllowedServiceAccounts(): string[] {
-  // Standardize on uppercase env var across environments
-  const raw = process.env.ALLOWED_SERVICE_ACCOUNT_EMAILS || '';
-  return raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => s.toLowerCase());
+  // Emulator/local: use process.env
+  if (process.env.FUNCTIONS_EMULATOR === 'true') {
+    const raw = process.env.ALLOWED_SERVICE_ACCOUNT_EMAILS || '';
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => s.toLowerCase());
+  }
+  // Production: use Secret Manager (mounted by Functions)
+  try {
+    const raw = allowedServiceAccountsSecret.value();
+    const str = typeof raw === 'string' ? raw : String(raw || '');
+    return str
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => s.toLowerCase());
+  } catch {
+    return [];
+  }
+}
+
+// Optional: expected Google audience (Cloud Run base URL) for Google ID tokens.
+// If provided, we will require aud to match exactly to mitigate token confusion.
+
+/**
+ * Optional expected Google audience (Cloud Run base URL) for Google ID tokens.
+ * If present, the audience (aud) must match exactly to mitigate token confusion.
+ * @returns The expected audience string or null if not configured.
+ */
+function getExpectedGoogleAudience(): string | null {
+  // Emulator/local
+  if (process.env.FUNCTIONS_EMULATOR === 'true') {
+    const aud = process.env.EXPECTED_GOOGLE_AUDIENCE || process.env.PARTNER_AUDIENCE || '';
+    return aud.trim() || null;
+  }
+  // Production from Secret Manager
+  try {
+    const raw = expectedGoogleAudienceSecret.value();
+    const aud = typeof raw === 'string' ? raw : String(raw || '');
+    return aud.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// Parse JWT payload without verification to quickly inspect iss/aud.
+
+/**
+ * Parse a JWT payload without verification to quickly inspect iss/aud.
+ * Use only for hints before full verification (e.g., tokeninfo/Admin SDK).
+ * @param token The JWT string.
+ * @returns The decoded payload object or null on failure.
+ */
+function decodeJwtPayload(token: string): any | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payload = parts[1]
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    const json = Buffer.from(payload, 'base64').toString('utf8');
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Accept either Firebase ID token OR Google OIDC from an allowlisted service account.
- * If Firebase verification fails, we attempt Google OIDC verification and allow if email matches allowlist.
+ * New logic: detect token type by iss/aud. If Google OIDC (iss accounts.google.com) with matching audience,
+ * validate via tokeninfo and allow when email is in allowlist. Skip Firebase verification on Google tokens to
+ * avoid audience mismatch errors. If Firebase token (aud equals Firebase project), verify via Admin SDK.
  */
 export async function authenticateRequestEither(
   req: any,
@@ -179,18 +263,91 @@ export async function authenticateRequestEither(
       return null;
     }
 
-    // Try Firebase first
-    const decodedFirebase = await authenticateFirebaseUser(idToken);
-    if (decodedFirebase) return decodedFirebase;
+    const decoded = decodeJwtPayload(idToken) || {};
+    const iss = String(decoded.iss || '');
+    const aud = String(decoded.aud || '');
+    const expectedGoogleAud = getExpectedGoogleAudience();
+    const firebaseProjectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.FIREBASE_CONFIG && (() => {
+      try { return JSON.parse(String(process.env.FIREBASE_CONFIG)).projectId as string; } catch { return ''; }
+    })() || '';
 
-    // Fall back to Google OIDC token for internal service accounts
+    // Branch 1: Google OIDC service-to-service path
+    const isGoogleIssuer = iss === 'https://accounts.google.com' || iss === 'accounts.google.com';
+    const googleAudOk = !expectedGoogleAud || aud === expectedGoogleAud;
+    createLogger('auth').debug('either.detect', { isGoogleIssuer, iss, aud, expectedGoogleAud, googleAudOk, hasAuthHeader: !!authHeader });
+
+    if (isGoogleIssuer && googleAudOk) {
+      // Verify with tokeninfo (low-QPS acceptable). Do NOT attempt Firebase verification on Google tokens.
+      const decodedOidc = await validateGoogleOidcToken(idToken);
+      createLogger('auth').debug('either.google.tokeninfo', {
+        valid: !!decodedOidc,
+        iss: decodedOidc?.iss,
+        aud: decodedOidc?.aud,
+        hasEmail: !!decodedOidc?.email,
+      });
+      if (decodedOidc) {
+        // If an expected audience is configured, enforce it on the verified payload as well.
+        if (expectedGoogleAud && String(decodedOidc.aud) !== expectedGoogleAud) {
+          createLogger('auth').warn('either.google.aud_mismatch', { expectedGoogleAud, got: decodedOidc.aud });
+          setCorsHeaders(res);
+          res.status(403).json({ error: 'Forbidden', message: 'Google ID token audience mismatch.' });
+          return null;
+        }
+        const email = String(decodedOidc.email || '').toLowerCase();
+        const allowed = getAllowedServiceAccounts();
+        createLogger('auth').debug('either.google.allowlist', { email, allowedCount: allowed.length, allowedSample: allowed.slice(0, 3) });
+        if (email && allowed.includes(email)) {
+          createLogger('auth').info('either.google.allowed', { email });
+          return { serviceAccountEmail: email };
+        }
+        createLogger('auth').warn('either.google.denied', { reason: 'email_not_allowlisted', email });
+      }
+      setCorsHeaders(res);
+      res.status(403).json({ error: 'Forbidden', message: 'Invalid or unauthorized Google ID token.' });
+      return null;
+    }
+
+    // Branch 2: Firebase ID token path (end-user/browser calls)
+    // Firebase ID tokens typically have aud equal to the Firebase project ID (or project number). We enforce projectId if available.
+    const decodedFirebase = await authenticateFirebaseUser(idToken).catch(() => null);
+    createLogger('auth').debug('either.firebase.verify', { valid: !!decodedFirebase, firebaseProjectId });
+    if (decodedFirebase) {
+      // If we can read aud from decoded (when Admin SDK returns it), prefer checking against projectId when available.
+      const tokenAud = String((decodedFirebase as any)?.aud || '');
+      createLogger('auth').debug('either.firebase.aud', { tokenAud });
+      if (!firebaseProjectId || tokenAud === firebaseProjectId || !tokenAud) {
+        createLogger('auth').info('either.firebase.allowed', { uid: (decodedFirebase as any)?.uid });
+        return decodedFirebase;
+      }
+      // If aud present and mismatched, reject to avoid accepting tokens for wrong project.
+      createLogger('auth').warn('either.firebase.denied', { reason: 'aud_mismatch', expected: firebaseProjectId, got: tokenAud });
+      setCorsHeaders(res);
+      res.status(403).json({ error: 'Forbidden', message: 'Firebase token audience mismatch.' });
+      return null;
+    }
+
+    // Fallback: try Google OIDC without relying on iss/aud decode (in case of missing fields in unsigned decode)
     const decodedOidc = await validateGoogleOidcToken(idToken);
+    createLogger('auth').debug('either.google.fallback.tokeninfo', {
+      valid: !!decodedOidc,
+      aud: decodedOidc?.aud,
+      hasEmail: !!decodedOidc?.email,
+    });
     if (decodedOidc) {
+      if (expectedGoogleAud && String(decodedOidc.aud) !== expectedGoogleAud) {
+        createLogger('auth').warn('either.google.fallback.aud_mismatch', { expectedGoogleAud, got: decodedOidc.aud });
+        setCorsHeaders(res);
+        res.status(403).json({ error: 'Forbidden', message: 'Google ID token audience mismatch.' });
+        return null;
+      }
       const email = String(decodedOidc.email || '').toLowerCase();
       const allowed = getAllowedServiceAccounts();
+      createLogger('auth').debug('either.google.fallback.allowlist', { email, allowedCount: allowed.length });
       if (email && allowed.includes(email)) {
+        createLogger('auth').info('either.google.fallback.allowed', { email });
         return { serviceAccountEmail: email };
       }
+      createLogger('auth').warn('either.google.fallback.denied', { reason: 'email_not_allowlisted', email });
     }
 
     setCorsHeaders(res);
