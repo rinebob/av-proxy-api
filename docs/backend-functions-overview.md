@@ -195,6 +195,34 @@ Files:
   - Weekly parent: `symbol-data/{SYMBOL}/time-series/av-weekly-adjusted`
   - Monthly parent: `symbol-data/{SYMBOL}/time-series/av-monthly-adjusted`
 
+### Data readiness semantics (PRE vs POST)
+
+The Data‑Ready Pub/Sub message indicates “what is safe to consume now.” Use the `runType` attribute to distinguish runs (see above). Guarantees per run:
+
+- PRE (Daily) — `runType=ts_daily_pre`
+  - For each tracked symbol’s daily series, the parent doc `symbol-data/{SYMBOL}/time-series/av-daily-adjusted` exists.
+  - The latest bar entry in the appropriate year shard may include intraday snapshot fields (`ip`, `io`, `it`, `ic`, `ipc`).
+  - The bar is NOT finalized; OHLC may still be the previous bar until POST. No parent freshness bump.
+  - Intended for early/pre-close RS computation that can tolerate intraday snapshots.
+
+- POST (Daily) — `runType=ts_daily_post`
+  - Finalized daily bar (OHLC, `ac`, `dv`, `sc`, derived deltas like `pc`, `ch`, `cp`) is written to the shard for each tracked symbol.
+  - Parent doc has freshness updated (`metadata.lastUpdated`, `nextRefreshAt`, `ttlSeconds`) and `latestBarTimestamp` set to the most recent finalized bar.
+  - This is the canonical time to compute RS on daily data with end‑of‑day correctness.
+
+- POST (Weekly) — `runType=ts_weekly_post`
+  - Finalized weekly bar written for each tracked symbol under `symbol-data/{SYMBOL}/time-series/av-weekly-adjusted` shards.
+  - Parent metadata updated accordingly.
+
+- POST (Monthly) — `runType=ts_monthly_post`
+  - Finalized monthly bar written for each tracked symbol under `symbol-data/{SYMBOL}/time-series/av-monthly-adjusted` shards.
+  - Parent metadata updated accordingly.
+
+Notes
+- Compact bar field reference is in this doc above under “Data Storage Model (Firestore) → Compact bar schema.”
+- PRE uses snapshot fields on the latest daily bar entry and does not finalize OHLC.
+- POST finalizes bars and bumps parent freshness; readers depending on finalized data should filter to POST runTypes.
+
 ### Benzinga Calendar (and News)
 
 NOTE: Benzinga integration is currently deprecated due to subscription unavailability. Calls will error with API key issues.
@@ -244,16 +272,63 @@ Files:
 
 ---
 
-## Clarifying: Where Functions Are Used
+## Partner Data-Ready Notifications (Pub/Sub)
 
-- `alphaVantageApiV2` / `benzingaApiV2`: internal HTTPS gateways used by your app. The refreshers do NOT call these gateways; refreshers invoke provider handlers directly.
-  - `alphaVantageApiV2` is used by the Data Maintainer view (internal admin tooling).
-  - `benzingaApiV2` is used by the Calendars view (deprecated until BZ subscription resumes).
-- `partnerTimeSeriesV2`: partner-only HTTPS endpoint for time-series reads served from Firestore shards (OIDC allowlist; no direct AV rate impact for partners).
-- `refreshAlphaVantageDataV2`: non-time-series freshness engine; runs via cron; writes data + metadata when stale.
-- `TS_*` schedules: time-series-only cadence respecting trading phases; bars written by handlers, parent docs updated.
-- `refreshBenzingaCalendarDataV2`: BZ calendar refresh cadence.
-- Health endpoints and scheduler: power your `Health View` and backend observability.
+- Topic: `partner-data-ready`
+- Publisher: `functions/src/v2/partner/data-ready.handler.ts` via `enqueueDataReadyInternal()`
+- Emission points:
+  - Non-time-series cycle completion: `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager.ts` → end of `runRefreshAlphaVantageDataV2()`
+  - Time-series scheduler completion: same file, after each of:
+    - `refreshAvDailyTimeSeriesPreClose` (PRE, daily)
+    - `refreshAvDailyTimeSeriesPostClose` (POST, daily)
+    - `refreshAvWeeklyMonthlyTimeSeriesPostClose` (POST, weekly+monthly)
+
+### Message format
+
+- Data (JSON): `DataReadyPayloadV1` (`functions/src/v2/partner/schemas/data-ready.schema.ts`)
+  - Required
+    - `version`: "v1"
+    - `runId`: `YYYY-MM-DD-pre|post`
+    - `phase`: `pre` | `post` (see `PartnerPhase`)
+    - `intervals`: e.g., `["DAILY"]`, `["WEEKLY"]`, `["MONTHLY"]`
+    - `time`: epoch ms
+  - Optional
+    - `marketDate`: `YYYY-MM-DD`
+    - `env`: environment tag
+    - `symbolsUpdatedCount`, `baselinesUpdatedCount`, etc.
+
+- Attributes (string key/values)
+  - Always
+    - `runId`, `version`, `phase`
+    - Optionally `marketDate`, `env`
+  - Explicit run classification
+    - `runType`: see `PartnerRunType` in `functions/src/v2/partner/constants.ts`
+      - `non_time_series`
+      - `ts_daily_pre`
+      - `ts_daily_post`
+      - `ts_weekly_post`
+      - `ts_monthly_post`
+
+Notes:
+- Time-series schedulers emit one message per interval (e.g., daily and weekly/monthly are separate messages).
+- Non-time-series emits with `runType=non_time_series`.
+
+### Consumer guidance (filtered subscriptions)
+
+Use Pub/Sub subscription filters to target only the events you need. Example filters:
+
+- Time-series only (all phases):
+  - `attributes.runType = "ts_daily_pre" OR attributes.runType = "ts_daily_post" OR attributes.runType = "ts_weekly_post" OR attributes.runType = "ts_monthly_post"`
+
+- Finalized bars only (post-close):
+  - `attributes.runType = "ts_daily_post" OR attributes.runType = "ts_weekly_post" OR attributes.runType = "ts_monthly_post"`
+
+- Exclude non-time-series entirely:
+  - `attributes.runType != "non_time_series"`
+
+IAM
+- Grant consumer service accounts `roles/pubsub.subscriber` on the subscription and appropriate topic visibility.
+- For cross-team setups, we (publisher project) typically create the subscription and bind the consumer SA to it.
 
 ---
 
