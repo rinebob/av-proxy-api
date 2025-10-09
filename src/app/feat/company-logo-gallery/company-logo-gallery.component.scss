@@ -1,4 +1,5 @@
 @use '@angular/material' as mat;
+@use 'sass:color';
 
 // Define default colors if theme is not available
 $primary: #3f51b5;
@@ -83,7 +84,7 @@ $warn: #f44336;
   
   h2 {
     margin-bottom: 1.5rem;
-    color: darken($primary, 10%);
+    color: color.adjust($primary, $lightness: -10%);
   }
   
   .logo-grid {
@@ -169,7 +170,7 @@ $warn: #f44336;
   p {
     margin: 0;
     font-size: 1rem;
-    color: lighten($primary, 10%);
+    color: color.adjust($primary, $lightness: 10%);
     max-width: 400px;
   }
 }

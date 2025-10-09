@@ -2,7 +2,7 @@
 @use 'styles/variables' as v;
 
 // Material Icons
-@import 'https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined';
+// Loading Material Icons from local package via angular.json styles entries
 
 /* Global styles */
 :root {
