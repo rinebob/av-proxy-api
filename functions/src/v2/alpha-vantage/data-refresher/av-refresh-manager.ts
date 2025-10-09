@@ -21,7 +21,7 @@ import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-pat
 import { refreshLogger } from '../../services/refresh-logger.service';
 import { enqueueDataReadyInternal } from '../../partner/data-ready.handler';
 import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema';
-import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase } from '../../partner/constants';
+import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerRunType } from '../../partner/constants';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 
 // Structured logger (shared)
@@ -430,7 +430,8 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
       env: (process.env.NODE_ENV || 'dev') as string,
     };
 
-    await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL);
+    // Explicitly mark this as a non-time-series run for consumer filtering
+    await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { runType: PartnerRunType.NON_TIME_SERIES });
   } catch (error: any) {
     log.error('announce.error', { error: String(error?.message || error) });
   }
@@ -600,5 +601,47 @@ async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: {
         } catch {}
       }
     }
+  }
+
+  // After all endpoints and symbols processed, announce data-ready for these intervals
+  try {
+    const tz = 'America/New_York';
+    const now = new Date();
+    const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+    const marketDate = fmtDate.format(now); // YYYY-MM-DD
+
+    // Map endpoints -> intervals
+    const intervals = Array.from(new Set(endpoints.map((e) => {
+      if (e === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED) return TimeSeriesInterval.DAILY;
+      if (e === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED) return TimeSeriesInterval.WEEKLY;
+      if (e === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED) return TimeSeriesInterval.MONTHLY;
+      return null as any;
+    }).filter(Boolean))) as TimeSeriesInterval[];
+
+    const phase: PartnerPhase = (options.phase === TradingPhase.PRE ? PartnerPhase.PRE : PartnerPhase.POST);
+    const runId = `${marketDate}-${phase}`;
+
+    // Emit one message per interval with explicit runType to minimize consumer-side filtering
+    for (const interval of intervals) {
+      const payload: DataReadyPayloadV1 = {
+        version: 'v1',
+        runId,
+        phase,
+        intervals: [interval],
+        time: Date.now(),
+        marketDate,
+        env: (process.env.NODE_ENV || 'dev') as string,
+      };
+
+      let runType: PartnerRunType = PartnerRunType.NON_TIME_SERIES; // default not used below
+      if (interval === TimeSeriesInterval.DAILY && phase === PartnerPhase.PRE) runType = PartnerRunType.TS_DAILY_PRE;
+      else if (interval === TimeSeriesInterval.DAILY && phase === PartnerPhase.POST) runType = PartnerRunType.TS_DAILY_POST;
+      else if (interval === TimeSeriesInterval.WEEKLY && phase === PartnerPhase.POST) runType = PartnerRunType.TS_WEEKLY_POST;
+      else if (interval === TimeSeriesInterval.MONTHLY && phase === PartnerPhase.POST) runType = PartnerRunType.TS_MONTHLY_POST;
+
+      await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { runType });
+    }
+  } catch (e: any) {
+    console.error('Failed to enqueue data-ready after time-series run', e?.message || e);
   }
 }

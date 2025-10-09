@@ -49,6 +49,7 @@ async function publishToPubSub(payload: DataReadyPayloadV1, attributes: Record<s
 export async function enqueueDataReadyInternal(
   payload: DataReadyPayloadV1,
   callerEmail?: string,
+  extraAttributes?: Record<string, string>,
 ): Promise<{ ok: true; requestId: string; messageId?: string; status: string }>
 {
   const requestId = randomUUID();
@@ -100,6 +101,11 @@ export async function enqueueDataReadyInternal(
   };
   if (validPayload.marketDate) attributes.marketDate = validPayload.marketDate;
   if (validPayload.env) attributes.env = validPayload.env;
+  if (extraAttributes) {
+    for (const [k, v] of Object.entries(extraAttributes)) {
+      if (v != null) attributes[k] = String(v);
+    }
+  }
 
   const messageId = await publishToPubSub(validPayload, attributes);
 
