@@ -68,7 +68,8 @@ export async function enqueueDataReadyInternal(
   const existing = await runRef.get();
   if (existing.exists) {
     const status = existing.get('status');
-    if (status && status !== 'failed') {
+    const isHeartbeat = extraAttributes?.heartbeat === 'true';
+    if (!isHeartbeat && status && status !== 'failed') {
       return { ok: true, requestId, status };
     }
   }
@@ -91,6 +92,7 @@ export async function enqueueDataReadyInternal(
       auth: { email: (callerEmail || INTERNAL_PUBLISHER_AUDIT_EMAIL).toLowerCase() },
       payloadVersion: validPayload.version,
     },
+    lastEnqueuedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
   // Publish to Pub/Sub

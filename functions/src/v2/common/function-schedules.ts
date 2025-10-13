@@ -112,11 +112,11 @@ export const OLD_SYNC_REQUEST_CLEANUP_SCHEDULE = '0 0 * * 0';
 /**
  * Heartbeat publisher schedule for partner-data-ready topic.
  *
- * Purpose: emit frequent test messages so external subscribers can validate wiring.
- * Cron: every 5 minutes
+ * Purpose: emit periodic test messages so external subscribers can validate wiring.
+ * Cron: every 6 hours
  * Timezone: set at function registration.
  */
-export const PARTNER_HEARTBEAT_SCHEDULE = 'every 5 minutes';
+export const PARTNER_HEARTBEAT_SCHEDULE = 'every 6 hours';
 
 // Central trading phase enum for time-series runs
 /**
