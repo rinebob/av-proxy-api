@@ -33,29 +33,45 @@ export interface AvTimeSeriesNormalized {
 }
 
 /**
+ * Human-readable day-of-week for persisted bars.
+ */
+export enum DayOfWeek {
+  Sun = 'Sun',
+  Mon = 'Mon',
+  Tue = 'Tue',
+  Wed = 'Wed',
+  Thu = 'Thu',
+  Fri = 'Fri',
+  Sat = 'Sat',
+}
+
+/**
  * Shared Firestore time-series compact bar schema.
  * This matches the persisted short-key format used by time-series writers (AV adjusted series).
- * Fields are required per our persisted schema for AV daily/weekly/monthly adjusted.
+ * During PRE (intraday), only a subset (date, dow, ip/io/it) may be present.
+ * POST (daily adjusted) fills OHLC/adjusted fields.
  */
 export interface CompactBar {
   // epoch millis at 00:00:00Z (for daily/weekly/monthly)
   t: number;
   // human-readable ISO date (YYYY-MM-DD, UTC). Added by writers/backfill.
   d?: string;
+  // required human-readable day-of-week (ET) for display/debug
+  dow: DayOfWeek;
 
-  // OHLC
-  o: number;
-  h: number;
-  l: number;
-  c: number;
+  // OHLC (optional for PRE/intraday; expected after POST finalize)
+  o?: number;
+  h?: number;
+  l?: number;
+  c?: number;
 
-  // Volume (always present in our stored bars)
-  v: number;
+  // Volume (optional for PRE/intraday; expected after POST finalize)
+  v?: number;
 
-  // Adjusted series fields (always present for our stored AV adjusted series)
-  ac: number; // adjusted close
-  dv: number; // dividend amount
-  sc: number; // split coefficient
+  // Adjusted series fields (optional during PRE; populated by POST daily adjusted write)
+  ac?: number; // adjusted close
+  dv?: number; // dividend amount
+  sc?: number; // split coefficient
   // Previous close may not always be set by provider for time-series; optional
   pc?: number; // previous close (if present in provider payload)
 
@@ -69,6 +85,6 @@ export interface CompactBar {
   it?: string; // intradayTime derived as 'HH:mm' in America/New_York from io
 
   // Intraday delta metrics (computed at pre-close snapshot time)
-  ic: number | null; // intradayChange = ip - previousClose (null when no prior bar)
-  ipc: number | null; // intradayPercentChange = (ic / previousClose) * 100 (null when no prior bar)
+  ic?: number | null; // intradayChange = ip - previousClose (null when no prior bar)
+  ipc?: number | null; // intradayPercentChange = (ic / previousClose) * 100 (null when no prior bar)
 }

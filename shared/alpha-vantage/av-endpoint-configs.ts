@@ -514,26 +514,6 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
     interval: TimeSeriesInterval.MONTHLY,
     displayOrder: 3
   },
-  // TODO: Work on this later
-//   [AlphaVantageEndpoint.TIME_SERIES_INTRADAY]: {
-//     id: AlphaVantageEndpoint.TIME_SERIES_INTRADAY,
-//     name: 'Intraday Time Series',
-//     provider: ApiProvider.ALPHA_VANTAGE,
-//     category: 'TIME_SERIES',
-//     apiEndpoint: '/query',
-//     method: HttpMethod.GET,
-//     description: 'Intraday open, high, low, close, and volume for a symbol.',
-//     ttl: 60 * 5, // 5 minutes
-//     requiresSymbol: true,
-//     symbolUsage: EndpointSymbolUsage.REQUIRED,
-//     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.INTRADAY}/av-${FirestoreCollection.INTRADAY}`,
-//     documentationUrl: 'https://www.alphavantage.co/documentation/#intraday',
-//     parameters: {
-//       symbol: { type: 'string', required: true, description: 'Symbol' },
-//       interval: { type: 'string', required: true, description: 'Interval' }
-//     },
-//     interval: TimeSeriesInterval.INTRADAY
-//   },
   [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]: {
     id: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
     name: 'Daily Adjusted Time Series',
@@ -605,6 +585,26 @@ export const AV_TIME_SERIES_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoin
     },
     interval: TimeSeriesInterval.MONTHLY,
     displayOrder: 3
+  },
+  [AlphaVantageEndpoint.TIME_SERIES_INTRADAY]: {
+    id: AlphaVantageEndpoint.TIME_SERIES_INTRADAY,
+    name: 'Intraday Time Series',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.TIME_SERIES,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Intraday open, high, low, close, and volume for a symbol.',
+    ttl: 60, // 60s cache window
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    documentationUrl: 'https://www.alphavantage.co/documentation/#intraday',
+    parameters: {
+      symbol: { type: 'string', required: true, description: 'Symbol' },
+      interval: { type: 'string', required: true, description: 'Interval', enum: ['1min'] },
+      outputsize: { type: 'string', required: false, description: 'Response size (compact or full)', enum: ['compact', 'full'], default: OutputSize.COMPACT },
+      datatype: { type: 'string', required: false, description: 'Data type for the response', enum: ['json', 'csv'], default: 'json' },
+    },
+    interval: TimeSeriesInterval.INTRADAY,
+    displayOrder: 0,
   },
 };
 
