@@ -239,6 +239,78 @@ File: `functions/src/v2/benzinga/data-refresher/bz-calendar-refresh-manager.ts`
 - Freshness gate via `metadata.nextRefreshAt`; fetches using the appropriate BZ handler
 - Writes payload + refresh metadata via `RefreshInfoService.updateDocumentWithRefreshInfo()` and logs via refresh logger + Health Metrics
 
+#### Operational: Pause or disable Benzinga scheduled refreshers (production)
+
+NOTE: Jobs are currently PAUSED.  See below for instructions to unpause.  Functions remain deployed however.
+To remove deployed functions, comment out or remove their entries from functions/src/index.ts.  You will be prompted
+to delete the functions during the next deployment.
+
+- __Unpause the Cloud Scheduler jobs (immediate, no deploy)__
+
+- Unpause (resume) the jobs:
+    ```bash
+    gcloud scheduler jobs resume firebase-schedule-refreshBenzingaCalendarDataV2-us-central1 --location=us-central1
+    gcloud scheduler jobs resume firebase-schedule-requestBenzingaNews-us-central1            --location=us-central1
+    ```
+    Verify they are ACTIVE:
+    ```bash
+    gcloud scheduler jobs describe firebase-schedule-refreshBenzingaCalendarDataV2-us-central1 --location=us-central1 --format="value(state)"
+    gcloud scheduler jobs describe firebase-schedule-requestBenzingaNews-us-central1            --location=us-central1 --format="value(state)"
+    ```
+
+If you need to immediately stop all Benzinga refreshes in production, use one of the following options.
+
+- __Pause the Cloud Scheduler jobs (immediate, no deploy)__
+  - Project: `alpha-vantage-proxy-api`
+  - Region: `us-central1` (per current deployment)
+  - List jobs and confirm names:
+    ```bash
+    gcloud scheduler jobs list --location=us-central1 \
+      --format="table(name,location)" \
+      --filter="name~firebase-schedule|refreshBenzinga|requestBenzinga"
+    ```
+  - Pause the two Benzinga jobs:
+    ```bash
+    gcloud scheduler jobs pause firebase-schedule-refreshBenzingaCalendarDataV2-us-central1 --location=us-central1
+    gcloud scheduler jobs pause firebase-schedule-requestBenzingaNews-us-central1            --location=us-central1
+    ```
+  - Current state: As of 2025-10-13, BOTH of the above jobs are PAUSED in `us-central1`.
+  - Verify state:
+    ```bash
+    gcloud scheduler jobs describe firebase-schedule-refreshBenzingaCalendarDataV2-us-central1 --location=us-central1 --format="value(state)"
+    gcloud scheduler jobs describe firebase-schedule-requestBenzingaNews-us-central1            --location=us-central1 --format="value(state)"
+    ```
+  
+
+- __Kill-switch via env var (requires redeploy; jobs still trigger but no-op)__
+  - Both scheduled handlers check `DISABLE_BENZINGA_UPDATERS`:
+    - `functions/src/v2/benzinga/data-refresher/bz-calendar-refresh-manager.ts`
+    - `functions/src/v2/benzinga/data-refresher/bz-news-request-manager.ts`
+  - Set the runtime env var and redeploy:
+    ```bash
+    # Firebase Console → Build → Functions → Runtime environment variables
+    # Add: DISABLE_BENZINGA_UPDATERS=true
+    npm --prefix functions run deploy
+    ```
+
+- __Remove scheduled exports (permanent; deletes jobs on deploy)__
+  - Edit `functions/src/index.ts` and remove:
+    ```ts
+    export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager';
+    export { requestBenzingaNews } from './v2/benzinga/data-refresher/bz-news-request-manager';
+    ```
+  - Deploy:
+    ```bash
+    npm --prefix functions run deploy
+    ```
+  - Firebase will delete the corresponding `firebase-schedule-*` jobs automatically when the functions are no longer exported.
+
+- __Verification__
+  - Logs: no more "Benzinga Calendar Data Refresh Cycle" or "Benzinga News Request Manager triggered" entries.
+  - Firestore: `system-info/bz-news-request-tracking.lastRefreshTimestamp` stops updating; `news/` no longer receives new docs.
+
+> Note: If cleaning up production data, you may safely delete BZ-specific collections/documents (e.g., `news`, any `market-data/benzinga/*` paths) after pausing or disabling the jobs above to avoid repopulation.
+
 ---
 
 ## Symbol Added Flow
