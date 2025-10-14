@@ -6,6 +6,7 @@ import { ApiProvider, ApiResponse } from '@shared/core';
 import { FirestoreCollection } from '@shared/firestore';
 import type { EndpointConfig } from '@shared/core';
 import type { CompactBar } from '@shared/alpha-vantage';
+import { DayOfWeek } from '@shared/alpha-vantage';
 import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
@@ -110,7 +111,7 @@ export async function saveAvData(
  *
  * - DAILY/WEEKLY (year-sharded):
  *   path = getSymbolTimeSeriesYearDocPath(symbol, endpoint, AV, {YYYY})
- *   doc = { bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }
+ *   doc = { bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt, latest }
  *
  * - MONTHLY (single ‘all’ doc):
  *   path = getSymbolTimeSeriesAllDocPath(symbol, endpoint, AV)
@@ -194,10 +195,14 @@ export async function saveAvTimeSeriesData(
       const intradayTime = intradayObservedAt != null && Number.isFinite(intradayObservedAt)
         ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(intradayObservedAt))
         : undefined;
+      // Compute DOW based on the trading date string (UTC day) to reflect the bar's trading day
+      const dStr = new Date(t).toISOString().slice(0, 10);
+      const dow = computeDowFromDateString(dStr);
       const bar: CompactBar = {
         t,
         // Store human-readable date string in UTC (YYYY-MM-DD) for ease of display/debugging
-        d: new Date(t).toISOString().slice(0, 10),
+        d: dStr,
+        dow,
         o: Number(b.open),
         h: Number(b.high),
         l: Number(b.low),
@@ -244,11 +249,17 @@ export async function saveAvTimeSeriesData(
     if (interval === TimeSeriesInterval.MONTHLY) {
       // Single 'all' doc
       const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
+      const latestBar = compactBars[compactBars.length - 1] ?? null;
+      const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
+      const latestEtDateTime = latestBar?.t != null ? formatEtDateTime(latestBar.t) : null;
       batch.set(db.doc(allDocPath), {
         bars: compactBars,
         count: compactBars.length,
         firstBarTs: compactBars[0]?.t ?? null,
         lastBarTs: compactBars[compactBars.length - 1]?.t ?? null,
+        latest: latestBar,
+        latestUtcIso,
+        latestEtDateTime,
         updatedAt: Timestamp.now(),
       }, { merge: true });
       opsInBatch++;
@@ -256,11 +267,21 @@ export async function saveAvTimeSeriesData(
       // Year-sharded DAILY / WEEKLY
       for (const [year, bars] of barsByYear.entries()) {
         const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year);
+        const latestBar = bars[bars.length - 1] ?? null;
+        const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
+        const latestEtDateTime = latestBar?.t != null ? formatEtDateTime(latestBar.t) : null;
+        const latestIoUtcIso = latestBar?.io != null ? new Date(Number(latestBar.io)).toISOString() : null;
+        const latestIoEtDateTime = latestBar?.io != null ? formatEtDateTime(Number(latestBar.io)) : null;
         batch.set(db.doc(yearDocPath), {
           bars,
           count: bars.length,
           firstBarTs: bars[0]?.t ?? null,
           lastBarTs: bars[bars.length - 1]?.t ?? null,
+          latest: latestBar,
+          latestUtcIso,
+          latestEtDateTime,
+          latestIoUtcIso,
+          latestIoEtDateTime,
           updatedAt: Timestamp.now(),
         }, { merge: true });
         opsInBatch++;
@@ -475,22 +496,20 @@ export async function upsertAvDailyBar(options: {
       ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
       dv: Number(patch.dv ?? existing.dv ?? 0),
       sc: Number(patch.sc ?? existing.sc ?? 1),
-      pc: patch.pc != null ? Number(patch.pc) : existing.pc,
-      ch: patch.ch != null ? Number(patch.ch) : existing.ch,
-      cp: patch.cp != null ? Number(patch.cp) : existing.cp,
       ip: patch.ip != null ? Number(patch.ip) : existing.ip,
       io,
       it,
       ic: patch.ic != null ? Number(patch.ic) : ((existing as any).ic ?? null),
       ipc: patch.ipc != null ? Number(patch.ipc) : ((existing as any).ipc ?? null),
+      dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
     } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
-
     bars[idx] = { ...existing, ...patchBar } as CompactBar;
   } else {
     // Insert new bar
     const newBar: CompactBar = {
       t,
       d: new Date(t).toISOString().slice(0, 10),
+      dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
       o: Number(patch.o ?? 0),
       h: Number(patch.h ?? (patch.o ?? 0)),
       l: Number(patch.l ?? (patch.o ?? 0)),
@@ -514,12 +533,22 @@ export async function upsertAvDailyBar(options: {
   }
 
   // Sort ascending for deterministic writes and update year doc aggregate fields
+  const latestBar = bars[bars.length - 1] ?? null;
+  const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
+  const latestEtDateTime = latestBar?.t != null ? formatEtDateTime(latestBar.t) : null;
+  const latestIoUtcIso = latestBar?.io != null ? new Date(Number(latestBar.io)).toISOString() : null;
+  const latestIoEtDateTime = latestBar?.io != null ? formatEtDateTime(Number(latestBar.io)) : null;
   bars.sort((a, b) => a.t - b.t);
   await yearRef.set({
     bars,
     count: bars.length,
     firstBarTs: bars[0]?.t ?? null,
     lastBarTs: bars[bars.length - 1]?.t ?? null,
+    latest: latestBar,
+    latestUtcIso,
+    latestEtDateTime,
+    latestIoUtcIso,
+    latestIoEtDateTime,
     updatedAt: Timestamp.now(),
   }, { merge: true });
 
@@ -569,12 +598,14 @@ export async function upsertAvWeeklyBar(options: {
       ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
       dv: Number(patch.dv ?? existing.dv ?? 0),
       sc: Number(patch.sc ?? existing.sc ?? 1),
+      dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
     } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
     bars[idx] = { ...existing, ...patchBar } as CompactBar;
   } else {
     const newBar: CompactBar = {
       t,
       d: new Date(t).toISOString().slice(0, 10),
+      dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
       o: Number(patch.o ?? 0),
       h: Number(patch.h ?? (patch.o ?? 0)),
       l: Number(patch.l ?? (patch.o ?? 0)),
@@ -590,12 +621,18 @@ export async function upsertAvWeeklyBar(options: {
   }
 
   // Sort ascending for deterministic writes
+  const latestBarW = bars[bars.length - 1] ?? null;
+  const latestUtcIsoW = latestBarW?.t != null ? new Date(latestBarW.t).toISOString() : null;
+  const latestEtDateTimeW = latestBarW?.t != null ? formatEtDateTime(latestBarW.t) : null;
   bars.sort((a, b) => a.t - b.t);
   await yearRef.set({
     bars,
     count: bars.length,
     firstBarTs: bars[0]?.t ?? null,
     lastBarTs: bars[bars.length - 1]?.t ?? null,
+    latest: latestBarW,
+    latestUtcIso: latestUtcIsoW,
+    latestEtDateTime: latestEtDateTimeW,
     updatedAt: Timestamp.now(),
   }, { merge: true });
 
@@ -646,12 +683,14 @@ export async function upsertAvMonthlyBar(options: {
       ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
       dv: Number(patch.dv ?? existing.dv ?? 0),
       sc: Number(patch.sc ?? existing.sc ?? 1),
+      dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
     } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
     bars[idx] = { ...existing, ...patchBar } as CompactBar;
   } else {
     const newBar: CompactBar = {
       t,
       d: new Date(t).toISOString().slice(0, 10),
+      dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
       o: Number(patch.o ?? 0),
       h: Number(patch.h ?? (patch.o ?? 0)),
       l: Number(patch.l ?? (patch.o ?? 0)),
@@ -667,12 +706,18 @@ export async function upsertAvMonthlyBar(options: {
   }
 
   // Sort ascending for deterministic writes
+  const latestBarM = bars[bars.length - 1] ?? null;
+  const latestUtcIsoM = latestBarM?.t != null ? new Date(latestBarM.t).toISOString() : null;
+  const latestEtDateTimeM = latestBarM?.t != null ? formatEtDateTime(latestBarM.t) : null;
   bars.sort((a, b) => a.t - b.t);
   await allRef.set({
     bars,
     count: bars.length,
     firstBarTs: bars[0]?.t ?? null,
     lastBarTs: bars[bars.length - 1]?.t ?? null,
+    latest: latestBarM,
+    latestUtcIso: latestUtcIsoM,
+    latestEtDateTime: latestEtDateTimeM,
     updatedAt: Timestamp.now(),
   }, { merge: true });
 
@@ -682,6 +727,82 @@ export async function upsertAvMonthlyBar(options: {
     interval: TimeSeriesInterval.MONTHLY,
     latestDate: date,
   });
+}
+
+/**
+ * Upserts a single daily bar (YYYY-MM-DD) with intraday-only fields (ip/io/it) and optional dow.
+ * This helper is used by PRE-close intraday flow to create the day’s bar strictly when intraday data exists for today ET.
+ * Keep schema stable by providing safe numeric defaults for required numeric fields when creating a new bar; do not bump parent metadata.
+ *
+ * @param options.symbol Stock symbol
+ * @param options.date ISO date (UTC day)
+ * @param options.ip Latest intraday price
+ * @param options.io Epoch ms of the latest intraday bar timestamp
+ * @param options.dow Optional day-of-week (0=Sun..6=Sat) in ET
+ */
+export async function upsertAvDailyIntradaySnapshot(options: {
+  symbol: string;
+  date: string; // YYYY-MM-DD (ET-derived trading date)
+  ip: number;   // latest intraday price
+  io: number;   // epoch ms of the latest intraday bar timestamp
+  dow: DayOfWeek; // required human-readable day-of-week (ET)
+}): Promise<void> {
+  const { symbol, date, ip, io, dow } = options;
+  const vendor = ApiProvider.ALPHA_VANTAGE;
+  const t = new Date(`${date}T00:00:00.000Z`).getTime();
+  const y = getYearFromEpochMillis(t);
+  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, vendor, y);
+  const yearRef = db.doc(yearDocPath);
+  const snap = await yearRef.get();
+  const bars: any[] = snap.exists ? (snap.get('bars') ?? []) : [];
+
+  const idx = bars.findIndex((b) => b.t === t);
+  const it = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io));
+
+  if (idx >= 0) {
+    const existing = bars[idx] || {};
+    const merged = {
+      ...existing,
+      // preserve existing OHLC/adj fields if present; only update intraday snapshot and dow
+      ip: Number(ip),
+      io: Number(io),
+      it,
+      dow,
+    };
+    bars[idx] = merged;
+  } else {
+    // Create a minimal intraday-provisional bar: only date, dow, and intraday fields.
+    const newBar = {
+      t,
+      d: new Date(t).toISOString().slice(0, 10),
+      dow,
+      // intraday snapshot
+      ip: Number(ip),
+      io: Number(io),
+      it,
+    };
+    bars.push(newBar);
+  }
+
+  // Sort ascending for deterministic writes
+  const latestBarI = bars[bars.length - 1] ?? null;
+  const latestUtcIsoI = latestBarI?.t != null ? new Date(latestBarI.t).toISOString() : null;
+  const latestEtDateTimeI = latestBarI?.t != null ? formatEtDateTime(latestBarI.t) : null;
+  const latestIoUtcIsoI = latestBarI?.io != null ? new Date(Number(latestBarI.io)).toISOString() : null;
+  const latestIoEtDateTimeI = latestBarI?.io != null ? formatEtDateTime(Number(latestBarI.io)) : null;
+  bars.sort((a, b) => a.t - b.t);
+  await yearRef.set({
+    bars,
+    count: bars.length,
+    firstBarTs: bars[0]?.t ?? null,
+    lastBarTs: bars[bars.length - 1]?.t ?? null,
+    latest: latestBarI,
+    latestUtcIso: latestUtcIsoI,
+    latestEtDateTime: latestEtDateTimeI,
+    latestIoUtcIso: latestIoUtcIsoI,
+    latestIoEtDateTime: latestIoEtDateTimeI,
+    updatedAt: Timestamp.now(),
+  }, { merge: true });
 }
 
 /**
@@ -782,4 +903,36 @@ export async function getPreviousAdjustedClose(options: {
   if (typeof candidate.ac === 'number' && Number.isFinite(candidate.ac)) return candidate.ac;
   if (typeof candidate.c === 'number' && Number.isFinite(candidate.c)) return candidate.c;
   return null;
+}
+
+/**
+ * Computes DayOfWeek from a trading date string (YYYY-MM-DD).
+ * Uses the UTC date (midnight Z) to reflect the bar's trading day (Mon-Fri).
+ */
+function computeDowFromDateString(d: string): DayOfWeek {
+  const dt = new Date(`${d}T00:00:00.000Z`);
+  const day = dt.getUTCDay(); // 0=Sun..6=Sat
+  switch (day) {
+    case 0: return DayOfWeek.Sun;
+    case 1: return DayOfWeek.Mon;
+    case 2: return DayOfWeek.Tue;
+    case 3: return DayOfWeek.Wed;
+    case 4: return DayOfWeek.Thu;
+    case 5: return DayOfWeek.Fri;
+    case 6: return DayOfWeek.Sat;
+    default: return DayOfWeek.Mon;
+  }
+}
+
+/**
+ * Formats an ET date-time string with seconds (YYYY-MM-DD HH:mm:ss) for a given epoch millis.
+ */
+function formatEtDateTime(tsMs: number): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date(tsMs));
+  const m = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second}`;
 }

@@ -8,6 +8,7 @@ import { AvSymbolSearchHandler } from './handlers/av-symbol-search.handler';
 import { AvHistoricalOptionsHandler } from './handlers/av-historical-options.handler';
 import { AvWeeklyTimeSeriesHandler } from './handlers/av-weekly-time-series.handler';
 import { AvMonthlyTimeSeriesHandler } from './handlers/av-monthly-time-series.handler';
+import { AvIntradayHandler } from './handlers/av-intraday.handler';
 
 type HandlerConstructor = new (config: EndpointConfig | TimeSeriesEndpointConfig) => any;
 
@@ -21,6 +22,8 @@ const HANDLER_MAP: Record<string, HandlerConstructor> = {
   // Monthly
   [AlphaVantageEndpoint.TIME_SERIES_MONTHLY]: AvMonthlyTimeSeriesHandler as unknown as HandlerConstructor,
   [AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED]: AvMonthlyTimeSeriesHandler as unknown as HandlerConstructor,
+  // Intraday (read-only helper, no Firestore writes)
+  [AlphaVantageEndpoint.TIME_SERIES_INTRADAY]: AvIntradayHandler as unknown as HandlerConstructor,
   [AlphaVantageEndpoint.GLOBAL_QUOTE]: AvGlobalQuoteHandler,
   [AlphaVantageEndpoint.OVERVIEW]: AvCompanyOverviewHandler,
   [AlphaVantageEndpoint.REALTIME_BULK_QUOTES]: AvBulkQuoteHandler,

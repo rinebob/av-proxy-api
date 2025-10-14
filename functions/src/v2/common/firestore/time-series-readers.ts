@@ -264,9 +264,10 @@ function enrichWithChange(bars: CompactBar[]): CompactBar[] {
   // bars are expected ascending here
   let prevClose: number | undefined = undefined;
   return bars.map((b, idx) => {
-    const ch = idx === 0 || prevClose == null ? 0 : Number((b.c - prevClose).toFixed(2));
-    const cp = idx === 0 || prevClose == null || prevClose === 0 ? 0 : Number((((b.c - prevClose) / prevClose) * 100).toFixed(2));
-    prevClose = b.c;
+    const curr = (typeof b.ac === 'number' ? b.ac : b.c);
+    const ch = (idx === 0 || prevClose == null || curr == null) ? 0 : Number((curr - prevClose).toFixed(2));
+    const cp = (idx === 0 || prevClose == null || prevClose === 0 || curr == null) ? 0 : Number((((curr - prevClose) / prevClose) * 100).toFixed(2));
+    prevClose = curr ?? prevClose;
     return { ...b, ch, cp } as CompactBar;
   });
 }

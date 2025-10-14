@@ -543,38 +543,7 @@ async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: {
       try {
         const apiStart = Date.now();
         const handler = AlphaVantageHandlerFactory.createHandler(endpoint as any);
-        // Build base params and propagate phase
         const baseParams: any = { symbol, outputsize: 'compact', __checkWriteToggle: false, __phase: options.phase ?? TradingPhase.POST };
-        // For pre-close DAILY, enrich with a best-effort intraday price snapshot from GLOBAL_QUOTE
-        if ((options.phase ?? TradingPhase.POST) === TradingPhase.PRE && endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED) {
-          try {
-            const gqHandler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.GLOBAL_QUOTE);
-            const gqRes: any = await gqHandler.fetch({ symbol });
-            const price = Number((gqRes?.data?.price ?? gqRes?.data?.c ?? gqRes?.data?.['05_price']));
-            if (Number.isFinite(price)) {
-              baseParams.__intradayPrice = price;
-              baseParams.__intradayObservedAt = Date.now();
-            }
-            // Also forward provider deltas when available
-            const prevCloseRaw = (gqRes?.data?.previousClose ?? gqRes?.data?.pc ?? gqRes?.data?.['08_previous_close']);
-            const changeRaw = (gqRes?.data?.change ?? gqRes?.data?.d ?? gqRes?.data?.['09_change']);
-            const changePctRaw = (gqRes?.data?.changePercent ?? gqRes?.data?.dp ?? gqRes?.data?.['10_change_percent']);
-            const prevClose = prevCloseRaw != null ? Number(prevCloseRaw) : undefined;
-            const change = changeRaw != null ? Number(changeRaw) : undefined;
-            // changePercent may be a string with a trailing '%'; normalize to number
-            let changePercent: number | undefined = undefined;
-            if (changePctRaw != null) {
-              const s = String(changePctRaw).trim();
-              changePercent = Number(s.endsWith('%') ? s.slice(0, -1) : s);
-              if (!Number.isFinite(changePercent)) changePercent = undefined;
-            }
-            if (Number.isFinite(prevClose as number)) baseParams.__gqPrevClose = prevClose;
-            if (Number.isFinite(change as number)) baseParams.__gqChange = change;
-            if (Number.isFinite(changePercent as number)) baseParams.__gqChangePercent = changePercent;
-          } catch (e) {
-            // best-effort only; continue without ip/io or provider deltas
-          }
-        }
         await handler.fetch(baseParams);
         const duration = Date.now() - apiStart;
         // Handlers perform sharded writes; record HealthMetrics so the Health view shows this run
@@ -586,7 +555,7 @@ async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: {
           undefined,
           { trigger: RefreshTrigger.SCHEDULER }
         );
-      } catch (error) {
+      } catch (error: any) {
         // swallow per-symbol errors here; main refresher has richer history writes
         console.error('Refresh error', endpointName, symbol, String((error as any)?.message || error));
         try {
