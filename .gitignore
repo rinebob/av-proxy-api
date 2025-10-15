@@ -85,3 +85,4 @@ functions/assets/data/AV_HIST_OPTIONS_RESP_NVDA_280813.ts
 shared/node_modules
 functions/local-dev.env.alpha-vantage-proxy-api
 src/assets/misc/prompts2.txt
+functions/.tsbuildinfo
