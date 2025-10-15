@@ -1,4 +1,4 @@
-import { RefreshStatus } from '../firestore';
+import { RefreshStatus, RefreshTrigger } from '../firestore';
 import type { TimestampLike } from '../firestore/timestamp';
 
 // Enums replace prior string literal unions
@@ -14,13 +14,6 @@ export enum RefreshRecency {
   Stale = 'stale',
   Never = 'never',
   Error = 'error',
-}
-
-export enum RefreshTrigger {
-  Scheduled = 'scheduled',
-  Manual = 'manual',
-  Retry = 'retry',
-  Api = 'api',
 }
 
 export enum HealthMetricsSortBy {
