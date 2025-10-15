@@ -16,7 +16,7 @@
     "gcp-build": "npm run build"
   },
   "engines": {
-    "node": "22"
+    "node": "20"
   },
   "main": "lib/index.js",
   "dependencies": {
