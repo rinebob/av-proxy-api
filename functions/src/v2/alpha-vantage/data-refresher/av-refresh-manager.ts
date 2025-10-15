@@ -15,7 +15,7 @@ import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/fire
 
 import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE, TradingPhase } from '../../common/function-schedules';
 
-import { createLogger, hr, hrBlank, formatPST } from '../../utils/utils';
+import { createLogger, hr, hrBlank } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { refreshLogger } from '../../services/refresh-logger.service';
@@ -199,62 +199,48 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
       let needsRefresh = false;
       eStats.checked++;
 
-      if (!docSnap.exists) {
-        log.info('freshness.decision', { endpointId: endpoint, endpointName, symbol, exists: false, isFresh: false });
+      // Check if we need to refresh this symbol
+      if (isTimeSeriesEndpoint(endpoint)) {
+        needsRefresh = true;
+        log.info('refresh.decision', { 
+          endpointId: endpoint, 
+          endpointName, 
+          symbol, 
+          refresh: 'yes', 
+          reason: 'time_series_endpoint_always_refresh' 
+        });
+      } else if (!docSnap.exists) {
+        log.info('refresh.decision', { 
+          endpointId: endpoint, 
+          endpointName, 
+          symbol, 
+          refresh: 'yes', 
+          reason: 'document_does_not_exist' 
+        });
         needsRefresh = true;
         staleCount++;
       } else {
+        // For non-time-series endpoints, log the current state but don't refresh by default
         const metadata = docSnap.data()?.metadata;
         const lastUpdated = metadata?.lastUpdated;
-        const nextRefreshAt = metadata?.nextRefreshAt;
-        let lastUpdatedDate, nextRefreshDate;
-        if (lastUpdated) {
-          if (typeof lastUpdated.toDate === 'function') {
-            lastUpdatedDate = lastUpdated.toDate();
-          } else if (typeof lastUpdated === 'number') {
-            lastUpdatedDate = new Date(lastUpdated);
-          } else if (typeof lastUpdated === 'string') {
-            lastUpdatedDate = new Date(Number(lastUpdated));
-          }
-        }
-        if (nextRefreshAt) {
-          if (typeof nextRefreshAt.toDate === 'function') {
-            nextRefreshDate = nextRefreshAt.toDate();
-          } else if (typeof nextRefreshAt === 'number') {
-            nextRefreshDate = new Date(nextRefreshAt);
-          } else if (typeof nextRefreshAt === 'string') {
-            nextRefreshDate = new Date(Number(nextRefreshAt));
-          }
-        }
-        const nowDate = new Date();
-        const sinceLastRefreshMs = lastUpdatedDate ? (nowDate.getTime() - lastUpdatedDate.getTime()) : null;
-        const untilNextRefreshMs = nextRefreshDate ? (nextRefreshDate.getTime() - nowDate.getTime()) : null;
-        const isFresh = !!nextRefreshDate && nowDate < nextRefreshDate;
-
-        // Structured decision log
-        log.info('freshness.decision', {
-          endpointId: endpoint,
-          endpointName,
-          symbol,
-          isFresh,
-          lastUpdated: lastUpdatedDate ? lastUpdatedDate.toISOString() : null,
-          nextRefreshAt: nextRefreshDate ? nextRefreshDate.toISOString() : null,
-          ttlSeconds: ttl,
-          sinceLastRefreshMs,
-          untilNextRefreshMs,
+        const lastUpdatedDate = lastUpdated?.toDate ? lastUpdated.toDate() : null;
+        
+        log.info('refresh.decision', { 
+          endpointId: endpoint, 
+          endpointName, 
+          symbol, 
+          refresh: 'no', 
+          reason: 'ttl_refresh_disabled',
+          lastUpdated: lastUpdatedDate?.toISOString()
         });
-
-        // Concise human-readable summary
-        hr('av.refresh', `[${endpointName}] ${symbol}: last=${formatPST(lastUpdatedDate)} next=${formatPST(nextRefreshDate)} ttl=${ttl}s ${isFresh ? 'FRESH' : 'STALE'}`);
-
-        if (isFresh) freshCount++; else staleCount++;
-
-        if (force || !nextRefreshDate || nowDate >= nextRefreshDate) {
+        
+        needsRefresh = false;
+        freshCount++;
+        
+        // Only refresh if explicitly forced
+        if (force) {
+          log.info('refresh.forced', { endpointId: endpoint, endpointName, symbol });
           needsRefresh = true;
-        } else {
-          eStats.skippedFresh++;
-          // If still fresh, no action needed for this symbol
-          hr('av.refresh', `skip: fresh (next=${formatPST(nextRefreshDate)})`);
         }
       }
 
@@ -483,7 +469,13 @@ export const refreshAvDailyTimeSeriesPreClose = onSchedule({
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED], { phase: TradingPhase.PRE });
+  await refreshForEndpoints(
+    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED], 
+    { 
+      phase: TradingPhase.PRE,
+      trigger: RefreshTrigger.SCHEDULER
+    }
+  );
 });
 
 // Daily time series: post-close (daily only)
@@ -492,7 +484,13 @@ export const refreshAvDailyTimeSeriesPostClose = onSchedule({
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  await refreshForEndpoints([AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED], { phase: TradingPhase.POST });
+  await refreshForEndpoints(
+    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED], 
+    { 
+      phase: TradingPhase.POST,
+      trigger: RefreshTrigger.SCHEDULER
+    }
+  );
 });
 
 // Weekly + Monthly time series: post-close every trading day
@@ -501,78 +499,157 @@ export const refreshAvWeeklyMonthlyTimeSeriesPostClose = onSchedule({
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  await refreshForEndpoints([
-    AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
-    AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
-  ], { phase: TradingPhase.POST });
+  await refreshForEndpoints(
+    [
+      AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
+      AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
+    ], 
+    { 
+      phase: TradingPhase.POST,
+      trigger: RefreshTrigger.SCHEDULER
+    }
+  );
 });
 
 /**
  * Helper used by schedulers to run specific endpoints at fixed times without freshness gating.
- *
+ * 
  * For each endpoint and symbol:
  * - Creates the appropriate handler via AlphaVantageHandlerFactory
  * - Calls handler.fetch({ outputsize:'compact', __checkWriteToggle:false })
  * - Handlers persist the latest bar (CompactBar) and record Health Metrics
  */
-async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: { force?: boolean; phase?: TradingPhase } = {}) {
-  // Load tracked symbols and types
-  const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
-  const symbols = symbolsSnap.docs.map(d => d.id);
-  const symbolTypes = new Map<string, string>();
-  for (const d of symbolsSnap.docs) {
-    const t = (d.data() as any)?.type as string | undefined;
-    if (t) symbolTypes.set(d.id, t);
-  }
+export async function refreshForEndpoints(
+  endpoints: AlphaVantageEndpoint[], 
+  options: { 
+    force?: boolean; 
+    phase?: TradingPhase;
+    trigger?: RefreshTrigger;
+  } = {}
+) {
+  const { force = false, phase, trigger = RefreshTrigger.SCHEDULER } = options;
+  const startTime = Date.now();
+  const logger = createLogger('av.refresh.scheduled');
+  
+  logger.info('refresh.start', { 
+    endpoints, 
+    force,
+    phase,
+    trigger
+  });
 
-  for (const endpoint of endpoints) {
-    const endpointConfig = (AV_ENDPOINT_CONFIGS as any)[endpoint] || (AV_TIME_SERIES_ENDPOINT_CONFIGS as any)[endpoint];
-    if (!endpointConfig) continue;
-    const endpointName = endpointConfig.name;
-
-    for (const symbol of symbols) {
-      // Skip OVERVIEW for non-company symbols (parity with main refresher)
-      if (endpoint === AlphaVantageEndpoint.OVERVIEW) {
-        const rawType = symbolTypes.get(symbol) || '';
-        const type = rawType.toLowerCase();
-        const isEquity = type.includes('equity') || type.includes('stock') || type.includes('common');
-        if (type && !isEquity) continue;
+  try {
+    const healthMetricsService = new HealthMetricsService();
+    
+    // Load tracked symbols and types
+    const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
+    const symbols = symbolsSnap.docs.map(d => d.id);
+    
+    // For time series endpoints, we'll process each symbol
+    for (const endpoint of endpoints) {
+      const endpointName = AlphaVantageEndpoint[endpoint];
+      const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpointName] || AV_ENDPOINT_CONFIGS[endpointName];
+      
+      if (!endpointConfig) {
+        logger.warn('refresh.skipped', { endpoint, reason: 'no_config' });
+        continue;
       }
 
-      // Compute handler and execute without freshness gating at scheduled times
-      try {
-        const apiStart = Date.now();
-        const handler = AlphaVantageHandlerFactory.createHandler(endpoint as any);
-        const baseParams: any = { symbol, outputsize: 'compact', __checkWriteToggle: false, __phase: options.phase ?? TradingPhase.POST };
-        await handler.fetch(baseParams);
-        const duration = Date.now() - apiStart;
-        // Handlers perform sharded writes; record HealthMetrics so the Health view shows this run
-        await healthMetricsService.recordSymbolRefresh(
-          endpoint as any,
-          symbol,
-          RefreshStatus.SUCCESS,
-          duration,
-          undefined,
-          { trigger: RefreshTrigger.SCHEDULER }
-        );
-      } catch (error: any) {
-        // swallow per-symbol errors here; main refresher has richer history writes
-        console.error('Refresh error', endpointName, symbol, String((error as any)?.message || error));
+      for (const symbol of symbols) {
         try {
+          const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
+          const baseParams: any = { 
+            symbol, 
+            outputsize: 'compact', 
+            __checkWriteToggle: false, 
+            __phase: phase ?? TradingPhase.POST 
+          };
+          
+          await handler.fetch(baseParams);
+          
+          // Record successful refresh
           await healthMetricsService.recordSymbolRefresh(
-            endpoint as any,
+            endpoint,
+            symbol,
+            RefreshStatus.SUCCESS,
+            Date.now() - startTime,
+            undefined,
+            { trigger }
+          );
+          
+          logger.info('refresh.success', { 
+            endpoint,
+            symbol,
+            phase,
+            trigger,
+            durationMs: Date.now() - startTime
+          });
+          
+        } catch (error) {
+          // Record failed refresh
+          await healthMetricsService.recordSymbolRefresh(
+            endpoint,
             symbol,
             RefreshStatus.FAILURE,
             0,
-            String((error as any)?.message || error),
-            { trigger: RefreshTrigger.SCHEDULER }
+            error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error),
+            { trigger }
           );
-        } catch {}
+          
+          logger.error('refresh.error', { 
+            endpoint, 
+            symbol,
+            phase,
+            trigger,
+            error: error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error),
+            durationMs: Date.now() - startTime
+          });
+        }
       }
     }
+  } catch (error) {
+    logger.error('refresh.fatal', { 
+      error: error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error),
+      durationMs: Date.now() - startTime
+    });
+    throw error;
+  } finally {
+    // After all endpoints and symbols are processed, announce data is ready
+    // but only for time series endpoints
+    const timeSeriesEndpoints = endpoints.filter(isTimeSeriesEndpoint);
+    if (timeSeriesEndpoints.length > 0) {
+      try {
+        await announceDataReady(timeSeriesEndpoints, { 
+          phase: phase || TradingPhase.POST // Default to POST if phase not specified
+        });
+      } catch (announceError) {
+        logger.error('announce.failed', {
+          error: announceError && typeof announceError === 'object' && 'message' in announceError 
+            ? String(announceError.message) 
+            : String(announceError)
+        });
+        // Don't rethrow to avoid masking original error if there was one
+      }
+    }
+    
+    logger.info('refresh.complete', { 
+      durationMs: Date.now() - startTime,
+      endpoints: endpoints.join(','),
+      phase: phase,
+      trigger: trigger
+    });
   }
+}
 
-  // After all endpoints and symbols processed, announce data-ready for these intervals
+/**
+ * After all endpoints and symbols processed, announce data-ready for these intervals
+ */
+async function announceDataReady(
+  endpoints: AlphaVantageEndpoint[], 
+  options: { 
+    phase: TradingPhase;
+  }
+) {
   try {
     const tz = 'America/New_York';
     const now = new Date();
@@ -599,7 +676,7 @@ async function refreshForEndpoints(endpoints: AlphaVantageEndpoint[], options: {
         intervals: [interval],
         time: Date.now(),
         marketDate,
-        env: (process.env.NODE_ENV || 'dev') as string,
+        env: (process.env.NODE_ENV || 'dev') as string
       };
 
       let runType: PartnerRunType = PartnerRunType.NON_TIME_SERIES; // default not used below
