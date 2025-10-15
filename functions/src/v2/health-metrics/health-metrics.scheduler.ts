@@ -1,17 +1,18 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { AV_IMPLEMENTED_ENDPOINTS } from '@shared/alpha-vantage';
-import { RefreshStatus } from '@shared/firestore';
 import { HealthMetricsService } from './health-metrics.service';
 import { createLogger } from '../utils/utils';
+import { HEALTH_METRICS_SCHEDULE } from '../common/function-schedules';
 
 const logger = createLogger('health-metrics-scheduler');
 const healthMetricsService = new HealthMetricsService();
 
 /**
- * Scheduled function that runs every 5 minutes to update health metrics
+ * Scheduled function that checks endpoint health according to the configured schedule
+ * This only updates the latest health status without creating history entries
  */
-export const checkAllEndpoints = onSchedule({
-  schedule: 'every 5 minutes',
+export const healthMetricsScheduler = onSchedule({
+  schedule: HEALTH_METRICS_SCHEDULE,
   timeoutSeconds: 300, // 5 minutes
   memory: '1GiB',
   maxInstances: 1,
@@ -25,71 +26,31 @@ export const checkAllEndpoints = onSchedule({
     const endpoints = Array.from(AV_IMPLEMENTED_ENDPOINTS);
     logger.info(`Checking health for ${endpoints.length} endpoints`);
 
-    let successCount = 0;
-    let failureCount = 0;
-
     // Process each endpoint
     for (const endpoint of endpoints) {
-        logger.info(`------- Starting endpoint ${endpoint} -------`);
       const endpointStartTime = Date.now();
+      logger.info(`Checking health for endpoint: ${endpoint}`);
       
       try {
-        // Get the current health status
-        const metrics = await healthMetricsService.getEndpointHealth(endpoint);
-        const refreshStatus = metrics.refreshStatus;
-        
-        // Record the status check
-        await healthMetricsService.recordRefreshAttempt(
-          endpoint,
-          RefreshStatus.SUCCESS,
-          undefined,
-          Date.now() - endpointStartTime
-        );
-        
-        successCount++;
-        
-        logger.debug(`Checked endpoint: ${endpoint}`, { 
-          status: refreshStatus,
-          durationMs: Date.now() - endpointStartTime 
-        });
-      } catch (error) {
-        failureCount++;
-        
-        await healthMetricsService.recordRefreshAttempt(
-          endpoint,
-          RefreshStatus.FAILURE,
-          error instanceof Error ? error.message : String(error),
-          Date.now() - endpointStartTime
-        );
-        
-        logger.error(`Failed to check endpoint: ${endpoint}`, {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined
-        });
+        // Only check health, don't record history
+        await healthMetricsService.checkEndpointHealth(endpoint);
+        logger.info(`Health check completed for ${endpoint} in ${Date.now() - endpointStartTime}ms`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Error checking health for ${endpoint}: ${errorMessage}`);
+        if (error instanceof Error && error.stack) {
+          logger.debug(`Stack trace for ${endpoint}: ${error.stack}`);
+        }
       }
-      logger.info(`------- Completed endpoint ${endpoint} -------`);
-      console.log('')
-      console.log('')
-      console.log('')
     }
 
-    // Log summary
-    const duration = Date.now() - startTime;
-    logger.info('Completed health metrics check', {
-      totalEndpoints: endpoints.length,
-      successCount,
-      failureCount,
-      durationMs: duration
-    });
-
-  } catch (error) {
-    logger.error('Fatal error in health metrics scheduler', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      durationMs: Date.now() - startTime
-    });
-    
-    // Re-throw to mark the function as failed
+    logger.info(`Completed all health checks in ${Date.now() - startTime}ms`);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Error in health check scheduler: ${errorMessage}`);
+    if (error instanceof Error && error.stack) {
+      logger.debug(`Stack trace: ${error.stack}`);
+    }
     throw error;
   }
 });
@@ -117,9 +78,10 @@ export const purgeOldHealthHistory = onSchedule({
       deletedCount,
       durationMs: Date.now() - startedAt,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Error during nightly purge of old health history', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
       durationMs: Date.now() - startedAt,
     });
@@ -150,9 +112,10 @@ export const purgeOldRequestLogs = onSchedule({
       deletedCount,
       durationMs: Date.now() - startedAt,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Error during nightly purge of old request logs', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
       durationMs: Date.now() - startedAt,
     });

@@ -118,6 +118,15 @@ export const OLD_SYNC_REQUEST_CLEANUP_SCHEDULE = '0 0 * * 0';
  */
 export const PARTNER_HEARTBEAT_SCHEDULE = 'every 6 hours';
 
+// for health metrics
+/**
+ * Health metrics check schedule.
+ *
+ * Purpose: Periodically check health of all endpoints.
+ * Schedule: Every 60 minutes
+ */
+export const HEALTH_METRICS_SCHEDULE = 'every 60 minutes';
+
 // Central trading phase enum for time-series runs
 /**
  * Trading phase used by time-series schedulers and handlers.

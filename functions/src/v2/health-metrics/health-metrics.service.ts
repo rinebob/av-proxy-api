@@ -5,7 +5,7 @@ import {
   AV_TIME_SERIES_ENDPOINT_CONFIGS,
   AV_IMPLEMENTED_ENDPOINTS
 } from '@shared/alpha-vantage';
-import { FirestoreCollection, RefreshStatus } from '@shared/firestore';
+import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 import { 
   EndpointHealthMetrics,
   RefreshRequestLog, 
@@ -141,25 +141,68 @@ export class HealthMetricsService {
   }
 
   /**
-   * Records a refresh attempt for an endpoint
+   * Checks the health of an endpoint without creating history entries
+   * @param endpointId The endpoint to check
+   * @returns The current health metrics for the endpoint
+   */
+  async checkEndpointHealth(endpointId: AlphaVantageEndpoint): Promise<EndpointHealthMetrics> {
+    const metrics = await this.getEndpointHealth(endpointId);
+    const now = new Date();
+    
+    // Update only the latest status without creating history
+    const latestRef = db
+      .collection(FirestoreCollection.HEALTH_METRICS)
+      .doc(endpointId)
+      .collection(FirestoreCollection.LATEST)
+      .doc('status');
+    
+    await latestRef.set({
+      lastHealthCheck: now,
+      refreshStatus: metrics.refreshStatus,
+      lastUpdated: now
+    }, { merge: true });
+    
+    return metrics;
+  }
+
+  /**
+   * Records an actual refresh attempt (creates history entries)
    * @param endpointId The endpoint that was refreshed
-   * @param symbol The symbol that was refreshed
    * @param status Whether the refresh was successful
    * @param error Optional error message if the refresh failed
    * @param refreshDurationMs How long the refresh took in milliseconds
+   * @param trigger The trigger type for the refresh
    */
   async recordRefreshAttempt(
     endpointId: AlphaVantageEndpoint,
     status: RefreshStatus,
     error?: string,
-    refreshDurationMs?: number
+    refreshDurationMs?: number,
+    trigger: RefreshTrigger = RefreshTrigger.SCHEDULER
   ): Promise<void> {
     const batch = db.batch();
     const now = new Date();
     
-    // Get the endpoint config to determine TTL
-    const config = this.getEndpointConfig(endpointId);
-    const nextRefreshAt = new Date(now.getTime() + (config.ttl || 0) * 1000);
+    // Calculate next refresh time based on trigger type
+    let nextRefreshAt: Date | null = new Date(now);
+    
+    // Set next refresh time based on trigger type
+    switch (trigger) {
+      case RefreshTrigger.SCHEDULER:
+        // For scheduled refreshes, use a default interval (e.g., 1 hour)
+        nextRefreshAt.setHours(nextRefreshAt.getHours() + 1);
+        break;
+        
+      case RefreshTrigger.MANUAL:
+        // For manual refreshes, don't set a next refresh time
+        nextRefreshAt = null;
+        break;
+        
+      // Other trigger types will use the default refresh time (now + 1 hour)
+      default:
+        nextRefreshAt.setHours(nextRefreshAt.getHours() + 1);
+        break;
+    }
     
     // Create a new history entry
     const historyRef = db
@@ -178,7 +221,7 @@ export class HealthMetricsService {
       nextRefreshAt,
       lastUpdated: now,
       metadata: {
-        trigger: 'scheduled'
+        trigger
       }
     };
     
@@ -198,19 +241,20 @@ export class HealthMetricsService {
       lastUpdated: now,
       error: status === RefreshStatus.FAILURE ? error : null,
       durationMs: refreshDurationMs,
-      refreshStatus: this.calculateRefreshStatus(nextRefreshAt, config.ttl)
+      refreshStatus: status === RefreshStatus.SUCCESS ? RefreshRecency.Fresh : RefreshRecency.Stale
     };
     
     batch.set(latestRef, latestUpdate, { merge: true });
     
-    // Generalized logic to update metadata for all endpoints
+    // Update the top-level metadata
     const metaRef = db.doc(`${FirestoreCollection.HEALTH_METRICS}/${endpointId}`);
     const metaUpdate = {
       lastRefreshAttempt: now,
       lastRefreshStatus: status,
       lastUpdated: now,
       error: status === RefreshStatus.FAILURE ? error : null,
-      durationMs: refreshDurationMs
+      durationMs: refreshDurationMs,
+      nextRefreshAt
     };
     batch.set(metaRef, metaUpdate, { merge: true });
     
