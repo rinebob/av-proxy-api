@@ -1,9 +1,10 @@
 import { AvSymbolSearchHandler } from '../src/v2/alpha-vantage/handlers/av-symbol-search.handler';
 import { db } from '../src/firebase-admin-init';
-import { FirestoreCollection } from '../src/v2/common/firestore/firestore-collections';
+import { FirestoreCollection } from '@shared/firestore';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import axios from 'axios';
+import { SvtAvSymbolMatch } from '@shared/alpha-vantage';
 
 // Load environment variables from .env.alpha-vantage-proxy-api
 const envPath = path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api');
@@ -47,12 +48,13 @@ async function testInEmulator(keywords: string) {
     const handler = new AvSymbolSearchHandler();
     const startTime = Date.now();
     const response = await handler.fetch({ keywords });
+    const matches = response.data as SvtAvSymbolMatch[];
     const duration = Date.now() - startTime;
     
-    logResponse(keywords, response.data, duration);
+    logResponse(keywords, { bestMatches: matches }, duration);
     
-    if (response.data.bestMatches?.length > 0) {
-      await verifyFirestoreUpdate(response.data.bestMatches[0]['1. symbol']);
+    if (matches?.length > 0) {
+      await verifyFirestoreUpdate(matches[0].symbol);
     }
   } catch (error) {
     console.error('Error in emulator test:', error);

@@ -1,9 +1,22 @@
 {
-  "extends": "../tsconfig.scripts.json",
+  "extends": "../tsconfig.json",
   "compilerOptions": {
-    "noEmit": true
+    "rootDir": "..",
+    "outDir": "../lib/scripts",
+    "baseUrl": "..",
+    "paths": {
+      "@shared/*": ["../shared/lib/*"],
+      "@shared": ["../shared/lib"],
+      "../src/*": ["../src/*"]
+    },
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "composite": true,
+    "tsBuildInfoFile": "../.tsbuildinfo"
   },
   "include": [
-    "**/*.ts"
-  ]
+    "./**/*.ts",
+    "../src/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
 }

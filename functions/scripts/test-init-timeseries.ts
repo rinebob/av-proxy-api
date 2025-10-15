@@ -7,8 +7,8 @@ setupEmulator();
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
 
 import { initializeTimeSeriesIfMissing } from '../src/v2/alpha-vantage/firestore/av-firestore-helper';
-import { AlphaVantageEndpoint } from '../src/v2/common/common-av';
-import { TimeSeriesInterval } from '../src/v2/common/common-fn';
+import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
 // Parse CLI args: npx ts-node test-init-timeseries.ts <SYMBOL> <INTERVAL>
 const [symbolArg, intervalArg] = process.argv.slice(2);

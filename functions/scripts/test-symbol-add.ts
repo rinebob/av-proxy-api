@@ -1,5 +1,5 @@
-import { FirestoreCollection } from '../src/v2/common/firestore/firestore-collections';
-import { TimeSeriesDocument } from '../src/v2/common/common-av';
+import { FirestoreCollection } from '@shared/firestore';
+import { TimeSeriesDocument } from '@shared/alpha-vantage';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { db } from '../src/firebase-admin-init';

@@ -13,8 +13,8 @@ if (!process.env['NODE_ENV'] || process.env['NODE_ENV'] !== 'production') {
 // Now that environment is configured, import the db instance.
 import { db } from '../src/firebase-admin-init';
 import axios from 'axios';
-import { TrackedSymbol } from '../src/v2/common/common-dm';
-import { FirestoreCollection } from '../src/v2/common/firestore/firestore-collections';
+import { FirestoreCollection } from '@shared/firestore';
+import { TrackedSymbolV2 } from '@shared/alpha-vantage';
 
 const args = process.argv.slice(2);
 const isProduction = args.includes('--prod');
@@ -41,16 +41,20 @@ async function testInEmulator(symbol: string) {
   console.log(`Calling function at: ${url}`);
 
   try {
-    const testSymbol: Omit<TrackedSymbol, 'createdAt' | 'lastUpdated'> = {
+    const testSymbol: Omit<TrackedSymbolV2, 'createdAt' | 'lastUpdated'> = {
       symbol: symbol,
       name: `${symbol} Test Company`,
       type: 'Equity',
-      region: 'United States',
+      region: 'US',
       marketOpen: '09:30',
       marketClose: '16:00',
-      timezone: 'UTC-05',
+      timezone: 'UTC-05:00',
       currency: 'USD',
-      matchScore: '1.0'
+      matchScore: '1.0',
+      _createdAt: new Date(),
+      _lastUpdated: new Date(),
+      _isActive: true,
+      _refreshEnabled: true
     };
 
     const response = await axios.post(url, 

@@ -1,5 +1,6 @@
-import { updateDailyTimeSeriesHandler } from '../src/v2/alpha-vantage/data-refresher/av-daily-time-series-updater';
 import { db, admin } from '../src/firebase-admin-init';
+import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { AlphaVantageHandlerFactory } from '../src/v2/alpha-vantage/alpha-vantage-factory';
 
 console.log('Script started');
 console.log('Initializing Firebase Admin...');
