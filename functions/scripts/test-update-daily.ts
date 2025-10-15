@@ -16,10 +16,22 @@ try {
 }
 
 async function testDailyUpdate() {
-  console.log('Starting test of updateDailyTimeSeriesHandler...');
+  console.log('Starting test of daily time series update...');
   try {
-    console.log('Calling updateDailyTimeSeriesHandler...');
-    await updateDailyTimeSeriesHandler();
+    // Create a handler for daily adjusted time series
+    const handler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
+    
+    // Test with a specific symbol
+    const symbol = 'AAPL'; // or get this from command line args if needed
+    console.log(`Fetching daily time series for ${symbol}...`);
+    
+    const result = await handler.fetch({ symbol });
+    console.log('Successfully fetched time series data:', {
+      symbol,
+      dataPoints: result.data?.data ? Object.keys(result.data.data).length : 0,
+      metadata: result.data?.meta
+    });
+    
     console.log('Test completed successfully');
   } catch (error) {
     console.error('Test failed with error:', error);
