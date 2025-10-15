@@ -5,6 +5,7 @@ import { withCors } from '../utils/cors-middleware';
 import { authenticateRequestEither } from '../utils/utils';
 import { getPartnerTimeSeries, type TimeSeriesReadParams } from '../common/firestore/time-series-readers';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
+import { defineSecret } from 'firebase-functions/params';
 
 // Accepted intervals derived from the shared enum (no magic strings)
 const ALLOWED_INTERVALS = [
@@ -64,10 +65,22 @@ async function handler(req: Request, res: Response) {
   }
 }
 
-export const partnerTimeSeriesV2 = onRequest({
+// Define the function options with explicit type
+type HttpsOptions = {
+  memory: '128MiB' | '256MiB' | '512MiB' | '1GiB' | '2GiB' | '4GiB' | '8GiB';
+  maxInstances?: number;
+  timeoutSeconds?: number;
+  secrets?: ReturnType<typeof defineSecret>[];
+};
+
+const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
+const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
+
+const functionOptions: HttpsOptions = {
   memory: '256MiB',
   maxInstances: 20,
   timeoutSeconds: 60,
-  // Ensure auth config comes from Secret Manager in production
-  secrets: ['ALLOWED_SERVICE_ACCOUNT_EMAILS', 'EXPECTED_GOOGLE_AUDIENCE'],
-}, withCors(handler));
+  secrets: [allowedServiceAccounts, expectedGoogleAudience]
+};
+
+export const partnerTimeSeriesV2 = onRequest(functionOptions, withCors(handler));
