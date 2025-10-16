@@ -276,10 +276,10 @@ export const HealthDashboardStore = signalStore(
           }),
           finalize(() => patchState(store, { loadingSummary: false }))
         )
-        .subscribe((summary) => {
-          console.log('[HealthStore] loadSummary() success', { ts, hasSummary: !!summary });
-          if (summary) patchState(store, { summary });
-        });
+        .subscribe((summary: HealthSummary | undefined) => {
+            console.log('[HealthStore] loadSummary() success', { ts, hasSummary: !!summary });
+            if (summary) patchState(store, { summary });
+          });
     },
 
     // Load paginated logs using current filters from state
@@ -313,7 +313,7 @@ export const HealthDashboardStore = signalStore(
           }),
           finalize(() => patchState(store, { loadingLogs: false }))
         )
-        .subscribe((resp) => {
+        .subscribe((resp: HealthMetricsResponse<RefreshRequestLog> | undefined) => {
           console.log('[HealthStore] loadLogs() success', { ts, count: resp?.data?.length ?? 0, total: resp?.total });
           patchState(store, { logs: resp });
         });
