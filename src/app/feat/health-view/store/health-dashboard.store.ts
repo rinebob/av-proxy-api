@@ -368,8 +368,11 @@ export const HealthDashboardStore = signalStore(
 
     // Open a symbol in the drawer (single-call convenience)
     openSymbol(symbol: string): void {
-      this.selectSymbol(symbol);
+      const sym = (symbol || '').toUpperCase();
+      if (!sym) return;
+      patchState(store, { selectedSymbol: sym });
       this.setActiveTab(1);
+      this.loadSymbolDetail(sym);
     },
 
     // ---------------- Symbol Detail ----------------
@@ -387,13 +390,19 @@ export const HealthDashboardStore = signalStore(
     loadSymbolDetail(symbol: string): void {
       const sym = (symbol || '').toUpperCase();
       if (!sym) return;
-      patchState(store, { loadingSymbol: true, errorSymbol: '' });
+      patchState(store, {
+        selectedSymbol: sym,
+        loadingSymbol: true,
+        errorSymbol: '',
+        symbolStatus: undefined,
+        symbolMetrics: undefined,
+      });
 
+      // Call V2 endpoints through the ApiService (service already points to V2)
       forkJoin({
         status: api.getSymbolStatus(sym).pipe(take(1), catchError(() => of(null))),
         metrics: api.getSymbolMetrics(sym).pipe(take(1), catchError(() => of(null))),
-      })
-        .pipe(finalize(() => patchState(store, { loadingSymbol: false })))
+      }).pipe(finalize(() => patchState(store, { loadingSymbol: false })))
         .subscribe(({ status, metrics }) => {
           patchState(store, { symbolStatus: status, symbolMetrics: metrics });
         });
