@@ -1,6 +1,27 @@
 import 'module-alias/register';
+import dotenv from 'dotenv';
+import fs from 'node:fs';
+import path from 'node:path';
 
-console.log('Module aliases loaded:', require('module-alias'));
+// Load local emulator env only from a non-dot file so Firebase emulator doesn't print dotenv messages
+// This is intentionally silent and only active during emulator runs
+(() => {
+  if (process.env.FUNCTIONS_EMULATOR !== 'true') return;
+  const candidates = [
+    // Run from functions dir
+    path.resolve(process.cwd(), 'local-dev.env.alpha-vantage-proxy-api'),
+    // Run from repo root
+    path.resolve(process.cwd(), 'functions', 'local-dev.env.alpha-vantage-proxy-api'),
+    // Fallback relative to compiled location
+    path.resolve(__dirname, '../local-dev.env.alpha-vantage-proxy-api'),
+    path.resolve(__dirname, '../../local-dev.env.alpha-vantage-proxy-api'),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) { dotenv.config({ path: p }); break; }
+    } catch {}
+  }
+})();
 
 ///////////////////// MIGRATED V2 FUNCTIONS ////////////////////////////////
 
