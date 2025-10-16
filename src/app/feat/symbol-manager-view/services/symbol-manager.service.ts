@@ -23,7 +23,7 @@ import {
     TrackedSymbol,
  } from '../../data-maintainer-view/common/fe-common-dm-api';
 import {
-    getAlphaVantageEndpointUrl, 
+    buildAlphaVantageEndpointUrl,
     AlphaVantageApiResponse,
     SaveTrackedSymbolRequest
  } from '../../data-maintainer-view/common/fe-common-av-api';
@@ -525,7 +525,7 @@ export class SymbolManagerService {
       return throwError(() => new Error('No keywords provided for symbol search'));
     }
     const endpoint = AlphaVantageEndpoint.SYMBOL_SEARCH;
-    const baseUrl = getAlphaVantageEndpointUrl(endpoint);
+    const baseUrl = buildAlphaVantageEndpointUrl(this.apiBases.av, endpoint);
     const requestId = Math.random().toString(36).substring(2, 9);
 
     console.group(`🟢 sMSvc sSAV2 [${requestId}] SYMBOL_SEARCH Request`);

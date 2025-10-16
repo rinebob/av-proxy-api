@@ -5,17 +5,19 @@ import { Observable, catchError, throwError, tap } from 'rxjs';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 
 import { 
-  getAlphaVantageEndpointUrl,
+  buildAlphaVantageEndpointUrl,
   AlphaVantageApiResponse,
   FetchAlphaVantageParams,
   AlphaVantageResponseData,
 } from '../common/fe-common-av-api';
+import { API_BASES } from '../../../core/api/api.tokens';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AlphaVantageDataService {
   private readonly http = inject(HttpClient);
+  private readonly apiBases = inject(API_BASES);
 
   /**
    * Generic method to fetch data from any Alpha Vantage endpoint
@@ -27,7 +29,7 @@ export class AlphaVantageDataService {
     endpoint: AlphaVantageEndpoint,
     params: FetchAlphaVantageParams
   ): Observable<AlphaVantageApiResponse<T>> {
-    const baseUrl = getAlphaVantageEndpointUrl(endpoint);
+    const baseUrl = buildAlphaVantageEndpointUrl(this.apiBases.av, endpoint);
     
     // Enhanced request logging with more context
     const requestId = Math.random().toString(36).substring(2, 9);
