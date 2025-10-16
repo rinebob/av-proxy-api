@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { HealthFunctionName } from '../common/fe-common-fn';
 
 // Shared types (ensure tsconfig paths map '@shared/*' to project shared/)
 import type { HealthSummary, HealthMetricsFilter, HealthMetricsResponse, RefreshRequestLog, SymbolStatus, SymbolRefreshMetrics } from '@shared/health-metrics';
@@ -28,7 +29,7 @@ export class HealthMetricsApiService {
 
   /** Fetch aggregated dashboard summary */
   getHealthSummary(): Observable<HealthSummary> {
-    const url = this.joinUrl(this.baseUrl, 'getHealthSummary');
+    const url = this.joinUrl(this.baseUrl, HealthFunctionName.GET_HEALTH_SUMMARY);
     return this.http.get<{ success: boolean; data: HealthSummary }>(url).pipe(
       map((res) => res.data)
     );
@@ -36,24 +37,24 @@ export class HealthMetricsApiService {
 
   /** Fetch paginated request logs with filters */
   getRequestLogs(filter: HealthMetricsFilter = {}): Observable<HealthMetricsResponse<RefreshRequestLog>> {
-    const url = this.joinUrl(this.baseUrl, 'getRequestLogs');
+    const url = this.joinUrl(this.baseUrl, HealthFunctionName.GET_REQUEST_LOGS);
     const params = this.buildLogsParams(filter);
     return this.http
-      .get<{ success: boolean } & HealthMetricsResponse<RefreshRequestLog>>(url, { params })
+      .get<{ success: boolean; data: HealthMetricsResponse<RefreshRequestLog> }>(url, { params })
       .pipe(
         map((res) => ({
-          data: res.data,
-          total: res.total,
-          limit: res.limit,
-          offset: res.offset,
-          hasMore: res.hasMore,
+          data: res.data.data,
+          total: res.data.total,
+          limit: res.data.limit,
+          offset: res.data.offset,
+          hasMore: res.data.hasMore,
         }))
       );
   }
 
   /** Fetch latest symbol status (across endpoints) */
   getSymbolStatus(symbol: string): Observable<SymbolStatus | null> {
-    const url = this.joinUrl(this.baseUrl, 'getSymbolStatus');
+    const url = this.joinUrl(this.baseUrl, HealthFunctionName.GET_SYMBOL_STATUS_V2);
     const params = new HttpParams().set('symbol', symbol.toUpperCase());
     return this.http
       .get<{ success: boolean; data: SymbolStatus | null }>(url, { params })
@@ -62,7 +63,7 @@ export class HealthMetricsApiService {
 
   /** Fetch aggregated metrics for a symbol */
   getSymbolMetrics(symbol: string): Observable<SymbolRefreshMetrics | null> {
-    const url = this.joinUrl(this.baseUrl, 'getSymbolMetrics');
+    const url = this.joinUrl(this.baseUrl, HealthFunctionName.GET_SYMBOL_METRICS_V2);
     const params = new HttpParams().set('symbol', symbol.toUpperCase());
     return this.http
       .get<{ success: boolean; data: SymbolRefreshMetrics | null }>(url, { params })
