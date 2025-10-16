@@ -5,6 +5,7 @@ import { Request, Response } from 'express';
 export const ALLOWED_ORIGINS = [
   'https://av-proxy-api--alpha-vantage-proxy-api.us-central1.hosted.app',
   'https://www.savantapi.com',
+  'https://savantapi.com',
   'http://localhost:4200',
   // Savant partner apps
   'https://savanttrader.com',
@@ -19,30 +20,57 @@ export const ALLOWED_ORIGINS = [
   'https://rel-str--rel-str.us-central1.hosted.app',
 ];
 
+// Helper: allow any localhost/127.0.0.1 port and *.hosted.app
+function isDynamicallyAllowed(origin?: string | null): boolean {
+  if (!origin) return true; // same-origin or server-to-server
+  try {
+    const u = new URL(origin);
+    const host = u.hostname.toLowerCase();
+    // Any localhost/127.0.0.1 (any scheme, any port)
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    // Any Firebase App Hosting *.hosted.app
+    if (host.endsWith('.hosted.app')) return true;
+  } catch {}
+  return false;
+}
+
 // Configure the CORS middleware
 const corsMiddleware = cors({
   origin: (origin, callback) => {
-    console.log(`corsMiddleware: Origin: ${origin}`);
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+    // Quiet by default; enable if needed for debugging
+    // console.log(`corsMiddleware: Origin: ${origin}`);
+    if (!origin || ALLOWED_ORIGINS.includes(origin) || isDynamicallyAllowed(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Do not throw: deny CORS by returning false so server doesn’t emit 500
+      callback(null, false);
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Firebase-AppCheck',
-    'X-Request-ID',
-    'X-Requested-With',
-  ],
+  // When allowedHeaders is undefined, cors mirrors Access-Control-Request-Headers automatically
+  optionsSuccessStatus: 204,
 });
 
 // Correct: Returns a handler, NOT an onRequest
 export function withCors(handler: (req: Request, res: Response) => any) {
-    console.log(`withCors called`);
-  return (req: Request, res: Response) => {
-    corsMiddleware(req, res, () => handler(req, res));
+  // Quiet by default; this function is invoked once per function definition at load time
+  // console.log(`withCors called`);
+  return async (req: Request, res: Response) => {
+    corsMiddleware(req, res, async () => {
+      try {
+        // Support both sync and async handlers
+        const maybePromise = handler(req, res);
+        if (maybePromise && typeof (maybePromise as any).then === 'function') {
+          await (maybePromise as Promise<unknown>);
+        }
+      } catch (err) {
+        // Uniform error guard so UI doesn't see raw 500s
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('withCors handler error:', { message: msg, stack: (err as any)?.stack });
+        if (!res.headersSent) {
+          res.status(200).json({ success: false, error: 'Internal server error' });
+        }
+      }
+    });
   };
 }
