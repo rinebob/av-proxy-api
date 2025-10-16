@@ -1,8 +1,13 @@
-# Compiled JavaScript files
-lib/**/*.js
-lib/**/*.js.map
+# Build output
+lib/
+
+# Prevent accidental commits of compiled artifacts under source trees
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
 scripts/**/*.js
 scripts/**/*.js.map
+scripts/**/*.d.ts
 
 # TypeScript v1 declaration files
 typings/
@@ -11,3 +16,7 @@ typings/
 node_modules/
 *.local
 local-dev.env.alpha-vantage-proxy-api
+
+# TypeScript incremental build info files (safe to delete)
+tsconfig.tsbuildinfo
+.tsbuildinfo
