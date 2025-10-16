@@ -4,16 +4,37 @@ import { HealthMetricsService } from './health-metrics.service';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { createLogger } from '../utils/utils';
 import { withCors } from '../utils/cors-middleware';
-import { HealthMetricsSortBy, SortOrder } from '@shared/health-metrics';
+import { HealthMetricsSortBy, SortOrder, HealthStatus } from '@shared/health-metrics';
+import { Request, Response } from 'express';
 
 const logger = createLogger('health-metrics');
 const healthMetricsService = new HealthMetricsService();
 
-export const getHealthMetrics = onRequest(withCors(async (req, res) => {
+// Helper to normalize auth result into a loggable actor descriptor
+function resolveActor(auth: any): { type: 'firebase' | 'service-account'; uid?: string; email?: string; serviceAccountEmail?: string } {
+  if (auth && typeof auth === 'object' && 'serviceAccountEmail' in auth) {
+    return { type: 'service-account', serviceAccountEmail: String((auth as any).serviceAccountEmail || '') };
+  }
+  // Assume Firebase DecodedIdToken shape
+  const uid = (auth as any)?.uid ? String((auth as any).uid) : undefined;
+  const email = (auth as any)?.email ? String((auth as any).email) : undefined;
+  return { type: 'firebase', uid, email };
+}
+
+export const getHealthMetrics = onRequest(withCors(async (req: Request, res: Response) => {
   try {
     // Authenticate the request
-    const user = await authenticateRequestEither(req, res);
-    if (!user) return; // authenticateRequestEither already sent the error response
+    const authResult = await authenticateRequestEither(req, res);
+    if (!authResult) return;
+    const actor = resolveActor(authResult);
+    
+    logger.info('Processing request', { 
+      authType: actor.type,
+      uid: actor.uid,
+      email: actor.email,
+      serviceAccountEmail: actor.serviceAccountEmail,
+      endpoint: req.query.endpoint 
+    });
 
     const endpoint = req.query.endpoint as AlphaVantageEndpoint;
 
@@ -27,7 +48,7 @@ export const getHealthMetrics = onRequest(withCors(async (req, res) => {
       return;
     }
 
-    logger.info('Fetching health metrics', { endpoint, caller: (user as any).uid || (user as any).serviceAccountEmail || 'unknown' });
+    logger.info('Fetching health metrics', { endpoint, uid: actor.uid, serviceAccountEmail: actor.serviceAccountEmail });
     const metrics = await healthMetricsService.getEndpointHealth(endpoint);
 
     res.status(200).json({
@@ -35,132 +56,293 @@ export const getHealthMetrics = onRequest(withCors(async (req, res) => {
       data: metrics
     });
   } catch (error) {
-    logger.error('Error fetching health metrics', { 
+    logger.error('Error in getHealthMetrics', { 
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
       endpoint: (req.query as any).endpoint
     });
+    
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch health metrics',
-      details: error instanceof Error ? error.message : String(error)
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? 
+        (error instanceof Error ? error.message : String(error)) : 
+        undefined
     });
   }
 }));
 
 // New: aggregated summary for dashboards
-export const getHealthSummary = onRequest(withCors(async (req, res) => {
+export const getHealthSummary = onRequest(withCors(async (req: Request, res: Response) => {
   try {
-    const user = await authenticateRequestEither(req, res);
-    if (!user) return;
+    // Authenticate the request
+    const authResult = await authenticateRequestEither(req, res);
+    if (!authResult) return;
+    const actor = resolveActor(authResult);
+    
+    logger.info('Processing request', { 
+      authType: actor.type,
+      uid: actor.uid, 
+      email: actor.email,
+      serviceAccountEmail: actor.serviceAccountEmail,
+    });
 
     const summary = await healthMetricsService.getHealthSummary();
     res.status(200).json({ success: true, data: summary });
   } catch (error) {
-    logger.error('Error fetching health summary', {
+    logger.error('Error in getHealthSummary', { 
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: error instanceof Error ? error.stack : undefined
     });
-    res.status(500).json({ success: false, error: 'Failed to fetch health summary' });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? 
+        (error instanceof Error ? error.message : String(error)) : 
+        undefined
+    });
   }
 }));
 
 // New: paginated request logs with filters
-export const getRequestLogs = onRequest(withCors(async (req, res) => {
+export const getRequestLogs = onRequest(withCors(async (req: Request, res: Response) => {
   try {
-    const user = await authenticateRequestEither(req, res);
-    if (!user) return;
+    // Authenticate the request
+    const authResult = await authenticateRequestEither(req, res);
+    if (!authResult) return;
+    const actor = resolveActor(authResult);
+    
+    logger.info('Processing request', { 
+      authType: actor.type,
+      uid: actor.uid, 
+      email: actor.email,
+      serviceAccountEmail: actor.serviceAccountEmail,
+    });
 
     // Parse query params
     const qp = req.query as Record<string, string | string[]>;
-    const parseCsv = (v?: string | string[]) =>
-      typeof v === 'string' && v.trim().length ? v.split(',').map(s => s.trim()).filter(Boolean) : undefined;
+    
+    // Handle array parameters
+    const parseCsv = (v?: string | string[]) => 
+      (Array.isArray(v) ? v[0] : v || '').split(',').filter(Boolean);
 
-    const endpointIds = parseCsv(qp.endpointIds as string);
-    const symbols = parseCsv(qp.symbols as string);
+    const endpointIds = parseCsv(qp.endpointIds);
+    const symbols = parseCsv(qp.symbols);
 
-    // Dates as ISO strings (optional)
-    const fromStr = (qp.from as string) || undefined;
-    const toStr = (qp.to as string) || undefined;
-    const from = fromStr ? new Date(fromStr) : undefined;
-    const to = toStr ? new Date(toStr) : undefined;
+    // Parse time range (standardized): use only `from` and `to` ISO strings
+    const fromRaw = qp.from as unknown as string | undefined;
+    const toRaw = qp.to as unknown as string | undefined;
+    const startDate = fromRaw ? new Date(fromRaw) : undefined;
+    const endDate = toRaw ? new Date(toRaw) : undefined;
+    const timeRange = (startDate || endDate) 
+      ? { 
+          from: startDate || new Date(0), // Default to epoch if startDate not provided
+          to: endDate || new Date()      // Default to now if endDate not provided
+        }
+      : undefined;
 
-    const sortByRaw = (qp.sortBy as string) || 'timestamp';
-    const sortBy = (Object.values(HealthMetricsSortBy) as string[]).includes(sortByRaw)
+    // Parse sorting
+    const sortByRaw = (qp.sortBy as string) || HealthMetricsSortBy.Timestamp;
+    const sortBy = Object.values(HealthMetricsSortBy).includes(sortByRaw as HealthMetricsSortBy)
       ? (sortByRaw as HealthMetricsSortBy)
       : HealthMetricsSortBy.Timestamp;
 
-    const sortOrderRaw = (qp.sortOrder as 'asc' | 'desc') || 'desc';
+    const sortOrderRaw = (qp.sortOrder as string) || 'desc';
     const sortOrder = sortOrderRaw === 'asc' ? SortOrder.Asc : SortOrder.Desc;
 
-    const limit = qp.limit ? Math.max(1, Math.min(1000, Number(qp.limit))) : undefined;
-    const offset = qp.offset ? Math.max(0, Number(qp.offset)) : undefined;
+    // Parse pagination
+    const limit = Math.min(100, Math.max(1, parseInt(qp.limit as string) || 20));
+    const offset = Math.max(0, parseInt(qp.offset as string) || 0);
 
-    const result = await healthMetricsService.getRequestLogs({
-      endpointIds,
-      symbols,
-      timeRange: from || to ? { from: from ?? new Date(0), to: to ?? new Date() } : undefined,
+    const status = qp.status 
+      ? (Array.isArray(qp.status) ? qp.status : [qp.status])
+          .flatMap(s => typeof s === 'string' ? s.split(',').map(x => x.trim()) : [])
+          .filter((s): s is HealthStatus => 
+            Object.values(HealthStatus).includes(s as HealthStatus)
+          )
+      : undefined;
+
+    const logs = await healthMetricsService.getRequestLogs({
+      endpointIds: endpointIds.length ? endpointIds : undefined,
+      symbols: symbols.length ? symbols : undefined,
+      status: status?.length ? status : undefined,
+      timeRange,
       sortBy,
       sortOrder,
       limit,
-      offset,
+      offset
     });
 
-    res.status(200).json({ success: true, ...result });
+    res.status(200).json({
+      success: true,
+      data: logs
+    });
   } catch (error) {
-    logger.error('Error fetching request logs', {
+    logger.error('Error in getRequestLogs', { 
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
+      query: req.query
     });
-    res.status(500).json({ success: false, error: 'Failed to fetch request logs' });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? 
+        (error instanceof Error ? error.message : String(error)) : 
+        undefined
+    });
   }
 }));
 
 // New: per-symbol status (latest)
-export const getSymbolStatus = onRequest(withCors(async (req, res) => {
+export const getSymbolStatus = onRequest(withCors(async (req: Request, res: Response) => {
   try {
-    const user = await authenticateRequestEither(req, res);
-    if (!user) return;
+    // Authenticate the request
+    const authResult = await authenticateRequestEither(req, res);
+    if (!authResult) return;
+    const actor = resolveActor(authResult);
+    
+    logger.info('Processing request', { 
+      authType: actor.type,
+      uid: actor.uid, 
+      email: actor.email,
+      serviceAccountEmail: actor.serviceAccountEmail,
+    });
 
     const symbol = String(req.query.symbol || '').toUpperCase();
     if (!symbol) {
-      res.status(400).json({ success: false, error: 'symbol is required' });
+      res.status(400).json({ success: false, error: 'Symbol parameter is required' });
       return;
     }
 
     const status = await healthMetricsService.getSymbolStatus(symbol);
+    logger.info('getSymbolStatus.result', {
+      symbol,
+      hasData: !!status,
+      endpointId: status?.endpointId,
+      status: status?.status,
+      lastUpdated: status?.lastUpdated,
+    });
     res.status(200).json({ success: true, data: status });
   } catch (error) {
-    logger.error('Error fetching symbol status', {
+    logger.error('Error in getSymbolStatus', { 
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
+      symbol: req.query.symbol
     });
-    res.status(500).json({ success: false, error: 'Failed to fetch symbol status' });
+    // Return 200 with null payload so UI can continue without breaking
+    res.status(200).json({ success: true, data: null });
   }
 }));
 
 // New: per-symbol aggregated metrics
-export const getSymbolMetrics = onRequest(withCors(async (req, res) => {
+export const getSymbolMetrics = onRequest(withCors(async (req: Request, res: Response) => {
   try {
-    const user = await authenticateRequestEither(req, res);
-    if (!user) return;
+    // Authenticate the request
+    const authResult = await authenticateRequestEither(req, res);
+    if (!authResult) return;
+    const actor = resolveActor(authResult);
+    
+    logger.info('Processing request', { 
+      authType: actor.type,
+      uid: actor.uid, 
+      email: actor.email,
+      serviceAccountEmail: actor.serviceAccountEmail,
+    });
 
     const symbol = String(req.query.symbol || '').toUpperCase();
     if (!symbol) {
-      res.status(400).json({ success: false, error: 'symbol is required' });
+      res.status(400).json({ success: false, error: 'Symbol parameter is required' });
       return;
     }
 
     const metrics = await healthMetricsService.getSymbolMetrics(symbol);
+    logger.info('getSymbolMetrics.result', {
+      symbol,
+      hasData: !!metrics,
+      endpointId: metrics?.endpointId,
+      refreshCount: metrics?.refreshCount,
+      successCount: metrics?.successCount,
+      failureCount: metrics?.failureCount,
+      lastUpdated: metrics?.lastUpdated,
+    });
     res.status(200).json({ success: true, data: metrics });
   } catch (error) {
-    logger.error('Error fetching symbol metrics', {
+    logger.error('Error in getSymbolMetrics', { 
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
+      symbol: req.query.symbol
     });
-    res.status(500).json({ success: false, error: 'Failed to fetch symbol metrics' });
+    // Return 200 with null payload so UI can continue without breaking
+    res.status(200).json({ success: true, data: null });
   }
 }));
 
-// Export all health metrics functions
+// V2: per-symbol status (latest) — fresh function name to avoid any legacy routing
+export const getSymbolStatusV2 = onRequest(withCors(async (req: Request, res: Response) => {
+  try {
+    // Authenticate the request
+    const authResult = await authenticateRequestEither(req, res);
+    if (!authResult) return;
+    const actor = resolveActor(authResult);
+    
+    logger.info('Processing request', { 
+      authType: actor.type,
+      uid: actor.uid, 
+      email: actor.email,
+      serviceAccountEmail: actor.serviceAccountEmail,
+    });
+
+    const symbol = String(req.query.symbol || '').toUpperCase();
+    if (!symbol) {
+      res.status(400).json({ success: false, error: 'Symbol parameter is required' });
+      return;
+    }
+
+    const status = await healthMetricsService.getSymbolStatus(symbol);
+    logger.info('getSymbolStatusV2.result', { symbol, hasData: !!status, endpointId: status?.endpointId, status: status?.status, lastUpdated: status?.lastUpdated });
+    res.status(200).json({ success: true, data: status });
+  } catch (error) {
+    logger.error('Error in getSymbolStatusV2', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      symbol: req.query.symbol,
+    });
+    res.status(200).json({ success: true, data: null });
+  }
+}));
+
+// V2: per-symbol aggregated metrics — fresh function name to avoid any legacy routing
+export const getSymbolMetricsV2 = onRequest(withCors(async (req: Request, res: Response) => {
+  try {
+    // Authenticate the request
+    const authResult = await authenticateRequestEither(req, res);
+    if (!authResult) return;
+    const actor = resolveActor(authResult);
+    
+    logger.info('Processing request', { 
+      authType: actor.type,
+      uid: actor.uid, 
+      email: actor.email,
+      serviceAccountEmail: actor.serviceAccountEmail,
+    });
+
+    const symbol = String(req.query.symbol || '').toUpperCase();
+    if (!symbol) {
+      res.status(400).json({ success: false, error: 'Symbol parameter is required' });
+      return;
+    }
+
+    const metrics = await healthMetricsService.getSymbolMetrics(symbol);
+    logger.info('getSymbolMetricsV2.result', { symbol, hasData: !!metrics, endpointId: metrics?.endpointId, refreshCount: metrics?.refreshCount, successCount: metrics?.successCount, failureCount: metrics?.failureCount, lastUpdated: metrics?.lastUpdated });
+    res.status(200).json({ success: true, data: metrics });
+  } catch (error) {
+    logger.error('Error in getSymbolMetricsV2', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      symbol: req.query.symbol,
+    });
+    res.status(200).json({ success: true, data: null });
+  }
+}));
+
 export * from './health-metrics.service';

@@ -417,24 +417,46 @@ export class HealthMetricsService {
       recentErrors: []
     };
 
-    // Get recent errors (requires composite index on status ASC, timestamp DESC)
-    const errorLogs = await db
-      .collection(FirestoreCollection.REQUEST_LOGS)
-      .where('status', '==', 'failure')
-      .orderBy('timestamp', 'desc')
-      .limit(10)
-      .get();
+    try {
+      console.log('Fetching recent error logs...');
+      const errorLogs = await db
+        .collection(FirestoreCollection.REQUEST_LOGS)
+        .where('status', '==', 'failure')
+        .orderBy('timestamp', 'desc')
+        .limit(10)
+        .get();
 
-    summary.recentErrors = errorLogs.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        timestamp: data.timestamp,
-        endpointId: data.endpointId,
-        symbol: data.symbol,
-        error: data.error || 'Unknown error'
-      };
-    });
+      console.log(`Found ${errorLogs.size} error logs`);
+      
+      summary.recentErrors = errorLogs.docs.map(doc => {
+        const data = doc.data();
+        const timestamp = data.timestamp;
+        
+        console.log(`Processing error log ${doc.id}:`, { 
+          hasTimestamp: !!timestamp,
+          timestampType: timestamp?.constructor?.name,
+          dataKeys: Object.keys(data)
+        });
+        
+        return {
+          id: doc.id,
+          timestamp: timestamp?.toDate ? timestamp.toDate() : timestamp,
+          endpointId: data.endpointId,
+          symbol: data.symbol,
+          error: data.error || 'Unknown error'
+        };
+      });
+    } catch (error: unknown) {
+      const errorObj = error as Error & { code?: string };
+      console.error('Error fetching request logs:', {
+        message: errorObj.message,
+        stack: errorObj.stack,
+        name: errorObj.name,
+        code: errorObj.code,
+        collection: FirestoreCollection.REQUEST_LOGS
+      });
+      // Continue without recent errors if the query fails
+    }
 
     return summary;
   }
@@ -501,60 +523,68 @@ export class HealthMetricsService {
    * @returns Symbol metrics or null if not found
    */
   async getSymbolMetrics(symbol: string): Promise<SymbolRefreshMetrics | null> {
-    // Get all endpoints where this symbol exists
-    const snapshot = await db
-      .collectionGroup('symbols')
-      .where('symbol', '==', symbol)
-      .limit(1)
-      .get();
-      
-    if (snapshot.empty) return null;
-    
-    const doc = snapshot.docs[0];
-    const data = doc.data();
-    
-    return {
-      symbol,
-      endpointId: data.endpointId,
-      lastUpdated: data.lastUpdated || new Date(),
-      lastStatus: data.lastStatus || 'unknown',
-      lastError: data.lastError,
-      refreshCount: data.refreshCount || 0,
-      successCount: data.successCount || 0,
-      failureCount: data.failureCount || 0,
-      totalDurationMs: data.totalDurationMs || 0,
-      avgDurationMs: data.avgDurationMs || 0,
-      firstSeen: data.firstSeen || new Date(),
-      lastSeen: data.lastSeen || new Date()
-    } as SymbolRefreshMetrics;
+    // Temporary: only use per-endpoint lookup to avoid collectionGroup index requirement
+    for (const endpoint of Array.from(AV_IMPLEMENTED_ENDPOINTS)) {
+      try {
+        const ref = db
+          .collection(FirestoreCollection.HEALTH_METRICS)
+          .doc(endpoint as string)
+          .collection('symbols')
+          .doc(symbol);
+        const snap = await ref.get();
+        if (snap.exists) {
+          const data: any = snap.data() || {};
+          return {
+            symbol,
+            endpointId: data.endpointId || (endpoint as string),
+            lastUpdated: data.lastUpdated || new Date(),
+            lastStatus: data.lastStatus || 'unknown',
+            lastError: data.lastError,
+            refreshCount: data.refreshCount || 0,
+            successCount: data.successCount || 0,
+            failureCount: data.failureCount || 0,
+            totalDurationMs: data.totalDurationMs || 0,
+            avgDurationMs: data.avgDurationMs || 0,
+            firstSeen: data.firstSeen || new Date(),
+            lastSeen: data.lastSeen || new Date(),
+          } as SymbolRefreshMetrics;
+        }
+      } catch { /* continue */ }
+    }
+    return null;
   }
 
   /**
    * Gets the current status of a symbol across all endpoints
    */
   async getSymbolStatus(symbol: string): Promise<SymbolStatus | null> {
-    const snapshot = await db
-      .collectionGroup(FirestoreCollection.STATUS)
-      .where('symbol', '==', symbol)
-      .limit(1)
-      .get();
-      
-    if (snapshot.empty) return null;
-    
-    const doc = snapshot.docs[0];
-    return {
-      symbol,
-      endpointId: doc.data().endpointId,
-      ...doc.data(),
-      // Ensure all required fields have default values
-      status: doc.data().status || SymbolHealthState.Unknown,
-      lastUpdated: doc.data().lastUpdated || new Date(),
-      updatedAt: doc.data().updatedAt || new Date(),
-      refreshCount: doc.data().refreshCount || 0,
-      successRate: doc.data().successRate || 0,
-      avgDurationMs: doc.data().avgDurationMs || 0,
-      lastDurationMs: doc.data().lastDurationMs
-    } as SymbolStatus;
+    // Temporary: only use per-endpoint lookup to avoid collectionGroup index requirement
+    for (const endpoint of Array.from(AV_IMPLEMENTED_ENDPOINTS)) {
+      try {
+        const ref = db
+          .collection(FirestoreCollection.ENDPOINT_SYMBOLS)
+          .doc(endpoint as string)
+          .collection(FirestoreCollection.STATUS)
+          .doc(symbol);
+        const snap = await ref.get();
+        if (snap.exists) {
+          const data: any = snap.data() || {};
+          return {
+            symbol,
+            endpointId: data.endpointId || (endpoint as string),
+            status: data.status || SymbolHealthState.Unknown,
+            lastUpdated: data.lastUpdated || new Date(),
+            updatedAt: data.updatedAt || new Date(),
+            lastError: data.lastError,
+            refreshCount: data.refreshCount || 0,
+            successRate: data.successRate || 0,
+            avgDurationMs: data.avgDurationMs || 0,
+            lastDurationMs: data.lastDurationMs,
+          } as SymbolStatus;
+        }
+      } catch { /* continue */ }
+    }
+    return null;
   }
 
   /**
