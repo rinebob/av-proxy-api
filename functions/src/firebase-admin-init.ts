@@ -1,58 +1,37 @@
-import { getApp, App } from 'firebase-admin/app';
-import { getFirestore, Firestore, FieldValue } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
-// Initialize Firebase Admin SDK
-let app: App;
-let db: Firestore;
+// Initialize Firebase Admin SDK if not already initialized
+if (!admin.apps.length) {
+  // Prefer default initialization so runtime provides correct project/credentials
+  admin.initializeApp();
 
-// Determine environment: never treat Cloud Run as emulator even if env vars are mis-set
-const isRunningOnCloudRun = !!process.env.K_SERVICE; // Present on Cloud Run/Gen2 Functions
-const useEmulators = process.env.FUNCTIONS_EMULATOR === 'true' && !isRunningOnCloudRun;
-
-if (useEmulators) {
-  // In emulator mode, the SDK is initialized automatically,
-  // but we can still configure it if needed.
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      // Point to the emulator's Firestore if needed
-      // credential: admin.credential.applicationDefault(),
-      // databaseURL: 'http://localhost:8080'
-    });
-    console.log('Firebase Admin SDK initialized for EMULATOR.');
-  } else {
-    console.log('Firebase Admin SDK already initialized for EMULATOR.');
+  // Optional: connect to Firestore emulator only if explicitly set via env
+  const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
+  if (emulatorHost) {
+    // Example: localhost:8080
+    const [host, portStr] = emulatorHost.split(':');
+    const port = Number(portStr) || undefined;
+    admin.firestore().settings({ host: port ? `${host}:${port}` : host, ssl: false });
   }
-} else {
-  // In a deployed environment, initialize with parameter-less call.
-  // It automatically uses the correct service account and credentials.
-  if (!admin.apps.length) {
-    admin.initializeApp();
-    console.log('Firebase Admin SDK initialized for PRODUCTION.');
-  } else {
-    console.log('Firebase Admin SDK already initialized for PRODUCTION.');
+
+  // One-time startup diagnostics (non-sensitive)
+  // Helps detect accidental emulator usage or missing env during deploy
+  try {
+    const projectId = process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || process.env.FIREBASE_CONFIG;
+    console.log('[firebase-admin-init] Admin initialized', {
+      emulator: !!process.env.FIRESTORE_EMULATOR_HOST,
+      projectIdMeta: projectId ? String(projectId).substring(0, 80) : 'unknown',
+      nodeVersion: process.version,
+    });
+  } catch {
+    // no-op
   }
 }
 
 // Initialize Firestore
-app = getApp();
-db = getFirestore(app);
-db.settings({ ignoreUndefinedProperties: true });
-
-// If using emulators, point/log the emulator config. Never do this on Cloud Run.
-if (useEmulators) {
-  console.log('Connecting to Firebase Emulators...');
-  // Point to the auth emulator
-  // This env var is read by the Admin SDK's auth().verifyIdToken() method.
-  process.env.FIREBASE_AUTH_EMULATOR_HOST = 'localhost:9099';
-  console.log(`FIREBASE_AUTH_EMULATOR_HOST set to: ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
-
-  // Firestore emulator host is set via another env var by the shell.
-  // We can log it for confirmation.
-  console.log(`FIRESTORE_EMULATOR_HOST is: ${process.env.FIRESTORE_EMULATOR_HOST}`);
-}
-
-console.log('Firebase Admin SDK initialized successfully.');
+const db = admin.firestore();
 
 // Export the initialized instances
-export { admin, db, FieldValue };
+export { admin, db };
+export { FieldValue };
