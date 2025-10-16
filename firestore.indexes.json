@@ -20,25 +20,6 @@
       "density": "SPARSE_ALL"
     },
     {
-      "collectionGroup": "tracked_symbols",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "isActive",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "symbol",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
@@ -73,6 +54,15 @@
           "fieldPath": "__name__",
           "order": "ASCENDING"
         }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "request-logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "endpointId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     }
