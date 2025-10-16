@@ -130,7 +130,7 @@ export class HealthFiltersBarComponent extends HealthViewBase {
 
     if (!PERSIST_FILTERS) {
       // Always start from a known default when entering the view
-      this.setQuickRange(QuickRange.LAST_24H);
+      this.setQuickRange(QuickRange.ALL);
       this.showCustomDates.set(false);
     } else {
       // Try to map existing dates to a quick range; otherwise mark as Custom
@@ -296,8 +296,8 @@ export class HealthFiltersBarComponent extends HealthViewBase {
     this.sortOrderSig.set(null);
     this.showCustomDates.set(false);
 
-    // Set default quick range to Last 24 hours (also applies filters)
-    this.setQuickRange(QuickRange.LAST_24H);
+    // Set default quick range to All data (also applies filters)
+    this.setQuickRange(QuickRange.ALL);
   }
 
   // Sync UI signals from store filters (called on init)
@@ -328,7 +328,7 @@ export class HealthFiltersBarComponent extends HealthViewBase {
 
     if (!from || !to) {
       // No explicit dates; treat as default
-      this.setQuickRange(QuickRange.LAST_24H);
+      this.setQuickRange(QuickRange.ALL);
       return;
     }
 
