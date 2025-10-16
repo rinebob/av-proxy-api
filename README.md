@@ -391,6 +391,53 @@ Compact Bar Fields:
 - These HTTP endpoints are intended for local development only and will return 403 outside the emulators.
 - For scheduled, automated refreshes use the cron-based functions defined in `functions/src/v2/common/function-schedules.ts` and wired in `av-refresh-manager.ts`.
 
+## Cleaning up compiled artifacts in `functions/`
+
+If stray compiled files end up in `functions/src` or `functions/scripts` (e.g., `*.js`, `*.js.map`, `*.d.ts`), use these PowerShell commands from the repo root to list and delete them with logging. Our `.gitignore` already ignores these, but this helps clean a working tree.
+
+- List what will be deleted under `functions/src` and `functions/scripts`:
+
+```powershell
+# List matching files under functions/src
+Get-ChildItem functions\src -Recurse -File |
+  Where-Object { $_.Name -like '*.js' -or $_.Name -like '*.js.map' -or $_.Name -like '*.d.ts' } |
+  Select-Object FullName
+
+# List matching files under functions/scripts
+Get-ChildItem functions\scripts -Recurse -File |
+  Where-Object { $_.Name -like '*.js' -or $_.Name -like '*.js.map' -or $_.Name -like '*.d.ts' } |
+  Select-Object FullName
+```
+
+- Delete with logging (robust filter approach):
+
+```powershell
+# functions/src
+Get-ChildItem functions\src -Recurse -File |
+  Where-Object { $_.Name -like '*.js' -or $_.Name -like '*.js.map' -or $_.Name -like '*.d.ts' } |
+  ForEach-Object { Write-Host "Deleting $($_.FullName)"; Remove-Item -Force $_.FullName }
+
+# functions/scripts
+Get-ChildItem functions\scripts -Recurse -File |
+  Where-Object { $_.Name -like '*.js' -or $_.Name -like '*.js.map' -or $_.Name -like '*.d.ts' } |
+  ForEach-Object { Write-Host "Deleting $($_.FullName)"; Remove-Item -Force $_.FullName }
+```
+
+- Alternative using `-Include` with a wildcard path segment:
+
+```powershell
+Get-ChildItem -Path functions\src\**\* -Recurse -File -Include *.js,*.js.map,*.d.ts |
+  ForEach-Object { Write-Host "Deleting $($_.FullName)"; Remove-Item -Force $_.FullName }
+
+Get-ChildItem -Path functions\scripts\**\* -Recurse -File -Include *.js,*.js.map,*.d.ts |
+  ForEach-Object { Write-Host "Deleting $($_.FullName)"; Remove-Item -Force $_.FullName }
+```
+
+Notes:
+- Stop any watchers/emulators that might lock files, then rerun the commands.
+- You can also use the convenience script from `functions/`: `npm run clean:compiled`.
+- If you want to remove all ignored files under `functions/src`, you can run `git clean -Xdf functions/src` (warning: this is destructive for ignored files).
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -342,6 +342,52 @@ Files:
 - Cleanup:
   - `purgeOldHealthHistory` removes aged-out history docs to control storage
 
+### Cloud Logging query examples
+
+Use the Logs Explorer with the following filters to find specific flows. The structured logger writes a single JSON object per line with fields like `component`, `event`, `level`, and your payload.
+
+- By component and level:
+  ```
+  resource.type="cloud_run_revision"
+  jsonPayload.component="auth" AND jsonPayload.level="warn"
+  ```
+
+- Health endpoint traffic (info and above):
+  ```
+  resource.type="cloud_run_revision"
+  (resource.labels.service_name="gethealthsummary" OR 
+   resource.labels.service_name="getrequestlogs" OR 
+   resource.labels.service_name="getsymbolstatus" OR 
+   resource.labels.service_name="getsymbolmetrics" OR 
+   resource.labels.service_name="gethealthmetrics")
+  jsonPayload.level!="debug"
+  ```
+
+- AV refresh errors only:
+  ```
+  resource.type="cloud_run_revision"
+  jsonPayload.component="av.refresh" AND jsonPayload.level="error"
+  ```
+
+- Partner endpoint auth denials:
+  ```
+  resource.type="cloud_run_revision"
+  resource.labels.service_name="partnertimeseriesv2"
+  (jsonPayload.event="either.google.denied" OR jsonPayload.event="either.firebase.denied")
+  ```
+
+- Rate limit warnings from Alpha Vantage:
+  ```
+  resource.type="cloud_run_revision"
+  (jsonPayload.event="ut_fSD_rate_limit_note" OR jsonPayload.event="ut hAE Rate Limit Exceeded")
+  ```
+
+Tips
+
+- `service_name` is the lowercase Cloud Run service name (e.g., `gethealthsummary`).
+- The `level` field is independent of Cloud Logging `severity`. We log at `console.log`, so use `jsonPayload.level` for filtering by verbosity.
+- For ad hoc debugging, temporarily set `LOG_LEVEL=debug` on a single service and narrow queries by `service_name`.
+
 ---
 
 ## Partner Data-Ready Notifications (Pub/Sub)
@@ -401,6 +447,51 @@ Use Pub/Sub subscription filters to target only the events you need. Example fil
 IAM
 - Grant consumer service accounts `roles/pubsub.subscriber` on the subscription and appropriate topic visibility.
 - For cross-team setups, we (publisher project) typically create the subscription and bind the consumer SA to it.
+
+---
+
+## Logging: Structured Logger and Levels
+
+The Functions code uses a lightweight, structured logger exposed by `createLogger()` in `functions/src/v2/utils/utils.ts`.
+
+- Location: `functions/src/v2/utils/utils.ts`
+- Entry points: `createLogger(component: string)` returns `info/warn/error/debug` methods that emit single JSON objects for clean Cloud Run/Cloud Logging queries.
+- Level control: set via environment variable `LOG_LEVEL`.
+  - Supported values: `error`, `warn`, `info`, `debug`.
+  - Default (when unset): `info`.
+
+Examples
+
+- Set debug temporarily on a single service:
+  ```bash
+  gcloud run services update partnerTimeSeriesV2 \
+    --region=us-central1 \
+    --set-env-vars=LOG_LEVEL=debug
+  ```
+- Restore to info:
+  ```bash
+  gcloud run services update partnerTimeSeriesV2 \
+    --region=us-central1 \
+    --set-env-vars=LOG_LEVEL=info
+  ```
+
+Human‑readable log helpers
+
+- Toggle with `HUMAN_LOGS=true` (default: false).
+- Functions: `hr(component, message, ...args)` and `hrBlank()` print plain strings for quick local debugging.
+- Recommendation: leave `HUMAN_LOGS` unset in production to keep logs fully structured.
+
+Querying logs
+
+- Because logs are single JSON objects, you can filter on fields like `component`, `event`, and `level` in Cloud Logging to find specific flows (e.g., `component="auth" AND jsonPayload.level="warn"`).
+
+---
+
+## ENABLE_RS_SUBSCRIBER (status)
+
+- Purpose (historical): toggle for a Relative Strength (RS) subscriber/consumer that reacts to Data‑Ready Pub/Sub notifications (see “Partner Data‑Ready Notifications”).
+- Current status: not used by any deployed Cloud Function code today. It only appears in scripts/docs and has no effect at runtime.
+- Action: it is safe to remove `ENABLE_RS_SUBSCRIBER` from Cloud Run service environment variables. If an RS subscriber is introduced in the future, it will be implemented as a dedicated service with its own configuration and documentation.
 
 ---
 
