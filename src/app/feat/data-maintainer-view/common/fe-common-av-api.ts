@@ -1,45 +1,5 @@
 import { environment } from '../../../../environments/environment';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
-import { inject } from '@angular/core';
-import { API_BASES } from '../../../core/api/api.tokens';
-
-/**
- * Production URL for the Alpha Vantage API Gateway
- * (Deprecated: prefer API_BASES.av)
- */
-const AV_GATEWAY_PROD_URL = 'https://alphavantageapiv2-lsluydmucq-uc.a.run.app';
-
-/**
- * Development URL base for the Alpha Vantage API Gateway
- * (Deprecated: prefer API_BASES.av)
- */
-const AV_DEV_URL_BASE = 'http://localhost:5001/alpha-vantage-proxy-api/us-central1';
-
-/**
- * Returns the correct Alpha Vantage gateway base URL using DI if available; falls back to environment.
- */
-function getAlphaVantageBaseUrl(): string {
-  try {
-    // Prefer centralized API bases when an injection context is available
-    const bases = inject(API_BASES);
-    if (bases?.av) return bases.av;
-  } catch {}
-  // In production, do not fallback to localhost; fail fast to avoid prod calling dev emulator
-  if (environment.production) {
-    throw new Error('[fe-common-av-api] API_BASES.av unavailable in production; refusing to fallback to localhost. Ensure API_BASES is provided.');
-  }
-  // Dev-only fallback to emulator base
-  return AV_DEV_URL_BASE;
-}
-
-/**
- * All possible backend URLs for Alpha Vantage functions (for use in interceptors)
- * (Deprecated: auth interceptor now relies on API_BASES)
- */
-export const AlphaVantageBackendUrls = [
-  AV_GATEWAY_PROD_URL,
-  AV_DEV_URL_BASE
-];
 
 /**
  * Converts an AlphaVantageEndpoint to a URL path segment
@@ -50,12 +10,10 @@ function endpointToPath(endpoint: AlphaVantageEndpoint): string {
 }
 
 /**
- * Returns the full URL for an Alpha Vantage endpoint
- * @param endpoint The Alpha Vantage endpoint to call
+ * Builds the full Alpha Vantage endpoint URL from a provided base URL.
+ * Callers should pass API_BASES.av from DI to avoid runtime inject() usage here.
  */
-export function getAlphaVantageEndpointUrl(endpoint: AlphaVantageEndpoint): string {
-  const baseUrl = getAlphaVantageBaseUrl();
-  console.log(`av-api gAEU Using base URL: ${baseUrl}, endpoint: ${endpoint}`);
+export function buildAlphaVantageEndpointUrl(baseUrl: string, endpoint: AlphaVantageEndpoint): string {
   // For production, use the direct path (e.g., https://alpha-...run.app/TIME_SERIES_DAILY)
   // For development/emulator, use the full path with function name
   return environment.production

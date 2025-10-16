@@ -7,7 +7,6 @@ import { catchError, switchMap, take } from 'rxjs/operators';
 import { AuthService } from './auth.service';
 import { StockDataUrl } from '../../common/fe-common-app';
 import { DataMaintainerBackendUrls } from '../../feat/data-maintainer-view/common/fe-common-dm-api';
-import { AlphaVantageBackendUrls } from '../../feat/data-maintainer-view/common/fe-common-av-api';
 import { API_BASES } from '../api/api.tokens';
 
 const pr = false;
@@ -24,7 +23,6 @@ export const authInterceptor: HttpInterceptorFn = (
   const backendUrls = [
     ...Object.values(StockDataUrl),
     ...DataMaintainerBackendUrls,
-    ...AlphaVantageBackendUrls,
     apiBases.health,
     apiBases.av,
     apiBases.dm,
