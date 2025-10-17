@@ -7,6 +7,8 @@ import type { CompactBar } from '@shared/alpha-vantage';
 import { createLogger, hr } from '../../utils/utils';
 import { DayOfWeek } from '@shared/alpha-vantage';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
+import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
+import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
 const log = createLogger('av.handler.ts-base'); // Abbrev: aVTS.H
 
@@ -230,6 +232,21 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           await upsertAvDailyIntradaySnapshot({ symbol: symbol!, date: barEtDate, ip: latestClose, io: latestIo, dow: dowMap[etDowNum] });
           hr('aVTS.H', `pre-close intraday snapshot upsert ${endpoint} ${symbol} date=${barEtDate} [${(this as any).requestId}]`);
           log.info('firestore.preclose_intraday_snapshot', { endpointId: endpoint, symbol, date: barEtDate });
+          // Also record a health metrics success for the intraday endpoint so UI shows it distinctly
+          try {
+            const hms = new HealthMetricsService();
+            await hms.recordSymbolRefresh(
+              AlphaVantageEndpoint.TIME_SERIES_INTRADAY as any,
+              symbol!,
+              RefreshStatus.SUCCESS,
+              Date.now() - startTime,
+              undefined,
+              { trigger: RefreshTrigger.SCHEDULER }
+            );
+          } catch (e) {
+            // Best effort; do not fail the handler if health recording fails
+            log.warn?.('preclose.intraday_health_record_failed', { endpointId: AlphaVantageEndpoint.TIME_SERIES_INTRADAY, symbol, error: String((e as any)?.message || e) } as any);
+          }
           // Success response without further persistence
           hr('aVTS.H', `fetch ok ${endpoint} ${symbol ?? ''} ${(Date.now() - startTime)}ms [${(this as any).requestId}]`);
           log.info('fetch.success', { endpointId: endpoint, symbol, durationMs: Date.now() - startTime, requestId: (this as any).requestId });
