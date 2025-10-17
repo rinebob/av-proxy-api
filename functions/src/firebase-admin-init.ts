@@ -12,7 +12,15 @@ if (!admin.apps.length) {
     // Example: localhost:8080
     const [host, portStr] = emulatorHost.split(':');
     const port = Number(portStr) || undefined;
-    admin.firestore().settings({ host: port ? `${host}:${port}` : host, ssl: false });
+    // Apply settings in a single call; include ignoreUndefinedProperties always
+    admin.firestore().settings({
+      host: port ? `${host}:${port}` : host,
+      ssl: false,
+      ignoreUndefinedProperties: true,
+    });
+  } else {
+    // Ensure undefined values are ignored in all environments
+    admin.firestore().settings({ ignoreUndefinedProperties: true });
   }
 
   // One-time startup diagnostics (non-sensitive)

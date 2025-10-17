@@ -8,7 +8,7 @@ export interface RequestEvent {
   params: Record<string, any>;
   itemCount: number;
   durationMs: number;
-  error?: string;
+  error?: string | null;
 }
 
 export class RequestLoggerService {
@@ -22,8 +22,12 @@ export class RequestLoggerService {
    */
   async logRequest(vendor: string, event: Omit<RequestEvent, 'vendor'>): Promise<void> {
     const docRef = this.db.collection('news').doc(vendor);
-    const fullEvent: RequestEvent = {
+    const sanitized: Omit<RequestEvent, 'vendor'> = {
       ...event,
+      error: event.error ?? null,
+    };
+    const fullEvent: RequestEvent = {
+      ...sanitized,
       vendor,
     };
 

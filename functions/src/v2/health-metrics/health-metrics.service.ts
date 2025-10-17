@@ -69,7 +69,7 @@ export class HealthMetricsService {
       healthMetrics.nextRefreshAt = latest.nextRefreshAt?.toDate();
       healthMetrics.lastRefreshAttempt = latest.timestamp?.toDate();
       healthMetrics.lastRefreshStatus = latest.status;
-      healthMetrics.error = latest.error;
+      healthMetrics.error = latest.error ?? undefined;
     }
     
     // Aggregate per-symbol status for this endpoint
@@ -215,7 +215,7 @@ export class HealthMetricsService {
       id: historyRef.id,
       timestamp: now,
       status,
-      error,
+      error: error ?? undefined,
       durationMs: refreshDurationMs,
       endpointId,
       nextRefreshAt,
@@ -239,7 +239,7 @@ export class HealthMetricsService {
       lastRefreshStatus: status,
       nextRefreshAt,
       lastUpdated: now,
-      error: status === RefreshStatus.FAILURE ? error : null,
+      error: status === RefreshStatus.FAILURE ? (error ?? undefined) : undefined,
       durationMs: refreshDurationMs,
       refreshStatus: status === RefreshStatus.SUCCESS ? RefreshRecency.Fresh : RefreshRecency.Stale
     };
@@ -252,7 +252,7 @@ export class HealthMetricsService {
       lastRefreshAttempt: now,
       lastRefreshStatus: status,
       lastUpdated: now,
-      error: status === RefreshStatus.FAILURE ? error : null,
+      error: status === RefreshStatus.FAILURE ? (error ?? undefined) : undefined,
       durationMs: refreshDurationMs,
       nextRefreshAt
     };
@@ -305,7 +305,7 @@ export class HealthMetricsService {
       updates.successCount = (updates.successCount || 0) + 1;
     } else {
       updates.failureCount = (updates.failureCount || 0) + 1;
-      updates.lastError = error;
+      updates.lastError = error ?? undefined;
     }
 
     // Calculate average duration safely
@@ -325,7 +325,7 @@ export class HealthMetricsService {
       symbol,
       status,
       durationMs,
-      error,
+      error: error ?? undefined,
       metadata: metadata || {}
     });
 
@@ -342,7 +342,7 @@ export class HealthMetricsService {
       status: error ? SymbolHealthState.Error : SymbolHealthState.Success,
       lastUpdated: now,
       updatedAt: now,
-      lastError: error || undefined,
+      lastError: error ?? undefined,
       refreshCount: updates.refreshCount,
       successRate: updates.successCount ? (updates.successCount / updates.refreshCount!) * 100 : 0,
       avgDurationMs: updates.avgDurationMs,
@@ -360,7 +360,7 @@ export class HealthMetricsService {
       lastUpdated: now,
       lastStatus: status,
       lastSymbol: symbol,
-      lastError: error || null,
+      lastError: error ?? undefined,
       lastDurationMs: durationMs,
     };
     batch.set(endpointMetaRef, endpointMetaUpdate, { merge: true });
@@ -539,7 +539,7 @@ export class HealthMetricsService {
             endpointId: data.endpointId || (endpoint as string),
             lastUpdated: data.lastUpdated || new Date(),
             lastStatus: data.lastStatus || 'unknown',
-            lastError: data.lastError,
+            lastError: data.lastError ?? undefined,
             refreshCount: data.refreshCount || 0,
             successCount: data.successCount || 0,
             failureCount: data.failureCount || 0,
@@ -575,7 +575,7 @@ export class HealthMetricsService {
             status: data.status || SymbolHealthState.Unknown,
             lastUpdated: data.lastUpdated || new Date(),
             updatedAt: data.updatedAt || new Date(),
-            lastError: data.lastError,
+            lastError: data.lastError ?? undefined,
             refreshCount: data.refreshCount || 0,
             successRate: data.successRate || 0,
             avgDurationMs: data.avgDurationMs || 0,
