@@ -14,6 +14,7 @@ import {
 import { environment } from '../../../../environments/environment';
 import { inject } from '@angular/core';
 import { API_BASES } from '../../../core/api/api.tokens';
+import { GatewayFunctionPath } from '../../../common/fe-common-fn';
 
 /**
  * Production URL for the Benzinga API Gateway
@@ -54,7 +55,7 @@ export const BenzingaBackendUrls = [
  */
 export function getBenzingaEndpointUrl(): string {
   const baseUrl = getBenzingaBaseUrl();
-  const gatewayPath = 'benzingaApiV2';
+  const gatewayPath = GatewayFunctionPath.BENZINGA;
   return `${baseUrl}/${gatewayPath}`;
 }
 
