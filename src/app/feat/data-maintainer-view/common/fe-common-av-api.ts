@@ -1,5 +1,7 @@
 import { environment } from '../../../../environments/environment';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { GatewayFunctionPath } from '../../../common/fe-common-fn';
+
 
 /**
  * Converts an AlphaVantageEndpoint to a URL path segment
@@ -12,13 +14,15 @@ function endpointToPath(endpoint: AlphaVantageEndpoint): string {
 /**
  * Builds the full Alpha Vantage endpoint URL from a provided base URL.
  * Callers should pass API_BASES.av from DI to avoid runtime inject() usage here.
+ *
+ * Note: In v2, all Alpha Vantage requests are routed through the single
+ * gateway function `alphaVantageApiV2`, which internally dispatches to the
+ * correct handler based on the trailing path segment. There are no per-endpoint
+ * Cloud Function exports (e.g., `/HISTORICAL_OPTIONS` does not exist).
  */
 export function buildAlphaVantageEndpointUrl(baseUrl: string, endpoint: AlphaVantageEndpoint): string {
-  // For production, use the direct path (e.g., https://alpha-...run.app/TIME_SERIES_DAILY)
-  // For development/emulator, use the full path with function name
-  return environment.production
-    ? `${baseUrl}/${endpoint}`
-    : `${baseUrl}/alphaVantageApiV2/${endpoint}`;
+  // Always route through the gateway function in both dev and prod
+  return `${baseUrl}/${GatewayFunctionPath.ALPHA_VANTAGE}/${endpoint}`;
 }
 
 /////////////////////////////// TYPES /////////////////////////

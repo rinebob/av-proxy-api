@@ -23,3 +23,12 @@ export enum HealthFunctionName {
   GET_SYMBOL_STATUS_V2 = 'getSymbolStatusV2',
   GET_SYMBOL_METRICS_V2 = 'getSymbolMetricsV2',
 }
+
+/**
+ * Gateway function path segments for 2nd Gen HTTPS gateways.
+ * Use these to build URLs instead of hardcoding strings in call sites.
+ */
+export enum GatewayFunctionPath {
+  ALPHA_VANTAGE = 'alphaVantageApiV2',
+  BENZINGA = 'benzingaApiV2',
+}
