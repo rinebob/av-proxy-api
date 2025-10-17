@@ -3,7 +3,18 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { setupEmulator } from './scripts-util';
 setupEmulator();
-dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
+{
+  // Load only the current convention: local-dev.env.alpha-vantage-proxy-api
+  const localDevPath = path.resolve(__dirname, '..', 'local-dev.env.alpha-vantage-proxy-api');
+  const fs = require('fs');
+  if (fs.existsSync(localDevPath)) {
+    console.log(`[dispatcher] loading env from: ${path.basename(localDevPath)}`);
+    dotenv.config({ path: localDevPath });
+  } else {
+    console.warn('[dispatcher] WARNING: functions/local-dev.env.alpha-vantage-proxy-api not found.');
+    console.warn('Ensure this file exists with LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY and GCLOUD_PROJECT=alpha-vantage-proxy-api');
+  }
+}
 
 // Firebase Admin (centralized init used by other scripts)
 import { db, admin } from '../src/firebase-admin-init';
