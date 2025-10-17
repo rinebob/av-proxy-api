@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { HealthViewBase } from '../health-view-base/health-view-base.component';
 import { CommonModule } from '@angular/common';
 import { TsToIsoPipe } from '../../pipes/ts-to-iso.pipe';
+import { TimeAgoPipe } from '../../pipes/time-ago.pipe';
 import { RefreshStatus } from '@shared/firestore';
 import { MatIconModule } from '@angular/material/icon';
 import { SortDir, SortKey } from '@shared/health-metrics';
@@ -9,7 +10,7 @@ import { SortDir, SortKey } from '@shared/health-metrics';
 @Component({
   selector: 'app-health-request-log-table',
   standalone: true,
-  imports: [CommonModule, TsToIsoPipe, MatIconModule],
+  imports: [CommonModule, TsToIsoPipe, TimeAgoPipe, MatIconModule],
   templateUrl: './health-request-log-table.component.html',
   styleUrls: ['./health-request-log-table.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

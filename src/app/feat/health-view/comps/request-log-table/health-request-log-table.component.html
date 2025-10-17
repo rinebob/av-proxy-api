@@ -31,6 +31,18 @@
               </span>
             </th>
             <th role="columnheader"
+                (click)="onHeaderSort(SortKey.TIMESTAMP)"
+                [class.sorted]="healthStore.logsSortField() === SortKey.TIMESTAMP"
+                style="cursor:pointer"
+                [attr.aria-sort]="healthStore.logsSortField() === SortKey.TIMESTAMP ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'ascending' : 'descending') : 'none'">
+              <span class="header-content">
+                <span>Ago</span>
+                <mat-icon inline class="sort-icon" [class.active]="healthStore.logsSortField() === SortKey.TIMESTAMP">
+                  {{ healthStore.logsSortField() === SortKey.TIMESTAMP ? (healthStore.logsSortDir() === Ui.SortDir.ASC ? 'arrow_upward' : 'arrow_downward') : 'arrow_upward' }}
+                </mat-icon>
+              </span>
+            </th>
+            <th role="columnheader"
                 (click)="onHeaderSort(SortKey.ENDPOINT_ID)"
                 [class.sorted]="healthStore.logsSortField() === SortKey.ENDPOINT_ID"
                 style="cursor:pointer"
@@ -89,6 +101,7 @@
           @for (row of healthStore.sortedLogs(); track row.id) {
             <tr role="row" class="clickable" (click)="row.symbol && healthStore.openSymbol(row.symbol)" title="View {{ row.symbol }} details">
               <td role="cell">{{ row.timestamp | tsToIso:'local' }} PT</td>
+              <td role="cell">{{ row.timestamp | timeAgo }}</td>
               <td role="cell">{{ row.endpointId }}</td>
               <td role="cell">{{ row.symbol }}</td>
               <td role="cell" [class.ok]="row.status === RefreshStatus.SUCCESS" [class.err]="row.status !== RefreshStatus.SUCCESS">
