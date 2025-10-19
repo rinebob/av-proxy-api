@@ -117,12 +117,13 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
     const endpoint = this.config.id;
     const symbol = params?.symbol;
     const phase: TradingPhase | undefined = (params as any)?.__phase;
+    const runCtx: any | undefined = (params as any)?.__run; // propagated by scheduler for grouping
     hr('aVTS.H', `fetch start ${endpoint} ${symbol ?? ''} [${(this as any).requestId}]`);
     log.info('fetch.start', { endpointId: endpoint, symbol, requestId: (this as any).requestId });
     this.validateParams(params);
 
     // Strip internal params before sending to AV
-    const { __checkWriteToggle, __phase, ...publicParams } = params || {};
+    const { __checkWriteToggle, __phase, __run, ...publicParams } = params || {};
     const requestParams = this.prepareRequestParams(publicParams);
 
     try {
@@ -241,7 +242,7 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
               RefreshStatus.SUCCESS,
               Date.now() - startTime,
               undefined,
-              { trigger: RefreshTrigger.SCHEDULER }
+              { trigger: RefreshTrigger.SCHEDULER, runId: runCtx?.id, run: runCtx }
             );
           } catch (e) {
             // Best effort; do not fail the handler if health recording fails

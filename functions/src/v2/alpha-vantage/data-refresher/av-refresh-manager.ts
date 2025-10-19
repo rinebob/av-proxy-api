@@ -9,11 +9,11 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-factory';
 
-import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval, AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval, AlphaVantageEndpoint, DayOfWeek } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
-import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE, TradingPhase } from '../../common/function-schedules';
+import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE } from '../../common/function-schedules';
 
 import { createLogger, hr, hrBlank } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
@@ -23,6 +23,7 @@ import { enqueueDataReadyInternal } from '../../partner/data-ready.handler';
 import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema';
 import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerRunType } from '../../partner/constants';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
+import { TradingPhase } from '@shared/health-metrics';
 
 // Structured logger (shared)
 const log = createLogger('av.refresh');
@@ -531,11 +532,25 @@ export async function refreshForEndpoints(
   const startTime = Date.now();
   const logger = createLogger('av.refresh.scheduled');
   
+  // Derive ET market date and DOW once for this invocation
+  const tz = 'America/New_York';
+  const now = new Date();
+  const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const marketDate = fmtDate.format(now); // YYYY-MM-DD
+  const dowIdx = Number(new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay());
+  const DOW_ENUM: DayOfWeek[] = [DayOfWeek.Sun, DayOfWeek.Mon, DayOfWeek.Tue, DayOfWeek.Wed, DayOfWeek.Thu, DayOfWeek.Fri, DayOfWeek.Sat];
+  const dowEnum: DayOfWeek = DOW_ENUM[dowIdx];
+  const dowStr = String(dowEnum).toUpperCase(); // For human-readable runId
+  const phaseFinal: TradingPhase = phase ?? TradingPhase.POST;
+  const phaseStrUpper = String(phaseFinal).toUpperCase();
+
   logger.info('refresh.start', { 
     endpoints, 
     force,
-    phase,
-    trigger
+    phase: phaseFinal,
+    trigger,
+    marketDate,
+    dow: dowEnum
   });
 
   try {
@@ -555,6 +570,17 @@ export async function refreshForEndpoints(
         continue;
       }
 
+      // Build a human-readable run id and context for this endpoint
+      const runId = `${marketDate}_${dowStr}_${phaseStrUpper}_${endpoint}`;
+      const endpointShort = (() => {
+        // Shorthand mapping for readability in headers; keep simple and explicit
+        if (endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED) return 'TS_DAILY_ADJ';
+        if (endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED) return 'TS_WEEKLY_ADJ';
+        if (endpoint === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED) return 'TS_MONTHLY_ADJ';
+        return String(endpoint).toUpperCase();
+      })();
+      const run = { id: runId, date: marketDate, dow: dowEnum, phase: phaseFinal, endpointId: endpoint, endpointShort, trigger };
+      
       for (const symbol of symbols) {
         try {
           const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
@@ -562,46 +588,49 @@ export async function refreshForEndpoints(
             symbol, 
             outputsize: 'compact', 
             __checkWriteToggle: false, 
-            __phase: phase ?? TradingPhase.POST 
+            __phase: phaseFinal,
+            __run: run,
           };
           
           await handler.fetch(baseParams);
           
-          // Record successful refresh
+          // Record successful refresh with run context
           await healthMetricsService.recordSymbolRefresh(
             endpoint,
             symbol,
             RefreshStatus.SUCCESS,
             Date.now() - startTime,
             undefined,
-            { trigger }
+            { trigger, runId, run }
           );
           
           logger.info('refresh.success', { 
             endpoint,
             symbol,
-            phase,
+            phase: phaseFinal,
             trigger,
+            runId,
             durationMs: Date.now() - startTime
           });
           
         } catch (error) {
-          // Record failed refresh
+          // Record failed refresh with run context
           await healthMetricsService.recordSymbolRefresh(
             endpoint,
             symbol,
             RefreshStatus.FAILURE,
             0,
-            error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error),
-            { trigger }
+            error && typeof error === 'object' && 'message' in error ? String((error as any).message) : String(error),
+            { trigger, runId, run }
           );
           
           logger.error('refresh.error', { 
             endpoint, 
             symbol,
-            phase,
+            phase: phaseFinal,
             trigger,
-            error: error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error),
+            runId,
+            error: error && typeof error === 'object' && 'message' in (error as any) ? String((error as any).message) : String(error),
             durationMs: Date.now() - startTime
           });
         }
@@ -609,7 +638,7 @@ export async function refreshForEndpoints(
     }
   } catch (error) {
     logger.error('refresh.fatal', { 
-      error: error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error),
+      error: error && typeof error === 'object' && 'message' in (error as any) ? String((error as any).message) : String(error),
       durationMs: Date.now() - startTime
     });
     throw error;
@@ -620,12 +649,12 @@ export async function refreshForEndpoints(
     if (timeSeriesEndpoints.length > 0) {
       try {
         await announceDataReady(timeSeriesEndpoints, { 
-          phase: phase || TradingPhase.POST // Default to POST if phase not specified
+          phase: phase ?? TradingPhase.POST // Default to POST if phase not specified
         });
       } catch (announceError) {
         logger.error('announce.failed', {
-          error: announceError && typeof announceError === 'object' && 'message' in announceError 
-            ? String(announceError.message) 
+          error: announceError && typeof announceError === 'object' && 'message' in (announceError as any) 
+            ? String((announceError as any).message) 
             : String(announceError)
         });
         // Don't rethrow to avoid masking original error if there was one
@@ -635,14 +664,14 @@ export async function refreshForEndpoints(
     logger.info('refresh.complete', { 
       durationMs: Date.now() - startTime,
       endpoints: endpoints.join(','),
-      phase: phase,
+      phase: phaseFinal,
       trigger: trigger
     });
   }
 }
 
 /**
- * After all endpoints and symbols processed, announce data-ready for these intervals
+ * After all endpoints and symbols processed, announce data is ready
  */
 async function announceDataReady(
   endpoints: AlphaVantageEndpoint[], 

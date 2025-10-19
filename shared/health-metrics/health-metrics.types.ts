@@ -115,6 +115,18 @@ export interface RefreshRequestLog {
     userId?: string;
     userAgent?: string;
     ipAddress?: string;
+    // Run grouping metadata (optional). When present, the UI can group rows by runId.
+    runId?: string;
+    run?: {
+      id: string;              // same as runId
+      date: string;            // ET YYYY-MM-DD
+      dow: DayOfWeek;          // MON/TUE/...
+      phase: TradingPhase;     // pre/post
+      endpointId: AlphaVantageEndpoint; // AlphaVantageEndpoint value
+      endpointShort?: string;  // e.g., TS_DAILY_ADJ
+      trigger: RefreshTrigger; // MANUAL/SCHEDULER/etc.
+      [key: string]: any;
+    };
     [key: string]: any;
   };
 }
