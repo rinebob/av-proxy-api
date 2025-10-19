@@ -6,10 +6,10 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { HealthSummaryCardsComponent } from '../summary-cards/health-summary-cards.component';
 import { HealthFiltersBarComponent } from '../filters-bar/health-filters-bar.component';
-import { HealthRequestLogTableComponent } from '../request-log-table/health-request-log-table.component';
 import { HealthEndpointDetailComponent } from '../endpoint-detail/health-endpoint-detail.component';
 import { HealthSymbolDetailComponent } from '../symbol-detail/health-symbol-detail.component';
 import { HealthViewBase } from '../health-view-base/health-view-base.component';
+import { HealthRequestRunGroupsComponent } from '../request-run-groups/health-request-run-groups.component';
 
 // Firestore listener bits
 import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
@@ -31,7 +31,7 @@ import { TsToIsoPipe } from '../../pipes/ts-to-iso.pipe';
     MatExpansionModule,
     HealthSummaryCardsComponent,
     HealthFiltersBarComponent,
-    HealthRequestLogTableComponent,
+    HealthRequestRunGroupsComponent,
     HealthEndpointDetailComponent,
     HealthSymbolDetailComponent,
     TsToIsoPipe,
