@@ -16,9 +16,8 @@ import {
 // Health metrics
 import { HealthMetricsService } from '../src/v2/health-metrics/health-metrics.service';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
-import { HealthMetricsFilter, RefreshRequestLog } from '@shared/health-metrics';
+import { HealthMetricsFilter, RefreshRequestLog, TradingPhase } from '@shared/health-metrics';
 import { Timestamp } from 'firebase-admin/firestore';
-import { TradingPhase } from 'src/v2/common/function-schedules';
 import { RefreshTrigger } from '@shared/firestore';
 
 // Test symbol (can be overridden by CLI arg: npx ts-node scripts/test-time-series-refresh.ts MSFT)

@@ -1,5 +1,12 @@
 import { RefreshStatus, RefreshTrigger } from '../firestore';
 import type { TimestampLike } from '../firestore/timestamp';
+import type { AlphaVantageEndpoint, DayOfWeek } from '../alpha-vantage';
+
+// Shared TradingPhase for runs (matches scheduler semantics)
+export enum TradingPhase {
+  PRE = 'pre',
+  POST = 'post',
+}
 
 // Enums replace prior string literal unions
 export enum HealthStatus {

@@ -133,8 +133,7 @@ export const HEALTH_METRICS_SCHEDULE = 'every 60 minutes';
  *
  * PRE: Intraday snapshot writes; do not finalize bars or bump parent metadata.
  * POST: Post-close finalized writes; persist latest bar and update freshness.
+ *
+ * Moved to shared: import { TradingPhase } from '@shared/health-metrics'
  */
-export enum TradingPhase {
-  PRE = 'pre',
-  POST = 'post',
-}
+// enum removed; use the shared TradingPhase instead

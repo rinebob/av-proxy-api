@@ -1,6 +1,5 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { saveAvTimeSeriesData, upsertAvDailyBar, upsertAvWeeklyBar, upsertAvMonthlyBar, upsertAvDailyIntradaySnapshot } from '../firestore/av-firestore-helper';
-import { TradingPhase } from '../../common/function-schedules';
 import { ApiResponse } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval } from '@shared/alpha-vantage';
 import type { CompactBar } from '@shared/alpha-vantage';
@@ -9,6 +8,7 @@ import { DayOfWeek } from '@shared/alpha-vantage';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
+import { TradingPhase } from '@shared/health-metrics';
 
 const log = createLogger('av.handler.ts-base'); // Abbrev: aVTS.H
 
