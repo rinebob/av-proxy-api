@@ -1,0 +1,87 @@
+<section class="run-groups" aria-labelledby="run-groups-heading">
+  <header class="header">
+    <div class="heading-row">
+      <h3 id="run-groups-heading" class="heading">Refresh Runs</h3>
+      <div class="expand-controls">
+        <button type="button" mat-stroked-button (click)="runs()?.openAll()">
+          <mat-icon fontIcon="unfold_more"></mat-icon>
+          <span>Expand all</span>
+        </button>
+        <button type="button" mat-stroked-button (click)="runs()?.closeAll()">
+          <mat-icon fontIcon="unfold_less"></mat-icon>
+          <span>Collapse all</span>
+        </button>
+      </div>
+      <span class="count">Groups: {{ healthStore.runGroups().length }}</span>
+    </div>
+  </header>
+
+  @if (healthStore.runGroups().length === 0) {
+    <p class="empty">No runs in the current window.</p>
+  } @else {
+    <mat-accordion #runs="matAccordion" multi class="runs-accordion">
+      @for (g of healthStore.runGroups(); track g.runId) {
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              <span class="title">
+                <span class="primary">
+                  <span class="chunk">{{ g.run?.date || '—' }}</span>
+                  <span class="chunk">{{ uppercase(g.run?.dow) }}</span>
+                  <span class="chunk">{{ uppercase(g.run?.phase) }}</span>
+                  <span class="chunk">{{ g.run?.endpointShort || g.run?.endpointId || '—' }}</span>
+                </span>
+                <span class="secondary">Trigger: {{ g.run?.trigger || 'unknown' }} • {{ g.symbolsUpdated }} symbols</span>
+              </span>
+            </mat-panel-title>
+            <mat-panel-description>
+              <span class="desc">
+                <span class="time">{{ g.latestTs | date:'hh:mm:ss a':'America/Los_Angeles' }} PT</span>
+                <span class="sep">•</span>
+                <span class="ago">{{ g.latestTs | timeAgo }}</span>
+              </span>
+            </mat-panel-description>
+          </mat-expansion-panel-header>
+
+          <div class="body">
+            <div class="kpis">
+              <div class="kpi"><span class="label">Rows</span><span class="value">{{ g.rows.length }}</span></div>
+              <div class="kpi"><span class="label">Symbols</span><span class="value">{{ g.symbolsUpdated }}</span></div>
+              <div class="kpi"><span class="label">Trigger</span><span class="value">{{ g.run?.trigger || 'unknown' }}</span></div>
+            </div>
+
+            <!-- Per-run requests table -->
+            <div class="table-wrapper">
+              <table class="logs-table" role="table" [attr.aria-label]="'Requests for run ' + g.runId">
+                <thead>
+                  <tr role="row">
+                    <th role="columnheader">Time (PT)</th>
+                    <th role="columnheader">Ago</th>
+                    <th role="columnheader">Endpoint</th>
+                    <th role="columnheader">Symbol</th>
+                    <th role="columnheader">Status</th>
+                    <th role="columnheader">Trigger</th>
+                    <th role="columnheader">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of g.rows; track row.id) {
+                    <tr role="row" class="clickable" (click)="openSymbolIfAny(row.symbol)" title="View {{ row.symbol }} details">
+                      <td role="cell">{{ row.timestamp | tsToIso:'local' }} PT</td>
+                      <td role="cell">{{ row.timestamp | timeAgo }}</td>
+                      <td role="cell">{{ row.endpointId }}</td>
+                      <td role="cell">{{ row.symbol || '—' }}</td>
+                      <td role="cell" [class.ok]="row.status === RefreshStatus.SUCCESS" [class.err]="row.status !== RefreshStatus.SUCCESS">{{ row.status }}</td>
+                      <td role="cell">{{ row.metadata?.trigger || g.run?.trigger || '-' }}</td>
+                      <td role="cell">{{ row.durationMs }} ms</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </mat-expansion-panel>
+      }
+    </mat-accordion>
+  }
+</section>

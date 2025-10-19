@@ -1,0 +1,103 @@
+.run-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+
+  .header {
+    padding: 0; // match other tabs
+
+    .heading-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start; // buttons immediately after the label
+      gap: 0.5rem;
+
+      .heading { margin: 0 20px 0 0; font-size: 0.95rem; font-weight: 600; }
+
+      .expand-controls {
+        display: inline-flex;
+        gap: 0.5rem;
+
+        // compact buttons (~75% height)
+        button[mat-stroked-button] {
+          height: 24px;
+          line-height: 22px;
+          padding: 0 10px;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+        }
+      }
+
+      // push count to the far right like other tabs
+      .count { margin-left: auto; color: #666; font-size: 0.85rem; }
+    }
+  }
+
+  .runs-accordion {
+    /* Center each header row to avoid any baseline drift */
+    .mat-expansion-panel-header { align-items: center; }
+
+    /* Constrain the left title to the remaining space (100% - right col) */
+    .mat-expansion-panel-header-title {
+      flex: 0 0 calc(100% - 24rem);
+      max-width: calc(100% - 24rem);
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .title {
+      display: flex; flex-direction: column; gap: 0.25rem;
+      .primary {
+        display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 0.85rem;
+        font-weight: 500; font-size: 0.95rem;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        .chunk { position: relative; display: inline-block; }
+        .chunk:not(:last-child)::after { content: '•'; margin-left: 0.6rem; color: #666; opacity: 0.8; }
+      }
+      .secondary { color: #666; font-size: 0.85rem; font-weight: 400; }
+    }
+
+    /* Fixed-width right column to align time/ago across all panels */
+    .mat-expansion-panel-header-description {
+      display: flex; align-items: center; gap: 0.5rem; white-space: nowrap;
+      flex: 0 0 24rem; max-width: 24rem; justify-content: flex-end; margin-left: 0 !important;
+    }
+
+    @media (max-width: 64rem) {
+      .mat-expansion-panel-header-title { flex: 1 1 auto; max-width: none; }
+      .mat-expansion-panel-header-description { flex: 1 1 auto; max-width: none; justify-content: flex-start; margin-left: 0 !important; }
+    }
+
+    .desc {
+      display: inline-flex; align-items: center; gap: 0.6rem;
+      color: #666; font-size: 0.85rem; line-height: 1.25; white-space: nowrap;
+      .time { display: inline-block; min-width: 10.5rem; text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; line-height: 1.25; }
+      .sep { opacity: 0.65; }
+      .ago { display: inline-block; min-width: 10.5rem; text-align: left; white-space: nowrap; line-height: 1.25; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; }
+    }
+  }
+
+  .body { display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .kpis { display: flex; gap: 1rem; 
+    .kpi { display: flex; gap: 0.5rem; .label { color: #666; font-size: 0.85rem; } .value { font-weight: 600; font-size: 0.9rem; } }
+  }
+
+  .table-wrapper { overflow: auto; border: 1px solid #e3e3e3; border-radius: 8px; background: #fff; }
+
+  table.logs-table { width: 100%; border-collapse: collapse;
+    th, td { text-align: left; border-bottom: 1px solid #eee; padding: 0.65rem 0.75rem; white-space: nowrap; color: #222; }
+    thead th { background: #fafafa; font-weight: 600; color: #333; }
+    tbody tr.clickable { cursor: pointer; }
+    tbody tr.clickable:hover { background: #fcfcfc; }
+    td.ok { color: #1a7f37; font-weight: 600; }
+    td.err { color: #b42318; font-weight: 600; }
+  }
+
+  .hint {
+    color: #888;
+    font-size: 0.85rem;
+  }
+}
