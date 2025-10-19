@@ -245,12 +245,87 @@ export const HealthDashboardStore = signalStore(
       return set.size;
     });
 
+    // Group logs by runId for the new Run Groups UI (with fallback for legacy rows)
+    type RunGroup = {
+      runId: string;
+      run: NonNullable<RefreshRequestLog['metadata']>['run'] | undefined;
+      rows: RefreshRequestLog[];
+      latestTs: number;
+      symbolsUpdated: number; // unique symbols with SUCCESS status in this run
+    };
+
+    const runGroups = computed<RunGroup[]>(() => {
+      const rows = store.logs().data as RefreshRequestLog[];
+      if (!rows?.length) return [];
+      const map = new Map<string, RunGroup>();
+
+      // Helper: derive ET market date, DOW, and phase from a timestamp
+      const deriveFromTs = (ts: Date | number): { date: string; dow: string; phase: 'pre' | 'post' } => {
+        const d = typeof ts === 'number' ? new Date(ts) : (ts instanceof Date ? ts : new Date(getTimeMs(ts)));
+        const tz = 'America/New_York';
+        const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); // YYYY-MM-DD
+        const dowIdx = Number(new Date(d.toLocaleString('en-US', { timeZone: tz })).getDay());
+        const DOW = ['SUN','MON','TUE','WED','THU','FRI','SAT'] as const;
+        const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false }).format(d));
+        const phase = hour >= 16 ? 'post' : 'pre';
+        return { date: parts, dow: DOW[dowIdx], phase };
+      };
+
+      for (const r of rows) {
+        const meta = r.metadata || {} as any;
+        let rid: string | undefined = meta.runId;
+        let run: any = meta.run;
+
+        // Fallback: synthesize run grouping for legacy rows that lack runId/run
+        if (!rid) {
+          const { date, dow, phase } = deriveFromTs(r.timestamp as any);
+          // Use exact endpointId to avoid ambiguity; render human header with these pieces
+          rid = `${date}_${dow}_${String(phase).toUpperCase()}_${r.endpointId}`;
+          run = {
+            id: rid,
+            date,
+            dow, // UI can map to label directly
+            phase, // shared TradingPhase uses 'pre'|'post', compatible here
+            endpointId: r.endpointId,
+            endpointShort: undefined,
+            trigger: meta.trigger,
+          };
+        }
+
+        const g: RunGroup = map.get(rid) || {
+          runId: rid,
+          run,
+          rows: [] as RefreshRequestLog[],
+          latestTs: 0,
+          symbolsUpdated: 0,
+        };
+        g.rows.push(r);
+        const ts = getTimeMs(r.timestamp);
+        if (ts > g.latestTs) g.latestTs = ts;
+        map.set(rid, g);
+      }
+
+      // compute unique success symbol counts per group
+      for (const g of map.values()) {
+        const symSet = new Set<string>();
+        for (const r of g.rows) {
+          if (String(r.status).toUpperCase() === 'SUCCESS' && r.symbol) symSet.add(String(r.symbol).toUpperCase());
+        }
+        g.symbolsUpdated = symSet.size;
+      }
+      // sort by latestTs desc
+      const groups = [...map.values()];
+      groups.sort((a, b) => b.latestTs - a.latestTs);
+      return groups;
+    });
+
     return { 
       isBusy, 
       hasSummary, 
       logsCount, 
       hasSelectedSymbol, 
       sortedLogs, 
+      runGroups,
       endpointGroupsRaw, 
       sortedEndpointGroupsByPriority, 
       requestTotals, 
