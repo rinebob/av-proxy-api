@@ -98,6 +98,12 @@
                   <td mat-cell *matCellDef="let row"> {{ row.timestamp | tsToIso:'local' }} </td>
                 </ng-container>
 
+                <!-- DOW -->
+                <ng-container matColumnDef="dow">
+                  <th mat-header-cell *matHeaderCellDef> DOW </th>
+                  <td mat-cell *matCellDef="let row"> {{ row.timestamp | dayOfWeek }} </td>
+                </ng-container>
+
                 <!-- Ago -->
                 <ng-container matColumnDef="timeAgo">
                   <th mat-header-cell *matHeaderCellDef> Ago </th>

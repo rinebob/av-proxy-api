@@ -30,6 +30,12 @@
                 </mat-icon>
               </span>
             </th>
+            <!-- DOW (non-sortable) -->
+            <th role="columnheader">
+              <span class="header-content">
+                <span>DOW</span>
+              </span>
+            </th>
             <th role="columnheader"
                 (click)="onHeaderSort(SortKey.TIMESTAMP)"
                 [class.sorted]="healthStore.logsSortField() === SortKey.TIMESTAMP"
@@ -101,6 +107,7 @@
           @for (row of healthStore.sortedLogs(); track row.id) {
             <tr role="row" class="clickable" (click)="row.symbol && healthStore.openSymbol(row.symbol)" title="View {{ row.symbol }} details">
               <td role="cell">{{ row.timestamp | tsToIso:'local' }} PT</td>
+              <td role="cell">{{ row.timestamp | dayOfWeek }}</td>
               <td role="cell">{{ row.timestamp | timeAgo }}</td>
               <td role="cell">{{ row.endpointId }}</td>
               <td role="cell">{{ row.symbol }}</td>

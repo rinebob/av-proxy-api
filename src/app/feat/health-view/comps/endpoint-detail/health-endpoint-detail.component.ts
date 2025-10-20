@@ -15,6 +15,7 @@ import { SortKey, SortDir, EndpointGroupSortMode } from '@shared/health-metrics'
 import type { EndpointGroup } from '../../common/health-constants';
 import { getTimeMs, buildEventComparator } from '../../utils/health-transforms';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { DayOfWeekPipe } from '../../pipes/day-of-week.pipe';
 
 @Component({
   selector: 'app-health-endpoint-detail',
@@ -23,6 +24,7 @@ import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
     CommonModule,
     TsToIsoPipe,
     TimeAgoPipe,
+    DayOfWeekPipe,
     MatTableModule,
     MatChipsModule,
     MatIconModule,
@@ -62,6 +64,7 @@ export class HealthEndpointDetailComponent extends HealthViewBase {
   // Columns shown in the inner table for each endpoint panel
   readonly displayedColumns: ReadonlyArray<string> = [
     'time',
+    'dow',
     'timeAgo',
     'symbol',
     'status',

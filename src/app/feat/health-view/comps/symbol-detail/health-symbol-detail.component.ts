@@ -15,6 +15,7 @@ import type { RefreshRequestLog } from '@shared/health-metrics';
 import { getTimeMs, buildEventComparator } from '../../utils/health-transforms';
 import { SortKey, SortDir, SymbolGroupSortMode } from '@shared/health-metrics';
 import { HEALTH_LABEL_EM_DASH } from '../../common/health-constants';
+import { DayOfWeekPipe } from '../../pipes/day-of-week.pipe';
 
 interface SymbolGroup {
   symbol: string;
@@ -31,6 +32,7 @@ interface SymbolGroup {
     CommonModule,
     TsToIsoPipe,
     TimeAgoPipe,
+    DayOfWeekPipe,
     MatCardModule,
     MatButtonModule,
     MatDividerModule,
@@ -73,7 +75,7 @@ export class HealthSymbolDetailComponent extends HealthViewBase {
   }
 
   // Table columns used inside each expansion panel
-  readonly displayedColumns: ReadonlyArray<string> = ['time', 'timeAgo', 'endpoint', 'status', 'trigger', 'duration'];
+  readonly displayedColumns: ReadonlyArray<string> = ['time', 'dow', 'timeAgo', 'endpoint', 'status', 'trigger', 'duration'];
 
   // Group all current-page logs by symbol, sorted by latest event desc, with events sorted latest-first
   readonly symbolGroups = computed<SymbolGroup[]>(() => {

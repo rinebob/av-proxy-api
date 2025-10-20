@@ -56,6 +56,7 @@
                 <thead>
                   <tr role="row">
                     <th role="columnheader">Time (PT)</th>
+                    <th role="columnheader">DOW</th>
                     <th role="columnheader">Ago</th>
                     <th role="columnheader">Endpoint</th>
                     <th role="columnheader">Symbol</th>
@@ -68,6 +69,7 @@
                   @for (row of g.rows; track row.id) {
                     <tr role="row" class="clickable" (click)="openSymbolIfAny(row.symbol)" title="View {{ row.symbol }} details">
                       <td role="cell">{{ row.timestamp | tsToIso:'local' }} PT</td>
+                      <td role="cell">{{ row.timestamp | dayOfWeek }}</td>
                       <td role="cell">{{ row.timestamp | timeAgo }}</td>
                       <td role="cell">{{ row.endpointId }}</td>
                       <td role="cell">{{ row.symbol || '—' }}</td>

@@ -6,11 +6,12 @@ import { TimeAgoPipe } from '../../pipes/time-ago.pipe';
 import { RefreshStatus } from '@shared/firestore';
 import { MatIconModule } from '@angular/material/icon';
 import { SortDir, SortKey } from '@shared/health-metrics';
+import { DayOfWeekPipe } from '../../pipes/day-of-week.pipe';
 
 @Component({
   selector: 'app-health-request-log-table',
   standalone: true,
-  imports: [CommonModule, TsToIsoPipe, TimeAgoPipe, MatIconModule],
+  imports: [CommonModule, TsToIsoPipe, TimeAgoPipe, DayOfWeekPipe, MatIconModule],
   templateUrl: './health-request-log-table.component.html',
   styleUrls: ['./health-request-log-table.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

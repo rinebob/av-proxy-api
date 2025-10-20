@@ -7,11 +7,12 @@ import { HealthViewBase } from '../health-view-base/health-view-base.component';
 import { TsToIsoPipe } from '../../pipes/ts-to-iso.pipe';
 import { TimeAgoPipe } from '../../pipes/time-ago.pipe';
 import { RefreshStatus } from '@shared/firestore';
+import { DayOfWeekPipe } from '../../pipes/day-of-week.pipe';
 
 @Component({
   selector: 'app-health-request-run-groups',
   standalone: true,
-  imports: [CommonModule, MatExpansionModule, MatIconModule, MatButtonModule, TsToIsoPipe, TimeAgoPipe],
+  imports: [CommonModule, MatExpansionModule, MatIconModule, MatButtonModule, TsToIsoPipe, TimeAgoPipe, DayOfWeekPipe],
   templateUrl: './health-request-run-groups.component.html',
   styleUrls: ['./health-request-run-groups.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
