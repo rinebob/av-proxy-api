@@ -5,6 +5,7 @@ import { defineSecret } from "firebase-functions/params";
 import { authenticateFirebaseUser } from './auth';
 
 import { AlphaVantageDailyTimeSeriesResponse, AlphaVantageGlobalQuoteResponse, ALPHAVANTAGE_BASE_URL } from '@shared/alpha-vantage';
+import { MarketClosureReason } from '@shared/core';
 
 // Create a union type for all possible Alpha Vantage API responses
 export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVantageGlobalQuoteResponse;
@@ -61,6 +62,129 @@ export function hr(component: string, message: string, ...args: unknown[]) {
 export function hrBlank(count = 1) {
   if (!HUMAN_LOGS) return;
   for (let i = 0; i < count; i++) console.log('');
+}
+
+// ---------------------------------------
+// US Market (NYSE) Holiday Utilities (ET)
+// ---------------------------------------
+function observedDate(year: number, month1to12: number, day: number): { m: number; d: number } {
+  const actual = new Date(Date.UTC(year, month1to12 - 1, day));
+  const dow = actual.getUTCDay(); // 0=Sun..6=Sat
+  if (dow === 6) { // Saturday -> observed Friday
+    const obs = new Date(Date.UTC(year, month1to12 - 1, day - 1));
+    return { m: obs.getUTCMonth() + 1, d: obs.getUTCDate() };
+  }
+  if (dow === 0) { // Sunday -> observed Monday
+    const obs = new Date(Date.UTC(year, month1to12 - 1, day + 1));
+    return { m: obs.getUTCMonth() + 1, d: obs.getUTCDate() };
+  }
+  return { m: month1to12, d: day };
+}
+
+function nthWeekdayOfMonthUtc(year: number, month1to12: number, weekday0Sun6Sat: number, nth: number): Date {
+  const first = new Date(Date.UTC(year, month1to12 - 1, 1));
+  const firstDow = first.getUTCDay();
+  const delta = (weekday0Sun6Sat - firstDow + 7) % 7;
+  const day = 1 + delta + (nth - 1) * 7;
+  return new Date(Date.UTC(year, month1to12 - 1, day));
+}
+
+function lastWeekdayOfMonthUtc(year: number, month1to12: number, weekday0Sun6Sat: number): Date {
+  const firstNext = new Date(Date.UTC(year, month1to12, 1));
+  const lastPrev = new Date(firstNext.getTime() - 24 * 3600 * 1000);
+  const lastDow = lastPrev.getUTCDay();
+  const delta = (lastDow - weekday0Sun6Sat + 7) % 7;
+  const day = lastPrev.getUTCDate() - delta;
+  return new Date(Date.UTC(year, month1to12 - 1, day));
+}
+
+// Anonymous Gregorian algorithm for Easter Sunday (UTC mechanics sufficient for date-only matching)
+function easterSundayUtc(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31); // 3=March, 4=April
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+/** Returns true if the provided ET-local date falls on a US market holiday (NYSE). */
+export function isUsMarketHolidayEt(etDate: Date): boolean {
+  const year = etDate.getFullYear();
+  const month = etDate.getMonth() + 1; // 1-12
+  const day = etDate.getDate();
+
+  // Fixed-date with observance rules
+  const nyObs = observedDate(year, 1, 1);
+  if (nyObs.m === month && nyObs.d === day) return true; // New Year's Day
+  const june19Obs = observedDate(year, 6, 19);
+  if (june19Obs.m === month && june19Obs.d === day) return true; // Juneteenth
+  const july4Obs = observedDate(year, 7, 4);
+  if (july4Obs.m === month && july4Obs.d === day) return true; // Independence Day
+  const xmasObs = observedDate(year, 12, 25);
+  if (xmasObs.m === month && xmasObs.d === day) return true; // Christmas
+
+  // MLK Day: third Monday in January
+  const mlk = nthWeekdayOfMonthUtc(year, 1, 1, 3);
+  if (month === 1 && day === mlk.getUTCDate()) return true;
+
+  // Presidents' Day: third Monday in February
+  const presidents = nthWeekdayOfMonthUtc(year, 2, 1, 3);
+  if (month === 2 && day === presidents.getUTCDate()) return true;
+
+  // Good Friday: two days before Easter Sunday
+  const easter = easterSundayUtc(year);
+  const goodFriday = new Date(easter.getTime() - 2 * 24 * 3600 * 1000);
+  if (month === (goodFriday.getUTCMonth() + 1) && day === goodFriday.getUTCDate()) return true;
+
+  // Memorial Day: last Monday in May
+  const memorial = lastWeekdayOfMonthUtc(year, 5, 1);
+  if (month === 5 && day === memorial.getUTCDate()) return true;
+
+  // Labor Day: first Monday in September
+  const labor = nthWeekdayOfMonthUtc(year, 9, 1, 1);
+  if (month === 9 && day === labor.getUTCDate()) return true;
+
+  // Thanksgiving Day: fourth Thursday in November
+  const thanksgiving = nthWeekdayOfMonthUtc(year, 11, 4, 4);
+  if (month === 11 && day === thanksgiving.getUTCDate()) return true;
+
+  return false;
+}
+
+/**
+ * Returns whether the US market is closed now (ET), with a reason for logging.
+ * reason = 'WEEKEND' | 'HOLIDAY' | null
+ */
+export function getMarketClosureInfo(): { closed: boolean; reason: MarketClosureReason | null; etDate: string } {
+  const tz = 'America/New_York';
+  const now = new Date();
+  const etNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+  const dowEt = etNow.getDay(); // 0=Sun..6=Sat
+  const etDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  if (dowEt === 0 || dowEt === 6) return { closed: true, reason: MarketClosureReason.WEEKEND, etDate: etDateStr };
+  if (isUsMarketHolidayEt(etNow)) return { closed: true, reason: MarketClosureReason.HOLIDAY, etDate: etDateStr };
+  return { closed: false, reason: null, etDate: etDateStr };
+}
+
+/** Convenience boolean wrapper around getMarketClosureInfo() */
+export function isMarketClosedEtNow(): boolean {
+  return getMarketClosureInfo().closed;
+}
+
+/** Components used in refresh logging for stronger typing/consistency */
+export enum RefreshLogComponent {
+  RunManager = 'runRefreshAlphaVantageDataV2',
+  RefreshForEndpoints = 'refreshForEndpoints',
 }
 
 /** Define the Alpha Vantage API key as a Firebase Function parameter

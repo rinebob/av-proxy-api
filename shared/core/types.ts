@@ -80,3 +80,9 @@ export interface ApiError extends Error {
     status: number;
     details?: any;
 }
+
+// Shared enum for market closure reasons (ET-based). Used by backend schedulers and UI.
+export enum MarketClosureReason {
+  WEEKEND = 'WEEKEND',
+  HOLIDAY = 'HOLIDAY',
+}

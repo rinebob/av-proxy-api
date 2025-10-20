@@ -15,7 +15,7 @@ import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/fire
 
 import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE } from '../../common/function-schedules';
 
-import { createLogger, hr, hrBlank } from '../../utils/utils';
+import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { refreshLogger } from '../../services/refresh-logger.service';
@@ -72,6 +72,13 @@ function getHistoryPathFor(docPath: string): string {
  * Exported so HTTP wrapper can invoke the same logic as the scheduler.
  */
 export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } = {}): Promise<{ durationMs: number; symbolsUpdatedCount: number; symbolsChecked: number; freshCount: number; staleCount: number; force: boolean }> {
+  // Market-closure guard (ET): weekend/holiday
+  const mc1 = getMarketClosureInfo();
+  if (mc1.closed) {
+    // Log exactly once so operators can confirm the skip
+    log.info('market.closed_skip', { reason: mc1.reason, etDate: mc1.etDate, component: RefreshLogComponent.RunManager });
+    return { durationMs: 0, symbolsUpdatedCount: 0, symbolsChecked: 0, freshCount: 0, staleCount: 0, force: !!options.force };
+  }
   hr('av.refresh', '=========== AV Refresh Cycle START ===========' );
   log.info('refresh.start');
   const batchStart = Date.now();
@@ -528,6 +535,13 @@ export async function refreshForEndpoints(
     trigger?: RefreshTrigger;
   } = {}
 ) {
+  // Market-closure guard (ET): weekend/holiday
+  const mc2 = getMarketClosureInfo();
+  if (mc2.closed) {
+    // Use top-level logger to avoid constructing per-run logger when skipping
+    log.info('market.closed_skip', { reason: mc2.reason, etDate: mc2.etDate, component: RefreshLogComponent.RefreshForEndpoints });
+    return; // Silent no-op beyond the single structured log
+  }
   const { force = false, phase, trigger = RefreshTrigger.SCHEDULER } = options;
   const startTime = Date.now();
   const logger = createLogger('av.refresh.scheduled');

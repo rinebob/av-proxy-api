@@ -22,7 +22,7 @@ export const BULK_QUOTE_UPDATE_SCHEDULE = '12 13 * * *';
  * Cron: 30 16 * * *
  * Timezone: America/New_York (set at function registration).
  */
-export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * *';
+export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * 1-5';
 
 // Pre-close run (time-series daily compact)
 /**
@@ -32,7 +32,7 @@ export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * *';
  * Cron: 30 15 * * * (3:30 PM ET)
  * Timezone: America/New_York (set at function registration).
  */
-export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * *';
+export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * 1-5';
 
 // for refreshAlphaVantageDataV2
 // functions/src/alpha-vantage/data-refresher/av-refresh-manager.ts
@@ -43,7 +43,7 @@ export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * *';
  * Cron: 45 13 * * * (13:45 UTC)
  * Timezone: Cloud Scheduler is UTC; ~9:45 AM ET (EDT) / 6:45 AM PT.
  */
-export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * *';
+export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * 1-5';
 
 // New schedules for time-series-only refresh cadence
 /**
@@ -53,7 +53,7 @@ export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * *';
  * Cron: 35 16 * * * (4:35 PM ET)
  * Timezone: America/New_York (set at function registration).
  */
-export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 16 * * *';
+export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 16 * * 1-5';
 
 /**
  * Generic post-close schedule used by weekly/monthly time-series runs.
@@ -62,7 +62,7 @@ export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 16 * * *';
  * Cron: 40 16 * * * (4:40 PM ET)
  * Timezone: America/New_York (set at function registration).
  */
-export const TS_POST_CLOSE_SCHEDULE = '40 16 * * *';
+export const TS_POST_CLOSE_SCHEDULE = '40 16 * * 1-5';
 
 // for refreshBenzingaCalendarDataV2
 // functions/src/benzinga/data-refresher/bz-calendar-refresh-manager.ts
