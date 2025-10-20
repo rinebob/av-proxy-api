@@ -302,8 +302,8 @@ export async function saveAvTimeSeriesData(
       throw new Error(`aFH sATSD TTL (ttlSeconds) must be specified in AV_TIME_SERIES_ENDPOINT_CONFIGS for endpoint: ${endpoint}`);
     }
     const ttlSeconds = endpointConfig.ttl;
-    const histStartTs = compactBars[0]?.t ?? null;
-    const histEndTs = compactBars[compactBars.length - 1]?.t ?? null;
+    const histStartTs = compactBars[0]?.t != null ? compactBars[0].t : null;
+    const histEndTs = compactBars[compactBars.length - 1]?.t != null ? compactBars[compactBars.length - 1].t : null;
     const latestBarIso = histEndTs != null ? new Date(histEndTs).toISOString() : 'null';
     console.log(`aFH sATSD latestBar=${latestBarIso} (${histEndTs ?? 'null'}) ${symbol} ${endpoint} ${interval}`);
     log.info('timeseries.save.latest_bar', { symbol, endpoint, interval, latestBarIso, latestBarMs: histEndTs });
@@ -759,6 +759,13 @@ export async function upsertAvDailyIntradaySnapshot(options: {
   const idx = bars.findIndex((b) => b.t === t);
   const it = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io));
 
+  // Derive intraday deltas against previous trading day's adjusted close
+  const prevAc = await getPreviousAdjustedClose({ symbol, date });
+  const ic = prevAc != null && Number.isFinite(prevAc) ? Number(ip) - Number(prevAc) : null;
+  const ipc = prevAc != null && Number.isFinite(prevAc) && Number(prevAc) !== 0
+    ? (Number(ic) / Number(prevAc)) * 100
+    : null;
+
   if (idx >= 0) {
     const existing = bars[idx] || {};
     const merged = {
@@ -768,6 +775,8 @@ export async function upsertAvDailyIntradaySnapshot(options: {
       io: Number(io),
       it,
       dow,
+      ic, // intraday change from previous adjusted close
+      ipc, // intraday percent change
     };
     bars[idx] = merged;
   } else {
@@ -780,6 +789,8 @@ export async function upsertAvDailyIntradaySnapshot(options: {
       ip: Number(ip),
       io: Number(io),
       it,
+      ic,  // intraday change from previous adjusted close
+      ipc, // intraday percent change
     };
     bars.push(newBar);
   }
