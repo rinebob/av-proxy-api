@@ -188,65 +188,72 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           }
 
           // 2) Fetch latest intraday (1min) and pick the most recent bar
-          const intradayHandler: any = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_INTRADAY);
-          const intradayApiResp: any = await intradayHandler.fetch({ symbol, interval: '1min' });
-          const intradayRaw = intradayApiResp?.data;
-          const rawKeys = Object.keys(intradayRaw || {});
-          // Prefer using provider metadata to determine interval and series key
-          const meta = intradayRaw?.['Meta Data'] || intradayRaw?.['MetaData'] || {};
-          const intervalStr: string | undefined = meta?.['4. Interval'] || meta?.['Interval'];
-          const expectedSeriesKey = intervalStr ? `Time Series (${intervalStr})` : undefined;
-          const seriesKey = (expectedSeriesKey && rawKeys.includes(expectedSeriesKey))
-            ? expectedSeriesKey
-            : rawKeys.find(k => k.toLowerCase().includes('time series'));
-          const tsObj = seriesKey ? intradayRaw[seriesKey] : undefined;
-          if (!tsObj || typeof tsObj !== 'object') {
-            hr('aVTS.H', `pre-close skip (no intraday series) ${endpoint} ${symbol} [${(this as any).requestId}]`);
-            log.info('preclose.skip_no_intraday', { endpointId: endpoint, symbol, intervalFromMeta: intervalStr, availableKeys: rawKeys });
-            return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
-          }
-          // entries: [ISO-like string => { '1. open':..., '2. high':..., '4. close':..., '5. volume':... }]
-          const entries = Object.entries<any>(tsObj);
-          // sort descending by timestamp string (AV returns newest first typically, but be safe)
-          entries.sort((a, b) => new Date(a[0]).getTime() < new Date(b[0]).getTime() ? 1 : -1);
-          const [latestTsStr, latestVals] = entries[0] as [string, any];
-          const latestClose = Number(latestVals?.['4. close'] ?? latestVals?.close);
-          const latestIo = new Date(latestTsStr).getTime();
-          if (!Number.isFinite(latestClose) || !Number.isFinite(latestIo)) {
-            log.info('preclose.skip_invalid_intraday', { endpointId: endpoint, symbol, latestTsStr, latestClose, latestIo });
-            return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
-          }
-          // 3) Ensure latest intraday bar belongs to today ET; if not, skip (holiday/weekend safeguard)
-          const partsBar = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(latestIo));
-          const etYBar = partsBar.find(p => p.type === 'year')?.value;
-          const etMBar = partsBar.find(p => p.type === 'month')?.value;
-          const etDBar = partsBar.find(p => p.type === 'day')?.value;
-          const barEtDate = `${etYBar}-${etMBar}-${etDBar}`;
-          if (barEtDate !== todayEt) {
-            hr('aVTS.H', `pre-close skip (latest intraday not today) ${endpoint} ${symbol} barEt=${barEtDate} todayEt=${todayEt} [${(this as any).requestId}]`);
-            log.info('preclose.skip_bar_not_today', { endpointId: endpoint, symbol, barEtDate, todayEt });
-            return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
-          }
-          // 4) Persist intraday-only snapshot for today’s ET date (no OHLC finalize)
-          const etDowNum = new Date(new Date(latestIo).toLocaleString('en-US', { timeZone: 'America/New_York' })).getDay();
-          const dowMap: DayOfWeek[] = [DayOfWeek.Sun, DayOfWeek.Mon, DayOfWeek.Tue, DayOfWeek.Wed, DayOfWeek.Thu, DayOfWeek.Fri, DayOfWeek.Sat];
-          await upsertAvDailyIntradaySnapshot({ symbol: symbol!, date: barEtDate, ip: latestClose, io: latestIo, dow: dowMap[etDowNum] });
-          hr('aVTS.H', `pre-close intraday snapshot upsert ${endpoint} ${symbol} date=${barEtDate} [${(this as any).requestId}]`);
-          log.info('firestore.preclose_intraday_snapshot', { endpointId: endpoint, symbol, date: barEtDate });
-          // Also record a health metrics success for the intraday endpoint so UI shows it distinctly
-          try {
-            const hms = new HealthMetricsService();
-            await hms.recordSymbolRefresh(
-              AlphaVantageEndpoint.TIME_SERIES_INTRADAY as any,
-              symbol!,
-              RefreshStatus.SUCCESS,
-              Date.now() - startTime,
-              undefined,
-              { trigger: RefreshTrigger.SCHEDULER, runId: runCtx?.id, run: runCtx }
-            );
-          } catch (e) {
-            // Best effort; do not fail the handler if health recording fails
-            log.warn?.('preclose.intraday_health_record_failed', { endpointId: AlphaVantageEndpoint.TIME_SERIES_INTRADAY, symbol, error: String((e as any)?.message || e) } as any);
+          const MAX_RETRIES = Number(process.env.AV_INTRADAY_RETRIES ?? 5);
+          const BASE_DELAY_MS = Number(process.env.AV_INTRADAY_RETRY_DELAY_MS ?? 2000);
+          let captured = false;
+          for (let attempt = 1; attempt <= MAX_RETRIES && !captured; attempt++) {
+            const intradayHandler: any = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_INTRADAY);
+            const intradayApiResp: any = await intradayHandler.fetch({ symbol, interval: '1min' });
+            const intradayRaw = intradayApiResp?.data;
+            const rawKeys = Object.keys(intradayRaw || {});
+            // Prefer using provider metadata to determine interval and series key
+            const meta = intradayRaw?.['Meta Data'] || intradayRaw?.['MetaData'] || {};
+            const intervalStr: string | undefined = meta?.['4. Interval'] || meta?.['Interval'];
+            const expectedSeriesKey = intervalStr ? `Time Series (${intervalStr})` : undefined;
+            const seriesKey = (expectedSeriesKey && rawKeys.includes(expectedSeriesKey))
+              ? expectedSeriesKey
+              : rawKeys.find(k => k.toLowerCase().includes('time series'));
+            const tsObj = seriesKey ? intradayRaw[seriesKey] : undefined;
+            if (!tsObj || typeof tsObj !== 'object') {
+              hr('aVTS.H', `pre-close intraday attempt ${attempt}/${MAX_RETRIES}: missing series ${endpoint} ${symbol}`);
+              if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, BASE_DELAY_MS * attempt));
+              continue;
+            }
+            // entries: [ISO-like string => provider bar]
+            const entries = Object.entries<any>(tsObj);
+            // sort descending by timestamp (provider often returns newest first but enforce)
+            entries.sort((a, b) => new Date(a[0]).getTime() < new Date(b[0]).getTime() ? 1 : -1);
+
+            // Scan top few bars for first matching today ET (guards against rare ordering / clock skew)
+            const scanCount = Math.min(entries.length, 10);
+            for (let i = 0; i < scanCount && !captured; i++) {
+              const [tsStr, vals] = entries[i] as [string, any];
+              const close = Number(vals?.['4. close'] ?? vals?.close);
+              const ioMs = new Date(tsStr).getTime();
+              if (!Number.isFinite(close) || !Number.isFinite(ioMs)) continue;
+              const partsBar = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ioMs));
+              const y = partsBar.find(p => p.type === 'year')?.value;
+              const m = partsBar.find(p => p.type === 'month')?.value;
+              const d = partsBar.find(p => p.type === 'day')?.value;
+              const barEtDate = `${y}-${m}-${d}`;
+              if (barEtDate !== todayEt) continue;
+              // Persist intraday-only snapshot for today’s ET date (no OHLC finalize)
+              const etDowNum = new Date(new Date(ioMs).toLocaleString('en-US', { timeZone: 'America/New_York' })).getDay();
+              const dowMap: DayOfWeek[] = [DayOfWeek.Sun, DayOfWeek.Mon, DayOfWeek.Tue, DayOfWeek.Wed, DayOfWeek.Thu, DayOfWeek.Fri, DayOfWeek.Sat];
+              await upsertAvDailyIntradaySnapshot({ symbol: symbol!, date: barEtDate, ip: close, io: ioMs, dow: dowMap[etDowNum] });
+              hr('aVTS.H', `pre-close intraday snapshot upsert (attempt ${attempt}; idx ${i}) ${endpoint} ${symbol} date=${barEtDate} [${(this as any).requestId}]`);
+              log.info('firestore.preclose_intraday_snapshot', { endpointId: endpoint, symbol, date: barEtDate, attempt, index: i });
+              try {
+                const hms = new HealthMetricsService();
+                await hms.recordSymbolRefresh(
+                  AlphaVantageEndpoint.TIME_SERIES_INTRADAY as any,
+                  symbol!,
+                  RefreshStatus.SUCCESS,
+                  Date.now() - startTime,
+                  undefined,
+                  { trigger: RefreshTrigger.SCHEDULER, runId: runCtx?.id, run: runCtx }
+                );
+              } catch (e) {
+                // Best effort; do not fail the handler if health recording fails
+                log.warn?.('preclose.intraday_health_record_failed', { endpointId: AlphaVantageEndpoint.TIME_SERIES_INTRADAY, symbol, error: String((e as any)?.message || e) } as any);
+              }
+              captured = true;
+            }
+            if (!captured) {
+              hr('aVTS.H', `pre-close intraday give-up ${endpoint} ${symbol} todayEt=${todayEt} [${(this as any).requestId}]`);
+              log.warn?.('preclose.intraday_giveup', { endpointId: endpoint, symbol, todayEt, maxRetries: MAX_RETRIES } as any);
+              return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
+            }
           }
           // Success response without further persistence
           hr('aVTS.H', `fetch ok ${endpoint} ${symbol ?? ''} ${(Date.now() - startTime)}ms [${(this as any).requestId}]`);
