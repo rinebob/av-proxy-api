@@ -29,6 +29,7 @@ const log = createLogger('av.ts'); // Abbrev: aFH sATSD
  * @param endpoint - The Alpha Vantage endpoint
  * @param endpointConfig - The endpoint configuration
  * @param checkManualWriteEnabled - REQUIRED: must always be set by caller. If true, enforces the manual Firestore write toggle. Pass false for scheduled jobs.
+ * @returns Promise that resolves when persistence and logging complete
  */
 export async function saveAvData(
   data: any,
@@ -103,30 +104,16 @@ export async function saveAvData(
 
 /**
  * Saves Alpha Vantage TIME SERIES data to Firestore, using the normalized, non-deprecated schema.
- *
- * Write model (Alpha Vantage, provider = AV):
- * - Top-level provider/interval doc (metadata only):
- *   path = getSymbolTimeSeriesDocPath(symbol, endpoint, AV)
- *   fields: metadata{ symbol, interval, histStart/EndDate + histStart/EndTs, lastUpdated, nextRefreshAt, ttlSeconds, vendor, endpoint }, latestBarTimestamp
- *
- * - DAILY/WEEKLY (year-sharded):
- *   path = getSymbolTimeSeriesYearDocPath(symbol, endpoint, AV, {YYYY})
- *   doc = { bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt, latest }
- *
- * - MONTHLY (single ‘all’ doc):
- *   path = getSymbolTimeSeriesAllDocPath(symbol, endpoint, AV)
- *   doc = { bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }
- *
- * Caller guidance:
- * - Use this function for full/backfill writes (large arrays). For compact updates (latest bar only), use
- *   upsert helpers: upsertAvDailyBar / upsertAvWeeklyBar / upsertAvMonthlyBar to minimize write sizes.
- * - Pass `checkManualWriteEnabled=false` from schedulers; UI/gateway-triggered calls may pass true to honor the toggle.
- *
- * @param data Array of StorageBar-like entries already transformed by handler; will be mapped to CompactBar
+ * - DAILY/WEEKLY: writes year-sharded docs with compact bars array
+ * - MONTHLY: writes single 'all' doc
+ * - Updates top-level provider/interval metadata and logs refresh
+ * - Computes d (YYYY-MM-DD), dow, and EOD change fields (ch/cp) per bar
+ * @param data Normalized array from handler; converted to CompactBar for persistence
  * @param symbol Stock symbol
- * @param endpoint AV endpoint id (e.g., TIME_SERIES_DAILY_ADJUSTED)
- * @param interval Shared TimeSeriesInterval (DAILY/WEEKLY/MONTHLY)
- * @param checkManualWriteEnabled Honor the manual write toggle (true for UI flows, false for schedulers)
+ * @param endpoint Alpha Vantage endpoint id
+ * @param interval Shared time-series interval
+ * @param checkManualWriteEnabled Enforce manual write toggle (true for UI flows)
+ * @returns Promise that resolves on success
  */
 export async function saveAvTimeSeriesData(
   data: any[],
@@ -235,6 +222,9 @@ export async function saveAvTimeSeriesData(
     // Sort bars ascending for deterministic writes
     compactBars.sort((a, b) => a.t - b.t);
     for (const arr of barsByYear.values()) arr.sort((a, b) => a.t - b.t);
+
+    // After sorting, compute end-of-day change metrics (ch/cp) vs prior day's adjusted close
+    computeChCpForBarsAscending(compactBars);
 
     // Now that compactBars are sorted, compute robust metadata regardless of input order
     histStartDate = compactBars[0]?.t != null ? Timestamp.fromMillis(compactBars[0].t) : null;
@@ -362,22 +352,12 @@ export async function saveAvTimeSeriesData(
 }
 
 /**
- * Ensures the time series exists for a symbol/interval in Firestore.
- * If missing, it fetches a full series via the appropriate handler and relies on that handler
- * to perform normalized writes (year-sharded or monthly ‘all’ doc) and refresh logging.
- *
- * Use cases:
- * - Initialization when a symbol is newly tracked
- * - Emergency re-seeding when a series doc was deleted
- *
- * Notes:
- * - Prefers adjusted DAILY on initializer for consistent persisted shape
- * - Does not call saveAvTimeSeriesData directly; handler owns persistence
- *
+ * Initialize a time-series if missing by fetching a full series via the canonical handler
+ * and allowing the handler to perform normalized writes and logging.
  * @param symbol Stock symbol
- * @param interval TimeSeriesInterval
- * @param endpoint AV endpoint (DAILY_ADJUSTED | WEEKLY_ADJUSTED | MONTHLY_ADJUSTED)
- * @returns true if the series existed or was written successfully; false if provider returned no data
+ * @param interval TimeSeriesInterval to initialize
+ * @param endpoint Target AV endpoint; DAILY maps to DAILY_ADJUSTED
+ * @returns true if series exists or was successfully written; false when provider returned no data
  */
 export async function initializeTimeSeriesIfMissing(
   symbol: string,
@@ -451,21 +431,20 @@ export async function initializeTimeSeriesIfMissing(
 
 /**
  * Upserts a single daily bar (YYYY-MM-DD) into the DAILY year-sharded doc.
- *
- * Behavior:
- * - Reads the year doc bars[], merges or inserts the target bar based on epoch day (t)
- * - Recomputes count/firstBarTs/lastBarTs, sets updatedAt
- * - Calls bumpTimeSeriesTopLevelMetadata to refresh parent doc freshness
- *
+ * - Merges required numeric fields, preserves intraday fields, sorts ascending and updates aggregates
+ * - Recomputes ch/cp for the target bar using the previous day's adjusted close (fallback close)
+ * - Optionally skips bumping the parent top-level series metadata (for intraday pre-close flows)
  * @param options.symbol Stock symbol
  * @param options.date ISO date (UTC day)
- * @param options.patch Partial CompactBar fields to merge (numeric only)
+ * @param options.patch Partial CompactBar numeric fields to merge
  * @param options.endpoint Defaults to TIME_SERIES_DAILY_ADJUSTED
+ * @param options.skipParentMetaBump When true, do not bump the top-level time-series metadata
+ * @returns Promise that resolves on success
  */
 export async function upsertAvDailyBar(options: {
   symbol: string;
   date: string; // YYYY-MM-DD (UTC day)
-  // Partial compact fields to merge onto the bar. Use numeric values only.
+  // Partial compact fields to merge (numeric only).
   patch: Partial<CompactBar>;
   endpoint?: AlphaVantageEndpoint; // defaults to DAILY_ADJUSTED
   // When true, do not bump the top-level time-series metadata. Used for pre-close intraday snapshots
@@ -539,6 +518,13 @@ export async function upsertAvDailyBar(options: {
   const latestIoUtcIso = latestBar?.io != null ? new Date(Number(latestBar.io)).toISOString() : null;
   const latestIoEtDateTime = latestBar?.io != null ? formatEtDateTime(Number(latestBar.io)) : null;
   bars.sort((a, b) => a.t - b.t);
+
+  // Recompute end-of-day change metrics (ch/cp) for the target bar using the previous bar's adjusted close
+  const targetIdx = bars.findIndex((b) => b.t === t);
+  if (targetIdx >= 0) {
+    computeChCpForTargetIndex(bars, targetIdx);
+  }
+
   await yearRef.set({
     bars,
     count: bars.length,
@@ -564,12 +550,12 @@ export async function upsertAvDailyBar(options: {
 
 /**
  * Upserts a single weekly bar (YYYY-MM-DD) into the WEEKLY year-sharded doc.
- * See upsertAvDailyBar for flow details; this variant targets WEEKLY and does not include intraday fields.
- *
+ * - Merges, sorts ascending, updates aggregates, and bumps parent metadata
  * @param options.symbol Stock symbol
  * @param options.date ISO date (UTC week anchor)
- * @param options.patch Partial CompactBar fields to merge (numeric only)
+ * @param options.patch Partial CompactBar numeric fields to merge
  * @param options.endpoint Defaults to TIME_SERIES_WEEKLY_ADJUSTED
+ * @returns Promise that resolves on success
  */
 export async function upsertAvWeeklyBar(options: {
   symbol: string;
@@ -646,16 +632,12 @@ export async function upsertAvWeeklyBar(options: {
 
 /**
  * Upserts a single monthly bar (YYYY-MM-DD) into the MONTHLY single ‘all’ doc.
- *
- * Behavior:
- * - Reads the ‘all’ doc bars[], merges or inserts the target bar
- * - Recomputes aggregates and sets updatedAt
- * - Calls bumpTimeSeriesTopLevelMetadata to refresh parent doc freshness
- *
+ * - Merges, sorts ascending, updates aggregates, and bumps parent metadata
  * @param options.symbol Stock symbol
  * @param options.date ISO date (UTC month anchor)
- * @param options.patch Partial CompactBar fields to merge (numeric only)
+ * @param options.patch Partial CompactBar numeric fields to merge
  * @param options.endpoint Defaults to TIME_SERIES_MONTHLY_ADJUSTED
+ * @returns Promise that resolves on success
  */
 export async function upsertAvMonthlyBar(options: {
   symbol: string;
@@ -730,15 +712,15 @@ export async function upsertAvMonthlyBar(options: {
 }
 
 /**
- * Upserts a single daily bar (YYYY-MM-DD) with intraday-only fields (ip/io/it) and optional dow.
- * This helper is used by PRE-close intraday flow to create the day’s bar strictly when intraday data exists for today ET.
- * Keep schema stable by providing safe numeric defaults for required numeric fields when creating a new bar; do not bump parent metadata.
- *
+ * Upsert intraday snapshot fields for the given DAILY trading date, creating the day bar if needed.
+ * - Only sets intraday fields (ip/io/it) and optional delta (ic/ipc); does not compute EOD ch/cp here.
+ * - Does not bump parent metadata to avoid churn during trading hours.
  * @param options.symbol Stock symbol
- * @param options.date ISO date (UTC day)
+ * @param options.date ISO date for the trading day (ET-derived)
  * @param options.ip Latest intraday price
- * @param options.io Epoch ms of the latest intraday bar timestamp
- * @param options.dow Optional day-of-week (0=Sun..6=Sat) in ET
+ * @param options.io Epoch ms of latest intraday bar timestamp
+ * @param options.dow Required DayOfWeek label (ET)
+ * @returns Promise that resolves on success
  */
 export async function upsertAvDailyIntradaySnapshot(options: {
   symbol: string;
@@ -767,7 +749,7 @@ export async function upsertAvDailyIntradaySnapshot(options: {
     : null;
 
   if (idx >= 0) {
-    const existing = bars[idx] || {};
+    const existing = bars[idx];
     const merged = {
       ...existing,
       // preserve existing OHLC/adj fields if present; only update intraday snapshot and dow
@@ -817,21 +799,14 @@ export async function upsertAvDailyIntradaySnapshot(options: {
 }
 
 /**
- * Bumps the top-level time-series metadata after a compact upsert so the parent
- * doc reflects current freshness in Console.
- *
- * When to use:
- * - After upsertAvDailyBar/Weekly/Monthly so operators see updated lastUpdated/nextRefreshAt
- *
- * Fields set on parent doc:
- * - metadata: { symbol, interval, lastUpdated, nextRefreshAt (now+ttl), ttlSeconds, vendor, endpoint, histEndDate/histEndTs }
- * - latestBarTimestamp: Timestamp of latest bar
- *
+ * Bump the top-level time-series metadata for console visibility after an upsert operation.
+ * - Sets lastUpdated/nextRefreshAt and histEnd fields; maintains ttlSeconds and endpoint/vendor tags.
  * @param options.symbol Stock symbol
  * @param options.endpoint AV endpoint id
  * @param options.interval TimeSeriesInterval
- * @param options.latestDate ISO date (YYYY-MM-DD, UTC) to derive latestTs
- * @param options.vendor Defaults to ApiProvider.ALPHA_VANTAGE
+ * @param options.latestDate ISO date used to compute latestTs
+ * @param options.vendor Optional provider (defaults AV)
+ * @returns Promise that resolves on success
  */
 export async function bumpTimeSeriesTopLevelMetadata(options: {
   symbol: string;
@@ -871,10 +846,13 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
 }
 
 /**
- * Fetch the previous trading day's adjusted close for a given symbol and endpoint.
- * Strategy: compute prevDate = date - 1 day (UTC), derive its epoch midnight, look up
- * the exact bar in the year doc for that year; if not present, also check the prior year doc.
- * Returns `ac` if present, else `c`, else null.
+ * Fetch the previous trading day's adjusted close for a symbol/endpoint by reading the year docs.
+ * - Searches current and previous year docs for the latest bar with t < current day
+ * - Returns ac if present, else c; null if not found
+ * @param options.symbol Stock symbol
+ * @param options.date Current trading day (YYYY-MM-DD UTC)
+ * @param options.endpoint Defaults to TIME_SERIES_DAILY_ADJUSTED
+ * @returns Previous adjusted close number or null
  */
 export async function getPreviousAdjustedClose(options: {
   symbol: string;
@@ -917,8 +895,9 @@ export async function getPreviousAdjustedClose(options: {
 }
 
 /**
- * Computes DayOfWeek from a trading date string (YYYY-MM-DD).
- * Uses the UTC date (midnight Z) to reflect the bar's trading day (Mon-Fri).
+ * Compute DayOfWeek label from a trading date string (YYYY-MM-DD) using UTC midnight.
+ * @param d ISO date string (YYYY-MM-DD)
+ * @returns DayOfWeek label (Sun..Sat)
  */
 function computeDowFromDateString(d: string): DayOfWeek {
   const dt = new Date(`${d}T00:00:00.000Z`);
@@ -936,7 +915,9 @@ function computeDowFromDateString(d: string): DayOfWeek {
 }
 
 /**
- * Formats an ET date-time string with seconds (YYYY-MM-DD HH:mm:ss) for a given epoch millis.
+ * Format an Eastern Time date-time string 'YYYY-MM-DD HH:mm:ss' for an epoch millis.
+ * @param tsMs Epoch milliseconds
+ * @returns ET formatted string with seconds precision
  */
 function formatEtDateTime(tsMs: number): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -946,4 +927,75 @@ function formatEtDateTime(tsMs: number): string {
   }).formatToParts(new Date(tsMs));
   const m = Object.fromEntries(parts.map(p => [p.type, p.value]));
   return `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second}`;
+}
+
+// --- Shared helpers for EOD change calculations ---
+/**
+ * Helper: get the preferred close value for a bar (adjusted close if present, else close).
+ * @param b Bar-like object with optional ac/c
+ * @returns Preferred close as number or undefined
+ */
+function preferClose(b?: { ac?: number; c?: number }): number | undefined {
+  if (!b) return undefined;
+  if (typeof b.ac === 'number' && Number.isFinite(b.ac)) return b.ac;
+  if (typeof b.c === 'number' && Number.isFinite(b.c)) return b.c;
+  return undefined;
+}
+
+/**
+ * Helper: round a number to 2 decimal places.
+ * @param n Number to round
+ * @returns Rounded number
+ */
+function round2(n: number): number { return Math.round(n * 100) / 100; }
+
+/**
+ * Compute EOD change metrics for a sorted array of bars in-place.
+ * - ch = currClose - prevClose
+ * - cp = (ch / prevClose) * 100
+ * - Prefers adjusted close (ac) over close (c) and omits when baseline is missing/zero.
+ * @param bars Sorted ascending array of CompactBar
+ */
+function computeChCpForBarsAscending(bars: Array<CompactBar>): void {
+  if (!Array.isArray(bars) || bars.length === 0) return;
+  // Assume already sorted ascending by t.
+  for (let i = 0; i < bars.length; i++) {
+    const curr = bars[i];
+    const prev = i > 0 ? bars[i - 1] : undefined;
+    const prevClose = preferClose(prev);
+    const currClose = preferClose(curr);
+    if (prevClose != null && prevClose !== 0 && currClose != null) {
+      const change = currClose - prevClose;
+      const pct = (change / prevClose) * 100;
+      curr.ch = round2(change);
+      curr.cp = round2(pct);
+    } else {
+      delete (curr as any).ch;
+      delete (curr as any).cp;
+    }
+  }
+}
+
+/**
+ * Recompute EOD change metrics for a specific index within a sorted bars array.
+ * - Uses the immediate previous bar as the baseline.
+ * - Prefers adjusted close (ac) over close (c) and omits when baseline is missing/zero.
+ * @param bars Sorted ascending array of CompactBar
+ * @param index Index of the target bar to recompute
+ */
+function computeChCpForTargetIndex(bars: Array<CompactBar>, index: number): void {
+  if (!Array.isArray(bars) || index < 0 || index >= bars.length) return;
+  const curr = bars[index];
+  const prev = index > 0 ? bars[index - 1] : undefined;
+  const prevClose = preferClose(prev);
+  const currClose = preferClose(curr);
+  if (prevClose != null && prevClose !== 0 && currClose != null) {
+    const change = currClose - prevClose;
+    const pct = (change / prevClose) * 100;
+    curr.ch = round2(change);
+    curr.cp = round2(pct);
+  } else {
+    delete (curr as any).ch;
+    delete (curr as any).cp;
+  }
 }
