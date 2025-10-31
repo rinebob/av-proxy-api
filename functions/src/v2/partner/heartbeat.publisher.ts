@@ -2,7 +2,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 import type { DataReadyPayloadV1 } from './schemas/data-ready.schema';
 import { enqueueDataReadyInternal } from './data-ready.handler';
-import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase } from './constants';
+import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerTrigger } from './constants';
 import { PARTNER_HEARTBEAT_SCHEDULE } from '../common/function-schedules';
 
 // Determine trading phase automatically using Eastern Time and derive market date (YYYY-MM-DD)
@@ -44,6 +44,7 @@ export const partnerDataReadyHeartbeat = onSchedule(
       time: Date.now(),
       marketDate,
       env: (process.env.NODE_ENV || 'dev') as string,
+      trigger: PartnerTrigger.HEARTBEAT,
     };
 
     // Mark as heartbeat so downstream consumers can filter easily

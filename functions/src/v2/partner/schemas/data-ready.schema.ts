@@ -1,9 +1,9 @@
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
-import { PartnerPhase } from '../constants';
+import { PartnerPhase, PartnerTrigger } from '../constants';
 
 export interface DataReadyPayloadV1 {
   version: 'v1';
-  runId: string; // YYYY-MM-DD-pre|post
+  runId: string; // YYYY-MM-DD-pre|post[-suffix]
   phase: PartnerPhase;
   intervals: TimeSeriesInterval[];
   time: number; // epoch ms
@@ -19,6 +19,9 @@ export interface DataReadyPayloadV1 {
   datasetManifest?: string; // URL or gs:// path
   env?: 'staging' | 'prod' | string;
   traceId?: string;
+
+  // New: origin of the message (manual, scheduled, heartbeat)
+  trigger?: PartnerTrigger;
 }
 
 export interface ValidationResult<T> {
@@ -27,7 +30,8 @@ export interface ValidationResult<T> {
   errors?: string[];
 }
 
-const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}-(pre|post)$/;
+// Allow optional unique suffix (lowercase letters/digits, 1-16 chars) after base date-phase
+const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}-(pre|post)(-[a-z0-9]{1,16})?$/;
 const MARKET_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_INTERVALS: TimeSeriesInterval[] = [
   TimeSeriesInterval.DAILY,
@@ -44,7 +48,7 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
   if (obj.version !== 'v1') errors.push('version must be "v1"');
   if (typeof obj.runId !== 'string' || obj.runId.length === 0) errors.push('runId is required');
   if (obj.runId && !RUN_ID_RE.test(obj.runId)) {
-    errors.push('runId should match ^\\d{4}-\\d{2}-\\d{2}-(pre|post)$');
+    errors.push('runId should match YYYY-MM-DD-(pre|post)[-suffix], where optional suffix is 1-16 lowercase letters/digits');
   }
   if (obj.phase !== 'pre' && obj.phase !== 'post') errors.push('phase must be "pre" or "post"');
 
@@ -88,6 +92,14 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
   if (obj.env != null && typeof obj.env !== 'string') errors.push('env must be a string when provided');
   if (obj.traceId != null && typeof obj.traceId !== 'string') errors.push('traceId must be a string when provided');
 
+  // Optional: trigger
+  if (obj.trigger != null) {
+    const allowed = [PartnerTrigger.MANUAL, PartnerTrigger.SCHEDULED, PartnerTrigger.HEARTBEAT];
+    if (!allowed.includes(obj.trigger)) {
+      errors.push('trigger must be one of: manual, scheduled, heartbeat');
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   const value: DataReadyPayloadV1 = {
@@ -106,6 +118,7 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
     datasetManifest: obj.datasetManifest,
     env: obj.env,
     traceId: obj.traceId,
+    trigger: obj.trigger,
   };
 
   // Soft check: if marketDate provided, ensure time falls within that UTC day

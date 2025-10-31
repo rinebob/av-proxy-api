@@ -21,16 +21,29 @@ export enum PartnerPhase {
 
 /**
  * PartnerRunType: classifies the refresher run intent for consumers.
- * - NON_TIME_SERIES: generic non-time-series refresh cycle
- * - TS_DAILY_PRE: pre-close daily time-series snapshot writes
- * - TS_DAILY_POST: post-close daily time-series finalized writes
- * - TS_WEEKLY_POST: post-close weekly time-series writes
- * - TS_MONTHLY_POST: post-close monthly time-series writes
+ * Now uses kebab-case to match RS V2 subscriber expectations.
+ * - non-time-series
+ * - ts-daily-pre
+ * - ts-daily-post
+ * - ts-weekly-post
+ * - ts-monthly-post
  */
 export enum PartnerRunType {
-  NON_TIME_SERIES = 'non_time_series',
-  TS_DAILY_PRE = 'ts_daily_pre',
-  TS_DAILY_POST = 'ts_daily_post',
-  TS_WEEKLY_POST = 'ts_weekly_post',
-  TS_MONTHLY_POST = 'ts_monthly_post',
+  NON_TIME_SERIES = 'non-time-series',
+  TS_DAILY_PRE = 'ts-daily-pre',
+  TS_DAILY_POST = 'ts-daily-post',
+  TS_WEEKLY_POST = 'ts-weekly-post',
+  TS_MONTHLY_POST = 'ts-monthly-post',
+}
+
+/**
+ * PartnerTrigger: origin of the partner data-ready message.
+ * - MANUAL: initiated by a human or explicit test trigger
+ * - SCHEDULED: initiated by a scheduled refresher run
+ * - HEARTBEAT: emitted by the heartbeat publisher for connectivity testing
+ */
+export enum PartnerTrigger {
+  MANUAL = 'manual',
+  SCHEDULED = 'scheduled',
+  HEARTBEAT = 'heartbeat',
 }
