@@ -7,7 +7,7 @@
 // Notes:
 // - Ensures AV time-series existence (daily/weekly/monthly) and upgrades stored bars to latest compact schema.
 // - Enrichment: adds d (YYYY-MM-DD UTC), ch (change), cp (percent change), with 2-decimal rounding.
-// - First bar baseline: ch=0, cp=0.
+// - Baseline: prefer adjusted close (ac) over close (c). If baseline is missing or zero, omit ch/cp.
 // - Writes updates only when needed; supports --dry-run.
 
 import * as dotenv from 'dotenv';
@@ -17,7 +17,7 @@ import { setupEmulator } from './scripts-util';
 // Load local .env if present
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
 
-import { db } from '../src/firebase-admin-init';
+import type { Firestore } from 'firebase-admin/firestore';
 import { FirestoreCollection } from '@shared/firestore';
 import { ApiProvider } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesInterval } from '@shared/alpha-vantage';
@@ -47,16 +47,25 @@ const USE_EMULATOR = EMULATOR_RAW === undefined
   ? true
   : !(String(EMULATOR_RAW).toLowerCase() === 'false' || String(EMULATOR_RAW) === '0');
 
-// Configure environment
+// Configure environment (must occur BEFORE initializing firebase-admin)
 if (USE_EMULATOR) {
-  if (!process.env.FIRESTORE_EMULATOR_HOST) {
+  if (!process.env['FIRESTORE_EMULATOR_HOST']) {
     setupEmulator();
   }
   console.log('fn scripts setupEmulator - Using Firebase Emulators');
 } else {
-  delete (process.env as any).FIREBASE_AUTH_EMULATOR_HOST;
-  delete (process.env as any).FIRESTORE_EMULATOR_HOST;
+  delete (process.env as any)['FIREBASE_AUTH_EMULATOR_HOST'];
+  delete (process.env as any)['FIRESTORE_EMULATOR_HOST'];
   console.log('fn scripts - Using PROD Firestore (no emulators)');
+}
+
+// Initialize firebase-admin after env is set up
+let db: Firestore;
+{
+  // Using require here to avoid early module init before env setup
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const adminInit = require('../src/firebase-admin-init');
+  db = adminInit.db as Firestore;
 }
 
 const SYMBOL_FILTER = (argMap.get('--symbol') as string | undefined)?.toUpperCase();
@@ -92,7 +101,14 @@ function ensureBarD<T extends { t: number; d?: string }>(bars: T[]): { mutated: 
   return { mutated, addedCount };
 }
 
-function enrichBarsAscending<T extends { t: number; c: number; ch?: number; cp?: number }>(bars: T[]): { mutated: boolean; changedCount: number; bars: T[] } {
+function preferClose(b?: { ac?: number; c?: number }): number | undefined {
+  if (!b) return undefined;
+  if (typeof b.ac === 'number' && Number.isFinite(b.ac)) return b.ac;
+  if (typeof b.c === 'number' && Number.isFinite(b.c)) return b.c;
+  return undefined;
+}
+
+function enrichBarsAscending<T extends { t: number; c?: number; ac?: number; ch?: number; cp?: number }>(bars: T[]): { mutated: boolean; changedCount: number; bars: T[] } {
   if (!Array.isArray(bars) || bars.length === 0) return { mutated: false, changedCount: 0, bars: [] };
   // Ensure ascending
   bars.sort((a, b) => a.t - b.t);
@@ -101,23 +117,40 @@ function enrichBarsAscending<T extends { t: number; c: number; ch?: number; cp?:
   let changedCount = 0;
   for (let i = 0; i < bars.length; i++) {
     const curr = bars[i];
-    let ch = 0;
-    let cp = 0;
-    if (i > 0 && Number.isFinite(prevClose) && (prevClose as number) !== 0) {
-      const changeRaw = curr.c - (prevClose as number);
+    const currClose = preferClose(curr);
+    if (i > 0 && Number.isFinite(prevClose) && (prevClose as number) !== 0 && Number.isFinite(currClose as number)) {
+      const changeRaw = (currClose as number) - (prevClose as number);
       const percentRaw = (changeRaw / (prevClose as number)) * 100;
-      ch = round2(changeRaw);
-      cp = round2(percentRaw);
+      const ch = round2(changeRaw);
+      const cp = round2(percentRaw);
+      if (curr.ch !== ch || curr.cp !== cp) {
+        (curr as any).ch = ch;
+        (curr as any).cp = cp;
+        mutated = true;
+        changedCount++;
+      }
+    } else {
+      // Omit ch/cp when baseline is missing/zero
+      if (typeof (curr as any).ch !== 'undefined' || typeof (curr as any).cp !== 'undefined') {
+        delete (curr as any).ch;
+        delete (curr as any).cp;
+        mutated = true;
+        changedCount++;
+      }
     }
-    if (curr.ch !== ch || curr.cp !== cp) {
-      (curr as any).ch = ch;
-      (curr as any).cp = cp;
-      mutated = true;
-      changedCount++;
-    }
-    prevClose = curr.c;
+    prevClose = preferClose(curr);
   }
   return { mutated, changedCount, bars };
+}
+
+function logLast3AndLatest(symbol: string, ep: AlphaVantageEndpoint, shard: string | number, bars: Array<{ t: number }>, latest?: any) {
+  const epName = AlphaVantageEndpoint[ep];
+  const last3 = Array.isArray(bars) ? bars.slice(-3) : [];
+  const latestBar = latest ?? (Array.isArray(bars) && bars.length ? bars[bars.length - 1] : null);
+  console.log(`[SAMPLE] ${symbol} ${epName} ${shard} last3:`);
+  console.log(JSON.stringify(last3, null, 2));
+  console.log(`[SAMPLE] ${symbol} ${epName} ${shard} latest:`);
+  console.log(JSON.stringify(latestBar, null, 2));
 }
 
 async function ensureTimeSeries(symbol: string, ep: AlphaVantageEndpoint, iv: TimeSeriesInterval): Promise<void> {
@@ -168,11 +201,17 @@ async function repairDailyOrWeekly(symbol: string, ep: AlphaVantageEndpoint, iv:
     if (dMut || chcpMut) {
       if (DRY_RUN) {
         console.log(`[DRY-RUN] Would update ${yPath} (bars: ${bars.length}; add d: ${addedCount}; fix ch/cp: ${changedCount})`);
+        logLast3AndLatest(symbol, ep, year, bars, data.latest);
       } else {
         await yRef.set({ bars }, { merge: true });
         updatedDocs++;
         console.log(`[WRITE] Updated ${yPath} (bars: ${bars.length}; added d: ${addedCount}; fixed ch/cp: ${changedCount})`);
+        logLast3AndLatest(symbol, ep, year, bars, data.latest);
       }
+    } else {
+      // No changes needed. Print samples in both dry-run and live runs for verification.
+      console.log(`[NO-CHANGE] ${yPath} (bars: ${bars.length})`);
+      logLast3AndLatest(symbol, ep, year, bars, data.latest);
     }
   }
 
@@ -211,12 +250,17 @@ async function repairMonthly(symbol: string, ep: AlphaVantageEndpoint): Promise<
     if (dMut || chcpMut) {
       if (DRY_RUN) {
         console.log(`[DRY-RUN] Would update ${allPath} (bars: ${bars.length}; add d: ${addedCount}; fix ch/cp: ${changedCount})`);
+        logLast3AndLatest(symbol, ep, 'all', bars, data.latest);
       } else {
         await ref.set({ bars }, { merge: true });
         console.log(`[WRITE] Updated ${allPath} (bars: ${bars.length}; added d: ${addedCount}; fixed ch/cp: ${changedCount})`);
+        logLast3AndLatest(symbol, ep, 'all', bars, data.latest);
       }
       return { updatedDocs: 1 };
     }
+    // Monthly: no changes; print samples in both dry-run and live runs for verification
+    console.log(`[NO-CHANGE] ${allPath} (bars: ${barsArr.length})`);
+    logLast3AndLatest(symbol, ep, 'all', barsArr, data.latest);
     return { updatedDocs: 0 };
   } catch (e: any) {
     // Some environments may have an inconsistent monthly path shape; log and continue.
