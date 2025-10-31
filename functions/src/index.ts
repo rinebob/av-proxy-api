@@ -33,6 +33,7 @@ export { benzingaApiV2 } from './v2/benzinga/benzinga-gateway';
 
 // Partner endpoints (HTTP)
 export { partnerTimeSeriesV2 } from './v2/partner/time-series-partner';
+export { partnerListTrackedSymbolsV2 } from './v2/partner/tracked-symbols-partner';
 
 // Note: HTTP dataReadyWebhook has been removed. Publishing is internal-only via enqueueDataReadyInternal.
 
