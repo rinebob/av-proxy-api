@@ -195,6 +195,30 @@ Files:
   - Weekly parent: `symbol-data/{SYMBOL}/time-series/av-weekly-adjusted`
   - Monthly parent: `symbol-data/{SYMBOL}/time-series/av-monthly-adjusted`
 
+#### EOD change fields (Daily Adjusted)
+
+- Purpose
+  - Persist end-of-day deltas alongside each daily bar for quick reads without recomputation.
+- Fields
+  - `ch`: absolute change vs prior trading day’s close (prefers adjusted close)
+  - `cp`: percent change vs prior trading day’s close (prefers adjusted close)
+- Computation rules
+  - Baseline: previous bar’s `ac` (adjusted close) if present, otherwise `c` (close)
+  - Rounding: 2 decimals for both `ch` and `cp`
+  - Missing/zero baseline: omit `ch`/`cp` (first available bar or gaps)
+- Where computed in code
+  - Writer (full series): `functions/src/v2/alpha-vantage/firestore/av-firestore-helper.ts`
+    - `computeChCpForBarsAscending(bars)` used by `saveAvTimeSeriesData()`
+  - Writer (single day): same file
+    - `computeChCpForTargetIndex(bars, index)` used by `upsertAvDailyBar()`
+- Backfill
+  - Script: `functions/scripts/backfill-timeseries-chcp.ts`
+  - Behavior: prefers `ac` over `c`, omits `ch`/`cp` when baseline missing/zero
+  - Examples:
+    - Dry run: `npx ts-node -r tsconfig-paths/register -r module-alias/register functions/scripts/backfill-timeseries-chcp.ts --dry-run`
+    - Daily only: `... backfill-timeseries-chcp.ts --interval=daily`
+    - Specific symbol: `... backfill-timeseries-chcp.ts --interval=daily --symbol=GOOGL`
+
 ### Data readiness semantics (PRE vs POST)
 
 The Data‑Ready Pub/Sub message indicates “what is safe to consume now.” Use the `runType` attribute to distinguish runs (see above). Guarantees per run:
