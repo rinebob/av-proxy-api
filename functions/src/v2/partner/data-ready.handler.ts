@@ -74,7 +74,7 @@ export async function enqueueDataReadyInternal(
     }
   }
 
-  // Upsert run state
+  // Upsert run state (persist full payload for auditing)
   await runRef.set({
     status: 'received',
     createdAt: FieldValue.serverTimestamp(),
@@ -92,10 +92,12 @@ export async function enqueueDataReadyInternal(
       auth: { email: (callerEmail || INTERNAL_PUBLISHER_AUDIT_EMAIL).toLowerCase() },
       payloadVersion: validPayload.version,
     },
+    // Persist full message body for auditability
+    payload: validPayload,
     lastEnqueuedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  // Publish to Pub/Sub
+  // Build attributes and persist them too
   const attributes: Record<string, string> = {
     runId: validPayload.runId,
     version: validPayload.version,
@@ -108,7 +110,9 @@ export async function enqueueDataReadyInternal(
       if (v != null) attributes[k] = String(v);
     }
   }
+  await runRef.set({ pubsubAttributes: attributes, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
+  // Publish to Pub/Sub
   const messageId = await publishToPubSub(validPayload, attributes);
 
   await runRef.set({
