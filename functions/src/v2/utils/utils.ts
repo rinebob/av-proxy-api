@@ -326,27 +326,33 @@ function getAllowedServiceAccounts(): string[] {
 // If provided, we will require aud to match exactly to mitigate token confusion.
 
 /**
- * Optional expected Google audience (Cloud Run base URL) for Google ID tokens.
- * If present, the audience (aud) must match exactly to mitigate token confusion.
- * @returns The expected audience string or null if not configured.
+ * Optional expected Google audiences for Google ID tokens.
+ * Supports comma-separated values so you can accept multiple audiences
+ * (e.g., shared CF base host and specific function URLs).
+ * If provided, the audience (aud) must match one of the configured entries.
+ * @returns Array of accepted audiences (normalized, trimmed). Empty array means "no audience enforcement".
  */
-function getExpectedGoogleAudience(): string | null {
+function getExpectedGoogleAudiences(): string[] {
+  const parse = (val: string | null | undefined): string[] =>
+    (val || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
   // Emulator/local
   if (process.env.FUNCTIONS_EMULATOR === 'true') {
-    const aud = process.env.EXPECTED_GOOGLE_AUDIENCE || process.env.PARTNER_AUDIENCE || '';
-    return aud.trim() || null;
+    const raw = process.env.EXPECTED_GOOGLE_AUDIENCE || process.env.PARTNER_AUDIENCE || '';
+    return parse(raw);
   }
   // Production from Secret Manager
   try {
     const raw = expectedGoogleAudienceSecret.value();
-    const aud = typeof raw === 'string' ? raw : String(raw || '');
-    return aud.trim() || null;
+    const str = typeof raw === 'string' ? raw : String(raw || '');
+    return parse(str);
   } catch {
-    return null;
+    return [];
   }
 }
-
-// Parse JWT payload without verification to quickly inspect iss/aud.
 
 /**
  * Parse a JWT payload without verification to quickly inspect iss/aud.
@@ -390,15 +396,15 @@ export async function authenticateRequestEither(
     const decoded = decodeJwtPayload(idToken) || {};
     const iss = String(decoded.iss || '');
     const aud = String(decoded.aud || '');
-    const expectedGoogleAud = getExpectedGoogleAudience();
+    const expectedGoogleAuds = getExpectedGoogleAudiences();
     const firebaseProjectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || process.env.FIREBASE_CONFIG && (() => {
       try { return JSON.parse(String(process.env.FIREBASE_CONFIG)).projectId as string; } catch { return ''; }
     })() || '';
 
     // Branch 1: Google OIDC service-to-service path
     const isGoogleIssuer = iss === 'https://accounts.google.com' || iss === 'accounts.google.com';
-    const googleAudOk = !expectedGoogleAud || aud === expectedGoogleAud;
-    createLogger('auth').debug('either.detect', { isGoogleIssuer, iss, aud, expectedGoogleAud, googleAudOk, hasAuthHeader: !!authHeader });
+    const googleAudOk = expectedGoogleAuds.length === 0 || expectedGoogleAuds.includes(aud);
+    createLogger('auth').debug('either.detect', { isGoogleIssuer, iss, aud, expectedGoogleAuds, googleAudOk, hasAuthHeader: !!authHeader });
 
     if (isGoogleIssuer && googleAudOk) {
       // Verify with tokeninfo (low-QPS acceptable). Do NOT attempt Firebase verification on Google tokens.
@@ -410,9 +416,9 @@ export async function authenticateRequestEither(
         hasEmail: !!decodedOidc?.email,
       });
       if (decodedOidc) {
-        // If an expected audience is configured, enforce it on the verified payload as well.
-        if (expectedGoogleAud && String(decodedOidc.aud) !== expectedGoogleAud) {
-          createLogger('auth').warn('either.google.aud_mismatch', { expectedGoogleAud, got: decodedOidc.aud });
+        // If expected audiences are configured, enforce that aud matches one of them.
+        if (expectedGoogleAuds.length > 0 && !expectedGoogleAuds.includes(String(decodedOidc.aud))) {
+          createLogger('auth').warn('either.google.aud_mismatch', { expectedGoogleAuds, got: decodedOidc.aud });
           setCorsHeaders(res);
           res.status(403).json({ error: 'Forbidden', message: 'Google ID token audience mismatch.' });
           return null;
@@ -458,8 +464,8 @@ export async function authenticateRequestEither(
       hasEmail: !!decodedOidc?.email,
     });
     if (decodedOidc) {
-      if (expectedGoogleAud && String(decodedOidc.aud) !== expectedGoogleAud) {
-        createLogger('auth').warn('either.google.fallback.aud_mismatch', { expectedGoogleAud, got: decodedOidc.aud });
+      if (expectedGoogleAuds.length > 0 && !expectedGoogleAuds.includes(String(decodedOidc.aud))) {
+        createLogger('auth').warn('either.google.fallback.aud_mismatch', { expectedGoogleAuds, got: decodedOidc.aud });
         setCorsHeaders(res);
         res.status(403).json({ error: 'Forbidden', message: 'Google ID token audience mismatch.' });
         return null;
