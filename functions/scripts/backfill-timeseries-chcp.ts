@@ -3,6 +3,7 @@
 //   npx ts-node -r tsconfig-paths/register -r module-alias/register functions/scripts/backfill-timeseries-chcp.ts --interval daily
 //   npx ts-node -r tsconfig-paths/register -r module-alias/register functions/scripts/backfill-timeseries-chcp.ts --symbol AAPL --repair-metadata
 //   npx ts-node -r tsconfig-paths/register -r module-alias/register functions/scripts/backfill-timeseries-chcp.ts --emulator=false
+//   npx ts-node -r tsconfig-paths/register -r module-alias/register functions/scripts/backfill-timeseries-chcp.ts --inventory
 //
 // Notes:
 // - Ensures AV time-series existence (daily/weekly/monthly) and upgrades stored bars to latest compact schema.
@@ -21,12 +22,14 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { FirestoreCollection } from '@shared/firestore';
 import { ApiProvider } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesInterval } from '@shared/alpha-vantage';
+import { AlphaVantageHandlerFactory } from '../src/v2/alpha-vantage/alpha-vantage-factory';
 import {
   getSymbolTimeSeriesDocPath,
   getSymbolTimeSeriesYearDocPath,
   getSymbolTimeSeriesAllDocPath,
 } from '../src/v2/common/firestore/firestore-paths';
 import { initializeTimeSeriesIfMissing } from '../src/v2/alpha-vantage/firestore/av-firestore-helper';
+import { writeFileSync } from 'node:fs';
 
 // ---------- CLI args ----------
 const argv = process.argv.slice(2);
@@ -70,8 +73,21 @@ let db: Firestore;
 
 const SYMBOL_FILTER = (argMap.get('--symbol') as string | undefined)?.toUpperCase();
 const INTERVAL_FILTER = (argMap.get('--interval') as string | undefined)?.toLowerCase() as ('daily'|'weekly'|'monthly'|undefined);
+const YEAR_FILTER_RAW = (argMap.get('--year') ?? argMap.get('-y')) as string | undefined;
+const YEAR_FILTER = YEAR_FILTER_RAW != null && YEAR_FILTER_RAW.trim() !== '' && !Number.isNaN(Number(YEAR_FILTER_RAW))
+  ? Number(YEAR_FILTER_RAW)
+  : undefined;
 const DRY_RUN = Boolean(argMap.get('--dry-run'));
 const REPAIR_METADATA = Boolean(argMap.get('--repair-metadata'));
+const INVENTORY_MODE = Boolean(argMap.get('--inventory') ?? argMap.get('--audit'));
+const INVENTORY_VERBOSE = Boolean(argMap.get('--inventory-verbose') ?? argMap.get('--audit-verbose'));
+const INVENTORY_OUT = (argMap.get('--inventory-out') as string | undefined);
+const INVENTORY_ONLY_ISSUES = Boolean(argMap.get('--inventory-only-issues') ?? argMap.get('--inventory-issues-only'));
+const FORCE_REFETCH = Boolean(argMap.get('--force-refetch'));
+const RECOMPUTE_PAIRS = Boolean(argMap.get('--recompute-pairs'));
+const BASELINE_ARG = (argMap.get('--baseline') as string | undefined) ?? 'ALL';
+const DATE_FROM = (argMap.get('--dateFrom') as string | undefined);
+const DATE_TO = (argMap.get('--dateTo') as string | undefined);
 
 function endpointsForInterval(interval?: 'daily'|'weekly'|'monthly'): { ep: AlphaVantageEndpoint; iv: TimeSeriesInterval }[] {
   if (!interval) {
@@ -130,27 +146,83 @@ function enrichBarsAscending<T extends { t: number; c?: number; ac?: number; ch?
         changedCount++;
       }
     } else {
-      // Omit ch/cp when baseline is missing/zero
-      if (typeof (curr as any).ch !== 'undefined' || typeof (curr as any).cp !== 'undefined') {
-        delete (curr as any).ch;
-        delete (curr as any).cp;
-        mutated = true;
-        changedCount++;
-      }
+      // Do not force ch/cp; first bar legitimately has no baseline
     }
     prevClose = preferClose(curr);
   }
   return { mutated, changedCount, bars };
 }
 
-function logLast3AndLatest(symbol: string, ep: AlphaVantageEndpoint, shard: string | number, bars: Array<{ t: number }>, latest?: any) {
+function ensureDowAndD<T extends { t: number; d?: string; dow?: string }>(bars: T[]): { mutated: boolean; bars: T[] } {
+  let mutated = false;
+  for (const b of bars) {
+    const dStr = new Date(b.t).toISOString().slice(0, 10);
+    if (b.d !== dStr) { (b as any).d = dStr; mutated = true; }
+    const dow = new Date(`${dStr}T00:00:00.000Z`).getUTCDay();
+    const map = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    if ((b as any).dow !== map[dow]) { (b as any).dow = map[dow]; mutated = true; }
+  }
+  return { mutated, bars };
+}
+
+function hasInvalidCloses(bars: Array<{ ac?: number; c?: number }>): boolean {
+  return bars.some((b, i) => {
+    const close = preferClose(b);
+    // invalid when missing or zero for non-first bars
+    return i > 0 && (!Number.isFinite(close as number) || (close as number) === 0);
+  });
+}
+
+async function refetchRecentDailyAdjusted(symbol: string): Promise<void> {
+  const handler: any = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
+  // Always use full fetch for this script to hydrate beyond the 100-bar compact limit
+  await handler.fetch({ symbol, outputsize: 'full', __checkWriteToggle: false, __phase: 'POST' });
+}
+
+function logLatestAndIssues(symbol: string, ep: AlphaVantageEndpoint, shard: string | number, bars: Array<{ t: number; o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; d?: string; dow?: string; ch?: number; cp?: number }>, latest?: any) {
   const epName = AlphaVantageEndpoint[ep];
-  const last3 = Array.isArray(bars) ? bars.slice(-3) : [];
   const latestBar = latest ?? (Array.isArray(bars) && bars.length ? bars[bars.length - 1] : null);
-  console.log(`[SAMPLE] ${symbol} ${epName} ${shard} last3:`);
-  console.log(JSON.stringify(last3, null, 2));
   console.log(`[SAMPLE] ${symbol} ${epName} ${shard} latest:`);
   console.log(JSON.stringify(latestBar, null, 2));
+
+  // Issue scan: counts and first few examples
+  const issues = { missingFields: { o: 0, h: 0, l: 0, c: 0, v: 0, ac: 0, d: 0, dow: 0 }, invalidClose: 0, missingChCp: 0, nonFiniteOHLCV: 0 } as any;
+  const samples: Array<{ t: number; d?: string; fields: string[] }> = [];
+  for (const b of bars) {
+    const missing: string[] = [];
+    if (!Number.isFinite(b.o as number)) missing.push('o');
+    if (!Number.isFinite(b.h as number)) missing.push('h');
+    if (!Number.isFinite(b.l as number)) missing.push('l');
+    if (!Number.isFinite(b.c as number)) missing.push('c');
+    if (!Number.isFinite(b.v as number)) missing.push('v');
+    if (!Number.isFinite(b.ac as number)) missing.push('ac');
+    if (!b.d) missing.push('d');
+    if (!b.dow) missing.push('dow');
+    if (missing.length) {
+      for (const f of missing) issues.missingFields[f]++;
+      if (samples.length < 3) samples.push({ t: b.t, d: b.d, fields: missing });
+    }
+  }
+  // invalid preferred close (non-first bars) or missing ch/cp when baseline exists
+  for (let i = 1; i < bars.length; i++) {
+    const curr = bars[i];
+    const prev = bars[i - 1];
+    const currClose = preferClose(curr);
+    const prevClose = preferClose(prev);
+    if (!(Number.isFinite(currClose as number) && (currClose as number) > 0 && Number.isFinite(prevClose as number) && (prevClose as number) > 0)) {
+      issues.invalidClose++;
+    } else if (typeof curr.ch !== 'number' || typeof curr.cp !== 'number') {
+      issues.missingChCp++;
+    }
+  }
+  const summary = {
+    missingFields: issues.missingFields,
+    invalidCloseCount: issues.invalidClose,
+    missingChCpCount: issues.missingChCp,
+    sampleMissing: samples,
+  };
+  console.log(`[ISSUES] ${symbol} ${epName} ${shard}:`);
+  console.log(JSON.stringify(summary, null, 2));
 }
 
 async function ensureTimeSeries(symbol: string, ep: AlphaVantageEndpoint, iv: TimeSeriesInterval): Promise<void> {
@@ -177,6 +249,15 @@ async function repairDailyOrWeekly(symbol: string, ep: AlphaVantageEndpoint, iv:
     availableYears = yearsSnap.docs.map(d => Number(d.id)).filter(n => Number.isFinite(n)).sort((a, b) => a - b);
   }
 
+  // Apply year filter if provided
+  if (YEAR_FILTER != null) {
+    availableYears = availableYears.includes(YEAR_FILTER) ? [YEAR_FILTER] : [];
+    if (availableYears.length === 0) {
+      console.warn(`[WARN] Year filter ${YEAR_FILTER} not found for ${symbol} ${AlphaVantageEndpoint[ep]}`);
+      return { updatedDocs: 0 };
+    }
+  }
+
   let updatedDocs = 0;
   let firstTs: number | null = null;
   let lastTs: number | null = null;
@@ -189,29 +270,57 @@ async function repairDailyOrWeekly(symbol: string, ep: AlphaVantageEndpoint, iv:
     const data = ySnap.data() as any;
     if (!Array.isArray(data?.bars) || data.bars.length === 0) continue;
 
-    // Normalize d
-    const barsArr = data.bars as Array<{ t: number; c: number; d?: string; ch?: number; cp?: number }>;
-    const { mutated: dMut, addedCount } = ensureBarD(barsArr);
-    const { mutated: chcpMut, changedCount, bars } = enrichBarsAscending(barsArr);
+    const barsArr = data.bars as Array<{ t: number; o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; d?: string; dow?: string; ch?: number; cp?: number }>;
+    const needsRefetch = hasInvalidCloses(barsArr) || barsArr.some(b => !Number.isFinite((b.o as number)) || !Number.isFinite((b.h as number)) || !Number.isFinite((b.l as number)) || !Number.isFinite((b.v as number)));
+    if (iv === TimeSeriesInterval.DAILY && (needsRefetch || barsArr.some(b => b.ch == null || b.cp == null))) {
+      if (DRY_RUN) {
+        console.log(`[DRY-RUN] Would refetch DAILY full for ${symbol} due to invalid/missing fields in ${yPath}`);
+      } else {
+        // Always use full fetch to hydrate gaps beyond the 100-bar compact limit
+        await refetchRecentDailyAdjusted(symbol);
+        // Reload fresh after refetch
+        const freshSnap = await yRef.get();
+        if (freshSnap.exists) (data as any).bars = freshSnap.get('bars') ?? data.bars;
+      }
+    }
+
+    const barsPost = (data.bars as typeof barsArr).slice().sort((a,b)=>a.t-b.t);
+    ensureBarD(barsPost);
+    const { mutated: dwdMut } = ensureDowAndD(barsPost);
+    const { mutated: chcpMut, changedCount, bars } = enrichBarsAscending(barsPost);
 
     // Track series bounds
     firstTs = firstTs ?? bars[0]?.t ?? null;
     if (bars.length) lastTs = bars[bars.length - 1].t;
 
-    if (dMut || chcpMut) {
+    const needWrite = dwdMut || chcpMut || needsRefetch;
+    if (needWrite) {
       if (DRY_RUN) {
-        console.log(`[DRY-RUN] Would update ${yPath} (bars: ${bars.length}; add d: ${addedCount}; fix ch/cp: ${changedCount})`);
-        logLast3AndLatest(symbol, ep, year, bars, data.latest);
+        console.log(`[DRY-RUN] Would update ${yPath} (bars: ${bars.length}; fix ch/cp: ${changedCount}; ensure d/dow; refetch=${needsRefetch})`);
+        logLatestAndIssues(symbol, ep, year, bars, data.latest);
       } else {
-        await yRef.set({ bars }, { merge: true });
+        // Recompute aggregates so 'latest' reflects enriched data
+        const latestBar = bars[bars.length - 1] ?? null;
+        const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
+        const latestEtStr = latestBar?.t != null ? etDateTime(latestBar.t) : null;
+        await yRef.set({
+          bars,
+          count: bars.length,
+          firstBarTs: bars[0]?.t ?? null,
+          lastBarTs: bars[bars.length - 1]?.t ?? null,
+          latest: latestBar,
+          latestUtcIso,
+          latestEtDateTime: latestEtStr,
+          updatedAt: (await import('firebase-admin/firestore')).Timestamp.now(),
+        }, { merge: true });
         updatedDocs++;
-        console.log(`[WRITE] Updated ${yPath} (bars: ${bars.length}; added d: ${addedCount}; fixed ch/cp: ${changedCount})`);
-        logLast3AndLatest(symbol, ep, year, bars, data.latest);
+        console.log(`[WRITE] Updated ${yPath} (bars: ${bars.length}; fixed ch/cp: ${changedCount}; ensured d/dow; refetch=${needsRefetch})`);
+        logLatestAndIssues(symbol, ep, year, bars, data.latest);
       }
     } else {
       // No changes needed. Print samples in both dry-run and live runs for verification.
       console.log(`[NO-CHANGE] ${yPath} (bars: ${bars.length})`);
-      logLast3AndLatest(symbol, ep, year, bars, data.latest);
+      logLatestAndIssues(symbol, ep, year, bars, data.latest);
     }
   }
 
@@ -242,25 +351,38 @@ async function repairMonthly(symbol: string, ep: AlphaVantageEndpoint): Promise<
     const snap = await ref.get();
     if (!snap.exists) return { updatedDocs: 0 };
     const data = snap.data() as any;
-    const barsArr = Array.isArray(data?.bars) ? data.bars as Array<{ t: number; c: number; d?: string; ch?: number; cp?: number }> : [];
+    const barsArr = Array.isArray(data?.bars) ? data.bars as Array<{ t: number; o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; d?: string; dow?: string; ch?: number; cp?: number }> : [];
     if (!barsArr.length) return { updatedDocs: 0 };
 
-    const { mutated: dMut, addedCount } = ensureBarD(barsArr);
+    ensureBarD(barsArr);
+    const { mutated: dwdMut } = ensureDowAndD(barsArr);
     const { mutated: chcpMut, changedCount, bars } = enrichBarsAscending(barsArr);
-    if (dMut || chcpMut) {
+    if (dwdMut || chcpMut) {
       if (DRY_RUN) {
-        console.log(`[DRY-RUN] Would update ${allPath} (bars: ${bars.length}; add d: ${addedCount}; fix ch/cp: ${changedCount})`);
-        logLast3AndLatest(symbol, ep, 'all', bars, data.latest);
+        console.log(`[DRY-RUN] Would update ${allPath} (bars: ${bars.length}; ensure d/dow; fix ch/cp: ${changedCount})`);
+        logLatestAndIssues(symbol, ep, 'all', bars, data.latest);
       } else {
-        await ref.set({ bars }, { merge: true });
-        console.log(`[WRITE] Updated ${allPath} (bars: ${bars.length}; added d: ${addedCount}; fixed ch/cp: ${changedCount})`);
-        logLast3AndLatest(symbol, ep, 'all', bars, data.latest);
+        const latestBar = bars[bars.length - 1] ?? null;
+        const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
+        const latestEtStr = latestBar?.t != null ? etDateTime(latestBar.t) : null;
+        await ref.set({
+          bars,
+          count: bars.length,
+          firstBarTs: bars[0]?.t ?? null,
+          lastBarTs: bars[bars.length - 1]?.t ?? null,
+          latest: latestBar,
+          latestUtcIso,
+          latestEtDateTime: latestEtStr,
+          updatedAt: (await import('firebase-admin/firestore')).Timestamp.now(),
+        }, { merge: true });
+        console.log(`[WRITE] Updated ${allPath} (bars: ${bars.length}; ensured d/dow; fixed ch/cp: ${changedCount})`);
+        logLatestAndIssues(symbol, ep, 'all', bars, data.latest);
       }
       return { updatedDocs: 1 };
     }
     // Monthly: no changes; print samples in both dry-run and live runs for verification
     console.log(`[NO-CHANGE] ${allPath} (bars: ${barsArr.length})`);
-    logLast3AndLatest(symbol, ep, 'all', barsArr, data.latest);
+    logLatestAndIssues(symbol, ep, 'all', barsArr, data.latest);
     return { updatedDocs: 0 };
   } catch (e: any) {
     // Some environments may have an inconsistent monthly path shape; log and continue.
@@ -269,10 +391,215 @@ async function repairMonthly(symbol: string, ep: AlphaVantageEndpoint): Promise<
   }
 }
 
+type YearIssues = {
+  year: number;
+  barCount: number;
+  missingFields: { o: number; h: number; l: number; c: number; v: number; ac: number; d: number; dow: number };
+  invalidCloseCount: number;
+  missingChCpCount: number;
+  sampleMissing: Array<{ t: number; d?: string; fields: string[] }>;
+};
+
+type SymbolIssues = {
+  symbol: string;
+  endpoint: string;
+  years: YearIssues[];
+};
+
+async function auditDailyForSymbol(symbol: string): Promise<SymbolIssues> {
+  const endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED;
+  const vendorPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
+  const yearsRef = db.doc(vendorPath).collection('years');
+  const yearsSnap = await yearsRef.get();
+  const results: YearIssues[] = [];
+  for (const yDoc of yearsSnap.docs) {
+    const yNum = Number(yDoc.id);
+    const bars = (yDoc.get('bars') ?? []) as Array<{ t: number; o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; d?: string; dow?: string; ch?: number; cp?: number }>;
+    const issues = { missingFields: { o: 0, h: 0, l: 0, c: 0, v: 0, ac: 0, d: 0, dow: 0 }, invalidClose: 0, missingChCp: 0 } as any;
+    const samples: Array<{ t: number; d?: string; fields: string[] }> = [];
+    for (const b of bars) {
+      const missing: string[] = [];
+      if (!Number.isFinite(b.o as number)) missing.push('o');
+      if (!Number.isFinite(b.h as number)) missing.push('h');
+      if (!Number.isFinite(b.l as number)) missing.push('l');
+      if (!Number.isFinite(b.c as number)) missing.push('c');
+      if (!Number.isFinite(b.v as number)) missing.push('v');
+      if (!Number.isFinite(b.ac as number)) missing.push('ac');
+      if (!b.d) missing.push('d');
+      if (!b.dow) missing.push('dow');
+      if (missing.length) {
+        for (const f of missing) (issues.missingFields as any)[f]++;
+        if (samples.length < 5) samples.push({ t: b.t, d: b.d, fields: missing });
+      }
+      const closePref = Number.isFinite(b.ac as number) ? (b.ac as number) : (b.c as number);
+      if (!Number.isFinite(closePref) || (closePref as number) <= 0) issues.invalidClose++;
+      if (!Number.isFinite(b.ch as number) || !Number.isFinite(b.cp as number)) issues.missingChCp++;
+    }
+    results.push({
+      year: yNum,
+      barCount: bars.length,
+      missingFields: issues.missingFields,
+      invalidCloseCount: issues.invalidClose,
+      missingChCpCount: issues.missingChCp,
+      sampleMissing: samples,
+    });
+  }
+  // Sort years ascending for consistent output
+  results.sort((a, b) => a.year - b.year);
+  return { symbol, endpoint: AlphaVantageEndpoint[endpoint], years: results };
+}
+
+async function runInventory(): Promise<void> {
+  console.log('=== Inventory: AV DAILY_ADJUSTED data quality (all symbols, all years) ===');
+  // Enumerate symbols from symbol-data collection
+  const symSnap = await db.collection(FirestoreCollection.SYMBOL_DATA).get();
+  const symbols = symSnap.docs.map(d => d.id).sort();
+  const out: SymbolIssues[] = [];
+  for (const s of symbols) {
+    try {
+      const res = await auditDailyForSymbol(s);
+      out.push(res);
+      if (!INVENTORY_ONLY_ISSUES || res.years.some(y => y.missingFields.o + y.missingFields.h + y.missingFields.l + y.missingFields.c + y.missingFields.v + y.missingFields.ac + y.missingFields.d + y.missingFields.dow + y.invalidCloseCount + y.missingChCpCount > 0)) {
+        console.log(`[INV] ${s}: years=${res.years.length} issueYears=${res.years.filter(y => y.missingFields.o + y.missingFields.h + y.missingFields.l + y.missingFields.c + y.missingFields.v + y.missingFields.ac + y.missingFields.d + y.missingFields.dow + y.invalidCloseCount + y.missingChCpCount > 0).length} missingDow=${res.years.reduce((acc, y) => acc + y.missingFields.dow, 0)} invalidClose=${res.years.reduce((acc, y) => acc + y.invalidCloseCount, 0)} missingChCp=${res.years.reduce((acc, y) => acc + y.missingChCpCount, 0)} topYears=${res.years.filter(y => y.missingFields.o + y.missingFields.h + y.missingFields.l + y.missingFields.c + y.missingFields.v + y.missingFields.ac + y.missingFields.d + y.missingFields.dow + y.invalidCloseCount + y.missingChCpCount > 0).slice(0, 3).map(y => y.year).join(',')}`);
+      }
+    } catch (e) {
+      console.warn(`[INV] ${s} audit failed: ${String((e as any)?.message || e)}`);
+    }
+  }
+  // Summary JSON
+  const summary = {
+    generatedAt: new Date().toISOString(),
+    symbolCount: out.length,
+    totals: out.reduce((acc, s) => {
+      for (const y of s.years) {
+        acc.missing.o += y.missingFields.o;
+        acc.missing.h += y.missingFields.h;
+        acc.missing.l += y.missingFields.l;
+        acc.missing.c += y.missingFields.c;
+        acc.missing.v += y.missingFields.v;
+        acc.missing.ac += y.missingFields.ac;
+        acc.missing.d += y.missingFields.d;
+        acc.missing.dow += y.missingFields.dow;
+        acc.invalidClose += y.invalidCloseCount;
+        acc.missingChCp += y.missingChCpCount;
+        acc.bars += y.barCount;
+      }
+      return acc;
+    }, { missing: { o: 0, h: 0, l: 0, c: 0, v: 0, ac: 0, d: 0, dow: 0 }, invalidClose: 0, missingChCp: 0, bars: 0 }),
+    items: out,
+  };
+  // Final concise totals line
+  console.log(`[INV] TOTAL symbols=${summary.symbolCount} bars=${summary.totals.bars} missingDow=${summary.totals.missing.dow} invalidClose=${summary.totals.invalidClose} missingChCp=${summary.totals.missingChCp}`);
+  // Optionally write full JSON or print when verbose
+  if (INVENTORY_OUT) {
+    try {
+      writeFileSync(INVENTORY_OUT, JSON.stringify(summary, null, 2), 'utf-8');
+      console.log(`[INV] wrote full JSON to ${INVENTORY_OUT}`);
+    } catch (e) {
+      console.warn(`[INV] failed to write ${INVENTORY_OUT}: ${String((e as any)?.message || e)}`);
+    }
+  }
+  if (INVENTORY_VERBOSE && !INVENTORY_OUT) {
+    console.log(JSON.stringify(summary, null, 2));
+  }
+}
+
+async function recomputePairs(): Promise<void> {
+  const { from, to } = parseDateRange();
+  // Enumerate all symbols once
+  const symSnap = await db.collection(FirestoreCollection.SYMBOL_DATA).get();
+  const allSymbols = symSnap.docs.map(d => d.id).sort();
+  // Determine baselines
+  const baselines = (BASELINE_ARG.toUpperCase() === 'ALL')
+    ? allSymbols
+    : BASELINE_ARG.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+
+  console.log(`=== Recompute Pairs (baselines=${baselines.join(',')}) ===`);
+
+  let grandPlanned = 0, grandSkipped = 0, grandMissing = 0;
+  for (const baseline of baselines) {
+    const baselineMap = await loadAllBarsByDate(baseline);
+    const targets = allSymbols.filter(s => s !== baseline);
+    let planned = 0; let skipped = 0; let missing = 0;
+    for (const s of targets) {
+      const targetMap = await loadAllBarsByDate(s);
+      let wrote = 0; let miss = 0; let skip = 0;
+      for (const [t, bBase] of baselineMap.entries()) {
+        if ((from != null && t < from) || (to != null && t > to)) continue;
+        const bTgt = targetMap.get(t);
+        if (!bTgt) { miss++; continue; }
+        const value = computePairValue(bBase, bTgt);
+        if (!Number.isFinite(value as number)) { skip++; continue; }
+        const date = isoDateFromMillis(t);
+        // TODO: Write to your derived pairs collection/path here.
+        console.log(`[PAIR PLAN] ${baseline}-${s} ${date} value=${value}`);
+        wrote++;
+      }
+      planned += wrote; skipped += skip; missing += miss;
+    }
+    grandPlanned += planned; grandSkipped += skipped; grandMissing += missing;
+    console.log(`[PAIR BASELINE] ${baseline}: planned=${planned} skipped=${skipped} missing=${missing}`);
+  }
+  console.log(`[PAIR TOTAL] planned=${grandPlanned} skipped=${grandSkipped} missing=${grandMissing}`);
+}
+
+function etDateTime(tsMs: number): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date(tsMs));
+  const m = Object.fromEntries(parts.map(p => [p.type, p.value])) as any;
+  return `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second}`;
+}
+
+// ---------------- Helpers for pair recompute ----------------
+function isoDateFromMillis(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function parseDateRange(): { from: number | null; to: number | null } {
+  const from = DATE_FROM ? new Date(`${DATE_FROM}T00:00:00.000Z`).getTime() : null;
+  const to = DATE_TO ? new Date(`${DATE_TO}T00:00:00.000Z`).getTime() : null;
+  return {
+    from: Number.isFinite(from as number) ? (from as number) : null,
+    to: Number.isFinite(to as number) ? (to as number) : null,
+  };
+}
+
+async function loadAllBarsByDate(symbol: string): Promise<Map<number, any>> {
+  const baseDocPath = getSymbolTimeSeriesDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, ApiProvider.ALPHA_VANTAGE);
+  const yearsSnap = await db.doc(baseDocPath).collection('years').get();
+  const map = new Map<number, any>();
+  for (const ydoc of yearsSnap.docs) {
+    const bars = (ydoc.get('bars') ?? []) as any[];
+    for (const b of bars) { if (Number.isFinite(b.t)) map.set(b.t, b); }
+  }
+  return map;
+}
+
+function computePairValue(baseline: any, target: any): number | undefined {
+  // TODO: Replace with exact heatmap formula; placeholder uses target cp
+  if (!Number.isFinite(target?.cp as number)) return undefined;
+  return Number(target.cp);
+}
+
 async function main() {
   const start = Date.now();
   console.log('=== Backfill AV time-series (DAILY/WEEKLY/MONTHLY) ===');
-  console.log(`Filters: symbol=${SYMBOL_FILTER ?? '*'}, interval=${INTERVAL_FILTER ?? '*'}, dryRun=${DRY_RUN}, repairMeta=${REPAIR_METADATA}, emulator=${USE_EMULATOR}`);
+  console.log(`Filters: symbol=${SYMBOL_FILTER ?? 'ALL'}, interval=${INTERVAL_FILTER ?? 'ALL'}, year=${YEAR_FILTER ?? 'ALL'}, dryRun=${DRY_RUN}, repairMeta=${REPAIR_METADATA}, forceRefetch=${FORCE_REFETCH}, emulator=${USE_EMULATOR}`);
+
+  if (INVENTORY_MODE) {
+    await runInventory();
+    console.log('=== Inventory complete ===');
+    return;
+  }
+
+  // Recompute pairs mode
+  if (RECOMPUTE_PAIRS) {
+    await recomputePairs();
+    console.log('=== Recompute pairs complete ===');
+    return;
+  }
 
   // Gather symbols exclusively from symbol-data
   let symbols: string[];
