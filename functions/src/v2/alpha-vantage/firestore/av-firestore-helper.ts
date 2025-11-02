@@ -522,7 +522,12 @@ export async function upsertAvDailyBar(options: {
   // Recompute end-of-day change metrics (ch/cp) for the target bar using the previous bar's adjusted close
   const targetIdx = bars.findIndex((b) => b.t === t);
   if (targetIdx >= 0) {
-    computeChCpForTargetIndex(bars, targetIdx);
+    console.log(`aFH retry.start daily ${symbol} ${date} targetTs=${t}`);
+    log.info('daily.upsert.retry.start', { symbol, date, targetTs: t });
+    const attemptResult = await retryHydrateBaselineAndCurrent({ symbol, date, targetTs: t, yearRef });
+    // Replace local bars with the reloaded, validated set
+    bars.length = 0; bars.push(...attemptResult.bars);
+    computeChCpForTargetIndex(bars, bars.findIndex((b) => b.t === t));
   }
 
   await yearRef.set({
@@ -997,5 +1002,59 @@ function computeChCpForTargetIndex(bars: Array<CompactBar>, index: number): void
   } else {
     delete (curr as any).ch;
     delete (curr as any).cp;
+  }
+}
+
+async function refetchRecentDailyAdjusted(symbol: string): Promise<void> {
+  // TO DO: implement refetch logic
+}
+
+/**
+ * Retry loop: keeps refetching AV DAILY_ADJUSTED (compact) until both current and previous bar
+ * have valid closes (ac/c > 0). Returns the refreshed, sorted bars array.
+ * Retries are bounded by env vars to respect Cloud Functions timeouts.
+ */
+async function retryHydrateBaselineAndCurrent(args: { symbol: string; date: string; targetTs: number; yearRef: FirebaseFirestore.DocumentReference; }): Promise<{ bars: CompactBar[] }> {
+  const { symbol, date, targetTs, yearRef } = args;
+  const MAX_RETRIES = Number(process.env.AV_REFETCH_MAX_RETRIES ?? 60); // default ~10 minutes with 10s delay
+  const DELAY_MS = Number(process.env.AV_REFETCH_DELAY_MS ?? 10_000);
+  let attempt = 0;
+  console.log(`aFH retry.hydrate.start ${symbol} ${date} ts=${targetTs} max=${MAX_RETRIES} delayMs=${DELAY_MS}`);
+  log.info('retry.hydrate.start', { symbol, date, targetTs, maxRetries: MAX_RETRIES, delayMs: DELAY_MS });
+  for (;;) {
+    // After the first attempt, refetch from AV to hydrate gaps
+    if (attempt > 0) {
+      console.log(`aFH retry.hydrate.attempt ${attempt} refetch DAILY_ADJUSTED compact ${symbol}`);
+      log.debug('retry.hydrate.attempt.refetch', { symbol, date, attempt });
+      await refetchRecentDailyAdjusted(symbol);
+    }
+    const snap = await yearRef.get();
+    const bars: CompactBar[] = snap.exists ? (snap.get('bars') ?? []) : [];
+    bars.sort((a, b) => a.t - b.t);
+    const idx = bars.findIndex(b => b.t === targetTs);
+    if (idx >= 0) {
+      const curr = bars[idx];
+      const currClose = (typeof curr.ac === 'number' && Number.isFinite(curr.ac)) ? curr.ac : ((typeof curr.c === 'number' && Number.isFinite(curr.c)) ? curr.c : undefined);
+      const prev = idx > 0 ? bars[idx - 1] : undefined;
+      const prevClose = (typeof prev?.ac === 'number' && Number.isFinite(prev.ac)) ? prev!.ac : ((typeof prev?.c === 'number' && Number.isFinite(prev!.c)) ? prev!.c : undefined);
+      const okCurr = currClose != null && currClose > 0;
+      const okPrev = prevClose != null && prevClose > 0;
+      console.log(`aFH retry.hydrate.check attempt=${attempt} okPrev=${okPrev} okCurr=${okCurr} idx=${idx} bars=${bars.length}`);
+      log.debug('retry.hydrate.check', { symbol, date, attempt, okPrev, okCurr, idx, bars: bars.length });
+      if (currClose != null && currClose > 0 && prevClose != null && prevClose > 0) {
+        console.log(`aFH retry.hydrate.success ${symbol} ${date} attempt=${attempt}`);
+        log.info('retry.hydrate.success', { symbol, date, attempt });
+        return { bars };
+      }
+    }
+    if (attempt >= MAX_RETRIES) {
+      console.error(`aFH retry.hydrate.timeout ${symbol} ${date} attempts=${MAX_RETRIES}`);
+      log.error('retry.hydrate.timeout', { symbol, date, attempts: MAX_RETRIES, delayMs: DELAY_MS });
+      throw new Error(`Failed to hydrate valid current/prev closes after ${MAX_RETRIES} attempts for ${symbol} ${date}`);
+    }
+    attempt++;
+    console.log(`aFH retry.hydrate.sleep attempt=${attempt} sleepMs=${DELAY_MS}`);
+    log.debug('retry.hydrate.sleep', { attempt, delayMs: DELAY_MS });
+    await new Promise(res => setTimeout(res, DELAY_MS));
   }
 }
