@@ -9,6 +9,7 @@ import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 import { TradingPhase } from '@shared/health-metrics';
+import { parseAvEtTimestampMs } from '../utils/date-utils';
 
 const log = createLogger('av.handler.ts-base'); // Abbrev: aVTS.H
 
@@ -209,18 +210,19 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
               if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, BASE_DELAY_MS * attempt));
               continue;
             }
-            // entries: [ISO-like string => provider bar]
+            // entries: [ET-local timestamp string => provider bar]
             const entries = Object.entries<any>(tsObj);
             // sort descending by timestamp (provider often returns newest first but enforce)
-            entries.sort((a, b) => new Date(a[0]).getTime() < new Date(b[0]).getTime() ? 1 : -1);
+            entries.sort((a, b) => parseAvEtTimestampMs(a[0]) < parseAvEtTimestampMs(b[0]) ? 1 : -1);
 
             // Scan top few bars for first matching today ET (guards against rare ordering / clock skew)
             const scanCount = Math.min(entries.length, 10);
             for (let i = 0; i < scanCount && !captured; i++) {
               const [tsStr, vals] = entries[i] as [string, any];
               const close = Number(vals?.['4. close'] ?? vals?.close);
-              const ioMs = new Date(tsStr).getTime();
+              const ioMs = parseAvEtTimestampMs(tsStr);
               if (!Number.isFinite(close) || !Number.isFinite(ioMs)) continue;
+
               const partsBar = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ioMs));
               const y = partsBar.find(p => p.type === 'year')?.value;
               const m = partsBar.find(p => p.type === 'month')?.value;
