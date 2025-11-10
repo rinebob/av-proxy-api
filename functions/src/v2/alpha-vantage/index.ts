@@ -12,6 +12,7 @@ export {
 } from './data-refresher/av-refresh-manager';
 
 export {
+  refreshAvDailyTimeSeriesIntradayHourly,
   refreshAvDailyTimeSeriesPreClose,
   refreshAvDailyTimeSeriesPostClose,
   refreshAvWeeklyMonthlyTimeSeriesPostClose,

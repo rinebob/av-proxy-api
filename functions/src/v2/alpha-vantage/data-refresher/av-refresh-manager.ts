@@ -13,7 +13,7 @@ import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
-import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE } from '../../common/function-schedules';
+import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE, TS_DAILY_INTRADAY_HOURLY_SCHEDULE } from '../../common/function-schedules';
 
 import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
@@ -520,6 +520,21 @@ export const refreshAlphaVantageDataV2 = onSchedule(
  * - Top-level provider/interval doc holds metadata + latestBarTimestamp (no large arrays)
  * - Bars are stored in CompactBar shape under sharded docs (DAILY/WEEKLY by year; MONTHLY single 'all')
  */
+
+// Daily time series: intraday hourly PRE (daily only)
+export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
+  schedule: TS_DAILY_INTRADAY_HOURLY_SCHEDULE,
+  timeZone: 'America/New_York',
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, async () => {
+  await refreshForEndpoints(
+    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
+    {
+      phase: TradingPhase.PRE,
+      trigger: RefreshTrigger.SCHEDULER,
+    }
+  );
+});
 
 // Daily time series: pre-close (daily only)
 export const refreshAvDailyTimeSeriesPreClose = onSchedule({

@@ -1,4 +1,3 @@
-import 'module-alias/register';
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -42,11 +41,11 @@ export { partnerDataReadyPublishV2 } from './v2/partner/data-ready.publish.funct
 export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-refresh-manager';
 
 export {
+  refreshAvDailyTimeSeriesIntradayHourly,
   refreshAvDailyTimeSeriesPreClose,
   refreshAvDailyTimeSeriesPostClose,
   refreshAvWeeklyMonthlyTimeSeriesPostClose,
 } from './v2/alpha-vantage/data-refresher/av-refresh-manager';
-
 
 // New Benzinga Data Refresher
 export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager';
