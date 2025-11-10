@@ -15,8 +15,8 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["../shared/lib/*"],
-      "@shared": ["../shared/lib"],
+      "@shared/*": ["lib/shared/*"],
+      "@shared": ["lib/shared"],
       "../src/*": ["src/*"]
     },
     "lib": ["es2020"],

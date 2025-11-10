@@ -3,7 +3,7 @@
   "scripts": {
     "copy-shared": "npm --prefix ../shared run build && npx cpx \"../shared/lib/**/*\" \"lib/shared\"",
     "copy-shared:watch": "npm --prefix ../shared run build && npx cpx \"../shared/lib/**/*\" \"lib/shared\" -w",
-    "build": "npm run copy-shared && tsc -p tsconfig.json && tsc -p scripts/tsconfig.json",
+    "build": "npm run copy-shared && tsc -p tsconfig.json && tsc-alias -p tsconfig.json && tsc -p scripts/tsconfig.json",
     "build:watch": "npm run copy-shared && tsc --watch -p tsconfig.json & tsc --watch -p scripts/tsconfig.json",
     "dev:watch": "npx concurrently \"npm:copy-shared:watch\" \"tsc --watch -p tsconfig.json\" \"tsc --watch -p scripts/tsconfig.json\"",
     "dev:emu": "npx concurrently \"npm:copy-shared:watch\" \"tsc --watch -p tsconfig.json\" \"tsc --watch -p scripts/tsconfig.json\" \"npm --prefix .. run emulators\"",
@@ -35,16 +35,13 @@
     "@types/ms": "^2.1.0",
     "@types/request": "^2.48.12",
     "@types/tough-cookie": "^4.0.5",
+    "tsc-alias": "^1.8.10",
     "concurrently": "^9.1.2",
     "cpx": "^1.5.0",
     "firebase-functions-test": "^3.1.0",
-    "module-alias": "^2.2.3",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.2"
   },
-  "private": true,
-  "_moduleAliases": {
-    "@shared": "lib/shared"
-  }
+  "private": true
 }
