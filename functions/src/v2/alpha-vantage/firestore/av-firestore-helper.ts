@@ -239,17 +239,22 @@ export async function saveAvTimeSeriesData(
     if (interval === TimeSeriesInterval.MONTHLY) {
       // Single 'all' doc
       const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
-      const latestBar = compactBars[compactBars.length - 1] ?? null;
-      const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
-      const latestEtDateTime = latestBar?.t != null ? formatEtDateTime(latestBar.t) : null;
+      const latestNonPlaceholder = [...compactBars].reverse().find(b => {
+        const o = Number(b.o || 0), h = Number(b.h || 0), l = Number(b.l || 0), c = Number(b.c || 0), v = Number(b.v || 0);
+        return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
+      }) ?? (compactBars[compactBars.length - 1] ?? null);
+      const latestUtcIso = latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString() : null;
+      const latestEtDateTime = latestNonPlaceholder?.t != null ? formatEtDateTime(latestNonPlaceholder.t) : null;
+      const version = `${compactBars[compactBars.length - 1]?.t ?? ''}-${compactBars.length}`;
       batch.set(db.doc(allDocPath), {
         bars: compactBars,
         count: compactBars.length,
         firstBarTs: compactBars[0]?.t ?? null,
         lastBarTs: compactBars[compactBars.length - 1]?.t ?? null,
-        latest: latestBar,
+        latest: latestNonPlaceholder,
         latestUtcIso,
         latestEtDateTime,
+        version,
         updatedAt: Timestamp.now(),
       }, { merge: true });
       opsInBatch++;
@@ -257,21 +262,31 @@ export async function saveAvTimeSeriesData(
       // Year-sharded DAILY / WEEKLY
       for (const [year, bars] of barsByYear.entries()) {
         const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year);
-        const latestBar = bars[bars.length - 1] ?? null;
-        const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
-        const latestEtDateTime = latestBar?.t != null ? formatEtDateTime(latestBar.t) : null;
-        const latestIoUtcIso = latestBar?.io != null ? new Date(Number(latestBar.io)).toISOString() : null;
-        const latestIoEtDateTime = latestBar?.io != null ? formatEtDateTime(Number(latestBar.io)) : null;
+        const latestNonPlaceholder = [...bars].reverse().find(b => {
+          const o = Number(b.o || 0), h = Number(b.h || 0), l = Number(b.l || 0), c = Number(b.c || 0), v = Number(b.v || 0);
+          return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
+        }) ?? (bars[bars.length - 1] ?? null);
+        const latestUtcIso = latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString() : null;
+        const latestEtDateTime = latestNonPlaceholder?.t != null ? formatEtDateTime(latestNonPlaceholder.t) : null;
+        // Compute latest intraday observation from the most recent io across bars
+        const latestIoMs = bars.reduce<number | null>((max, b) => {
+          const io = b?.io != null ? Number(b.io) : NaN;
+          return Number.isFinite(io) ? (max == null ? io : Math.max(max, io)) : max;
+        }, null as any);
+        const latestIoUtcIso = latestIoMs != null ? new Date(Number(latestIoMs)).toISOString() : null;
+        const latestIoEtDateTime = latestIoMs != null ? formatEtDateTime(Number(latestIoMs)) : null;
+        const version = `${bars[bars.length - 1]?.t ?? ''}-${bars.length}`;
         batch.set(db.doc(yearDocPath), {
           bars,
           count: bars.length,
           firstBarTs: bars[0]?.t ?? null,
           lastBarTs: bars[bars.length - 1]?.t ?? null,
-          latest: latestBar,
+          latest: latestNonPlaceholder,
           latestUtcIso,
           latestEtDateTime,
           latestIoUtcIso,
           latestIoEtDateTime,
+          version,
           updatedAt: Timestamp.now(),
         }, { merge: true });
         opsInBatch++;
@@ -297,6 +312,8 @@ export async function saveAvTimeSeriesData(
     const latestBarIso = histEndTs != null ? new Date(histEndTs).toISOString() : 'null';
     console.log(`aFH sATSD latestBar=${latestBarIso} (${histEndTs ?? 'null'}) ${symbol} ${endpoint} ${interval}`);
     log.info('timeseries.save.latest_bar', { symbol, endpoint, interval, latestBarIso, latestBarMs: histEndTs });
+    const availableYears = Array.from(barsByYear.keys()).sort((a, b) => a - b);
+    const seriesVersion = `${histEndTs ?? ''}-${availableYears.length}`;
     await docRef.set({
       metadata: {
         symbol,
@@ -310,8 +327,10 @@ export async function saveAvTimeSeriesData(
         endpoint: endpoint,
         histStartTs,
         histEndTs,
+        availableYears,
       },
       latestBarTimestamp: histEndTs != null ? Timestamp.fromMillis(histEndTs) : null,
+      seriesVersion,
     }, { merge: true });
 
     // 7. Log refresh event and update refreshHistory using the canonical service
@@ -456,92 +475,102 @@ export async function upsertAvDailyBar(options: {
   const y = getYearFromEpochMillis(t);
   const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y);
   const yearRef = db.doc(yearDocPath);
-  const snap = await yearRef.get();
-  const bars: CompactBar[] = snap.exists ? (snap.get('bars') ?? []) : [];
 
-  const idx = bars.findIndex((b) => b.t === t);
-  if (idx >= 0) {
-    const existing = bars[idx];
-    const io = patch.io != null ? patch.io : existing.io;
-    const it = io != null && Number.isFinite(io)
-      ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io))
-      : existing.it;
-    const patchBar = {
-      o: Number(patch.o ?? existing.o ?? 0),
-      h: Number(patch.h ?? existing.h ?? patch.o ?? 0),
-      l: Number(patch.l ?? existing.l ?? patch.o ?? 0),
-      c: Number(patch.c ?? existing.c ?? 0),
-      v: Number(patch.v ?? existing.v ?? 0),
-      ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
-      dv: Number(patch.dv ?? existing.dv ?? 0),
-      sc: Number(patch.sc ?? existing.sc ?? 1),
-      ip: patch.ip != null ? Number(patch.ip) : existing.ip,
-      io,
-      it,
-      ic: patch.ic != null ? Number(patch.ic) : ((existing as any).ic ?? null),
-      ipc: patch.ipc != null ? Number(patch.ipc) : ((existing as any).ipc ?? null),
-      dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
-    } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
-    bars[idx] = { ...existing, ...patchBar } as CompactBar;
-  } else {
-    // Insert new bar
-    const newBar: CompactBar = {
-      t,
-      d: new Date(t).toISOString().slice(0, 10),
-      dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
-      o: Number(patch.o ?? 0),
-      h: Number(patch.h ?? (patch.o ?? 0)),
-      l: Number(patch.l ?? (patch.o ?? 0)),
-      c: Number(patch.c ?? 0),
-      v: Number(patch.v ?? 0),
-      ac: Number(patch.ac ?? patch.c ?? 0),
-      dv: Number(patch.dv ?? 0),
-      sc: Number(patch.sc ?? 1),
-      pc: patch.pc != null ? Number(patch.pc) : undefined,
-      ch: patch.ch != null ? Number(patch.ch) : undefined,
-      cp: patch.cp != null ? Number(patch.cp) : undefined,
-      ip: patch.ip != null ? Number(patch.ip) : undefined,
-      io: patch.io,
-      it: patch.io != null && Number.isFinite(patch.io)
-        ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(patch.io))
-        : undefined,
-      ic: patch.ic != null ? Number(patch.ic) : null,
-      ipc: patch.ipc != null ? Number(patch.ipc) : null,
-    };
-    bars.push(newBar);
-  }
+  // Transactional upsert to avoid races
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(yearRef);
+    const bars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
 
-  // Sort ascending for deterministic writes and update year doc aggregate fields
-  const latestBar = bars[bars.length - 1] ?? null;
-  const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
-  const latestEtDateTime = latestBar?.t != null ? formatEtDateTime(latestBar.t) : null;
-  const latestIoUtcIso = latestBar?.io != null ? new Date(Number(latestBar.io)).toISOString() : null;
-  const latestIoEtDateTime = latestBar?.io != null ? formatEtDateTime(Number(latestBar.io)) : null;
-  bars.sort((a, b) => a.t - b.t);
+    const idx = bars.findIndex((b) => b.t === t);
+    if (idx >= 0) {
+      const existing = bars[idx];
+      const io = patch.io != null ? patch.io : existing.io;
+      const it = io != null && Number.isFinite(io)
+        ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io))
+        : existing.it;
+      const patchBar = {
+        o: Number(patch.o ?? existing.o ?? 0),
+        h: Number(patch.h ?? existing.h ?? patch.o ?? 0),
+        l: Number(patch.l ?? existing.l ?? patch.o ?? 0),
+        c: Number(patch.c ?? existing.c ?? 0),
+        v: Number(patch.v ?? existing.v ?? 0),
+        ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
+        dv: Number(patch.dv ?? existing.dv ?? 0),
+        sc: Number(patch.sc ?? existing.sc ?? 1),
+        ip: patch.ip != null ? Number(patch.ip) : existing.ip,
+        io,
+        it,
+        ic: patch.ic != null ? Number(patch.ic) : ((existing as any).ic ?? null),
+        ipc: patch.ipc != null ? Number(patch.ipc) : ((existing as any).ipc ?? null),
+        dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
+      } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
+      bars[idx] = { ...existing, ...patchBar } as CompactBar;
+    } else {
+      const newBar: CompactBar = {
+        t,
+        d: new Date(t).toISOString().slice(0, 10),
+        dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
+        o: Number(patch.o ?? 0),
+        h: Number(patch.h ?? (patch.o ?? 0)),
+        l: Number(patch.l ?? (patch.o ?? 0)),
+        c: Number(patch.c ?? 0),
+        v: Number(patch.v ?? 0),
+        ac: Number(patch.ac ?? patch.c ?? 0),
+        dv: Number(patch.dv ?? 0),
+        sc: Number(patch.sc ?? 1),
+        pc: patch.pc != null ? Number(patch.pc) : undefined,
+        ch: patch.ch != null ? Number(patch.ch) : undefined,
+        cp: patch.cp != null ? Number(patch.cp) : undefined,
+        ip: patch.ip != null ? Number(patch.ip) : undefined,
+        io: patch.io,
+        it: patch.io != null && Number.isFinite(patch.io)
+          ? new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(patch.io))
+          : undefined,
+        ic: patch.ic != null ? Number(patch.ic) : null,
+        ipc: patch.ipc != null ? Number(patch.ipc) : null,
+      };
+      bars.push(newBar);
+    }
 
-  // Recompute end-of-day change metrics (ch/cp) for the target bar using the previous bar's adjusted close
-  const targetIdx = bars.findIndex((b) => b.t === t);
-  if (targetIdx >= 0) {
-    console.log(`aFH retry.start daily ${symbol} ${date} targetTs=${t}`);
-    log.info('daily.upsert.retry.start', { symbol, date, targetTs: t });
-    const attemptResult = await retryHydrateBaselineAndCurrent({ symbol, date, targetTs: t, yearRef });
-    // Replace local bars with the reloaded, validated set
-    bars.length = 0; bars.push(...attemptResult.bars);
-    computeChCpForTargetIndex(bars, bars.findIndex((b) => b.t === t));
-  }
+    bars.sort((a, b) => a.t - b.t);
 
-  await yearRef.set({
-    bars,
-    count: bars.length,
-    firstBarTs: bars[0]?.t ?? null,
-    lastBarTs: bars[bars.length - 1]?.t ?? null,
-    latest: latestBar,
-    latestUtcIso,
-    latestEtDateTime,
-    latestIoUtcIso,
-    latestIoEtDateTime,
-    updatedAt: Timestamp.now(),
-  }, { merge: true });
+    const targetIdx = bars.findIndex((b) => b.t === t);
+    if (targetIdx >= 0) {
+      console.log(`aFH retry.start daily ${symbol} ${date} targetTs=${t}`);
+      log.info('daily.upsert.retry.start', { symbol, date, targetTs: t });
+      // Re-hydrate baseline using current snapshot to ensure latest persisted refs
+      computeChCpForTargetIndex(bars, targetIdx);
+    }
+
+    const latestNonPlaceholder = [...bars].reverse().find(b => {
+      const o = Number(b.o || 0), h = Number(b.h || 0), l = Number(b.l || 0), c = Number(b.c || 0), v = Number(b.v || 0);
+      return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
+    }) ?? (bars[bars.length - 1] ?? null);
+    const latestUtcIso = latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString() : null;
+    const latestEtDateTime = latestNonPlaceholder?.t != null ? formatEtDateTime(latestNonPlaceholder.t) : null;
+    const latestIoMs = bars.reduce<number | null>((max, b) => {
+      const io = b?.io != null ? Number(b.io) : NaN;
+      return Number.isFinite(io) ? (max == null ? io : Math.max(max, io)) : max;
+    }, null as any);
+    const latestIoUtcIso = latestIoMs != null ? new Date(Number(latestIoMs)).toISOString() : null;
+    const latestIoEtDateTime = latestIoMs != null ? formatEtDateTime(Number(latestIoMs)) : null;
+    const version = `${bars[bars.length - 1]?.t ?? ''}-${bars.length}`;
+
+    tx.set(yearRef, {
+      bars,
+      count: bars.length,
+      firstBarTs: bars[0]?.t ?? null,
+      lastBarTs: bars[bars.length - 1] ?? null,
+      latest: latestNonPlaceholder,
+      latestUtcIso,
+      latestEtDateTime,
+      latestIoUtcIso,
+      latestIoEtDateTime,
+      version,
+      updatedAt: Timestamp.now(),
+    }, { merge: true });
+
+  });
 
   if (!skipParentMetaBump) {
     await bumpTimeSeriesTopLevelMetadata({
@@ -740,67 +769,65 @@ export async function upsertAvDailyIntradaySnapshot(options: {
   const y = getYearFromEpochMillis(t);
   const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, vendor, y);
   const yearRef = db.doc(yearDocPath);
-  const snap = await yearRef.get();
-  const bars: any[] = snap.exists ? (snap.get('bars') ?? []) : [];
 
-  const idx = bars.findIndex((b) => b.t === t);
-  const it = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io));
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(yearRef);
+    const bars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
 
-  // Derive intraday deltas against previous trading day's adjusted close
-  const prevAc = await getPreviousAdjustedClose({ symbol, date });
-  const ic = prevAc != null && Number.isFinite(prevAc) ? Number(ip) - Number(prevAc) : null;
-  const ipc = prevAc != null && Number.isFinite(prevAc) && Number(prevAc) !== 0
-    ? (Number(ic) / Number(prevAc)) * 100
-    : null;
+    // locate or create the day bar, updating only intraday fields
+    let idx = bars.findIndex((b) => b.t === t);
+    if (idx < 0) {
+      const itStr = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io));
+      const prevCandidate = bars.reduce<CompactBar | null>((p, b) => (b.t < t && (!p || b.t > p.t)) ? b : p, null as any);
+      const prevClose = prevCandidate && (typeof (prevCandidate as any).ac === 'number' ? (prevCandidate as any).ac : (prevCandidate as any).c);
+      const icVal = Number.isFinite(Number(prevClose)) ? Number((Number(ip) - Number(prevClose)).toFixed(2)) : 0;
+      const ipcVal = Number.isFinite(Number(prevClose)) && Number(prevClose) !== 0 ? Number((((Number(ip) - Number(prevClose)) / Number(prevClose)) * 100).toFixed(2)) : 0;
+      const newBar: CompactBar = {
+        t,
+        d: new Date(t).toISOString().slice(0, 10),
+        dow,
+        o: 0, h: 0, l: 0, c: 0, v: 0, ac: 0, dv: 0, sc: 1,
+        ip: Number(ip),
+        io: Number(io),
+        it: itStr,
+        ic: icVal,
+        ipc: ipcVal,
+      };
+      bars.push(newBar);
+      idx = bars.length - 1;
+    } else {
+      const existing = bars[idx];
+      const itStr = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io));
+      const prevCandidate = bars.reduce<CompactBar | null>((p, b) => (b.t < t && (!p || b.t > p.t)) ? b : p, null as any);
+      const prevClose = prevCandidate && (typeof (prevCandidate as any).ac === 'number' ? (prevCandidate as any).ac : (prevCandidate as any).c);
+      const icVal = Number.isFinite(Number(prevClose)) ? Number((Number(ip) - Number(prevClose)).toFixed(2)) : 0;
+      const ipcVal = Number.isFinite(Number(prevClose)) && Number(prevClose) !== 0 ? Number((((Number(ip) - Number(prevClose)) / Number(prevClose)) * 100).toFixed(2)) : 0;
+      bars[idx] = { ...existing, ip: Number(ip), io: Number(io), it: itStr, ic: icVal, ipc: ipcVal } as CompactBar;
+    }
 
-  if (idx >= 0) {
-    const existing = bars[idx];
-    const merged = {
-      ...existing,
-      // preserve existing OHLC/adj fields if present; only update intraday snapshot and dow
-      ip: Number(ip),
-      io: Number(io),
-      it,
-      dow,
-      ic, // intraday change from previous adjusted close
-      ipc, // intraday percent change
-    };
-    bars[idx] = merged;
-  } else {
-    // Create a minimal intraday-provisional bar: only date, dow, and intraday fields.
-    const newBar = {
-      t,
-      d: new Date(t).toISOString().slice(0, 10),
-      dow,
-      // intraday snapshot
-      ip: Number(ip),
-      io: Number(io),
-      it,
-      ic,  // intraday change from previous adjusted close
-      ipc, // intraday percent change
-    };
-    bars.push(newBar);
-  }
+    bars.sort((a, b) => a.t - b.t);
 
-  // Sort ascending for deterministic writes
-  const latestBarI = bars[bars.length - 1] ?? null;
-  const latestUtcIsoI = latestBarI?.t != null ? new Date(latestBarI.t).toISOString() : null;
-  const latestEtDateTimeI = latestBarI?.t != null ? formatEtDateTime(latestBarI.t) : null;
-  const latestIoUtcIsoI = latestBarI?.io != null ? new Date(Number(latestBarI.io)).toISOString() : null;
-  const latestIoEtDateTimeI = latestBarI?.io != null ? formatEtDateTime(Number(latestBarI.io)) : null;
-  bars.sort((a, b) => a.t - b.t);
-  await yearRef.set({
-    bars,
-    count: bars.length,
-    firstBarTs: bars[0]?.t ?? null,
-    lastBarTs: bars[bars.length - 1]?.t ?? null,
-    latest: latestBarI,
-    latestUtcIso: latestUtcIsoI,
-    latestEtDateTime: latestEtDateTimeI,
-    latestIoUtcIso: latestIoUtcIsoI,
-    latestIoEtDateTime: latestIoEtDateTimeI,
-    updatedAt: Timestamp.now(),
-  }, { merge: true });
+    const latestBar = bars[bars.length - 1] ?? null;
+    const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
+    const latestEtDateTime = latestBar?.t != null ? formatEtDateTime(latestBar.t) : null;
+    const latestIoUtcIso = latestBar?.io != null ? new Date(Number(latestBar.io)).toISOString() : null;
+    const latestIoEtDateTime = latestBar?.io != null ? formatEtDateTime(Number(latestBar.io)) : null;
+    const version = `${bars[bars.length - 1]?.t ?? ''}-${bars.length}`;
+
+    tx.set(yearRef, {
+      bars,
+      count: bars.length,
+      firstBarTs: bars[0]?.t ?? null,
+      lastBarTs: bars[bars.length - 1]?.t ?? null,
+      latest: latestBar,
+      latestUtcIso,
+      latestEtDateTime,
+      latestIoUtcIso,
+      latestIoEtDateTime,
+      version,
+      updatedAt: Timestamp.now(),
+    }, { merge: true });
+  });
 }
 
 /**
@@ -1005,56 +1032,3 @@ function computeChCpForTargetIndex(bars: Array<CompactBar>, index: number): void
   }
 }
 
-async function refetchRecentDailyAdjusted(symbol: string): Promise<void> {
-  // TO DO: implement refetch logic
-}
-
-/**
- * Retry loop: keeps refetching AV DAILY_ADJUSTED (compact) until both current and previous bar
- * have valid closes (ac/c > 0). Returns the refreshed, sorted bars array.
- * Retries are bounded by env vars to respect Cloud Functions timeouts.
- */
-async function retryHydrateBaselineAndCurrent(args: { symbol: string; date: string; targetTs: number; yearRef: FirebaseFirestore.DocumentReference; }): Promise<{ bars: CompactBar[] }> {
-  const { symbol, date, targetTs, yearRef } = args;
-  const MAX_RETRIES = Number(process.env.AV_REFETCH_MAX_RETRIES ?? 60); // default ~10 minutes with 10s delay
-  const DELAY_MS = Number(process.env.AV_REFETCH_DELAY_MS ?? 10_000);
-  let attempt = 0;
-  console.log(`aFH retry.hydrate.start ${symbol} ${date} ts=${targetTs} max=${MAX_RETRIES} delayMs=${DELAY_MS}`);
-  log.info('retry.hydrate.start', { symbol, date, targetTs, maxRetries: MAX_RETRIES, delayMs: DELAY_MS });
-  for (;;) {
-    // After the first attempt, refetch from AV to hydrate gaps
-    if (attempt > 0) {
-      console.log(`aFH retry.hydrate.attempt ${attempt} refetch DAILY_ADJUSTED compact ${symbol}`);
-      log.debug('retry.hydrate.attempt.refetch', { symbol, date, attempt });
-      await refetchRecentDailyAdjusted(symbol);
-    }
-    const snap = await yearRef.get();
-    const bars: CompactBar[] = snap.exists ? (snap.get('bars') ?? []) : [];
-    bars.sort((a, b) => a.t - b.t);
-    const idx = bars.findIndex(b => b.t === targetTs);
-    if (idx >= 0) {
-      const curr = bars[idx];
-      const currClose = (typeof curr.ac === 'number' && Number.isFinite(curr.ac)) ? curr.ac : ((typeof curr.c === 'number' && Number.isFinite(curr.c)) ? curr.c : undefined);
-      const prev = idx > 0 ? bars[idx - 1] : undefined;
-      const prevClose = (typeof prev?.ac === 'number' && Number.isFinite(prev.ac)) ? prev!.ac : ((typeof prev?.c === 'number' && Number.isFinite(prev!.c)) ? prev!.c : undefined);
-      const okCurr = currClose != null && currClose > 0;
-      const okPrev = prevClose != null && prevClose > 0;
-      console.log(`aFH retry.hydrate.check attempt=${attempt} okPrev=${okPrev} okCurr=${okCurr} idx=${idx} bars=${bars.length}`);
-      log.debug('retry.hydrate.check', { symbol, date, attempt, okPrev, okCurr, idx, bars: bars.length });
-      if (currClose != null && currClose > 0 && prevClose != null && prevClose > 0) {
-        console.log(`aFH retry.hydrate.success ${symbol} ${date} attempt=${attempt}`);
-        log.info('retry.hydrate.success', { symbol, date, attempt });
-        return { bars };
-      }
-    }
-    if (attempt >= MAX_RETRIES) {
-      console.error(`aFH retry.hydrate.timeout ${symbol} ${date} attempts=${MAX_RETRIES}`);
-      log.error('retry.hydrate.timeout', { symbol, date, attempts: MAX_RETRIES, delayMs: DELAY_MS });
-      throw new Error(`Failed to hydrate valid current/prev closes after ${MAX_RETRIES} attempts for ${symbol} ${date}`);
-    }
-    attempt++;
-    console.log(`aFH retry.hydrate.sleep attempt=${attempt} sleepMs=${DELAY_MS}`);
-    log.debug('retry.hydrate.sleep', { attempt, delayMs: DELAY_MS });
-    await new Promise(res => setTimeout(res, DELAY_MS));
-  }
-}
