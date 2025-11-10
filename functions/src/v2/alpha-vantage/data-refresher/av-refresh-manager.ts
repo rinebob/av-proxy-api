@@ -60,6 +60,54 @@ function isTimeSeriesEndpoint(endpoint: AlphaVantageEndpoint): boolean {
   return !!(AV_TIME_SERIES_ENDPOINT_CONFIGS as any)[endpoint];
 }
 
+// Compute next fetch time label in ET for intraday (hourly), pre-close, and post-close only.
+function computeNextFetchEtLabel(phase: TradingPhase): string | undefined {
+  try {
+    const tz = 'America/New_York';
+    const now = new Date();
+    const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    const hourStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false }).format(now);
+    const minuteStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, minute: '2-digit', hour12: false }).format(now);
+    const h = Number(hourStr);
+    const m = Number(minuteStr);
+
+    function fmt(d: string, hh: number, mm: number): string {
+      const H = String(hh).padStart(2, '0');
+      const M = String(mm).padStart(2, '0');
+      return `${d}T${H}:${M} ET`;
+    }
+
+    // Helper: next weekday (Mon-Fri) date string in ET, naive (no holiday handling)
+    function nextWeekdayEtDateStr(): string {
+      const etNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+      const d = new Date(etNow);
+      d.setDate(etNow.getDate() + 1);
+      const dow = d.getDay(); // 0=Sun..6=Sat
+      if (dow === 6) d.setDate(d.getDate() + 2); // Sat -> Mon
+      if (dow === 0) d.setDate(d.getDate() + 1); // Sun -> Mon
+      return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+    }
+
+    if (phase === TradingPhase.PRE) {
+      // Intraday hourly window 10:00–15:00 ET and pre-close at 15:30 ET
+      if (h < 10) return fmt(dateStr, 10, 0);
+      if (h >= 10 && h < 15) return fmt(dateStr, h + 1, 0);
+      if (h === 15) {
+        if (m < 25) return fmt(dateStr, 15, 30); // next pre-close
+        return fmt(dateStr, 16, 35); // after ~15:25, next is post-close
+      }
+      // Otherwise, next is post-close today
+      return fmt(dateStr, 16, 35);
+    } else {
+      // POST: next trading day at 10:00 ET
+      const nextDate = nextWeekdayEtDateStr();
+      return fmt(nextDate, 10, 0);
+    }
+  } catch {
+    return undefined;
+  }
+}
+
 // Helper: history path from a concrete doc path
 function getHistoryPathFor(docPath: string): string {
   return `${docPath}/${FirestoreCollection.REFRESH_HISTORY}`;
@@ -410,7 +458,9 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
   try {
     const nowMs = Date.now();
     const { phase, marketDate } = getAutoPhaseAndMarketDate();
-    const runId = `${marketDate}-${phase}`;
+    const tz = 'America/New_York';
+    const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
+    const runId = `${marketDate}-${phase}-${hhmm}`;
 
     const intervals: TimeSeriesInterval[] = [TimeSeriesInterval.DAILY];
     const payload: DataReadyPayloadV1 = {
@@ -567,6 +617,32 @@ export async function refreshForEndpoints(
     dow: dowEnum
   });
 
+  // BEGIN message (time-series only, limited to DAILY intraday/pre/post runs)
+  try {
+    const phasePartner: PartnerPhase = (phaseFinal === TradingPhase.PRE ? PartnerPhase.PRE : PartnerPhase.POST);
+    const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
+    const runId = `${marketDate}-${phasePartner}-${hhmm}`;
+
+    // Determine if any DAILY interval present; we only emit for DAILY in this scope
+    const includesDaily = endpoints.some((e) => e === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
+    if (includesDaily) {
+      const payload: DataReadyPayloadV1 = {
+        version: 'v1',
+        runId,
+        phase: phasePartner,
+        intervals: [TimeSeriesInterval.DAILY],
+        time: Date.now(),
+        marketDate,
+        env: (process.env.NODE_ENV || 'dev') as string,
+        status: 'begin',
+      };
+      const runType = (phasePartner === PartnerPhase.PRE) ? PartnerRunType.TS_DAILY_PRE : PartnerRunType.TS_DAILY_POST;
+      await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { runType });
+    }
+  } catch (e) {
+    logger.error('announce.begin_failed', { error: e && typeof e === 'object' && 'message' in (e as any) ? String((e as any).message) : String(e) });
+  }
+
   try {
     const healthMetricsService = new HealthMetricsService();
     
@@ -708,7 +784,8 @@ async function announceDataReady(
     }).filter(Boolean))) as TimeSeriesInterval[];
 
     const phase: PartnerPhase = (options.phase === TradingPhase.PRE ? PartnerPhase.PRE : PartnerPhase.POST);
-    const runId = `${marketDate}-${phase}`;
+    const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
+    const runId = `${marketDate}-${phase}-${hhmm}`;
 
     // Emit one message per interval with explicit runType to minimize consumer-side filtering
     for (const interval of intervals) {
@@ -719,7 +796,9 @@ async function announceDataReady(
         intervals: [interval],
         time: Date.now(),
         marketDate,
-        env: (process.env.NODE_ENV || 'dev') as string
+        env: (process.env.NODE_ENV || 'dev') as string,
+        status: 'end',
+        nextFetchAt: computeNextFetchEtLabel(options.phase),
       };
 
       let runType: PartnerRunType = PartnerRunType.NON_TIME_SERIES; // default not used below

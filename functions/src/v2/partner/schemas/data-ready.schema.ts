@@ -22,6 +22,10 @@ export interface DataReadyPayloadV1 {
 
   // New: origin of the message (manual, scheduled, heartbeat)
   trigger?: PartnerTrigger;
+
+  // New: lifecycle status of the run and next scheduled fetch time
+  status?: 'begin' | 'end';
+  nextFetchAt?: string; // ISO datetime in ET or UTC; advisory only
 }
 
 export interface ValidationResult<T> {
@@ -100,6 +104,14 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
     }
   }
 
+  // Optional: status and nextFetchAt
+  if (obj.status != null && obj.status !== 'begin' && obj.status !== 'end') {
+    errors.push('status must be "begin" or "end" when provided');
+  }
+  if (obj.nextFetchAt != null && typeof obj.nextFetchAt !== 'string') {
+    errors.push('nextFetchAt must be a string (ISO datetime) when provided');
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   const value: DataReadyPayloadV1 = {
@@ -111,6 +123,7 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
     baselinesUpdatedCount: obj.baselinesUpdatedCount,
     symbolsUpdatedCount: obj.symbolsUpdatedCount,
     universeVersion: obj.universeVersion,
+
     marketDate: obj.marketDate,
     tz: obj.tz,
     durationMs: obj.durationMs,
@@ -119,6 +132,9 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
     env: obj.env,
     traceId: obj.traceId,
     trigger: obj.trigger,
+
+    status: obj.status,
+    nextFetchAt: obj.nextFetchAt,
   };
 
   // Soft check: if marketDate provided, ensure time falls within that UTC day

@@ -48,7 +48,8 @@ export const partnerDataReadyPublishV2 = onRequest(async (req: Request, res: Res
       const intervals: TimeSeriesInterval[] = Array.isArray(body.intervals) && body.intervals.length > 0
         ? body.intervals
         : [TimeSeriesInterval.DAILY];
-      const runId = `${marketDate}-${phase}`;
+      const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
+      const runId = `${marketDate}-${phase}-${hhmm}`;
       payload = {
         version: 'v1',
         runId,
