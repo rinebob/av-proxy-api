@@ -35,17 +35,22 @@ function isDynamicallyAllowed(origin?: string | null): boolean {
 }
 
 // Configure the CORS middleware
+const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true' || !!process.env.FIREBASE_EMULATOR_HUB;
 const corsMiddleware = cors({
-  origin: (origin, callback) => {
-    // Quiet by default; enable if needed for debugging
-    // console.log(`corsMiddleware: Origin: ${origin}`);
-    if (!origin || ALLOWED_ORIGINS.includes(origin) || isDynamicallyAllowed(origin)) {
-      callback(null, true);
-    } else {
-      // Do not throw: deny CORS by returning false so server doesn’t emit 500
-      callback(null, false);
-    }
-  },
+  origin: isEmulator
+    // Emulator: allow all origins for fast local dev
+    ? true
+    // Non-emulator: use allowlist + dynamic localhost/hosted.app
+    : (origin, callback) => {
+        // Quiet by default; enable if needed for debugging
+        // console.log(`corsMiddleware: Origin: ${origin}`);
+        if (!origin || ALLOWED_ORIGINS.includes(origin) || isDynamicallyAllowed(origin)) {
+          callback(null, true);
+        } else {
+          // Do not throw: deny CORS by returning false so server doesn’t emit 500
+          callback(null, false);
+        }
+      },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   // When allowedHeaders is undefined, cors mirrors Access-Control-Request-Headers automatically
   optionsSuccessStatus: 204,
