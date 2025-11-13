@@ -10,6 +10,7 @@ import { HealthEndpointDetailComponent } from '../endpoint-detail/health-endpoin
 import { HealthSymbolDetailComponent } from '../symbol-detail/health-symbol-detail.component';
 import { HealthViewBase } from '../health-view-base/health-view-base.component';
 import { HealthRequestRunGroupsComponent } from '../request-run-groups/health-request-run-groups.component';
+import { HealthPubsubMessagesComponent } from '../pubsub-messages/health-pubsub-messages.component';
 
 // Firestore listener bits
 import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
@@ -34,6 +35,7 @@ import { TsToIsoPipe } from '../../pipes/ts-to-iso.pipe';
     HealthRequestRunGroupsComponent,
     HealthEndpointDetailComponent,
     HealthSymbolDetailComponent,
+    HealthPubsubMessagesComponent,
     TsToIsoPipe,
   ],
   templateUrl: './health-dashboard.component.html',
