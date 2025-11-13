@@ -41,6 +41,88 @@ interface EndpointStats {
   failures: number;
 }
 
+// Compute next refresh start time as RFC3339 UTC string for header UI
+function computeNextRefreshAtUtc(phase: TradingPhase): string | undefined {
+  try {
+    const tz = 'America/New_York';
+    const now = new Date();
+
+    // Helper to create a Date interpreted in ET, then return to UTC ISO string
+    function etToUtcIso(y: number, m: number, d: number, hh: number, mm: number): string {
+      // Build an ET-localized time by formatting and reparsing is unreliable; instead use Intl to get parts
+      const etNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+      etNow.setFullYear(y);
+      etNow.setMonth(m - 1);
+      etNow.setDate(d);
+      etNow.setHours(hh, mm, 0, 0);
+      return new Date(etNow.getTime()).toISOString();
+    }
+
+    const etNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+    const y = etNow.getFullYear();
+    const m = etNow.getMonth() + 1;
+    const d = etNow.getDate();
+    const h = etNow.getHours();
+    const min = etNow.getMinutes();
+
+    // Next weekday date in ET (naive: skips Sat/Sun)
+    function nextWeekdayEt(): { y: number; m: number; d: number } {
+      const t = new Date(etNow);
+      t.setDate(t.getDate() + 1);
+      const dow = t.getDay();
+      if (dow === 6) t.setDate(t.getDate() + 2);
+      if (dow === 0) t.setDate(t.getDate() + 1);
+      return { y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate() };
+    }
+
+    // Schedule-driven calculation aligned with cron windows
+    // PRE: hourly 10:00–15:00 ET (TS_DAILY_INTRADAY_HOURLY_SCHEDULE) + pre-close 15:30 (TS_DAILY_PRE_CLOSE_SCHEDULE)
+    // POST: next weekday 10:00 ET (handoff to next intraday window)
+    if (phase === TradingPhase.PRE) {
+      const preEtEvents: Array<{ hh: number; mm: number }> = [
+        { hh: 10, mm: 0 },
+        { hh: 11, mm: 0 },
+        { hh: 12, mm: 0 },
+        { hh: 13, mm: 0 },
+        { hh: 14, mm: 0 },
+        { hh: 15, mm: 0 },
+        { hh: 15, mm: 30 }, // pre-close snapshot
+      ];
+
+      // Find first event at or after current ET time
+      for (const ev of preEtEvents) {
+        if (h < ev.hh || (h === ev.hh && min <= ev.mm)) {
+          return etToUtcIso(y, m, d, ev.hh, ev.mm);
+        }
+      }
+      // If all PRE events have passed, next is post-close completion (16:35 ET)
+      return etToUtcIso(y, m, d, 16, 35);
+    }
+
+    // POST: choose from same-day evening retries, else next weekday morning catch-ups, else next weekday 10:00
+    const postEtEventsToday: Array<{ hh: number; mm: number }> = [
+      { hh: 16, mm: 35 },
+      { hh: 19, mm: 0 },
+      { hh: 20, mm: 0 },
+      { hh: 21, mm: 0 },
+    ];
+    for (const ev of postEtEventsToday) {
+      if (h < ev.hh || (h === ev.hh && min <= ev.mm)) {
+        return etToUtcIso(y, m, d, ev.hh, ev.mm);
+      }
+    }
+    // Otherwise, pick from next weekday morning catch-ups, then 10:00
+    const n = nextWeekdayEt();
+    const postMorning: Array<{ hh: number; mm: number }> = [
+      { hh: 7, mm: 0 },
+      { hh: 10, mm: 0 },
+    ];
+    return etToUtcIso(n.y, n.m, n.d, postMorning[0].hh, postMorning[0].mm) || etToUtcIso(n.y, n.m, n.d, 10, 0);
+  } catch {
+    return undefined;
+  }
+}
+
 // Determine trading phase automatically using Eastern Time.
 function getAutoPhaseAndMarketDate(): { phase: PartnerPhase; marketDate: string } {
   // Use Intl with America/New_York to avoid extra deps.
@@ -58,54 +140,6 @@ function getAutoPhaseAndMarketDate(): { phase: PartnerPhase; marketDate: string 
 // Helper: is this endpoint one of our AV time-series endpoints?
 function isTimeSeriesEndpoint(endpoint: AlphaVantageEndpoint): boolean {
   return !!(AV_TIME_SERIES_ENDPOINT_CONFIGS as any)[endpoint];
-}
-
-// Compute next fetch time label in ET for intraday (hourly), pre-close, and post-close only.
-function computeNextFetchEtLabel(phase: TradingPhase): string | undefined {
-  try {
-    const tz = 'America/New_York';
-    const now = new Date();
-    const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-    const hourStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false }).format(now);
-    const minuteStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, minute: '2-digit', hour12: false }).format(now);
-    const h = Number(hourStr);
-    const m = Number(minuteStr);
-
-    function fmt(d: string, hh: number, mm: number): string {
-      const H = String(hh).padStart(2, '0');
-      const M = String(mm).padStart(2, '0');
-      return `${d}T${H}:${M} ET`;
-    }
-
-    // Helper: next weekday (Mon-Fri) date string in ET, naive (no holiday handling)
-    function nextWeekdayEtDateStr(): string {
-      const etNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
-      const d = new Date(etNow);
-      d.setDate(etNow.getDate() + 1);
-      const dow = d.getDay(); // 0=Sun..6=Sat
-      if (dow === 6) d.setDate(d.getDate() + 2); // Sat -> Mon
-      if (dow === 0) d.setDate(d.getDate() + 1); // Sun -> Mon
-      return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-    }
-
-    if (phase === TradingPhase.PRE) {
-      // Intraday hourly window 10:00–15:00 ET and pre-close at 15:30 ET
-      if (h < 10) return fmt(dateStr, 10, 0);
-      if (h >= 10 && h < 15) return fmt(dateStr, h + 1, 0);
-      if (h === 15) {
-        if (m < 25) return fmt(dateStr, 15, 30); // next pre-close
-        return fmt(dateStr, 16, 35); // after ~15:25, next is post-close
-      }
-      // Otherwise, next is post-close today
-      return fmt(dateStr, 16, 35);
-    } else {
-      // POST: next trading day at 10:00 ET
-      const nextDate = nextWeekdayEtDateStr();
-      return fmt(nextDate, 10, 0);
-    }
-  } catch {
-    return undefined;
-  }
 }
 
 // Helper: history path from a concrete doc path
