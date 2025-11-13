@@ -40,11 +40,17 @@ export { partnerDataReadyPublishV2 } from './v2/partner/data-ready.publish.funct
 // New AlphaVantage Data Refresher
 export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-refresh-manager';
 
+// Note: The following AV time-series schedulers are exported for deploy.
+// The 30-minute evening retry and 06:30 catch-up handlers are defined but INTENTIONALLY NOT exported/deployed:
+// - refreshAvDailyTimeSeriesPostEveningRetry30
+// - refreshAvDailyTimeSeriesPostMorning0630
 export {
   refreshAvDailyTimeSeriesIntradayHourly,
   refreshAvDailyTimeSeriesPreClose,
   refreshAvDailyTimeSeriesPostClose,
   refreshAvWeeklyMonthlyTimeSeriesPostClose,
+  refreshAvDailyTimeSeriesPostEveningRetry00,
+  refreshAvDailyTimeSeriesPostMorning0700,
 } from './v2/alpha-vantage/data-refresher/av-refresh-manager';
 
 // New Benzinga Data Refresher

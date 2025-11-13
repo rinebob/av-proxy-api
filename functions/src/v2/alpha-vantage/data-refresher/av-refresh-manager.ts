@@ -584,6 +584,64 @@ export const refreshAvWeeklyMonthlyTimeSeriesPostClose = onSchedule({
   );
 });
 
+// Daily time series: post-close evening retries (every 30 mins)
+export const refreshAvDailyTimeSeriesPostEveningRetry30 = onSchedule({
+  schedule: TS_DAILY_POST_EVENING_RETRY_MINUTE_30,
+  timeZone: 'America/New_York',
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, async () => {
+  await refreshForEndpoints(
+    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
+    {
+      phase: TradingPhase.POST,
+      trigger: RefreshTrigger.SCHEDULER,
+    }
+  );
+});
+
+export const refreshAvDailyTimeSeriesPostEveningRetry00 = onSchedule({
+  schedule: TS_DAILY_POST_EVENING_RETRY_MINUTE_00,
+  timeZone: 'America/New_York',
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, async () => {
+  await refreshForEndpoints(
+    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
+    {
+      phase: TradingPhase.POST,
+      trigger: RefreshTrigger.SCHEDULER,
+    }
+  );
+});
+
+// Daily time series: next-morning catch-ups
+export const refreshAvDailyTimeSeriesPostMorning0630 = onSchedule({
+  schedule: TS_DAILY_POST_MORNING_CATCHUP_0630,
+  timeZone: 'America/New_York',
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, async () => {
+  await refreshForEndpoints(
+    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
+    {
+      phase: TradingPhase.POST,
+      trigger: RefreshTrigger.SCHEDULER,
+    }
+  );
+});
+
+export const refreshAvDailyTimeSeriesPostMorning0700 = onSchedule({
+  schedule: TS_DAILY_POST_MORNING_CATCHUP_0700,
+  timeZone: 'America/New_York',
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, async () => {
+  await refreshForEndpoints(
+    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
+    {
+      phase: TradingPhase.POST,
+      trigger: RefreshTrigger.SCHEDULER,
+    }
+  );
+});
+
 /**
  * Helper used by schedulers to run specific endpoints at fixed times without freshness gating.
  * 
