@@ -13,7 +13,7 @@ import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
-import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE, TS_DAILY_INTRADAY_HOURLY_SCHEDULE } from '../../common/function-schedules';
+import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE, TS_DAILY_INTRADAY_HOURLY_SCHEDULE, TS_DAILY_POST_EVENING_RETRY_MINUTE_30, TS_DAILY_POST_EVENING_RETRY_MINUTE_00, TS_DAILY_POST_MORNING_CATCHUP_0630, TS_DAILY_POST_MORNING_CATCHUP_0700 } from '../../common/function-schedules';
 
 import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
