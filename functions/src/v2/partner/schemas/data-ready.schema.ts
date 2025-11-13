@@ -23,9 +23,19 @@ export interface DataReadyPayloadV1 {
   // New: origin of the message (manual, scheduled, heartbeat)
   trigger?: PartnerTrigger;
 
-  // New: lifecycle status of the run and next scheduled fetch time
+  // Legacy SA status (keep): begin/end
   status?: 'begin' | 'end';
-  nextFetchAt?: string; // ISO datetime in ET or UTC; advisory only
+
+  // RS header UI fields
+  // Lifecycle status of the run and scheduling hints
+  runStatus?: 'processing' | 'completed' | 'completed_with_errors';
+  endTimeUTC?: string; // RFC3339 UTC timestamp when the refresh finished
+  nextRefreshAtUTC?: string; // RFC3339 UTC timestamp when the next refresh is scheduled to begin
+  finalizedAtUTC?: string; // RFC3339 UTC timestamp when new daily data was first detected (market-date level)
+
+  // Back-compat (legacy optional fields used previously internally)
+  // These are accepted by validator but not required and not used by RS UI.
+  nextFetchAt?: string; // legacy advisory label (ET or UTC string)
 }
 
 export interface ValidationResult<T> {
@@ -104,12 +114,28 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
     }
   }
 
-  // Optional: status and nextFetchAt
+  // Optional: legacy SA status
   if (obj.status != null && obj.status !== 'begin' && obj.status !== 'end') {
-    errors.push('status must be "begin" or "end" when provided');
+    errors.push('status must be one of: begin, end');
+  }
+  // Optional: RS runStatus + timestamps and legacy nextFetchAt
+  if (obj.runStatus != null) {
+    const allowedRunStatuses = ['processing', 'completed', 'completed_with_errors'];
+    if (!allowedRunStatuses.includes(obj.runStatus)) {
+      errors.push('runStatus must be one of: processing, completed, completed_with_errors');
+    }
+  }
+  if (obj.endTimeUTC != null && typeof obj.endTimeUTC !== 'string') {
+    errors.push('endTimeUTC must be a string (RFC3339 UTC) when provided');
+  }
+  if (obj.nextRefreshAtUTC != null && typeof obj.nextRefreshAtUTC !== 'string') {
+    errors.push('nextRefreshAtUTC must be a string (RFC3339 UTC) when provided');
+  }
+  if (obj.finalizedAtUTC != null && typeof obj.finalizedAtUTC !== 'string') {
+    errors.push('finalizedAtUTC must be a string (RFC3339 UTC) when provided');
   }
   if (obj.nextFetchAt != null && typeof obj.nextFetchAt !== 'string') {
-    errors.push('nextFetchAt must be a string (ISO datetime) when provided');
+    errors.push('nextFetchAt must be a string when provided');
   }
 
   if (errors.length > 0) return { ok: false, errors };
@@ -134,6 +160,10 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
     trigger: obj.trigger,
 
     status: obj.status,
+    runStatus: obj.runStatus,
+    endTimeUTC: obj.endTimeUTC,
+    nextRefreshAtUTC: obj.nextRefreshAtUTC,
+    finalizedAtUTC: obj.finalizedAtUTC,
     nextFetchAt: obj.nextFetchAt,
   };
 

@@ -742,6 +742,7 @@ export async function refreshForEndpoints(
         marketDate,
         env: (process.env.NODE_ENV || 'dev') as string,
         status: 'begin',
+        runStatus: 'processing',
       };
       const runType = (phasePartner === PartnerPhase.PRE) ? PartnerRunType.TS_DAILY_PRE : PartnerRunType.TS_DAILY_POST;
       await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { runType });
@@ -905,7 +906,9 @@ async function announceDataReady(
         marketDate,
         env: (process.env.NODE_ENV || 'dev') as string,
         status: 'end',
-        nextFetchAt: computeNextFetchEtLabel(options.phase),
+        runStatus: 'completed',
+        endTimeUTC: new Date().toISOString(),
+        nextRefreshAtUTC: computeNextRefreshAtUtc(options.phase),
       };
 
       let runType: PartnerRunType = PartnerRunType.NON_TIME_SERIES; // default not used below

@@ -290,6 +290,19 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           const latest = bars[0];
           hr('aVTS.H', `upsert ${endpoint} ${symbol} date=${latest.date} [${(this as any).requestId}]`);
           log.info('firestore.upsert', { endpointId: endpoint, symbol, date: latest.date, requestId: (this as any).requestId });
+          if (this.config.interval === TimeSeriesInterval.DAILY) {
+            const o = Number(latest.open), h = Number(latest.high), l = Number(latest.low), c = Number(latest.close);
+            const invalid = !Number.isFinite(o) || !Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(c) || ((o === 0) && (h === 0) && (l === 0) && (c === 0));
+            if (invalid) {
+              if (!(params as any)?.__invalidRetry) {
+                const retryParams: any = { symbol, outputsize: 'full', __checkWriteToggle, __phase, __run, __invalidRetry: true };
+                const resp = await this.fetch(retryParams);
+                return resp;
+              } else {
+                return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
+              }
+            }
+          }
           /**
            * Map handler StorageBar → persisted CompactBar patch
            *

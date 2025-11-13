@@ -74,30 +74,47 @@ export async function enqueueDataReadyInternal(
     }
   }
 
-  // Upsert run state (persist full payload for auditing)
+  // Normalize counts with mirrors for transition
+  const symbols = Number.isInteger(validPayload.symbolsUpdatedCount) ? (validPayload.symbolsUpdatedCount as number) : 0;
+  const baselines = Number.isInteger(validPayload.baselinesUpdatedCount) ? (validPayload.baselinesUpdatedCount as number) : 0;
+
+  // Upsert run state (lean doc)
   await runRef.set({
     status: 'received',
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
     phase: validPayload.phase,
     intervals: validPayload.intervals,
     marketDate: validPayload.marketDate || null,
     counts: {
-      baselinesUpdatedCount: validPayload.baselinesUpdatedCount ?? null,
-      symbolsUpdatedCount: validPayload.symbolsUpdatedCount ?? null,
+      symbolsUpdated: symbols,
+      baselinesUpdated: baselines,
+      symbolsUpdatedCount: symbols, // legacy mirror
+      baselinesUpdatedCount: baselines, // legacy mirror
     },
-    // # Reason: Keep minimal provenance
-    provenance: {
+    // RS header projection for UI
+    header: {
+      runStatus: validPayload.runStatus ?? null,
+    },
+    // Grouped timing fields
+    timing: {
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      enqueuedAt: null,
+      endTimeUTC: validPayload.endTimeUTC ?? null,
+      nextRefreshAtUTC: validPayload.nextRefreshAtUTC ?? null,
+      finalizedAtUTC: validPayload.finalizedAtUTC ?? null,
+    },
+    // Normalized meta for audit without echoing full payload
+    runMeta: {
       requestId,
-      auth: { email: (callerEmail || INTERNAL_PUBLISHER_AUDIT_EMAIL).toLowerCase() },
+      publisherEmail: (callerEmail || INTERNAL_PUBLISHER_AUDIT_EMAIL).toLowerCase(),
+      env: validPayload.env || (process.env.NODE_ENV || 'dev'),
+      runType: (extraAttributes && typeof extraAttributes.runType === 'string') ? extraAttributes.runType : undefined,
+      trigger: validPayload.trigger || undefined,
       payloadVersion: validPayload.version,
     },
-    // Persist full message body for auditability
-    payload: validPayload,
-    lastEnqueuedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  // Build attributes and persist them too
+  // Build Pub/Sub attributes (do not persist to Firestore)
   const attributes: Record<string, string> = {
     runId: validPayload.runId,
     version: validPayload.version,
@@ -110,16 +127,19 @@ export async function enqueueDataReadyInternal(
       if (v != null) attributes[k] = String(v);
     }
   }
-  await runRef.set({ pubsubAttributes: attributes, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
   // Publish to Pub/Sub
   const messageId = await publishToPubSub(validPayload, attributes);
 
   await runRef.set({
     status: 'enqueued',
-    enqueuedAt: FieldValue.serverTimestamp(),
-    pubsubMessageId: messageId,
-    updatedAt: FieldValue.serverTimestamp(),
+    timing: {
+      enqueuedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    runMeta: {
+      messageId,
+    },
   }, { merge: true });
 
   return { ok: true, requestId, messageId, status: 'enqueued' };

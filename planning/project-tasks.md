@@ -107,6 +107,7 @@ This document tracks the completion status of tasks outlined in the `project-pla
 ### Discovered During Work
 - As of 2025-06-25: Frontend endpoint selection, canonical metadata, and type consolidation are complete and in sync with backend expectations.
 - As of 2025-09-15: Inbound partner notifications fully removed (webhook, subscriber, partnerEvents). System is outbound-only; announcements publish to Pub/Sub with `runs/{runId}` tracking. Emulator workflow and env cleaned up.
+- As of 2025-11-12: Cleaned up `runs/{runId}` schema to a lean document. Removed persisted `payload` and `pubsubAttributes`; added grouped `timing` and `runMeta`; normalized `counts` with numeric defaults and legacy mirrors; corrected `header.runStatus` to use `payload.runStatus`. Backfill script recommended to coerce historical null counts to 0.
 
 ---
 
@@ -129,6 +130,10 @@ This document tracks the completion status of tasks outlined in the `project-pla
 - [ ] **Task 7.2: Implement backend rate limiting**
 - [ ] **Task 7.3: Implement data transformation/filtering**
 - [ ] **Task 7.4: Migrate options chains storage (HISTORICAL_OPTIONS) to sharded Firestore or GCS; implement shard-aware readers; re-enable endpoint in refresher**
+- [ ] **Task 7.5: Introduce endpoint/interval short code suffix in `runId`**
+  - Add compact code (e.g., `-d|-w|-m|gq|sect|...`) to `runId` while preserving readability
+  - Update validator to accept the new pattern alongside legacy during rollout
+  - Backfill historical run documents to new `runId` format and update any references
 
 ### Enhanced UI/UX
 

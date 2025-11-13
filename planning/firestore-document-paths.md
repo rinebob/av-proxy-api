@@ -62,17 +62,42 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
 
 - runs/{runId}
   - Purpose: state machine tracking processing lifecycle for internal refresh/notification jobs
-  - Example path: `/runs/2025-09-11-post`
-  - Example fields:
-    - `status: 'received' | 'enqueued' | 'processing' | 'completed' | 'failed'`
-    - `createdAt, updatedAt: serverTimestamp`
-    - `enqueuedAt, processingStartedAt, processingCompletedAt, failureAt: serverTimestamp?`
+  - Example path: `/runs/2025-09-11-post-1000`
+  - Canonical fields (lean schema):
+    - `status: 'received' | 'enqueued' | 'processing' | 'completed' | 'completed_with_errors' | 'failed'`
     - `phase: 'pre' | 'post'`
-    - `intervals: string[]`
-    - `marketDate: YYYY-MM-DD?`
-    - `pubsubMessageId: string?`
-    - `counts: { baselinesUpdatedCount?: number | null; symbolsUpdatedCount?: number | null }`
-    - `error: string?`
+    - `intervals: string[]` (e.g., `["daily"]`)
+    - `marketDate: string` (YYYY-MM-DD)
+    - `counts: {`
+      - `symbolsUpdated: number`
+      - `baselinesUpdated: number`
+      - `symbolsUpdatedCount: number` (legacy mirror)
+      - `baselinesUpdatedCount: number` (legacy mirror)
+      - `}`
+    - `header: { runStatus: 'processing' | 'completed' | 'completed_with_errors' | null }`
+    - `timing: {`
+      - `createdAt: serverTimestamp`
+      - `updatedAt: serverTimestamp`
+      - `enqueuedAt: serverTimestamp | null`
+      - `endTimeUTC: string | null` (RFC3339 UTC)
+      - `nextRefreshAtUTC: string | null` (RFC3339 UTC)
+      - `}`
+    - `runMeta: {`
+      - `requestId: string`
+      - `messageId: string | null` (Pub/Sub message id)
+      - `publisherEmail: string`
+      - `env: string`
+      - `runType: string` (e.g., `ts-daily-pre`, `heartbeat`)
+      - `trigger: 'manual' | 'scheduled' | 'heartbeat' | undefined`
+      - `payloadVersion: 'v1'`
+      - `}`
+    - `warnings?: string[]`
+    - `error?: string`
+
+  - Notes:
+    - We do not persist the full inbound payload or Pub/Sub attributes in this document.
+    - `header.runStatus` reflects the payload's `runStatus` (not legacy `status` begin/end).
+    - Legacy count keys remain during transition; prefer reading normalized keys.
 
 ---
 
