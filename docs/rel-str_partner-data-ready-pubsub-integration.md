@@ -30,7 +30,9 @@ Message semantics:
 
 ## Payload Schema (v1)
 
-See `docs/partner/savantapi-data-ready-webhook.md` for full definitions. Minimal v1:
+The v1 payload is compact and now includes single-source freshness and finalization timestamps.
+
+Minimal v1:
 
 ```json
 {
@@ -38,14 +40,19 @@ See `docs/partner/savantapi-data-ready-webhook.md` for full definitions. Minimal
   "runId": "2025-09-11-post",
   "phase": "post",
   "intervals": ["DAILY"],
-  "time": 1736726400000,
-  "baselinesUpdatedCount": 20,
-  "symbolsUpdatedCount": 500,
-  "universeVersion": "us-eq-2025-09-11"
+  "time": 1736726400000
 }
 ```
 
-Recommended additional fields (optional in v1): `marketDate`, `tz`, `durationMs`, `phaseWindow`, `datasetManifest`, `env`, `traceId`.
+Extended fields we recommend consuming when present:
+
+- `marketDate`: `YYYY-MM-DD` trading date this run pertains to
+- `counts`: `{ pendingCount, finalizedCountTotal, deltaCount }`
+- `timing.finalizedAtUTC`: ISO string when we first detected finalized daily data (POST)
+- `timing.nextRefreshAtUTC`: ISO string of the next scheduled refresh time for this cadence
+- `header.runStatus`: `processing` | `completed`
+
+Other optional fields: `env`, `durationMs`, `phaseWindow`, `datasetManifest`, `traceId`.
 
 ## Message Attributes and runType
 
@@ -79,8 +86,8 @@ What "ready" means per `runType`:
     - Core: `t`, `d?`, `o`, `h`, `l`, `c`, `v`, `ac`, `dv`, `sc`
     - Derived (if available): `pc`, `ch`, `cp`
   - Parent doc is updated:
-    - `metadata.lastUpdated`, `metadata.nextRefreshAt`, `metadata.ttlSeconds`
-    - `latestBarTimestamp` points to the most recent finalized bar
+    - `metadata.lastUpdated`, `metadata.ttlSeconds`, and consolidated `nextRefreshAtUTC`
+  - `latestBarTimestamp` points to the most recent finalized bar
   - This is the canonical RS computation point for daily data.
 
 - Weekly POST — `ts_weekly_post`
@@ -149,3 +156,14 @@ subscription.on('error', err => {
 ## Contact
 
 Please share the service account email(s) you will use per environment so we can allowlist them and grant `run.invoker` on the RSH service. Provide the expected schedule for pre/post runs so we can monitor end-to-end. **Note:** We are currently awaiting the service account email(s) to be provided by SavantAPI. Once received, we will update the allowlist and grant the necessary permissions.
+
+---
+
+## Appendix: Identifiers & System Docs (FYI)
+
+- `runId` format:
+  - Scheduled: `YYYY-MM-DD-pre` | `YYYY-MM-DD-post`
+  - Manual/test: `YYYY-MM-DD-pre-<suffix>` or `YYYY-MM-DD-post-<suffix>` where `<suffix>` is 1–16 lowercase letters/digits (e.g., `-manual-1905`).
+- We maintain internal system documents under `system/` for status/finalization. Partners do not need these, but for transparency:
+  - Root docs: `system/time-series-status`, `system/time-series-finalization` contain metadata/timing.
+  - Leaf per-date docs exist for our own auditing and omit metadata.

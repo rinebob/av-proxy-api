@@ -10,7 +10,10 @@ Use this doc to mint a Google OIDC ID token and call each endpoint successfully.
 - Region/Project:
   - Project: `alpha-vantage-proxy-api`
   - Region: `us-central1`
-- Deep dive guide: see `docs/partner-auth-and-audience.md`
+- Deep dive guides:
+  - Auth/audience: `docs/partner-auth-and-audience.md`
+  - Discovery & schema: `docs/partner-discovery.md`
+  - Data‑Ready Pub/Sub: `docs/rel-str_partner-data-ready-pubsub-integration.md`
 
 ## 0) Prerequisites
 
@@ -80,6 +83,17 @@ curl -i -H "Authorization: Bearer ${TOKEN_TS}" \
 Notes:
 - Query params supported by time series include `symbol`, `interval` (daily|weekly|monthly), optional `range` (ytd|1y|3y|5y|max), `from`, `to`, `limit`.
 - Responses are JSON; time series returns up to the requested range with AV-adjusted fields.
+ - Freshness is maintained by background schedulers. The authoritative next refresh is `nextRefreshAtUTC` (consolidated).
+ - When consuming events, POST runs include `finalizedAtUTC` to indicate first detection of finalized daily bars. See Pub/Sub doc for payload fields and filters.
+
+### Optional: Subscribe for discovery (recommended)
+
+Use Pub/Sub notifications to know when to read new data instead of polling.
+
+- Topic: `partner-data-ready`
+- Message attributes: include `runType` (e.g., `ts_daily_pre`, `ts_daily_post`)
+- Payload v1: includes `runId`, `phase`, `timing.nextRefreshAtUTC`, and `timing.finalizedAtUTC` (POST only)
+- See `docs/rel-str_partner-data-ready-pubsub-integration.md` for schema and subscription filter examples.
 
 ## 4) Common errors and fixes
 

@@ -149,8 +149,9 @@ File: `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager.ts`
   - On success, writes:
     - `data: <payload>`
     - `metadata.lastUpdated = now`
-    - `metadata.nextRefreshAt = now + ttlSeconds`
+    - `metadata.nextRefreshAtUTC = <schedule-driven next refresh>`
     - `metadata.ttlSeconds = ttl`
+  - Note: `nextRefreshAtUTC` is the single source of truth (legacy `nextFetchAt` removed). It is computed by a schedule-aware helper to match cron cadence.
   - Records refresh history at `.../history/{eventId}` and logs via Health Metrics
 
 ### Time-Series (Alpha Vantage: Daily/Weekly/Monthly)
@@ -188,7 +189,7 @@ Files:
   - Daily parent doc fields:
     - Path: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted`
     - Fields written by writers/bumpers:
-      - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, nextRefreshAt, ttlSeconds, vendor, endpoint, histStartTs, histEndTs }`
+      - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, nextRefreshAtUTC, ttlSeconds, vendor, endpoint, histStartTs, histEndTs }`
       - `latestBarTimestamp`: Firestore `Timestamp` of most recent finalized daily bar
     - Note: intraday snapshot and previous-close details live on bar entries (see CompactBar), not on the parent doc.
 - Weekly and monthly follow the same sharded scheme using their respective parent docs:
@@ -595,12 +596,12 @@ Querying logs
   - Daily parent doc fields:
     - Path: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted`
     - Fields written by writers/bumpers:
-      - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, nextRefreshAt, ttlSeconds, vendor, endpoint, histStartTs, histEndTs }`
+      - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, nextRefreshAtUTC, ttlSeconds, vendor, endpoint, histStartTs, histEndTs }`
       - `latestBarTimestamp`: Firestore `Timestamp` of most recent finalized daily bar
     - Note: intraday snapshot and previous-close details live on bar entries (see CompactBar), not on the parent doc.
 - __Non-time-series endpoints__
   - Single document per `{symbol}/{endpoint}`
-  - `metadata.lastUpdated`, `metadata.nextRefreshAt`, `metadata.ttlSeconds` used by refreshers
+  - `metadata.lastUpdated`, `metadata.ttlSeconds`, and consolidated `nextRefreshAtUTC` used by refreshers
 
 Notes:
 - The legacy `{ data, metadata }` shape is deprecated for AV daily time series; all new writes use the normalized schema.
