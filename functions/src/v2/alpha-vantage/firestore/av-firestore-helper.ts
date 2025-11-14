@@ -468,8 +468,10 @@ export async function upsertAvDailyBar(options: {
   endpoint?: AlphaVantageEndpoint; // defaults to DAILY_ADJUSTED
   // When true, do not bump the top-level time-series metadata. Used for pre-close intraday snapshots
   skipParentMetaBump?: boolean;
+  // Epoch ms when the daily bar first finalized (POST). If provided and fz not yet set, this will be stamped.
+  finalizedAtMs?: number;
 }): Promise<void> {
-  const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, skipParentMetaBump } = options;
+  const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, skipParentMetaBump, finalizedAtMs } = options;
   const vendor = ApiProvider.ALPHA_VANTAGE;
   const t = new Date(`${date}T00:00:00.000Z`).getTime();
   const y = getYearFromEpochMillis(t);
@@ -504,7 +506,14 @@ export async function upsertAvDailyBar(options: {
         ipc: patch.ipc != null ? Number(patch.ipc) : ((existing as any).ipc ?? null),
         dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
       } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
-      bars[idx] = { ...existing, ...patchBar } as CompactBar;
+      const merged = { ...existing, ...patchBar } as CompactBar;
+      // Stamp fz if provided and not yet set, and bar is non-placeholder
+      if (finalizedAtMs != null && (merged as any).fz == null) {
+        const oo = Number(merged.o || 0), hh = Number(merged.h || 0), ll = Number(merged.l || 0), cc = Number(merged.c || 0);
+        const nonPlaceholder = (oo !== 0) || (hh !== 0) || (ll !== 0) || (cc !== 0);
+        if (nonPlaceholder) (merged as any).fz = Number(finalizedAtMs);
+      }
+      bars[idx] = merged;
     } else {
       const newBar: CompactBar = {
         t,
@@ -529,6 +538,11 @@ export async function upsertAvDailyBar(options: {
         ic: patch.ic != null ? Number(patch.ic) : null,
         ipc: patch.ipc != null ? Number(patch.ipc) : null,
       };
+      if (finalizedAtMs != null) {
+        const oo = Number(newBar.o || 0), hh = Number(newBar.h || 0), ll = Number(newBar.l || 0), cc = Number(newBar.c || 0);
+        const nonPlaceholder = (oo !== 0) || (hh !== 0) || (ll !== 0) || (cc !== 0);
+        if (nonPlaceholder) (newBar as any).fz = Number(finalizedAtMs);
+      }
       bars.push(newBar);
     }
 

@@ -54,7 +54,8 @@ export interface ValidationResult<T> {
 }
 
 // Allow optional unique suffix (lowercase letters/digits, 1-16 chars) after base date-phase
-const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}-(pre|post)(-[a-z0-9]{1,16})?$/;
+// Also allow the dashed manual time suffix pattern: -manual-\d{4}
+const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}-(pre|post)(-([a-z0-9]{1,16}|manual-\d{4}))?$/;
 const MARKET_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_INTERVALS: TimeSeriesInterval[] = [
   TimeSeriesInterval.DAILY,
@@ -143,6 +144,27 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
   if (obj.finalizedAtUTC != null && typeof obj.finalizedAtUTC !== 'string') {
     errors.push('finalizedAtUTC must be a string (RFC3339 UTC) when provided');
   }
+  if (obj.pendingCount != null && (!Number.isInteger(obj.pendingCount) || obj.pendingCount < 0)) {
+    errors.push('pendingCount must be a non-negative integer');
+  }
+  if (obj.deltaFinalizedSymbols != null && !Array.isArray(obj.deltaFinalizedSymbols)) {
+    errors.push('deltaFinalizedSymbols must be an array when provided');
+  }
+  if (obj.deltaTruncated != null && typeof obj.deltaTruncated !== 'boolean') {
+    errors.push('deltaTruncated must be a boolean when provided');
+  }
+  if (obj.finalizedCountTotal != null && (!Number.isInteger(obj.finalizedCountTotal) || obj.finalizedCountTotal < 0)) {
+    errors.push('finalizedCountTotal must be a non-negative integer');
+  }
+  if (obj.remainingSymbols != null && !Array.isArray(obj.remainingSymbols)) {
+    errors.push('remainingSymbols must be an array when provided');
+  }
+  if (obj.remainingSampleTruncated != null && typeof obj.remainingSampleTruncated !== 'boolean') {
+    errors.push('remainingSampleTruncated must be a boolean when provided');
+  }
+  if (obj.advisory != null && obj.advisory !== 'near_complete') {
+    errors.push('advisory must be "near_complete" when provided');
+  }
   if (obj.nextFetchAt != null && typeof obj.nextFetchAt !== 'string') {
     errors.push('nextFetchAt must be a string when provided');
   }
@@ -173,6 +195,13 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
     endTimeUTC: obj.endTimeUTC,
     nextRefreshAtUTC: obj.nextRefreshAtUTC,
     finalizedAtUTC: obj.finalizedAtUTC,
+    pendingCount: obj.pendingCount,
+    deltaFinalizedSymbols: obj.deltaFinalizedSymbols,
+    deltaTruncated: obj.deltaTruncated,
+    finalizedCountTotal: obj.finalizedCountTotal,
+    remainingSymbols: obj.remainingSymbols,
+    remainingSampleTruncated: obj.remainingSampleTruncated,
+    advisory: obj.advisory,
     nextFetchAt: obj.nextFetchAt,
   };
 

@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../../firebase-admin-init';
 
 import { validateDataReadyPayload, type DataReadyPayloadV1 } from './schemas/data-ready.schema';
-import { PARTNER_DATA_READY_TOPIC, INTERNAL_PUBLISHER_AUDIT_EMAIL } from './constants';
+import { PARTNER_DATA_READY_TOPIC, INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPublishStatus } from './constants';
 
 /**
  * Internal Pub/Sub publisher for partner data-ready notifications.
@@ -64,12 +64,14 @@ export async function enqueueDataReadyInternal(
 
   const runRef = db.collection('runs').doc(runId);
 
-  // Idempotency: if run exists and not failed, return early
+  // Idempotency: if run exists and not failed, return early for BEGIN/heartbeat only.
+  // Allow END payloads to proceed to update timing/end fields even if a run already exists.
   const existing = await runRef.get();
   if (existing.exists) {
     const status = existing.get('status');
     const isHeartbeat = extraAttributes?.heartbeat === 'true';
-    if (!isHeartbeat && status && status !== 'failed') {
+    const isEnd = validPayload.status === PartnerPublishStatus.END;
+    if (!isHeartbeat && status && status !== 'failed' && !isEnd) {
       return { ok: true, requestId, status };
     }
   }
@@ -78,6 +80,9 @@ export async function enqueueDataReadyInternal(
   const symbols = Number.isInteger(validPayload.symbolsUpdatedCount) ? (validPayload.symbolsUpdatedCount as number) : 0;
   const baselines = Number.isInteger(validPayload.baselinesUpdatedCount) ? (validPayload.baselinesUpdatedCount as number) : 0;
 
+  // Derived counts from staged flow
+  const deltaCount = Array.isArray(validPayload.deltaFinalizedSymbols) ? validPayload.deltaFinalizedSymbols.length : 0;
+
   // Upsert run state (lean doc)
   await runRef.set({
     status: 'received',
@@ -85,13 +90,19 @@ export async function enqueueDataReadyInternal(
     intervals: validPayload.intervals,
     marketDate: validPayload.marketDate || null,
     counts: {
+      // Legacy mirrors retained (non-zero if provided in payload)
       symbolsUpdated: symbols,
       baselinesUpdated: baselines,
-      symbolsUpdatedCount: symbols, // legacy mirror
-      baselinesUpdatedCount: baselines, // legacy mirror
+      symbolsUpdatedCount: symbols,
+      baselinesUpdatedCount: baselines,
+      // New staged-flow counters
+      pendingCount: (typeof validPayload.pendingCount === 'number') ? validPayload.pendingCount : null,
+      finalizedCountTotal: (typeof validPayload.finalizedCountTotal === 'number') ? validPayload.finalizedCountTotal : null,
+      deltaCount,
     },
     // RS header projection for UI
     header: {
+      status: validPayload.status ?? null,
       runStatus: validPayload.runStatus ?? null,
     },
     // Grouped timing fields
@@ -99,7 +110,7 @@ export async function enqueueDataReadyInternal(
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       enqueuedAt: null,
-      endTimeUTC: validPayload.endTimeUTC ?? null,
+      endTimeUTC: validPayload.status === PartnerPublishStatus.END ? (validPayload.endTimeUTC || new Date().toISOString()) : null,
       nextRefreshAtUTC: validPayload.nextRefreshAtUTC ?? null,
       finalizedAtUTC: validPayload.finalizedAtUTC ?? null,
     },
@@ -113,6 +124,15 @@ export async function enqueueDataReadyInternal(
       payloadVersion: validPayload.version,
     },
   }, { merge: true });
+  try {
+    // Confirm runs doc write (received)
+    console.log(JSON.stringify({
+      component: 'partner.data-ready',
+      event: 'runs.upsert.received',
+      runId,
+      path: `runs/${runId}`,
+    }));
+  } catch {}
 
   // Build Pub/Sub attributes (do not persist to Firestore)
   const attributes: Record<string, string> = {
@@ -141,6 +161,30 @@ export async function enqueueDataReadyInternal(
       messageId,
     },
   }, { merge: true });
+
+  try {
+    // Confirm runs doc write (enqueued)
+    console.log(JSON.stringify({
+      component: 'partner.data-ready',
+      event: 'runs.upsert.enqueued',
+      runId,
+      messageId,
+      path: `runs/${runId}`,
+    }));
+  } catch {}
+
+  // If this is an END payload, log the final runs doc snapshot for verification
+  if (validPayload.status === PartnerPublishStatus.END) {
+    try {
+      const finalSnap = await runRef.get();
+      console.log(JSON.stringify({
+        component: 'partner.data-ready',
+        event: 'runs.end.doc',
+        path: `runs/${runId}`,
+        data: finalSnap.data(),
+      }));
+    } catch {}
+  }
 
   return { ok: true, requestId, messageId, status: 'enqueued' };
 }

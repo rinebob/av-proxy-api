@@ -293,14 +293,9 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           if (this.config.interval === TimeSeriesInterval.DAILY) {
             const o = Number(latest.open), h = Number(latest.high), l = Number(latest.low), c = Number(latest.close);
             const invalid = !Number.isFinite(o) || !Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(c) || ((o === 0) && (h === 0) && (l === 0) && (c === 0));
-            if (invalid) {
-              if (!(params as any)?.__invalidRetry) {
-                const retryParams: any = { symbol, outputsize: 'full', __checkWriteToggle, __phase, __run, __invalidRetry: true };
-                const resp = await this.fetch(retryParams);
-                return resp;
-              } else {
-                return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
-              }
+            // Apply invalid-bar guard only during POST finalization flows. PRE may still upsert intraday snapshots.
+            if (invalid && (__phase === TradingPhase.POST)) {
+              return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
             }
           }
           /**
@@ -340,9 +335,12 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           // Example (left commented to avoid behavior change):
           // if ((latest as any).intradayPrice != null) (patch as any).ip = (latest as any).intradayPrice;
           // if ((latest as any).intradayObservedAt != null) (patch as any).io = (latest as any).intradayObservedAt;
+          const finalizedAtMs = (this.config.interval === TimeSeriesInterval.DAILY && (__phase === TradingPhase.POST))
+            ? Date.now()
+            : undefined;
           switch (this.config.interval) {
             case TimeSeriesInterval.DAILY:
-              await upsertAvDailyBar({ symbol, date: latest.date, patch });
+              await upsertAvDailyBar({ symbol, date: latest.date, patch, finalizedAtMs });
               break;
             case TimeSeriesInterval.WEEKLY:
               await upsertAvWeeklyBar({ symbol, date: latest.date, patch });

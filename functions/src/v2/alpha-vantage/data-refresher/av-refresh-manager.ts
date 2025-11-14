@@ -9,7 +9,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-factory';
 
-import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval, AlphaVantageEndpoint, DayOfWeek } from '@shared/alpha-vantage';
+import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval, AlphaVantageEndpoint, DayOfWeek, OutputSize } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
@@ -18,10 +18,11 @@ import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST
 import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
+import { getSymbolTimeSeriesYearDocPath, getYearFromEpochMillis } from '../../common/firestore/firestore-paths';
 import { refreshLogger } from '../../services/refresh-logger.service';
 import { enqueueDataReadyInternal } from '../../partner/data-ready.handler';
 import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema';
-import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerRunType } from '../../partner/constants';
+import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerRunType, PartnerRunStatus, PartnerPublishStatus } from '../../partner/constants';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 import { TradingPhase } from '@shared/health-metrics';
 
@@ -725,10 +726,16 @@ export async function refreshForEndpoints(
   });
 
   // BEGIN message (time-series only, limited to DAILY intraday/pre/post runs)
+  // Hoist runId so END uses the same ID
+  let beginRunId: string | null = null;
+  let beginStartIso: string | null = null;
   try {
     const phasePartner: PartnerPhase = (phaseFinal === TradingPhase.PRE ? PartnerPhase.PRE : PartnerPhase.POST);
     const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
-    const runId = `${marketDate}-${phasePartner}-${hhmm}`;
+    const isManual = (trigger === RefreshTrigger.MANUAL) || (process.env.FUNCTIONS_EMULATOR === 'true');
+    const runId = isManual ? `${marketDate}-${phasePartner}-manual-${hhmm}` : `${marketDate}-${phasePartner}`;
+    beginRunId = runId;
+    beginStartIso = new Date().toISOString();
 
     // Determine if any DAILY interval present; we only emit for DAILY in this scope
     const includesDaily = endpoints.some((e) => e === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
@@ -741,24 +748,121 @@ export async function refreshForEndpoints(
         time: Date.now(),
         marketDate,
         env: (process.env.NODE_ENV || 'dev') as string,
-        status: 'begin',
-        runStatus: 'processing',
+        status: PartnerPublishStatus.BEGIN,
+        runStatus: PartnerRunStatus.PROCESSING,
       };
       const runType = (phasePartner === PartnerPhase.PRE) ? PartnerRunType.TS_DAILY_PRE : PartnerRunType.TS_DAILY_POST;
       await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { runType });
+
+      // Persist system-level status (BEGIN)
+      try {
+        const statusDocPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_STATUS}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
+        await db.doc(statusDocPath).set({
+          currentRun: {
+            runId,
+            phase: phasePartner,
+            runType,
+            status: PartnerPublishStatus.BEGIN,
+            runStatus: PartnerRunStatus.PROCESSING,
+            startTimeUTC: beginStartIso,
+          },
+          counts: {
+            totalSymbols: null,
+            finalizedCountTotal: 0,
+            pendingCount: null,
+            deltaCount: 0,
+          },
+          marketDate,
+          endpoint: String(FirestoreCollection.DAILY_ADJUSTED),
+          source: 'av-refresh-manager',
+          timing: { updatedAt: Timestamp.now(), createdAt: Timestamp.now() },
+        }, { merge: true });
+        try {
+          const snap = await db.doc(statusDocPath).get();
+          logger.info('status.begin.doc', { path: statusDocPath, data: snap.data() });
+        } catch {}
+
+        // Ensure the ROOT doc exists: system/time-series-status (not per-date)
+        try {
+          const statusRootPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_STATUS}`;
+          const statusRootRef = db.doc(statusRootPath);
+          await db.runTransaction(async (tx) => {
+            const rs = await tx.get(statusRootRef);
+            const prev = rs.exists ? (rs.data() as any) : {};
+            const createdAt = prev?.timing?.createdAt ?? Timestamp.now();
+            tx.set(statusRootRef, {
+              metadata: { source: 'av-refresh-manager' },
+              timing: { createdAt, updatedAt: Timestamp.now() },
+            }, { merge: true });
+          });
+          const rSnap = await statusRootRef.get();
+          logger.info('status.root.doc', { path: statusRootPath, data: rSnap.data() });
+        } catch {}
+
+        // Ensure the ROOT doc exists: system/time-series-finalization (not per-date)
+        try {
+          const finalRootPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_FINALIZATION}`;
+          const finalRootRef = db.doc(finalRootPath);
+          await db.runTransaction(async (tx) => {
+            const rs = await tx.get(finalRootRef);
+            const prev = rs.exists ? (rs.data() as any) : {};
+            const createdAt = prev?.timing?.createdAt ?? Timestamp.now();
+            tx.set(finalRootRef, {
+              metadata: { source: 'av-refresh-manager' },
+              timing: { createdAt, updatedAt: Timestamp.now() },
+            }, { merge: true });
+          });
+          const frSnap = await finalRootRef.get();
+          logger.info('finalization.root.doc', { path: finalRootPath, data: frSnap.data() });
+        } catch {}
+
+        // Pre-create the finalization doc skeleton so the UI shows the doc and metadata immediately
+        try {
+          const finalDocPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_FINALIZATION}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
+          const finalRef = db.doc(finalDocPath);
+          await finalRef.set({
+            marketDate,
+            phase: String(phasePartner),
+            source: 'av-refresh-manager',
+            timing: { createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+          }, { merge: true });
+          const fSnap = await finalRef.get();
+          logger.info('finalization.begin.skeleton', { path: finalDocPath, data: fSnap.data() });
+        } catch {}
+      } catch {}
     }
   } catch (e) {
     logger.error('announce.begin_failed', { error: e && typeof e === 'object' && 'message' in (e as any) ? String((e as any).message) : String(e) });
   }
 
+  // Hoisted context for finally block
+  const healthMetricsService = new HealthMetricsService();
+  let symbols: string[] = [];
+  const finalizedBefore: Set<string> = new Set<string>();
+  const deltaFinalized: Set<string> = new Set<string>();
+  let targetTs: number = NaN;
+
   try {
-    const healthMetricsService = new HealthMetricsService();
-    
     // Load tracked symbols and types
     const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
-    const symbols = symbolsSnap.docs.map(d => d.id);
+    symbols = symbolsSnap.docs.map(d => d.id);
     
     // For time series endpoints, we'll process each symbol
+    // Preflight: build finalized-before set for DAILY only
+    const includesDaily = endpoints.some((e) => e === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
+    targetTs = new Date(`${marketDate}T00:00:00.000Z`).getTime();
+    if (includesDaily && Number.isFinite(targetTs)) {
+      for (const s of symbols) {
+        try {
+          const docPath = getSymbolTimeSeriesDocPath(s, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, ApiProvider.ALPHA_VANTAGE);
+          const snap = await db.doc(docPath).get();
+          const ts = snap.get('latestBarTimestamp');
+          const tsMs = ts && typeof ts.toMillis === 'function' ? ts.toMillis() : (typeof ts === 'number' ? ts : null);
+          if (Number.isFinite(tsMs) && tsMs === targetTs) finalizedBefore.add(s);
+        } catch {}
+      }
+    }
+
     for (const endpoint of endpoints) {
       const endpointName = AlphaVantageEndpoint[endpoint];
       const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpointName] || AV_ENDPOINT_CONFIGS[endpointName];
@@ -779,19 +883,44 @@ export async function refreshForEndpoints(
       })();
       const run = { id: runId, date: marketDate, dow: dowEnum, phase: phaseFinal, endpointId: endpoint, endpointShort, trigger };
       
+      // Enforce a capped batch per run for DAILY POST to respect provider limits (scoped to this endpoint and phase)
+      const isDaily = endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED;
+      const isPost = (phaseFinal === TradingPhase.POST);
+      const MAX_DAILY_POST_BATCH = 60;
+      let processedThisRun = 0;
+
       for (const symbol of symbols) {
+        if (isDaily && isPost && processedThisRun >= MAX_DAILY_POST_BATCH) {
+          const phaseLabel = isPost ? PartnerPhase.POST : PartnerPhase.PRE;
+          log.info('refresh.batch_cap_reached', { endpoint, phase: phaseLabel, cap: MAX_DAILY_POST_BATCH });
+          break;
+        }
         try {
           const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
           const baseParams: any = { 
             symbol, 
-            outputsize: 'compact', 
+            outputsize: OutputSize.COMPACT, 
             __checkWriteToggle: false, 
             __phase: phaseFinal,
             __run: run,
           };
           
           await handler.fetch(baseParams);
+          processedThisRun++;
           
+          // For DAILY, detect flip to today after handler write to compute delta
+          if (endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED && Number.isFinite(targetTs)) {
+            try {
+              const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
+              const snapAfter = await db.doc(docPath).get();
+              const ts = snapAfter.get('latestBarTimestamp');
+              const tsMs = ts && typeof ts.toMillis === 'function' ? ts.toMillis() : (typeof ts === 'number' ? ts : null);
+              if (!finalizedBefore.has(symbol) && Number.isFinite(tsMs) && tsMs === targetTs) {
+                deltaFinalized.add(symbol);
+              }
+            } catch {}
+          }
+
           // Record successful refresh with run context
           await healthMetricsService.recordSymbolRefresh(
             endpoint,
@@ -833,6 +962,43 @@ export async function refreshForEndpoints(
           });
         }
       }
+      // Near-complete acceleration pass: when only a small number remain, try a short second pass on a tiny subset
+      if (isDaily && isPost && Number.isFinite(targetTs)) {
+        const total = Array.isArray(symbols) ? symbols.length : 0;
+        const finalizedTotal = finalizedBefore.size + deltaFinalized.size;
+        const pendingCount = Math.max(0, total - finalizedTotal);
+        const NEAR_COMPLETE_THRESHOLD = 10;
+        if (pendingCount > 0 && pendingCount <= NEAR_COMPLETE_THRESHOLD) {
+          log.info('acceleration.start', { endpoint, pendingCount, threshold: NEAR_COMPLETE_THRESHOLD });
+          const ACCELERATION_LIMIT = 20;
+          let accelerated = 0;
+          for (const s of symbols) {
+            if (accelerated >= ACCELERATION_LIMIT) break;
+            if (finalizedBefore.has(s) || deltaFinalized.has(s)) continue;
+            try {
+              const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
+              const baseParams: any = { 
+                symbol: s, 
+                outputsize: OutputSize.COMPACT, 
+                __checkWriteToggle: false, 
+                __phase: phaseFinal,
+                __run: { id: `${marketDate}_${dowStr}_${phaseStrUpper}_${endpoint}`, date: marketDate, dow: dowEnum, phase: phaseFinal, endpointId: endpoint, endpointShort: 'TS_DAILY_ADJ', trigger }
+              };
+              await handler.fetch(baseParams);
+              accelerated++;
+              // Check flip
+              const docPath = getSymbolTimeSeriesDocPath(s, endpoint, ApiProvider.ALPHA_VANTAGE);
+              const snapAfter = await db.doc(docPath).get();
+              const ts = snapAfter.get('latestBarTimestamp');
+              const tsMs = ts && typeof ts.toMillis === 'function' ? ts.toMillis() : (typeof ts === 'number' ? ts : null);
+              if (!finalizedBefore.has(s) && Number.isFinite(tsMs) && tsMs === targetTs) {
+                deltaFinalized.add(s);
+              }
+            } catch {}
+          }
+          log.info('acceleration.complete', { endpoint, accelerated, pendingBefore: pendingCount, deltaNow: deltaFinalized.size });
+        }
+      }
     }
   } catch (error) {
     logger.error('refresh.fatal', { 
@@ -841,21 +1007,189 @@ export async function refreshForEndpoints(
     });
     throw error;
   } finally {
-    // After all endpoints and symbols are processed, announce data is ready
-    // but only for time series endpoints
+    // After all endpoints and symbols are processed, announce data is ready for time-series endpoints
     const timeSeriesEndpoints = endpoints.filter(isTimeSeriesEndpoint);
     if (timeSeriesEndpoints.length > 0) {
       try {
-        await announceDataReady(timeSeriesEndpoints, { 
-          phase: phase ?? TradingPhase.POST // Default to POST if phase not specified
-        });
+        const phasePartner: PartnerPhase = (phaseFinal === TradingPhase.PRE ? PartnerPhase.PRE : PartnerPhase.POST);
+        const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
+        const isManual = ((options?.trigger === RefreshTrigger.MANUAL) || (process.env.FUNCTIONS_EMULATOR === 'true'));
+        const runId = beginRunId || (isManual ? `${marketDate}-${phasePartner}-manual-${hhmm}` : `${marketDate}-${phasePartner}`);
+
+        // Map endpoints -> intervals
+        const intervals = Array.from(new Set(timeSeriesEndpoints.map((e) => {
+          if (e === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED) return TimeSeriesInterval.DAILY;
+          if (e === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED) return TimeSeriesInterval.WEEKLY;
+          if (e === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED) return TimeSeriesInterval.MONTHLY;
+          return null as any;
+        }).filter(Boolean))) as TimeSeriesInterval[];
+
+        for (const interval of intervals) {
+          const payload: DataReadyPayloadV1 = {
+            version: 'v1',
+            runId,
+            phase: phasePartner,
+            intervals: [interval],
+            time: Date.now(),
+            marketDate,
+            env: (process.env.NODE_ENV || 'dev') as string,
+            status: PartnerPublishStatus.END,
+            runStatus: PartnerRunStatus.COMPLETED,
+            endTimeUTC: new Date().toISOString(),
+            nextRefreshAtUTC: computeNextRefreshAtUtc(phaseFinal),
+          };
+
+          // DAILY-specific pending/delta computation
+          if (interval === TimeSeriesInterval.DAILY && Number.isFinite(targetTs)) {
+            const total = Array.isArray(symbols) ? symbols.length : 0;
+            const finalizedTotal = finalizedBefore.size + deltaFinalized.size;
+            const pendingCount = Math.max(0, total - finalizedTotal);
+            const deltaList = Array.from(deltaFinalized);
+            const MAX_DELTA = 500;
+            const deltaTruncated = deltaList.length > MAX_DELTA;
+            const deltaFinalizedSymbols = deltaTruncated ? deltaList.slice(0, MAX_DELTA) : deltaList;
+
+            payload.pendingCount = pendingCount;
+            payload.deltaFinalizedSymbols = deltaFinalizedSymbols;
+            if (deltaTruncated) payload.deltaTruncated = true;
+            payload.finalizedCountTotal = finalizedTotal;
+            payload.runStatus = (pendingCount === 0 ? PartnerRunStatus.COMPLETED : PartnerRunStatus.PROCESSING);
+
+            // Announce END with concise metrics
+            try {
+              log.info('announce.end', { pendingCount, finalizedCountTotal: finalizedTotal, deltaCount: deltaFinalizedSymbols.length, runId });
+            } catch {}
+
+            // Morning-first: include a small remaining sample (heuristic: ET hour <= 8)
+            const etNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+            const etHour = etNow.getHours();
+            if (pendingCount > 0 && etHour <= 8) {
+              const remaining: string[] = [];
+              for (const s of symbols) {
+                if (remaining.length >= 50) break;
+                if (!finalizedBefore.has(s) && !deltaFinalized.has(s)) remaining.push(s);
+              }
+              payload.remainingSymbols = remaining;
+              if (pendingCount > remaining.length) payload.remainingSampleTruncated = true;
+            }
+
+            // finalizedAtUTC: set only when all symbols are finalized (pendingCount===0).
+            // Use the latest fz (last symbol to finalize) as the timestamp for the day.
+            if (pendingCount === 0) {
+              try {
+                const finalizedSymbols = Array.from(new Set<string>([...finalizedBefore, ...deltaFinalized]));
+                const sample = finalizedSymbols.slice(0, 25);
+                const y = getYearFromEpochMillis(Number(targetTs));
+                let maxFz: number | null = null;
+                for (const s of sample) {
+                  const yearDocPath = getSymbolTimeSeriesYearDocPath(s, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, ApiProvider.ALPHA_VANTAGE, y);
+                  const snap = await db.doc(yearDocPath).get();
+                  const bars = (snap.get('bars') ?? []) as Array<any>;
+                  const b = bars.find((bb) => Number(bb?.t) === Number(targetTs));
+                  const fz = b?.fz != null ? Number(b.fz) : null;
+                  if (Number.isFinite(fz)) {
+                    maxFz = (maxFz == null) ? fz : Math.max(maxFz, fz as number);
+                  }
+                }
+                if (maxFz != null) {
+                  const finalizedIso = new Date(maxFz).toISOString();
+                  payload.finalizedAtUTC = finalizedIso;
+                  try {
+                    // Persist a day-level marker for UI/partners (use enum-based segments)
+                    const docPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_FINALIZATION}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
+                    const docRef = db.doc(docPath);
+                    const tz = 'America/New_York';
+                    const finalizedAtET = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(maxFz)).replace(',', '');
+                    await db.runTransaction(async (tx) => {
+                      const snap = await tx.get(docRef);
+                      const prev = snap.exists ? (snap.data() as any) : {};
+                      const createdAt = prev?.createdAt ?? Timestamp.now();
+                      tx.set(docRef, {
+                        marketDate,
+                        finalizedAtUTC: finalizedIso,
+                        finalizedAtET,
+                        totalSymbols: Array.isArray(symbols) ? symbols.length : 0,
+                        finalizedCountTotal: finalizedTotal,
+                        phase: String(phasePartner),
+                        source: 'av-refresh-manager',
+                        timing: { createdAt, updatedAt: Timestamp.now() },
+                      }, { merge: true });
+                    });
+                    try {
+                      const snapNow = await docRef.get();
+                      logger.info('finalization.doc', { path: docPath, data: snapNow.data() });
+                    } catch {}
+                  } catch {}
+                }
+              } catch {}
+            }
+
+            // Persist system-level status (END) with counts and run outcome
+            try {
+              const statusDocPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_STATUS}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
+              const endIso = new Date().toISOString();
+              const endRunStatus = (pendingCount === 0 ? PartnerRunStatus.COMPLETED : PartnerRunStatus.PROCESSING);
+              await db.runTransaction(async (tx) => {
+                const ref = db.doc(statusDocPath);
+                const snap = await tx.get(ref);
+                const prev = snap.exists ? snap.data() as any : {};
+                const prevRuns: any[] = Array.isArray(prev?.runs) ? prev.runs : [];
+                const startTimeUTC = (prev?.currentRun?.runId === runId && prev?.currentRun?.startTimeUTC) ? prev.currentRun.startTimeUTC : beginStartIso;
+                const updatedRuns = [...prevRuns, {
+                  runId,
+                  status: PartnerPublishStatus.END,
+                  runStatus: endRunStatus,
+                  startTimeUTC: startTimeUTC ?? null,
+                  endTimeUTC: endIso,
+                  pendingCount,
+                  finalizedCountTotal: finalizedTotal,
+                  deltaCount: deltaFinalizedSymbols.length,
+                }];
+                const capped = updatedRuns.slice(-30);
+                tx.set(ref, {
+                  currentRun: {
+                    runId,
+                    phase: phasePartner,
+                    runType: (phasePartner === PartnerPhase.PRE) ? PartnerRunType.TS_DAILY_PRE : PartnerRunType.TS_DAILY_POST,
+                    status: PartnerPublishStatus.END,
+                    runStatus: endRunStatus,
+                    endTimeUTC: endIso,
+                  },
+                  counts: {
+                    totalSymbols: total,
+                    finalizedCountTotal: finalizedTotal,
+                    pendingCount,
+                    deltaCount: deltaFinalizedSymbols.length,
+                  },
+                  marketDate,
+                  endpoint: String(FirestoreCollection.DAILY_ADJUSTED),
+                  source: 'av-refresh-manager',
+                  timing: { updatedAt: Timestamp.now(), createdAt: prev?.timing?.createdAt ?? Timestamp.now() },
+                  runs: capped,
+                }, { merge: true });
+              });
+              try {
+                const snap = await db.doc(statusDocPath).get();
+                logger.info('status.end.doc', { path: statusDocPath, data: snap.data() });
+              } catch {}
+            } catch {}
+          }
+
+          // Emit END
+          await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { 
+            runType: (interval === TimeSeriesInterval.DAILY && phasePartner === PartnerPhase.PRE) ? PartnerRunType.TS_DAILY_PRE
+              : (interval === TimeSeriesInterval.DAILY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_DAILY_POST
+              : (interval === TimeSeriesInterval.WEEKLY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_WEEKLY_POST
+              : (interval === TimeSeriesInterval.MONTHLY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_MONTHLY_POST
+              : PartnerRunType.NON_TIME_SERIES
+          });
+        }
       } catch (announceError) {
         logger.error('announce.failed', {
           error: announceError && typeof announceError === 'object' && 'message' in (announceError as any) 
             ? String((announceError as any).message) 
             : String(announceError)
         });
-        // Don't rethrow to avoid masking original error if there was one
       }
     }
     
@@ -868,58 +1202,3 @@ export async function refreshForEndpoints(
   }
 }
 
-/**
- * After all endpoints and symbols processed, announce data is ready
- */
-async function announceDataReady(
-  endpoints: AlphaVantageEndpoint[], 
-  options: { 
-    phase: TradingPhase;
-  }
-) {
-  try {
-    const tz = 'America/New_York';
-    const now = new Date();
-    const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
-    const marketDate = fmtDate.format(now); // YYYY-MM-DD
-
-    // Map endpoints -> intervals
-    const intervals = Array.from(new Set(endpoints.map((e) => {
-      if (e === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED) return TimeSeriesInterval.DAILY;
-      if (e === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED) return TimeSeriesInterval.WEEKLY;
-      if (e === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED) return TimeSeriesInterval.MONTHLY;
-      return null as any;
-    }).filter(Boolean))) as TimeSeriesInterval[];
-
-    const phase: PartnerPhase = (options.phase === TradingPhase.PRE ? PartnerPhase.PRE : PartnerPhase.POST);
-    const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
-    const runId = `${marketDate}-${phase}-${hhmm}`;
-
-    // Emit one message per interval with explicit runType to minimize consumer-side filtering
-    for (const interval of intervals) {
-      const payload: DataReadyPayloadV1 = {
-        version: 'v1',
-        runId,
-        phase,
-        intervals: [interval],
-        time: Date.now(),
-        marketDate,
-        env: (process.env.NODE_ENV || 'dev') as string,
-        status: 'end',
-        runStatus: 'completed',
-        endTimeUTC: new Date().toISOString(),
-        nextRefreshAtUTC: computeNextRefreshAtUtc(options.phase),
-      };
-
-      let runType: PartnerRunType = PartnerRunType.NON_TIME_SERIES; // default not used below
-      if (interval === TimeSeriesInterval.DAILY && phase === PartnerPhase.PRE) runType = PartnerRunType.TS_DAILY_PRE;
-      else if (interval === TimeSeriesInterval.DAILY && phase === PartnerPhase.POST) runType = PartnerRunType.TS_DAILY_POST;
-      else if (interval === TimeSeriesInterval.WEEKLY && phase === PartnerPhase.POST) runType = PartnerRunType.TS_WEEKLY_POST;
-      else if (interval === TimeSeriesInterval.MONTHLY && phase === PartnerPhase.POST) runType = PartnerRunType.TS_MONTHLY_POST;
-
-      await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { runType });
-    }
-  } catch (e: any) {
-    console.error('Failed to enqueue data-ready after time-series run', e?.message || e);
-  }
-}
