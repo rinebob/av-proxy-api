@@ -33,6 +33,15 @@ export interface DataReadyPayloadV1 {
   nextRefreshAtUTC?: string; // RFC3339 UTC timestamp when the next refresh is scheduled to begin
   finalizedAtUTC?: string; // RFC3339 UTC timestamp when new daily data was first detected (market-date level)
 
+  // Stateless staged flow: per-run delta and remaining metadata
+  pendingCount?: number; // number of symbols not yet finalized after this run
+  deltaFinalizedSymbols?: string[]; // symbols finalized in THIS run only
+  deltaTruncated?: boolean; // if delta list was capped
+  finalizedCountTotal?: number; // cumulative finalized count as of this run
+  remainingSymbols?: string[]; // morning-first END only: small sample of remaining
+  remainingSampleTruncated?: boolean; // if remaining sample capped
+  advisory?: 'near_complete'; // emitted once when near-complete threshold reached
+
   // Back-compat (legacy optional fields used previously internally)
   // These are accepted by validator but not required and not used by RS UI.
   nextFetchAt?: string; // legacy advisory label (ET or UTC string)

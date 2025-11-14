@@ -47,3 +47,27 @@ export enum PartnerTrigger {
   SCHEDULED = 'scheduled',
   HEARTBEAT = 'heartbeat',
 }
+
+/**
+ * Canonical runStatus values for partner data-ready payloads.
+ */
+export enum PartnerRunStatus {
+  PROCESSING = 'processing',
+  COMPLETED = 'completed',
+  COMPLETED_WITH_ERRORS = 'completed_with_errors',
+}
+
+/**
+ * Advisory flags for partner payloads.
+ */
+export enum PartnerAdvisory {
+  NEAR_COMPLETE = 'near_complete',
+}
+
+/**
+ * Publish status for partner messages.
+ */
+export enum PartnerPublishStatus {
+  BEGIN = 'begin',
+  END = 'end',
+}

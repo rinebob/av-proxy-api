@@ -7,11 +7,14 @@ export enum FirestoreCollection {
     ECONOMICS = 'economics',
     NEWS = 'news',
     SYSTEM_INFO = 'system-info',
+    SYSTEM = 'system',
 
     // For feature control
     CONFIG = 'config',
 
     TIME_SERIES = 'time-series',
+    TIME_SERIES_FINALIZATION = 'time-series-finalization',
+    TIME_SERIES_STATUS = 'time-series-status',
 
     // LEGACY - refactor to use above core collections
     ECONOMIC_INDICATORS = "economic-indicators",
