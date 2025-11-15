@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../../firebase-admin-init';
 
 import { validateDataReadyPayload, type DataReadyPayloadV1 } from './schemas/data-ready.schema';
@@ -76,43 +75,52 @@ export async function enqueueDataReadyInternal(
     }
   }
 
-  // Normalize counts with mirrors for transition
-  const symbols = Number.isInteger(validPayload.symbolsUpdatedCount) ? (validPayload.symbolsUpdatedCount as number) : 0;
-  const baselines = Number.isInteger(validPayload.baselinesUpdatedCount) ? (validPayload.baselinesUpdatedCount as number) : 0;
-
-  // Derived counts from staged flow
+  // Normalize counts (no legacy mirrors)
+  const symbolsUpdated = Number.isInteger(validPayload.symbolsUpdatedCount) ? (validPayload.symbolsUpdatedCount as number) : 0;
   const deltaCount = Array.isArray(validPayload.deltaFinalizedSymbols) ? validPayload.deltaFinalizedSymbols.length : 0;
+  const failureCount = (extraAttributes && typeof extraAttributes.failures === 'string') ? Number(extraAttributes.failures) : undefined;
+  const successCount = (extraAttributes && typeof extraAttributes.successes === 'string') ? Number(extraAttributes.successes) : undefined;
 
-  // Upsert run state (lean doc)
-  await runRef.set({
-    status: 'received',
+  // Determine status mapping
+  const topLevelStatus: 'processing' | 'completed' | 'failed' =
+    (validPayload.status === PartnerPublishStatus.END)
+      ? ((typeof failureCount === 'number' && failureCount > 0) ? 'failed' : 'completed')
+      : 'processing';
+
+  // Time fields and human-readable ET times
+  const isBegin = validPayload.status === PartnerPublishStatus.BEGIN;
+  const isEnd = validPayload.status === PartnerPublishStatus.END;
+  const nextRefreshAtUTC = validPayload.nextRefreshAtUTC ?? null;
+
+  const existingCreatedAtUTC = existing.exists ? existing.get('timing.createdAtUTC') : undefined;
+  const existingStartTimeET = existing.exists ? existing.get('startTimeET') : undefined;
+
+  const nowIso = new Date().toISOString();
+  const startTimeETFormatted = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).format(new Date());
+  const endTimeETFormatted = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).format(new Date());
+
+  // Build upsert payload conditionally to avoid overwriting BEGIN fields on END
+  const upsert: any = {
+    status: topLevelStatus,
     phase: validPayload.phase,
-    intervals: validPayload.intervals,
+    interval: Array.isArray(validPayload.intervals) && validPayload.intervals.length > 0 ? validPayload.intervals[0] : null,
     marketDate: validPayload.marketDate || null,
     counts: {
-      // Legacy mirrors retained (non-zero if provided in payload)
-      symbolsUpdated: symbols,
-      baselinesUpdated: baselines,
-      symbolsUpdatedCount: symbols,
-      baselinesUpdatedCount: baselines,
-      // New staged-flow counters
+      symbolsUpdated,
       pendingCount: (typeof validPayload.pendingCount === 'number') ? validPayload.pendingCount : null,
       finalizedCountTotal: (typeof validPayload.finalizedCountTotal === 'number') ? validPayload.finalizedCountTotal : null,
       deltaCount,
+      failures: (typeof failureCount === 'number' && Number.isFinite(failureCount)) ? failureCount : null,
+      successes: (typeof successCount === 'number' && Number.isFinite(successCount)) ? successCount : null,
     },
-    // RS header projection for UI
-    header: {
-      status: validPayload.status ?? null,
-      runStatus: validPayload.runStatus ?? null,
-    },
-    // Grouped timing fields
     timing: {
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      enqueuedAt: null,
-      endTimeUTC: validPayload.status === PartnerPublishStatus.END ? (validPayload.endTimeUTC || new Date().toISOString()) : null,
-      nextRefreshAtUTC: validPayload.nextRefreshAtUTC ?? null,
-      finalizedAtUTC: validPayload.finalizedAtUTC ?? null,
+      nextRefreshAtUTC,
     },
     // Normalized meta for audit without echoing full payload
     runMeta: {
@@ -123,7 +131,23 @@ export async function enqueueDataReadyInternal(
       trigger: validPayload.trigger || undefined,
       payloadVersion: validPayload.version,
     },
-  }, { merge: true });
+  };
+
+  if (isBegin && !existingCreatedAtUTC) {
+    upsert.timing.createdAtUTC = nowIso;
+  }
+  if (isEnd) {
+    upsert.timing.finishedAtUTC = validPayload.endTimeUTC || nowIso;
+  }
+  if (isBegin && !existingStartTimeET) {
+    upsert.startTimeET = startTimeETFormatted;
+  }
+  if (isEnd) {
+    upsert.endTimeET = endTimeETFormatted;
+  }
+
+  // Upsert run state (simplified doc)
+  await runRef.set(upsert, { merge: true });
   try {
     // Confirm runs doc write (received)
     console.log(JSON.stringify({
@@ -152,14 +176,7 @@ export async function enqueueDataReadyInternal(
   const messageId = await publishToPubSub(validPayload, attributes);
 
   await runRef.set({
-    status: 'enqueued',
-    timing: {
-      enqueuedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    runMeta: {
-      messageId,
-    },
+    runMeta: { messageId },
   }, { merge: true });
 
   try {

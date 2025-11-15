@@ -48,15 +48,18 @@ function computeNextRefreshAtUtc(phase: TradingPhase): string | undefined {
     const tz = 'America/New_York';
     const now = new Date();
 
-    // Helper to create a Date interpreted in ET, then return to UTC ISO string
+    // Convert an ET wall time to a UTC ISO string using EST/EDT fixed offsets
     function etToUtcIso(y: number, m: number, d: number, hh: number, mm: number): string {
-      // Build an ET-localized time by formatting and reparsing is unreliable; instead use Intl to get parts
-      const etNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
-      etNow.setFullYear(y);
-      etNow.setMonth(m - 1);
-      etNow.setDate(d);
-      etNow.setHours(hh, mm, 0, 0);
-      return new Date(etNow.getTime()).toISOString();
+      const etDate = new Date(new Date(Date.UTC(y, m - 1, d, hh, mm, 0, 0)).toLocaleString('en-US', { timeZone: tz }));
+      const tzName = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' }).format(etDate);
+      const isEDT = tzName.includes('EDT');
+      const offset = isEDT ? '-04:00' : '-05:00';
+      const mmStr = String(m).padStart(2, '0');
+      const ddStr = String(d).padStart(2, '0');
+      const hhStr = String(hh).padStart(2, '0');
+      const minStr = String(mm).padStart(2, '0');
+      const isoEt = `${y}-${mmStr}-${ddStr}T${hhStr}:${minStr}:00${offset}`;
+      return new Date(isoEt).toISOString();
     }
 
     const etNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
@@ -90,9 +93,9 @@ function computeNextRefreshAtUtc(phase: TradingPhase): string | undefined {
         { hh: 15, mm: 30 }, // pre-close snapshot
       ];
 
-      // Find first event at or after current ET time
+      // Find first event strictly after current ET time
       for (const ev of preEtEvents) {
-        if (h < ev.hh || (h === ev.hh && min <= ev.mm)) {
+        if (h < ev.hh || (h === ev.hh && min < ev.mm)) {
           return etToUtcIso(y, m, d, ev.hh, ev.mm);
         }
       }
@@ -108,7 +111,7 @@ function computeNextRefreshAtUtc(phase: TradingPhase): string | undefined {
       { hh: 21, mm: 0 },
     ];
     for (const ev of postEtEventsToday) {
-      if (h < ev.hh || (h === ev.hh && min <= ev.mm)) {
+      if (h < ev.hh || (h === ev.hh && min < ev.mm)) {
         return etToUtcIso(y, m, d, ev.hh, ev.mm);
       }
     }
@@ -842,6 +845,8 @@ export async function refreshForEndpoints(
   const finalizedBefore: Set<string> = new Set<string>();
   const deltaFinalized: Set<string> = new Set<string>();
   let targetTs: number = NaN;
+  // Collect per-endpoint stats for the specific endpoints run by refreshForEndpoints (time-series only)
+  const tsStats = new Map<AlphaVantageEndpoint, { refreshed: number; failures: number }>();
 
   try {
     // Load tracked symbols and types
@@ -908,6 +913,12 @@ export async function refreshForEndpoints(
           
           await handler.fetch(baseParams);
           processedThisRun++;
+          // Track time-series refreshed count
+          if (isTimeSeriesEndpoint(endpoint)) {
+            const cur = tsStats.get(endpoint) || { refreshed: 0, failures: 0 };
+            cur.refreshed++;
+            tsStats.set(endpoint, cur);
+          }
           
           // For DAILY, detect flip to today after handler write to compute delta
           if (endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED && Number.isFinite(targetTs)) {
@@ -1026,6 +1037,22 @@ export async function refreshForEndpoints(
         }).filter(Boolean))) as TimeSeriesInterval[];
 
         for (const interval of intervals) {
+          // Compute aggregate successes/failures for endpoints that map to this interval
+          const endpointsForInterval = timeSeriesEndpoints.filter((e) => {
+            if (interval === TimeSeriesInterval.DAILY) return e === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED;
+            if (interval === TimeSeriesInterval.WEEKLY) return e === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED;
+            if (interval === TimeSeriesInterval.MONTHLY) return e === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED;
+            return false;
+          });
+          let failures = 0;
+          let successes = 0;
+          for (const ep of endpointsForInterval) {
+            const s = tsStats.get(ep as AlphaVantageEndpoint);
+            if (s) {
+              failures += (s.failures || 0);
+              successes += (s.refreshed || 0);
+            }
+          }
           const payload: DataReadyPayloadV1 = {
             version: 'v1',
             runId,
@@ -1040,8 +1067,11 @@ export async function refreshForEndpoints(
             nextRefreshAtUTC: computeNextRefreshAtUtc(phaseFinal),
           };
 
-          // DAILY-specific pending/delta computation
-          if (interval === TimeSeriesInterval.DAILY && Number.isFinite(targetTs)) {
+          // Align symbolsUpdated with successes for END publishes
+          payload.symbolsUpdatedCount = successes;
+
+          // DAILY-specific pending/delta computation (POST only)
+          if (interval === TimeSeriesInterval.DAILY && phaseFinal === TradingPhase.POST && Number.isFinite(targetTs)) {
             const total = Array.isArray(symbols) ? symbols.length : 0;
             const finalizedTotal = finalizedBefore.size + deltaFinalized.size;
             const pendingCount = Math.max(0, total - finalizedTotal);
@@ -1182,7 +1212,9 @@ export async function refreshForEndpoints(
               : (interval === TimeSeriesInterval.DAILY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_DAILY_POST
               : (interval === TimeSeriesInterval.WEEKLY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_WEEKLY_POST
               : (interval === TimeSeriesInterval.MONTHLY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_MONTHLY_POST
-              : PartnerRunType.NON_TIME_SERIES
+              : PartnerRunType.NON_TIME_SERIES,
+            failures: String(failures),
+            successes: String(successes)
           });
         }
       } catch (announceError) {
