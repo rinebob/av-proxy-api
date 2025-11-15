@@ -977,7 +977,7 @@ export async function refreshForEndpoints(
             try {
               const statusDocPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_STATUS}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
               const ref = db.doc(statusDocPath);
-              const entry: [string, number] = [symbol, Date.now()];
+              const entry: { s: string; at: number } = { s: symbol, at: Date.now() };
               const CAP = 3000;
               await db.runTransaction(async (tx) => {
                 const snap = await tx.get(ref);
@@ -986,6 +986,7 @@ export async function refreshForEndpoints(
                 // If cap already reached, skip write and mark capped for the remainder of this run
                 if (Array.isArray(list) && list.length >= CAP) {
                   updateLogCapped = true;
+                  logger.info('updateLog.skip_cap', { path: statusDocPath, length: list.length, cap: CAP });
                   return;
                 }
                 const updated = [...list, entry];
@@ -994,8 +995,11 @@ export async function refreshForEndpoints(
                   updateLogCapped = true;
                 }
                 tx.set(ref, { updateLog: capped, timing: { updatedAt: Timestamp.now(), createdAt: prev?.timing?.createdAt ?? Timestamp.now() } }, { merge: true });
+                logger.info('updateLog.appended', { path: statusDocPath, symbol, length: capped.length });
               });
-            } catch {}
+            } catch (e) {
+              logger.error('updateLog.error', { error: String((e as any)?.message || e) });
+            }
           }
           
         } catch (error) {
