@@ -729,6 +729,12 @@ export async function refreshForEndpoints(
     dow: dowEnum
   });
 
+  // Optional per-symbol update logging to system/time-series-status for analysis
+  // Enable by setting env var TS_STATUS_UPDATELOG=on
+  const enableUpdateLog = String(process.env.TS_STATUS_UPDATELOG || '').toLowerCase() === 'on';
+  // Local guard to avoid further writes in this run once cap is reached
+  let updateLogCapped = false;
+
   // BEGIN message (time-series only, limited to DAILY intraday/pre/post runs)
   // Hoist runId so END uses the same ID
   let beginRunId: string | null = null;
@@ -951,6 +957,32 @@ export async function refreshForEndpoints(
             runId,
             durationMs: Date.now() - startTime
           });
+
+          // Append per-symbol update log entry for DAILY POST runs when enabled
+          if (enableUpdateLog && !updateLogCapped && endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED && phaseFinal === TradingPhase.POST) {
+            try {
+              const statusDocPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_STATUS}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
+              const ref = db.doc(statusDocPath);
+              const entry: [string, number] = [symbol, Date.now()];
+              const CAP = 3000;
+              await db.runTransaction(async (tx) => {
+                const snap = await tx.get(ref);
+                const prev = snap.exists ? (snap.data() as any) : {};
+                const list: any[] = Array.isArray(prev?.updateLog) ? prev.updateLog : [];
+                // If cap already reached, skip write and mark capped for the remainder of this run
+                if (Array.isArray(list) && list.length >= CAP) {
+                  updateLogCapped = true;
+                  return;
+                }
+                const updated = [...list, entry];
+                const capped = updated.length > CAP ? updated.slice(updated.length - CAP) : updated;
+                if (capped.length >= CAP) {
+                  updateLogCapped = true;
+                }
+                tx.set(ref, { updateLog: capped, timing: { updatedAt: Timestamp.now(), createdAt: prev?.timing?.createdAt ?? Timestamp.now() } }, { merge: true });
+              });
+            } catch {}
+          }
           
         } catch (error) {
           // Record failed refresh with run context
