@@ -358,6 +358,59 @@ This project uses a Time Series endpoint–driven update flow for Alpha Vantage 
   - The top-level provider/interval doc (`symbol-data/{symbol}/time-series/av-daily-adjusted`) reflects finalized freshness at post-close
   - Pre-close writes are snapshots and should not be interpreted as a finalized daily refresh
 
+### Manual Overrides and Analysis Aids (New)
+
+#### Manual run overrides for time-series schedulers
+- The internal helper `refreshForEndpoints()` supports manual overrides when invoked programmatically (e.g., local node run, admin function):
+  - `force: boolean` — when true, bypasses the weekend/holiday market-closure guard to allow off-hours runs (e.g., Saturdays).
+  - `marketDate?: string` — optional target market date in `YYYY-MM-DD`. When provided, the run computes context (DOW/phase strings) using that date (ET) and writes status docs under that date.
+  - `phase?: TradingPhase` — explicitly set `PRE` or `POST` (defaults to `POST` for manual runs if unspecified).
+  - `trigger?: RefreshTrigger` — tagging for downstream logs/metrics (e.g., `MANUAL`).
+
+Example (local to prod):
+```
+await refreshForEndpoints(
+  [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
+  { force: true, phase: TradingPhase.POST, trigger: RefreshTrigger.MANUAL, marketDate: '2025-11-14' }
+);
+```
+
+PowerShell one-shot (local → prod) to populate `updateLog` (without API key):
+
+````powershell
+$env:GOOGLE_CLOUD_PROJECT='alpha-vantage-proxy-api'; `
+$env:ALPHAVANTAGE_API_KEY='<YOUR_PROD_AV_KEY_HERE>'
+$env:TS_STATUS_UPDATELOG='on'; `
+node -e "
+(async () => {
+  const { refreshForEndpoints } = require('./functions/lib/src/v2/alpha-vantage/data-refresher/av-refresh-manager.js');
+  const { AlphaVantageEndpoint } = require('./functions/lib/shared/alpha-vantage/index.js');
+  const { TradingPhase } = require('./functions/lib/shared/health-metrics/index.js');
+  const { RefreshTrigger } = require('./functions/lib/shared/firestore/index.js');
+  await refreshForEndpoints(
+    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
+    { force: true, phase: TradingPhase.POST, trigger: RefreshTrigger.MANUAL, marketDate: 'YYYY-MM-DD' }
+  );
+  process.exit(0);
+})().catch(e => { console.error(e); process.exit(1); });
+"
+````
+
+Notes:
+- Requires Application Default Credentials for Firestore access (`gcloud auth application-default login`).
+- `TS_STATUS_UPDATELOG=on` enables per-symbol logging under `system/time-series-status/daily-adjusted/{YYYY-MM-DD}`.
+- Replace `YYYY-MM-DD` with the target market date.
+
+#### Per-symbol update log for post-close runs
+- Location: `system/time-series-status/daily-adjusted/{YYYY-MM-DD}`
+- Field: `updateLog: Array<{ s: string; at: number }>`
+  - `s`: symbol
+  - `at`: epoch milliseconds when that symbol’s finalized daily write occurred
+- Scope: appended only during `POST` runs of `TIME_SERIES_DAILY_ADJUSTED`.
+- Toggle: enabled when env var `TS_STATUS_UPDATELOG=on` is present in the Functions runtime.
+- Cap: the array is capped at 3000 entries per day; once reached, further appends are skipped for the remainder of that run.
+- Purpose: short-term analysis of provider update timings; can be disabled later by removing the env flag.
+
 ### Future Improvement (TODO)
 
 - TODO: When real-time subscription is enabled, migrate pre-close snapshots to use Alpha Vantage BULK_QUOTE (or equivalent real-time quote stream) for higher fidelity and lower latency. Until then, pre-close uses `TIME_SERIES_INTRADAY` (compact) per above.
