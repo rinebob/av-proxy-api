@@ -35,7 +35,7 @@ export const partnerDataReadyHeartbeat = onSchedule(
 
     const { phase, marketDate } = getAutoPhaseAndMarketDate();
     const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
-    const runId = `${marketDate}-${phase}-${hhmm}`;
+    const runId = `${marketDate}-${hhmm}-${phase}-heartbeat`;
 
     const payload: DataReadyPayloadV1 = {
       version: 'v1',

@@ -49,7 +49,7 @@ export const partnerDataReadyPublishV2 = onRequest(async (req: Request, res: Res
         ? body.intervals
         : [TimeSeriesInterval.DAILY];
       const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
-      const runId = `${marketDate}-${phase}-${hhmm}`;
+      const runId = `${marketDate}-${hhmm}-${phase}`;
       payload = {
         version: 'v1',
         runId,

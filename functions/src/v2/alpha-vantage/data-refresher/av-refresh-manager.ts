@@ -495,7 +495,8 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
     const { phase, marketDate } = getAutoPhaseAndMarketDate();
     const tz = 'America/New_York';
     const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
-    const runId = `${marketDate}-${phase}-${hhmm}`;
+    const isManual = (((options as any)?.trigger === RefreshTrigger.MANUAL) || (process.env.FUNCTIONS_EMULATOR === 'true'));
+    const runId = isManual ? `${marketDate}-${hhmm}-${phase}-manual` : `${marketDate}-${hhmm}-${phase}`;
 
     const intervals: TimeSeriesInterval[] = [TimeSeriesInterval.DAILY];
     const payload: DataReadyPayloadV1 = {
@@ -733,7 +734,7 @@ export async function refreshForEndpoints(
     const phasePartner: PartnerPhase = (phaseFinal === TradingPhase.PRE ? PartnerPhase.PRE : PartnerPhase.POST);
     const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
     const isManual = (trigger === RefreshTrigger.MANUAL) || (process.env.FUNCTIONS_EMULATOR === 'true');
-    const runId = isManual ? `${marketDate}-${phasePartner}-manual-${hhmm}` : `${marketDate}-${phasePartner}`;
+    const runId = isManual ? `${marketDate}-${hhmm}-${phasePartner}-manual` : `${marketDate}-${hhmm}-${phasePartner}`;
     beginRunId = runId;
     beginStartIso = new Date().toISOString();
 
@@ -1014,7 +1015,7 @@ export async function refreshForEndpoints(
         const phasePartner: PartnerPhase = (phaseFinal === TradingPhase.PRE ? PartnerPhase.PRE : PartnerPhase.POST);
         const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
         const isManual = ((options?.trigger === RefreshTrigger.MANUAL) || (process.env.FUNCTIONS_EMULATOR === 'true'));
-        const runId = beginRunId || (isManual ? `${marketDate}-${phasePartner}-manual-${hhmm}` : `${marketDate}-${phasePartner}`);
+        const runId = beginRunId || (isManual ? `${marketDate}-${hhmm}-${phasePartner}-manual` : `${marketDate}-${hhmm}-${phasePartner}`);
 
         // Map endpoints -> intervals
         const intervals = Array.from(new Set(timeSeriesEndpoints.map((e) => {

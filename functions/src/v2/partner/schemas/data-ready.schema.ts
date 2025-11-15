@@ -53,9 +53,8 @@ export interface ValidationResult<T> {
   errors?: string[];
 }
 
-// Allow optional unique suffix (lowercase letters/digits, 1-16 chars) after base date-phase
-// Also allow the dashed manual time suffix pattern: -manual-\d{4}
-const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}-(pre|post)(-([a-z0-9]{1,16}|manual-\d{4}))?$/;
+// Enforce runId format: YYYY-MM-DD-HHMM-(pre|post)[-(manual|heartbeat)] using Eastern Time HHMM
+const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}-\d{4}-(pre|post)(-(manual|heartbeat))?$/;
 const MARKET_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_INTERVALS: TimeSeriesInterval[] = [
   TimeSeriesInterval.DAILY,
@@ -72,7 +71,7 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
   if (obj.version !== 'v1') errors.push('version must be "v1"');
   if (typeof obj.runId !== 'string' || obj.runId.length === 0) errors.push('runId is required');
   if (obj.runId && !RUN_ID_RE.test(obj.runId)) {
-    errors.push('runId should match YYYY-MM-DD-(pre|post)[-suffix], where optional suffix is 1-16 lowercase letters/digits');
+    errors.push('runId should match YYYY-MM-DD-HHMM-(pre|post)[-(manual|heartbeat)]');
   }
   if (obj.phase !== 'pre' && obj.phase !== 'post') errors.push('phase must be "pre" or "post"');
 
