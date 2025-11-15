@@ -695,24 +695,38 @@ export async function refreshForEndpoints(
     force?: boolean; 
     phase?: TradingPhase;
     trigger?: RefreshTrigger;
+    marketDate?: string; // Optional manual target market date (YYYY-MM-DD)
   } = {}
 ) {
-  // Market-closure guard (ET): weekend/holiday
+  // Destructure options early to honor force during market-closure guard
+  const { force = false, phase, trigger = RefreshTrigger.SCHEDULER, marketDate: marketDateOverride } = options;
+  // Market-closure guard (ET): weekend/holiday; allow override with force=true
   const mc2 = getMarketClosureInfo();
-  if (mc2.closed) {
+  if (mc2.closed && !force) {
     // Use top-level logger to avoid constructing per-run logger when skipping
     log.info('market.closed_skip', { reason: mc2.reason, etDate: mc2.etDate, component: RefreshLogComponent.RefreshForEndpoints });
     return; // Silent no-op beyond the single structured log
+  } else if (mc2.closed && force) {
+    log.info('market.closed_force_continue', { reason: mc2.reason, etDate: mc2.etDate, component: RefreshLogComponent.RefreshForEndpoints });
   }
-  const { force = false, phase, trigger = RefreshTrigger.SCHEDULER } = options;
   const startTime = Date.now();
   const logger = createLogger('av.refresh.scheduled');
   
-  // Derive ET market date and DOW once for this invocation
+  // Derive ET market date and DOW once for this invocation (allow override)
   const tz = 'America/New_York';
-  const now = new Date();
-  const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
-  const marketDate = fmtDate.format(now); // YYYY-MM-DD
+  let now = new Date();
+  let marketDate = '';
+  if (typeof marketDateOverride === 'string' && /\d{4}-\d{2}-\d{2}/.test(marketDateOverride)) {
+    marketDate = marketDateOverride;
+    // Use 12:00 ET on override date to compute DOW consistently
+    const dateParts = marketDateOverride.split('-').map((s) => Number(s));
+    const [y, m, d] = dateParts as [number, number, number];
+    // Construct an ET-local date by formatting from UTC noon then interpreting in ET for DOW
+    now = new Date(Date.UTC(y, (m - 1), d, 12, 0, 0));
+  } else {
+    const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+    marketDate = fmtDate.format(now); // YYYY-MM-DD
+  }
   const dowIdx = Number(new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay());
   const DOW_ENUM: DayOfWeek[] = [DayOfWeek.Sun, DayOfWeek.Mon, DayOfWeek.Tue, DayOfWeek.Wed, DayOfWeek.Thu, DayOfWeek.Fri, DayOfWeek.Sat];
   const dowEnum: DayOfWeek = DOW_ENUM[dowIdx];
