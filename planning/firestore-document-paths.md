@@ -102,3 +102,85 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
 ---
 
 ## Example Document Paths
+
+---
+
+## System Finalization and Status (Daily Adjusted)
+
+- Finalization marker (created only after dataset validation passes):
+  - Path: `/system/time-series-finalization/daily-adjusted/{YYYY-MM-DD}`
+  - Fields:
+    - `marketDate: string` (YYYY-MM-DD)
+    - `finalizedAtUTC: string` (ISO UTC)
+    - `finalizedAtET: string` (ET wall clock, YYYY-MM-DD HH:mm:ss)
+    - `totalSymbols: number`
+    - `finalizedCountTotal: number`
+    - `phase: 'post'`
+    - `source: 'av-refresh-manager'`
+    - `timing: { createdAt: Timestamp, updatedAt: Timestamp }`
+  - Trigger:
+    - Firestore onCreate publishes a single partner data-ready POST message (ts-daily-post).
+
+- Status doc (run summaries, validation, remediation):
+  - Path: `/system/time-series-status/daily-adjusted/{YYYY-MM-DD}`
+  - Fields (subset):
+    - `runs[]` and `currentRun` snapshots for begin/end bookkeeping
+    - `counts: { totalSymbols, finalizedCountTotal, pendingCount, deltaCount }`
+    - `validation: { totalSymbols, checked, failures, warnings, failedSymbolsSample[], updatedAt }`
+    - `remediation: { needsRemediation: boolean, failedSymbolsSample[], updatedAt }`
+  - Notes:
+    - Validation runs before finalization. If it fails, `needsRemediation=true` is set and an inline remediation re-fetch runs for failed symbols, then validation re-runs. Finalization is written only on pass.
+
+---
+
+## Symbol Data: Year‑Sharded Time‑Series Doc Shape (Alpha Vantage)
+
+- Path pattern (DAILY_ADJUSTED):
+  - `/symbol-data/{SYMBOL}/time-series/av-daily-adjusted/years/{YYYY}`
+
+- Year doc fields:
+  ```json
+  {
+    "bars": [
+      {
+        "t": 1731542400000,
+        "d": "2024-11-14",
+        "dow": 4,
+        "o": 189.12,
+        "h": 191.02,
+        "l": 188.50,
+        "c": 190.77,
+        "v": 45678900,
+        "ac": 190.77,
+        "dv": 0,
+        "sc": 1,
+        "pc": 188.40,
+        "ch": 2.37,
+        "cp": 1.26,
+        "ip": 190.70,
+        "io": 1731619200000,
+        "it": "16:00",
+        "ic": 0.30,
+        "ipc": 0.16,
+        "fz": 1731621312000
+      }
+    ],
+    "count": 252,
+    "firstBarTs": 1704672000000,
+    "lastBarTs": 1732060800000,
+    "latest": { /* last non-placeholder bar (same shape as a bar) */ },
+    "latestUtcIso": "2024-11-20T00:00:00.000Z",
+    "latestEtDateTime": "2024-11-19 16:00:00",
+    "latestIoUtcIso": "2024-11-19T21:00:00.000Z",
+    "latestIoEtDateTime": "2024-11-19 16:00:00",
+    "version": "1732060800000-252",
+    "updatedAt": "<Timestamp>"
+  }
+  ```
+
+- Notes
+  - `bars` is an array of CompactBar objects sorted ascending by `t` (UTC midnight of market date).
+  - `fz` (finalized-at ms) is stamped when the daily bar first finalizes post-close and is present only for non-placeholder bars.
+  - `io/it/ip/ic/ipc` are intraday snapshot fields and may be present from pre-close writes.
+  - `latest*` fields are derived conveniences: last non-placeholder bar, its UTC/ET strings, and latest intraday observation timestamps.
+  - Monthly uses a single `all` doc at `/symbol-data/{SYMBOL}/time-series/av-monthly-adjusted/all` with the same `bars` shape.

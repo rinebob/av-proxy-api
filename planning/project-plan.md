@@ -331,32 +331,56 @@ This project uses a Time Series endpoint–driven update flow for Alpha Vantage 
 
 ### Pre-close vs Post-close Behavior (Daily)
 
-- Pre-close (purpose): capture a real-time price snapshot close to the market close to inform trading decisions. It creates the initial bar for the trading day with intraday data.  It is not a full bar update.
-- Pre-close implementation:
-  - Endpoint: TIME_SERIES_INTRADAY with `interval=1min` and `outputsize=compact`
-  - For each symbol, check the latest intraday data point
-  - Create a new bar for the current trading day with the following intraday fields:
-    - `ip`: latest intraday price (mark price at snapshot time)
-    - `io`: intraday observed-at time (epoch ms)
-    - `it`: intraday time derived as `HH:mm` America/New_York from `io`
-    - `ic`: intraday change = `latestPrice - previousClose`
-    - `ipc`: intraday percent change = `(ic / previousClose) * 100`
-  - The pre-close refresh always runs at the scheduled time, regardless of market activity
-  - This creates the initial bar for the trading day with intraday data
+- Pre-close (purpose): capture the official RTH close using intraday data, then persist to the daily bar.
+- Pre-close implementation (updated):
+  - Schedule: 16:15 ET (delayed) to ensure the 16:00:00 ET 1-min bar is available.
+  - Endpoint: TIME_SERIES_INTRADAY with `interval=1min`.
+  - For each symbol, select the `16:00:00` ET bar from the current market date.
+  - Persist to the year-sharded DAILY doc using `upsertAvDailyBar` with fields:
+    - `o/h/l/c/v`: from the 16:00:00 ET 1-minute bar
+    - `io`: observed-at timestamp (ms) for audit
+  - Skip parent meta bump on this write; finalization will bump.
 
 - Post-close (finalization):
-  - Endpoint: TIME_SERIES_DAILY_ADJUSTED with `outputsize=compact`
-  - Update the existing bar (created during pre-close) with finalized daily fields:
-    - `o/h/l/c/v`: daily open, high, low, close, volume
-    - `ac`: adjusted close
-    - `dv`: dividend amount
-    - `sc`: split coefficient
-    - `pc/ch/cp`: daily deltas computed against the prior adjusted close
-  - The outcome is a single document for the day that contains both pre-close intraday snapshot fields and post-close finalized daily fields
+  - Endpoint: TIME_SERIES_DAILY_ADJUSTED with `outputsize=compact` on scheduled post-close runs and retries.
+  - When all symbols are finalized (no pending) run dataset validation; only on pass write the finalization doc at:
+    - `/system/time-series-finalization/daily-adjusted/{YYYY-MM-DD}`
+    - Full document shape (as written by the refresher):
+      ```json
+      {
+        "marketDate": "YYYY-MM-DD",
+        "finalizedAtUTC": "2025-11-15T21:35:12.345Z",
+        "finalizedAtET": "2025-11-15 16:35:12",
+        "totalSymbols": 1234,
+        "finalizedCountTotal": 1234,
+        "phase": "post",
+        "source": "av-refresh-manager",
+        "timing": {
+          "createdAt": "<serverTimestamp>",
+          "updatedAt": "<serverTimestamp>"
+        }
+      }
+      ```
+  - POST partner publish occurs exclusively via Firestore onCreate trigger of the finalization doc.
 
 - Freshness signaling:
-  - The top-level provider/interval doc (`symbol-data/{symbol}/time-series/av-daily-adjusted`) reflects finalized freshness at post-close
-  - Pre-close writes are snapshots and should not be interpreted as a finalized daily refresh
+  - The top-level provider/interval doc (`symbol-data/{symbol}/time-series/av-daily-adjusted`) reflects finalized freshness after post-close.
+  - Pre-close writes are persisted to the daily bar but do not imply finalization.
+
+### Validation-before-finalization and Publishing Model (Daily)
+
+- Validation runs before writing the finalization doc:
+  - Completeness: every tracked symbol has a bar at `targetTs`.
+  - Sanity: finite `o/h/l/c/v`, `l<=h`, `o,c ∈ [l,h]`, `v>=0`.
+  - Status summary is written under `/system/time-series-status/daily-adjusted/{YYYY-MM-DD}.validation`.
+- If validation fails:
+  - Set `runStatus=completed_with_errors` for the run.
+  - Write `/system/time-series-status/daily-adjusted/{YYYY-MM-DD}.remediation` with `needsRemediation: true` and a failed symbols sample.
+  - Inline remediation re-fetches DAILY_ADJUSTED for failed symbols, then validation is re-run.
+  - Only if validation passes after remediation is the finalization doc written.
+- Publishing:
+  - PRE messages continue to be published by the pre schedules.
+  - DAILY POST publish is no longer emitted by the refresher; it is emitted only by the finalization onCreate trigger.
 
 ### Manual Overrides and Analysis Aids (New)
 
