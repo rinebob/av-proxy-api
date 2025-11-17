@@ -153,13 +153,12 @@ function formatPacific(ms: number): string {
   return new Intl.DateTimeFormat('en-CA', opts).format(new Date(ms)) + ' PT';
 }
 
-function genTimeSuffixET(): string {
+function genHhmmET(): string {
   const tz = 'America/New_York';
   const now = new Date();
   const hh = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false }).format(now).padStart(2, '0');
   const mm = new Intl.DateTimeFormat('en-US', { timeZone: tz, minute: '2-digit' }).format(now).padStart(2, '0');
-  const ss = new Intl.DateTimeFormat('en-US', { timeZone: tz, second: '2-digit' }).format(now).padStart(2, '0');
-  return `${hh}${mm}${ss}`; // hhmmss
+  return `${hh}${mm}`; // hhmm
 }
 
 async function main() {
@@ -173,8 +172,7 @@ async function main() {
     const intervals: TimeSeriesInterval[] = args.intervals
       ? args.intervals.split(',').map((s) => s.trim()).filter(Boolean).map((s) => s.toLowerCase() as any)
       : [TimeSeriesInterval.DAILY];
-    const baseRunId = `${marketDate}-${phase}`;
-    const runId = `${baseRunId}-${genTimeSuffixET()}`; // ensure uniqueness per attempt with ET time hhmmss
+    const runId = `${marketDate}-${genHhmmET()}-${phase}`; // yyyy-mm-dd-hhmm-phase
     payload = {
       version: 'v1',
       runId,
@@ -208,8 +206,8 @@ async function main() {
     version: value.version,
     phase: value.phase,
   };
-  if (value.marketDate) previewAttributes.marketDate = value.marketDate;
-  if (value.env) previewAttributes.env = value.env as string;
+  if (value.marketDate) previewAttributes['marketDate'] = value.marketDate;
+  if (value.env) previewAttributes['env'] = value.env as string;
   for (const [k, v] of Object.entries(extraAttributes)) {
     if (v != null) previewAttributes[k] = String(v);
   }
