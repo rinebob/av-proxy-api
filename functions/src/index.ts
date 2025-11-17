@@ -51,6 +51,7 @@ export {
   refreshAvWeeklyMonthlyTimeSeriesPostClose,
   refreshAvDailyTimeSeriesPostEveningRetry00,
   refreshAvDailyTimeSeriesPostMorning0700,
+  refreshAvIntradayRthClose1615Pre,
 } from './v2/alpha-vantage/data-refresher/av-refresh-manager';
 
 // New Benzinga Data Refresher

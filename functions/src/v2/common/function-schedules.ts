@@ -69,6 +69,16 @@ export const TS_DAILY_POST_MORNING_CATCHUP_0630 = '30 6 * * 1-5';
 export const TS_DAILY_POST_MORNING_CATCHUP_0700 = '0 7 * * 1-5';
 
 /**
+ * Intraday RTH-close snapshot using delayed data.
+ *
+ * Purpose: At 16:15 ET, fetch 1-minute intraday to capture the 16:00:00 ET bar
+ * for each tracked symbol (RTH close), and persist a PRE snapshot.
+ * Cron: 15 16 * * 1-5 (4:15 PM ET)
+ * Timezone: America/New_York (set at function registration).
+ */
+export const TS_INTRADAY_RTH_CLOSE_1615 = '15 16 * * 1-5';
+
+/**
  * Generic post-close schedule used by weekly/monthly time-series runs.
  *
  * Purpose: writes finalized weekly/monthly bars each trading day after close.
