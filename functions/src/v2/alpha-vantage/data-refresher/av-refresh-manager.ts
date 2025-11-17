@@ -25,6 +25,7 @@ import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema
 import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerRunType, PartnerRunStatus, PartnerPublishStatus } from '../../partner/constants';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 import { TradingPhase } from '@shared/health-metrics';
+import { runDailyValidation } from '../../partner/daily-validation.service';
 
 // Structured logger (shared)
 const log = createLogger('av.refresh');
@@ -1154,52 +1155,110 @@ export async function refreshForEndpoints(
               if (pendingCount > remaining.length) payload.remainingSampleTruncated = true;
             }
 
-            // finalizedAtUTC: set only when all symbols are finalized (pendingCount===0).
-            // Use the latest fz (last symbol to finalize) as the timestamp for the day.
+            // finalizedAtUTC and finalization doc are set only when all symbols are finalized
+            // AND the dataset passes validation. Validation runs before writing the marker.
             if (pendingCount === 0) {
+              let validationPassed = false;
               try {
-                const finalizedSymbols = Array.from(new Set<string>([...finalizedBefore, ...deltaFinalized]));
-                const sample = finalizedSymbols.slice(0, 25);
-                const y = getYearFromEpochMillis(Number(targetTs));
-                let maxFz: number | null = null;
-                for (const s of sample) {
-                  const yearDocPath = getSymbolTimeSeriesYearDocPath(s, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, ApiProvider.ALPHA_VANTAGE, y);
-                  const snap = await db.doc(yearDocPath).get();
-                  const bars = (snap.get('bars') ?? []) as Array<any>;
-                  const b = bars.find((bb) => Number(bb?.t) === Number(targetTs));
-                  const fz = b?.fz != null ? Number(b.fz) : null;
-                  if (Number.isFinite(fz)) {
-                    maxFz = (maxFz == null) ? fz : Math.max(maxFz, fz as number);
-                  }
-                }
-                if (maxFz != null) {
-                  const finalizedIso = new Date(maxFz).toISOString();
-                  payload.finalizedAtUTC = finalizedIso;
+                let validation = await runDailyValidation(marketDate, Number(targetTs), symbols);
+                validationPassed = !!validation?.passed;
+                if (!validationPassed) {
+                  payload.runStatus = PartnerRunStatus.COMPLETED_WITH_ERRORS;
+                  log.warn('daily.validation.failed', { marketDate, failures: validation?.summary?.failures });
+
+                  // Mark status for remediation and store failed sample
                   try {
-                    // Persist a day-level marker for UI/partners (use enum-based segments)
-                    const docPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_FINALIZATION}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
-                    const docRef = db.doc(docPath);
-                    const tz = 'America/New_York';
-                    const finalizedAtET = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(maxFz)).replace(',', '');
-                    await db.runTransaction(async (tx) => {
-                      const snap = await tx.get(docRef);
-                      const prev = snap.exists ? (snap.data() as any) : {};
-                      const createdAt = prev?.createdAt ?? Timestamp.now();
-                      tx.set(docRef, {
-                        marketDate,
-                        finalizedAtUTC: finalizedIso,
-                        finalizedAtET,
-                        totalSymbols: Array.isArray(symbols) ? symbols.length : 0,
-                        finalizedCountTotal: finalizedTotal,
-                        phase: String(phasePartner),
-                        source: 'av-refresh-manager',
-                        timing: { createdAt, updatedAt: Timestamp.now() },
-                      }, { merge: true });
-                    });
+                    const statusDocPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_STATUS}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
+                    await db.doc(statusDocPath).set({
+                      remediation: {
+                        needsRemediation: true,
+                        failedSymbolsSample: validation?.failures ?? [],
+                        updatedAt: Timestamp.now(),
+                      }
+                    }, { merge: true });
+                  } catch {}
+
+                  // Inline remediation: re-fetch DAILY_ADJUSTED for failed symbols using existing handler
+                  try {
+                    const failedSymbols = Array.isArray(validation?.failures) ? validation.failures.map(f => f.symbol) : [];
+                    if (failedSymbols.length > 0) {
+                      const handler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
+                      for (const s of failedSymbols) {
+                        try {
+                          await handler.fetch({ symbol: s, outputsize: 'compact', __checkWriteToggle: false });
+                        } catch (e: any) {
+                          log.error('remediation.fetch.fail', { symbol: s, error: String(e?.message || e) });
+                        }
+                      }
+                      // Re-run validation after remediation
+                      validation = await runDailyValidation(marketDate, Number(targetTs), symbols);
+                      validationPassed = !!validation?.passed;
+                    }
+                  } catch {}
+
+                  // If passed after remediation, proceed to finalize and clear remediation flag
+                  if (validationPassed) {
+                    log.info('daily.validation.passed_after_remediation', { marketDate, checked: validation?.summary?.checked });
                     try {
-                      const snapNow = await docRef.get();
-                      logger.info('finalization.doc', { path: docPath, data: snapNow.data() });
+                      const statusDocPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_STATUS}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
+                      await db.doc(statusDocPath).set({
+                        remediation: {
+                          needsRemediation: false,
+                          updatedAt: Timestamp.now(),
+                        }
+                      }, { merge: true });
                     } catch {}
+                  }
+                } else {
+                  log.info('daily.validation.passed', { marketDate, checked: validation?.summary?.checked });
+                }
+
+                // If validation now passed (initially or after remediation), compute finalizedAtUTC and write marker
+                if (validationPassed) {
+                  try {
+                    const finalizedSymbols = Array.from(new Set<string>([...finalizedBefore, ...deltaFinalized]));
+                    const sample = finalizedSymbols.slice(0, 25);
+                    const y = getYearFromEpochMillis(Number(targetTs));
+                    let maxFz: number | null = null;
+                    for (const s of sample) {
+                      const yearDocPath = getSymbolTimeSeriesYearDocPath(s, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, ApiProvider.ALPHA_VANTAGE, y);
+                      const snap = await db.doc(yearDocPath).get();
+                      const bars = (snap.get('bars') ?? []) as Array<any>;
+                      const b = bars.find((bb) => Number(bb?.t) === Number(targetTs));
+                      const fzVal = b?.fz != null ? Number(b.fz) : null;
+                      if (Number.isFinite(fzVal)) {
+                        maxFz = (maxFz == null) ? (fzVal as number) : Math.max(maxFz, fzVal as number);
+                      }
+                    }
+                    if (maxFz != null) {
+                      const finalizedIso = new Date(maxFz).toISOString();
+                      payload.finalizedAtUTC = finalizedIso;
+                      try {
+                        const docPath = `${FirestoreCollection.SYSTEM}/${FirestoreCollection.TIME_SERIES_FINALIZATION}/${FirestoreCollection.DAILY_ADJUSTED}/${marketDate}`;
+                        const docRef = db.doc(docPath);
+                        const tz = 'America/New_York';
+                        const finalizedAtET = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(maxFz)).replace(',', '');
+                        await db.runTransaction(async (tx) => {
+                          const snap = await tx.get(docRef);
+                          const prev = snap.exists ? (snap.data() as any) : {};
+                          const createdAt = prev?.createdAt ?? Timestamp.now();
+                          tx.set(docRef, {
+                            marketDate,
+                            finalizedAtUTC: finalizedIso,
+                            finalizedAtET,
+                            totalSymbols: Array.isArray(symbols) ? symbols.length : 0,
+                            finalizedCountTotal: finalizedTotal,
+                            phase: String(phasePartner),
+                            source: 'av-refresh-manager',
+                            timing: { createdAt, updatedAt: Timestamp.now() },
+                          }, { merge: true });
+                        });
+                        try {
+                          const snapNow = await docRef.get();
+                          logger.info('finalization.doc', { path: docPath, data: snapNow.data() });
+                        } catch {}
+                      } catch {}
+                    }
                   } catch {}
                 }
               } catch {}
@@ -1257,15 +1316,19 @@ export async function refreshForEndpoints(
           }
 
           // Emit END
-          await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { 
-            runType: (interval === TimeSeriesInterval.DAILY && phasePartner === PartnerPhase.PRE) ? PartnerRunType.TS_DAILY_PRE
-              : (interval === TimeSeriesInterval.DAILY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_DAILY_POST
-              : (interval === TimeSeriesInterval.WEEKLY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_WEEKLY_POST
-              : (interval === TimeSeriesInterval.MONTHLY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_MONTHLY_POST
-              : PartnerRunType.NON_TIME_SERIES,
-            failures: String(failures),
-            successes: String(successes)
-          });
+          // IMPORTANT: For DAILY POST, publishing is handled exclusively by the finalization onCreate trigger.
+          // So skip publishing here when interval=DAILY and phase=POST.
+          const isDailyPost = (interval === TimeSeriesInterval.DAILY && phasePartner === PartnerPhase.POST);
+          if (!isDailyPost) {
+            await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { 
+              runType: (interval === TimeSeriesInterval.DAILY && phasePartner === PartnerPhase.PRE) ? PartnerRunType.TS_DAILY_PRE
+                : (interval === TimeSeriesInterval.WEEKLY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_WEEKLY_POST
+                : (interval === TimeSeriesInterval.MONTHLY && phasePartner === PartnerPhase.POST) ? PartnerRunType.TS_MONTHLY_POST
+                : PartnerRunType.NON_TIME_SERIES,
+              failures: String(failures),
+              successes: String(successes)
+            });
+          }
         }
       } catch (announceError) {
         logger.error('announce.failed', {
