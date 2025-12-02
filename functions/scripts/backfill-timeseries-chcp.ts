@@ -241,12 +241,21 @@ async function repairDailyOrWeekly(symbol: string, ep: AlphaVantageEndpoint, iv:
   const metaSnap = await metaRef.get();
   if (!metaSnap.exists) return { updatedDocs: 0 };
 
-  // Determine available years: metadata or fallback to listing collection
-  let availableYears: number[] = Array.isArray(metaSnap.get('metadata.availableYears')) ? metaSnap.get('metadata.availableYears') : [];
-  if (!availableYears.length) {
+  // Determine available years.
+  // In repair-metadata mode, always derive from the years subcollection so we ignore any stale metadata.availableYears.
+  // Otherwise, prefer metadata.availableYears and fall back to scanning the years collection when missing.
+  let availableYears: number[];
+  if (REPAIR_METADATA) {
     const yearsColPath = `${metaPath}/years`;
     const yearsSnap = await db.collection(yearsColPath).get();
     availableYears = yearsSnap.docs.map(d => Number(d.id)).filter(n => Number.isFinite(n)).sort((a, b) => a - b);
+  } else {
+    availableYears = Array.isArray(metaSnap.get('metadata.availableYears')) ? metaSnap.get('metadata.availableYears') : [];
+    if (!availableYears.length) {
+      const yearsColPath = `${metaPath}/years`;
+      const yearsSnap = await db.collection(yearsColPath).get();
+      availableYears = yearsSnap.docs.map(d => Number(d.id)).filter(n => Number.isFinite(n)).sort((a, b) => a - b);
+    }
   }
 
   // Apply year filter if provided
@@ -272,7 +281,7 @@ async function repairDailyOrWeekly(symbol: string, ep: AlphaVantageEndpoint, iv:
 
     const barsArr = data.bars as Array<{ t: number; o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; d?: string; dow?: string; ch?: number; cp?: number }>;
     const needsRefetch = hasInvalidCloses(barsArr) || barsArr.some(b => !Number.isFinite((b.o as number)) || !Number.isFinite((b.h as number)) || !Number.isFinite((b.l as number)) || !Number.isFinite((b.v as number)));
-    if (iv === TimeSeriesInterval.DAILY && (needsRefetch || barsArr.some(b => b.ch == null || b.cp == null))) {
+    if (!REPAIR_METADATA && iv === TimeSeriesInterval.DAILY && (needsRefetch || barsArr.some(b => b.ch == null || b.cp == null))) {
       if (DRY_RUN) {
         console.log(`[DRY-RUN] Would refetch DAILY full for ${symbol} due to invalid/missing fields in ${yPath}`);
       } else {
@@ -324,13 +333,39 @@ async function repairDailyOrWeekly(symbol: string, ep: AlphaVantageEndpoint, iv:
     }
   }
 
-  // Optionally repair metadata
-  if (REPAIR_METADATA) {
+  // Repair metadata based on the final year set and series bounds.
+  // Behavior:
+  // - With --repair-metadata: skip refetch (see guard above) and only recompute metadata.
+  // - Without --repair-metadata: perform any needed refetches and then also refresh metadata
+  //   so histStartTs/histEndTs/availableYears stay in sync with the shards.
+  const shouldRepairMetadata = REPAIR_METADATA || !DRY_RUN;
+  if (shouldRepairMetadata) {
     const payload: any = {};
-    if (availableYears.length) payload['metadata.availableYears'] = availableYears;
-    if (firstTs != null) payload['metadata.histStartTs'] = firstTs;
-    if (lastTs != null) payload['metadata.histEndTs'] = lastTs;
-    if (Object.keys(payload).length) {
+
+    // Start from existing metadata map (if any) and overlay repaired fields.
+    const existingMeta = (metaSnap.data() as any)?.metadata ?? {};
+    const newMeta: any = { ...existingMeta };
+
+    if (availableYears.length) newMeta.availableYears = availableYears;
+    if (firstTs != null) {
+      newMeta.histStartTs = firstTs;
+      newMeta.histStartDate = new Date(firstTs);
+    }
+    if (lastTs != null) {
+      newMeta.histEndTs = lastTs;
+      newMeta.histEndDate = new Date(lastTs);
+    }
+
+    if (Object.keys(newMeta).length) {
+      // Write nested metadata object only; preserve overall shape
+      payload.metadata = newMeta;
+
+      // Clean up any old dotted-root fields such as 'metadata.availableYears'
+      const { FieldValue } = await import('firebase-admin/firestore');
+      payload['metadata.availableYears'] = FieldValue.delete();
+      payload['metadata.histStartTs'] = FieldValue.delete();
+      payload['metadata.histEndTs'] = FieldValue.delete();
+
       if (DRY_RUN) {
         console.log(`[DRY-RUN] Would repair metadata on ${metaPath}`, payload);
       } else {

@@ -27,10 +27,14 @@ This document describes the whole-collection backfill utility for Alpha Vantage 
   - Monthly: upgrades the single `all/data` doc.
 
 - __Repair metadata (optional)__
-  - With `--repair-metadata`, recomputes and stores:
-    - `metadata.availableYears`
-    - `metadata.histStartTs`
-    - `metadata.histEndTs`
+  - With `--repair-metadata`, the script does **not** refetch from Alpha Vantage. Instead it:
+    - Scans all `years/{YYYY}` shards for the selected symbol(s) and interval(s).
+    - Recomputes and writes the following fields on the nested `metadata` object of the top-level time-series doc:
+      - `metadata.availableYears` – sorted list of all existing year shard IDs.
+      - `metadata.histStartTs` / `metadata.histStartDate` – earliest bar timestamp and corresponding Date.
+      - `metadata.histEndTs` / `metadata.histEndDate` – latest bar timestamp and corresponding Date.
+  - This is useful when bar data in `years/` is already correct but the top-level metadata has drifted (for example, only reflecting recent years).
+  - In non-repair modes (without `--repair-metadata`), the script may refetch invalid shards from AV and then also refresh these metadata fields so they stay consistent with the repaired bars.
 
 ## Data model expectations
 
@@ -109,7 +113,7 @@ npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/backfill
 - `--interval <daily|weekly|monthly>`
   - Restrict to one interval (default is all three).
 - `--repair-metadata`
-  - Recompute and write `availableYears`, `histStartTs`, and `histEndTs`.
+  - Recompute and write availableYears, histStartTs/Date, and histEndTs/Date on the nested metadata object from existing years/{YYYY} shards only (no AV refetch).
 
 ## Troubleshooting
 
