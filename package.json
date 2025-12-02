@@ -58,6 +58,8 @@
     "karma-jasmine-html-reporter": "~2.1.0",
     "module-alias": "^2.2.3",
     "sass": "^1.89.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "5.7.2"
   },
   "_moduleAliases": {
