@@ -53,7 +53,7 @@ For server-to-server integrations, partners should use Google OIDC (service acco
 - Canonical Firestore paths (non-intraday):
   - Top-level provider/interval doc (metadata only):
     - `symbol-data/{SYMBOL}/time-series/{av-daily-adjusted|av-weekly-adjusted|av-monthly-adjusted}`
-    - Fields: `metadata{ symbol, interval, histStartTs, histEndTs, lastUpdated, nextRefreshAtUTC, ttlSeconds, vendor, endpoint }`, and `latestBarTimestamp` (Firestore Timestamp for the latest bar)
+    - Fields: `metadata{ symbol, interval, histStartTs, histEndTs, lastUpdated, ttlSeconds, vendor, endpoint }`, and `latestBarTimestamp` (Firestore Timestamp for the latest bar)
   - Year‑sharded docs for `DAILY`/`WEEKLY`:
     - `symbol-data/{SYMBOL}/time-series/{docId}/years/{YYYY}` → `{ bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }`
   - Single ‘all’ doc for `MONTHLY`:
@@ -213,7 +213,6 @@ We normalize upstream data into a sharded Firestore schema to support high-volum
 
 - Canonical collection: `symbol-data/{SYMBOL}/time-series/{provider-interval}`
   - Non-intraday sharding: `years/{YYYY}` (bar documents grouped under the year)
-  - Intraday sharding (optional): `days/{YYYY-MM-DD}/bars/{ISO_TIMESTAMP}`
   - Top-level doc stores metadata fields such as `latestBarTimestamp`
   - Provider-interval IDs:
     - `av-daily-adjusted`
@@ -243,11 +242,11 @@ Notes:
 
 ## Freshness and TTL Strategy (Reference)
 
-A background refresher keeps Firestore current by reloading data from upstream according to endpoint TTLs. The scheduler triggers refresh runs and only rewrites documents when `metadata.nextRefreshAt` is missing or due.
+A background refresher keeps Firestore current by reloading data from upstream according to endpoint TTLs. Refreshers run strictly on schedules; there is no doc‑level nextRefreshAt gate.
 
 - AV time-series:
   - Daily cadence at pre-close and post-close (3:30PM and 4:30PM Eastern) 
-  - After a successful refresh: set `metadata.lastUpdated`, `metadata.ttlSeconds`, `metadata.nextRefreshAt`
+  - After a successful refresh: set `metadata.lastUpdated`, `metadata.ttlSeconds`
   - TTLs are defined per endpoint in `shared/alpha-vantage/av-endpoint-configs.ts` and `AV_TIME_SERIES_ENDPOINT_CONFIGS`
   - Cron schedules live in `functions/src/v2/common/function-schedules.ts` (source of cron truth only)
 

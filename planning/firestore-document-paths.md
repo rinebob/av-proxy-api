@@ -36,8 +36,8 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
 ## Time-Series Sharded Storage (Alpha Vantage)
 
 - Canonical path per interval: `symbol-data/{symbol}/time-series/{provider-interval}` (e.g., `av-daily-adjusted`).
-- Shards by day: `days/{YYYY-MM-DD}/bars/{ISO_TIMESTAMP}` holding compact bars.
-- Top-level time-series doc stores only metadata and `latestBarTimestamp`.
+- Shards by year: `years/{YYYY}` holding arrays of compact bars. See the detailed shape in "Symbol Data: Year‑Sharded Time‑Series Doc Shape" below.
+- The top-level time-series doc may store minimal metadata such as `latestBarTimestamp` and derived fields for freshness; all bars live in year documents.
 
 ### Applying Time Series Updates (No GLOBAL_QUOTE)
 

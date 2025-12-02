@@ -141,17 +141,12 @@ File: `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager.ts`
 - Enumerates tracked symbols: `tracked_symbols/`
 - Iterates implemented endpoints (excluding time-series and temporarily skipping `HISTORICAL_OPTIONS`).
 - Resolves endpoint config (`AV_ENDPOINT_CONFIGS`), reads `ttl`.
-- Firestore freshness gate:
-  - Reads doc at resolved path (from `firestorePath` + symbol via `resolveFirestorePath()`)
-  - If missing or `metadata.nextRefreshAt` ≤ now, refresh proceeds
+- No doc-level freshness gate. Refreshers run strictly on schedules.
 - Fetch + Persist:
   - Calls `AlphaVantageHandlerFactory.createHandler(endpoint).fetch(params)`
   - On success, writes:
     - `data: <payload>`
     - `metadata.lastUpdated = now`
-    - `metadata.nextRefreshAtUTC = <schedule-driven next refresh>`
-    - `metadata.ttlSeconds = ttl`
-  - Note: `nextRefreshAtUTC` is the single source of truth (legacy `nextFetchAt` removed). It is computed by a schedule-aware helper to match cron cadence.
   - Records refresh history at `.../history/{eventId}` and logs via Health Metrics
 
 ### Time-Series (Alpha Vantage: Daily/Weekly/Monthly)
@@ -189,7 +184,7 @@ Files:
   - Daily parent doc fields:
     - Path: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted`
     - Fields written by writers/bumpers:
-      - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, nextRefreshAtUTC, ttlSeconds, vendor, endpoint, histStartTs, histEndTs }`
+      - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, vendor, endpoint, histStartTs, histEndTs }`
       - `latestBarTimestamp`: Firestore `Timestamp` of most recent finalized daily bar
     - Note: intraday snapshot and previous-close details live on bar entries (see CompactBar), not on the parent doc.
 - Weekly and monthly follow the same sharded scheme using their respective parent docs:
@@ -232,7 +227,7 @@ The Data‑Ready Pub/Sub message indicates “what is safe to consume now.” Us
 
 - POST (Daily) — `runType=ts_daily_post`
   - Finalized daily bar (OHLC, `ac`, `dv`, `sc`, derived deltas like `pc`, `ch`, `cp`) is written to the shard for each tracked symbol.
-  - Parent doc has freshness updated (`metadata.lastUpdated`, `nextRefreshAt`, `ttlSeconds`) and `latestBarTimestamp` set to the most recent finalized bar.
+  - Parent doc has freshness updated (`metadata.lastUpdated`) and `latestBarTimestamp` set to the most recent finalized bar.
   - This is the canonical time to compute RS on daily data with end‑of‑day correctness.
 
 - POST (Weekly) — `runType=ts_weekly_post`
@@ -261,8 +256,8 @@ File: `functions/src/v2/benzinga/data-refresher/bz-calendar-refresh-manager.ts`
 - Enumerates tracked symbols
 - Iterates calendar endpoints from `@shared/benzinga.BZ_CALENDAR_REQUEST_CONFIGS`
 - Resolves `ttl` from endpoint config; computes doc path (symbol or market-wide based on `symbolUsage`)
-- Freshness gate via `metadata.nextRefreshAt`; fetches using the appropriate BZ handler
-- Writes payload + refresh metadata via `RefreshInfoService.updateDocumentWithRefreshInfo()` and logs via refresh logger + Health Metrics
+  - Scheduled-only; no doc-level freshness gate; fetches using the appropriate BZ handler
+  - Writes payload + refresh metadata via `RefreshInfoService.updateDocumentWithRefreshInfo()` and logs via refresh logger + Health Metrics
 
 #### Operational: Pause or disable Benzinga scheduled refreshers (production)
 
@@ -547,7 +542,7 @@ Querying logs
              |  time-series (sharded bars)                  |
              +------------------+----------------------------+
                                 ^
-                                | metadata + nextRefreshAt
+                                | metadata (freshness only)
                                 |
 +-------------------------+     |     +-------------------------------+
 | Cloud Scheduler (cron)  +-----+-----+ AV/BZ Refresh Managers        |
@@ -596,12 +591,12 @@ Querying logs
   - Daily parent doc fields:
     - Path: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted`
     - Fields written by writers/bumpers:
-      - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, nextRefreshAtUTC, ttlSeconds, vendor, endpoint, histStartTs, histEndTs }`
+      - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, ttlSeconds, vendor, endpoint, histStartTs, histEndTs }`
       - `latestBarTimestamp`: Firestore `Timestamp` of most recent finalized daily bar
     - Note: intraday snapshot and previous-close details live on bar entries (see CompactBar), not on the parent doc.
 - __Non-time-series endpoints__
   - Single document per `{symbol}/{endpoint}`
-  - `metadata.lastUpdated`, `metadata.ttlSeconds`, and consolidated `nextRefreshAtUTC` used by refreshers
+  - `metadata.lastUpdated` maintained by scheduled refreshers (no doc-level nextRefreshAt gate)
 
 Notes:
 - The legacy `{ data, metadata }` shape is deprecated for AV daily time series; all new writes use the normalized schema.
