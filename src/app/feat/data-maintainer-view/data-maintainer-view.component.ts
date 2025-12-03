@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatInputModule } from '@angular/material/input';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { debounceTime } from 'rxjs/operators';
 
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
@@ -29,7 +30,8 @@ import { EndpointSelectorRowComponent } from './comps/endpoint-selector-row.comp
     MatFormFieldModule,
     MatDatepickerModule,
     MatNativeDateModule,
-    MatInputModule
+    MatInputModule,
+    MatSlideToggleModule,
   ],
 })
 export class DataMaintainerViewComponent {
@@ -42,6 +44,8 @@ export class DataMaintainerViewComponent {
   public symbolControl = new FormControl<string>('', { nonNullable: true, validators: [Validators.required] });
   // Reactive date control with required validation (used for HISTORICAL_OPTIONS) (enabled by default)
   public dateControl = new FormControl<Date | null>(null, { validators: [Validators.required] });
+  // Toggle for Alpha Vantage time-series output size (compact vs full)
+  public outputFullControl = new FormControl<boolean>(false, { nonNullable: true });
   // Local-only date for HISTORICAL_OPTIONS (YYYY-MM-DD)
   private histOptionsDate: string | null = null;
 
@@ -85,17 +89,38 @@ export class DataMaintainerViewComponent {
     this.alphaVantageStore.setEndpoint(endpoint);
   }
 
+  isTimeSeriesEndpoint(endpoint: AlphaVantageEndpoint | null): boolean {
+    if (!endpoint) {
+      return false;
+    }
+
+    return [
+      AlphaVantageEndpoint.TIME_SERIES_DAILY,
+      AlphaVantageEndpoint.TIME_SERIES_WEEKLY,
+      AlphaVantageEndpoint.TIME_SERIES_MONTHLY,
+      AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
+      AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
+      AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
+      AlphaVantageEndpoint.TIME_SERIES_INTRADAY,
+    ].includes(endpoint);
+  }
+
   private fetchData() {
     const symbol = this.alphaVantageStore.symbol();
     if (!symbol) {
       return;
     }
 
-    // Pass date only for HISTORICAL_OPTIONS
     const endpoint = this.alphaVantageStore.endpoint();
     const params: Record<string, any> = {};
+    // Pass date only for HISTORICAL_OPTIONS
     if (endpoint === AlphaVantageEndpoint.HISTORICAL_OPTIONS && this.histOptionsDate) {
       params['date'] = this.histOptionsDate;
+    }
+
+    // For time-series endpoints, send outputsize based on the Material toggle
+    if (this.isTimeSeriesEndpoint(endpoint)) {
+      params['outputsize'] = this.outputFullControl.value ? 'full' : 'compact';
     }
 
     this.alphaVantageStore.fetchData(params);

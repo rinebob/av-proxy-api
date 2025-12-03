@@ -46,6 +46,17 @@
       </div>
     }
     
+    @if (isTimeSeriesEndpoint(alphaVantageStore.endpoint())) {
+      <div class="outputsize-toggle">
+        <mat-slide-toggle
+          [formControl]="outputFullControl"
+          color="primary"
+        >
+          Full time series (compact when off)
+        </mat-slide-toggle>
+      </div>
+    }
+
     <button 
       (click)="onSubmit()" 
       [disabled]="(alphaVantageStore.loading$ | async) || !alphaVantageStore.symbol() || (alphaVantageStore.endpoint() === AlphaVantageEndpoint.HISTORICAL_OPTIONS && dateControl.invalid)"
