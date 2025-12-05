@@ -150,7 +150,7 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           }
         }
         // Compute derived deltas from the next-most-recent bar if available
-        let prevAdjClose: number | undefined = undefined;
+        let prevClose: number | undefined = undefined;
         if (bars.length > 1) {
           // Find the previous bar by date
           let prevTs = Number.NEGATIVE_INFINITY;
@@ -165,8 +165,8 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           }
           if (prevIdx >= 0) {
             const prev = bars[prevIdx];
-            // Prefer adjustedClose when present
-            prevAdjClose = typeof prev.adjustedClose === 'number' ? prev.adjustedClose : prev.close;
+            // Always use RAW close from provider as baseline
+            prevClose = typeof prev.close === 'number' ? prev.close : undefined;
           }
         }
         const latest = bars[latestIdx];
@@ -263,9 +263,9 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
         }
 
-        // Default compact (post-close or non-daily): enrich with pc/ch/cp and continue
-        if (prevAdjClose != null) {
-          const pc = prevAdjClose;
+        // Default compact (post-close or non-daily): enrich with pc/ch/cp using RAW close baseline
+        if (prevClose != null) {
+          const pc = prevClose;
           const ch = latest.close - pc;
           const cp = pc !== 0 ? (ch / pc) * 100 : 0;
           latest.previousClose = pc as any;

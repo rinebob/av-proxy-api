@@ -117,14 +117,7 @@ function ensureBarD<T extends { t: number; d?: string }>(bars: T[]): { mutated: 
   return { mutated, addedCount };
 }
 
-function preferClose(b?: { ac?: number; c?: number }): number | undefined {
-  if (!b) return undefined;
-  if (typeof b.ac === 'number' && Number.isFinite(b.ac)) return b.ac;
-  if (typeof b.c === 'number' && Number.isFinite(b.c)) return b.c;
-  return undefined;
-}
-
-function enrichBarsAscending<T extends { t: number; c?: number; ac?: number; ch?: number; cp?: number }>(bars: T[]): { mutated: boolean; changedCount: number; bars: T[] } {
+function enrichBarsAscending<T extends EnrichableBar>(bars: T[]): { mutated: boolean; changedCount: number; bars: T[] } {
   if (!Array.isArray(bars) || bars.length === 0) return { mutated: false, changedCount: 0, bars: [] };
   // Ensure ascending
   bars.sort((a, b) => a.t - b.t);
@@ -133,7 +126,7 @@ function enrichBarsAscending<T extends { t: number; c?: number; ac?: number; ch?
   let changedCount = 0;
   for (let i = 0; i < bars.length; i++) {
     const curr = bars[i];
-    const currClose = preferClose(curr);
+    const currClose = typeof curr.c === 'number' && Number.isFinite(curr.c) ? curr.c : undefined;
     if (i > 0 && Number.isFinite(prevClose) && (prevClose as number) !== 0 && Number.isFinite(currClose as number)) {
       const changeRaw = (currClose as number) - (prevClose as number);
       const percentRaw = (changeRaw / (prevClose as number)) * 100;
@@ -148,7 +141,7 @@ function enrichBarsAscending<T extends { t: number; c?: number; ac?: number; ch?
     } else {
       // Do not force ch/cp; first bar legitimately has no baseline
     }
-    prevClose = preferClose(curr);
+    prevClose = typeof curr.c === 'number' && Number.isFinite(curr.c) ? curr.c : undefined;
   }
   return { mutated, changedCount, bars };
 }
@@ -167,7 +160,7 @@ function ensureDowAndD<T extends { t: number; d?: string; dow?: string }>(bars: 
 
 function hasInvalidCloses(bars: Array<{ ac?: number; c?: number }>): boolean {
   return bars.some((b, i) => {
-    const close = preferClose(b);
+    const close = typeof b.c === 'number' && Number.isFinite(b.c) ? b.c : undefined;
     // invalid when missing or zero for non-first bars
     return i > 0 && (!Number.isFinite(close as number) || (close as number) === 0);
   });
@@ -203,13 +196,13 @@ function logLatestAndIssues(symbol: string, ep: AlphaVantageEndpoint, shard: str
       if (samples.length < 3) samples.push({ t: b.t, d: b.d, fields: missing });
     }
   }
-  // invalid preferred close (non-first bars) or missing ch/cp when baseline exists
+  // invalid raw close (non-first bars) or missing ch/cp when a valid baseline exists
   for (let i = 1; i < bars.length; i++) {
     const curr = bars[i];
     const prev = bars[i - 1];
-    const currClose = preferClose(curr);
-    const prevClose = preferClose(prev);
-    if (!(Number.isFinite(currClose as number) && (currClose as number) > 0 && Number.isFinite(prevClose as number) && (prevClose as number) > 0)) {
+    const currClose = Number.isFinite(curr.c as number) ? (curr.c as number) : NaN;
+    const prevClose = Number.isFinite(prev.c as number) ? (prev.c as number) : NaN;
+    if (!(Number.isFinite(currClose) && currClose > 0 && Number.isFinite(prevClose) && prevClose > 0)) {
       issues.invalidClose++;
     } else if (typeof curr.ch !== 'number' || typeof curr.cp !== 'number') {
       issues.missingChCp++;
@@ -466,8 +459,8 @@ async function auditDailyForSymbol(symbol: string): Promise<SymbolIssues> {
         for (const f of missing) (issues.missingFields as any)[f]++;
         if (samples.length < 5) samples.push({ t: b.t, d: b.d, fields: missing });
       }
-      const closePref = Number.isFinite(b.ac as number) ? (b.ac as number) : (b.c as number);
-      if (!Number.isFinite(closePref) || (closePref as number) <= 0) issues.invalidClose++;
+      const closeRaw = Number.isFinite(b.c as number) ? (b.c as number) : NaN;
+      if (!Number.isFinite(closeRaw) || closeRaw <= 0) issues.invalidClose++;
       if (!Number.isFinite(b.ch as number) || !Number.isFinite(b.cp as number)) issues.missingChCp++;
     }
     results.push({
