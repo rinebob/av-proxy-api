@@ -19,11 +19,11 @@ export class AvDailyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase<
     }
 
     const meta: AvCommonMeta = {
-      information: metaRaw['1. Information'] ?? metaRaw['Information'],
-      symbol: metaRaw['2. Symbol'] ?? metaRaw['Symbol'],
-      lastRefreshed: metaRaw['3. Last Refreshed'] ?? metaRaw['Last Refreshed'],
-      outputSize: metaRaw['4. Output Size'] ?? metaRaw['Output Size'],
-      timeZone: metaRaw['5. Time Zone'] ?? metaRaw['Time Zone'],
+      information: metaRaw['1. Information'],
+      symbol: metaRaw['2. Symbol'],
+      lastRefreshed: metaRaw['3. Last Refreshed'],
+      outputSize: metaRaw['4. Output Size'],
+      timeZone: metaRaw['5. Time Zone'],
     };
 
     const daily: Record<string, AvOhlcEntry> = {};
