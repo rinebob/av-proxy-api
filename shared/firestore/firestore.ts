@@ -13,6 +13,7 @@ export enum FirestoreCollection {
     CONFIG = 'config',
 
     TIME_SERIES = 'time-series',
+    SA_TIME_SERIES = 'sa-time-series',
     TIME_SERIES_FINALIZATION = 'time-series-finalization',
     TIME_SERIES_STATUS = 'time-series-status',
     

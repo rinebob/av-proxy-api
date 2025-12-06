@@ -1,5 +1,6 @@
 import { db } from '../../../firebase-admin-init';
-import { Timestamp, WriteBatch } from 'firebase-admin/firestore';
+import { getFunctions } from 'firebase-admin/functions';
+import { Timestamp, WriteBatch, FieldValue } from 'firebase-admin/firestore';
 
 import { AlphaVantageEndpoint, AV_TIME_SERIES_ENDPOINT_CONFIGS, OutputSize, TimeSeriesInterval } from '@shared/alpha-vantage';
 import { ApiProvider, ApiResponse } from '@shared/core';
@@ -12,7 +13,10 @@ import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 
 import { isManualWriteEnabled } from '../../common/firestore/manual-write-toggle';
+import type { SplitRemediationPayload } from '../tasks/split-remediator.task';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
+import { adjustHistoryForBackfill } from '../logic/split-math';
+import { CloudTask } from '../../common/constants';
 import {
   getSymbolTimeSeriesYearDocPath,
   getSymbolTimeSeriesAllDocPath,
@@ -115,33 +119,59 @@ export async function saveAvData(
  * @param checkManualWriteEnabled Enforce manual write toggle (true for UI flows)
  * @returns Promise that resolves on success
  */
-export async function saveAvTimeSeriesData(
+/**
+ * Internal helper for saving AV time series data.
+ * Supports dual-writing to standard 'time-series' and split-adjusted 'sa-time-series'.
+ */
+async function _internalSaveAvTimeSeriesData(
   data: any[],
   symbol: string,
   endpoint: AlphaVantageEndpoint,
   interval: TimeSeriesInterval,
-  checkManualWriteEnabled: boolean
+  checkManualWriteEnabled: boolean,
+  isSplitAdjusted: boolean,
+  options?: { fromMs?: number | null; toMs?: number | null; forceFullHistory?: boolean },
 ): Promise<void> {
   console.log(`aFH sATSD start ${endpoint} ${symbol} ${interval}`);
   log.info('timeseries.save.start', { symbol, endpoint, interval });
-  // Emulator guard: trim DAILY/WEEKLY/MONTHLY to roughly last 1 year to keep emulator datasets small
+  // Emulator guard: trim DAILY/WEEKLY/MONTHLY to a bounded window to keep emulator datasets small.
+  // When a backfill date range is provided (via AV_TS_DATE_FROM / AV_TS_DATE_TO env vars),
+  // honor that exact range so callers can guarantee full-year coverage (e.g. 2024–2025).
   const emulator = process.env.FUNCTIONS_EMULATOR === 'true' || !!process.env.FIRESTORE_EMULATOR_HOST;
-  if (emulator && Array.isArray(data) && (
+  const shouldTrim = emulator && !options?.forceFullHistory;
+  
+  if (shouldTrim && Array.isArray(data) && (
     interval === TimeSeriesInterval.DAILY ||
     interval === TimeSeriesInterval.WEEKLY ||
     interval === TimeSeriesInterval.MONTHLY
   )) {
     const now = Date.now();
-    const oneYearMs = 365 * 24 * 3600 * 1000;
-    const cutoff = now - oneYearMs;
+    const threeYearsMs = 3 * 365 * 24 * 3600 * 1000;
+    const defaultCutoff = now - threeYearsMs;
+
+    const fromMs = options?.fromMs != null && Number.isFinite(options.fromMs) ? Number(options.fromMs) : null;
+    const toMs = options?.toMs != null && Number.isFinite(options.toMs) ? Number(options.toMs) : null;
+
     const filtered = data.filter((b) => {
       const t = new Date(b.date).getTime();
-      return Number.isFinite(t) && t >= cutoff;
+      if (!Number.isFinite(t)) return false;
+      // When a date range is provided, use it as the primary filter.
+      if (fromMs != null && t < fromMs) return false;
+      if (toMs != null && t > toMs) return false;
+      // If no explicit range, fall back to the ~3-year rolling window.
+      if (fromMs == null && toMs == null && t < defaultCutoff) return false;
+      return true;
     });
     if (filtered.length !== data.length) {
       const intervalLabel = String(interval);
-      console.log(`aFH sATSD emulator trim [${intervalLabel}] ${data.length} → ${filtered.length}`);
-      log.debug('timeseries.save.trim', { interval: intervalLabel, from: data.length, to: filtered.length });
+      console.log(`aFH sATSD emulator trim [${intervalLabel}] ${data.length}  ${filtered.length}`);
+      log.debug('timeseries.save.trim', {
+        interval: intervalLabel,
+        from: data.length,
+        to: filtered.length,
+        fromDate: fromMs ?? defaultCutoff,
+        toDate: toMs ?? null,
+      });
       data = filtered;
     }
   }
@@ -150,7 +180,7 @@ export async function saveAvTimeSeriesData(
   let histEndDate: Timestamp | null = null;
 
   // 2. Canonical doc path for time series
-  const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
+  const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE, isSplitAdjusted);
   const docRef = db.doc(docPath);
 
   try {
@@ -172,8 +202,8 @@ export async function saveAvTimeSeriesData(
     // DAILY/WEEKLY -> year-sharded docs with compact bars array
     // MONTHLY -> single 'all' doc with compact bars array
     const vendor = ApiProvider.ALPHA_VANTAGE;
-    const barsByYear = new Map<number, CompactBar[]>();
-    const compactBars: CompactBar[] = [];
+    let compactBars: CompactBar[] = [];
+    
     for (const b of data) {
       const dt = new Date(b.date);
       const t = dt.getTime();
@@ -193,16 +223,14 @@ export async function saveAvTimeSeriesData(
         o: Number(b.open),
         h: Number(b.high),
         l: Number(b.low),
+        // Always persist RAW close from provider
         c: Number(b.close),
-        // Required compact fields: provide sensible defaults when provider fields are absent
-        // v: volume -> default 0
-        v: Number(b.volume ?? 0),
-        // ac: adjusted close -> default to close when adjusted not provided
-        ac: Number((b as any).adjustedClose ?? b.close ?? 0),
-        // dv: dividend amount -> default 0
-        dv: Number((b as any).dividendAmount ?? 0),
-        // sc: split coefficient -> default 1
-        sc: Number((b as any).splitCoefficient ?? 1),
+        v: Number(b.volume),
+        // Persist adjusted series fields only when present; do not fallback to close/0/1
+        ac: (b as any).adjustedClose != null ? Number((b as any).adjustedClose) : undefined,
+        dv: (b as any).dividendAmount != null ? Number((b as any).dividendAmount) : undefined,
+        sc: (b as any).splitCoefficient != null ? Number((b as any).splitCoefficient) : undefined,
+        // Persist previousClose / change / changePercent exactly as provided (all raw-close based)
         pc: b.previousClose != null ? Number(b.previousClose) : undefined,
         ch: b.change != null ? Number(b.change) : undefined,
         cp: b.changePercent != null ? Number(b.changePercent) : undefined,
@@ -213,15 +241,69 @@ export async function saveAvTimeSeriesData(
         ipc: (b as any).intradayPercentChange != null ? Number((b as any).intradayPercentChange) : null,
       };
       compactBars.push(bar);
-      const y = getYearFromEpochMillis(t);
-      const bucket = barsByYear.get(y) || [];
-      bucket.push(bar);
-      barsByYear.set(y, bucket);
     }
+
+    // --- APPLY SPLIT ADJUSTMENTS (Backwards Pass) ---
+    // This ensures the persisted data is fully continuous based on all historical splits found in the dataset.
+    // Only runs during full/backfill writes AND if we are targeting the split-adjusted collection.
+    if (isSplitAdjusted && compactBars.length > 0) {
+        compactBars = adjustHistoryForBackfill(compactBars);
+    }
+    // ------------------------------------------------
 
     // Sort bars ascending for deterministic writes
     compactBars.sort((a, b) => a.t - b.t);
-    for (const arr of barsByYear.values()) arr.sort((a, b) => a.t - b.t);
+
+    // --- DETECT & PERSIST SPLIT EVENTS (Full Backfill) ---
+    // Only for adjusted series writes. Captures historical splits for the split-events collection.
+    if (isSplitAdjusted) {
+      const splits = compactBars.filter(b => b.sc !== undefined && b.sc !== 1);
+      if (splits.length > 0) {
+        console.log(`aFH sATSD backfilling ${splits.length} splits for ${symbol}`);
+        const splitBatch = db.batch();
+        const splitHistoryUpdates: any[] = [];
+        
+        for (const s of splits) {
+          const date = s.d;
+          const factor = Number(s.sc);
+          const splitDocId = `${date}-${symbol}-${factor}`;
+          const splitDocRef = db.collection(FirestoreCollection.SPLIT_EVENTS).doc(splitDocId);
+          
+          splitBatch.set(splitDocRef, {
+            symbol,
+            date,
+            factor,
+            detectedAt: Timestamp.now(),
+            status: 'PROCESSED_BACKFILL' // Distinct status indicates this was part of a full history write
+          }, { merge: true });
+
+          splitHistoryUpdates.push({
+            date,
+            factor,
+            detectedAt: Timestamp.now()
+          });
+        }
+        
+        if (splitHistoryUpdates.length > 0) {
+           const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+           // arrayUnion accepts variadic arguments
+           splitBatch.set(symbolDocRef, {
+             splitHistory: FieldValue.arrayUnion(...splitHistoryUpdates)
+           }, { merge: true });
+        }
+        
+        await splitBatch.commit();
+      }
+    }
+
+    // Re-bucket into year shards using the adjusted bars
+    const barsByYear = new Map<number, CompactBar[]>();
+    for (const bar of compactBars) {
+        const y = getYearFromEpochMillis(bar.t);
+        const bucket = barsByYear.get(y) || [];
+        bucket.push(bar);
+        barsByYear.set(y, bucket);
+    }
 
     // After sorting, compute end-of-day change metrics (ch/cp) vs prior day's adjusted close
     computeChCpForBarsAscending(compactBars);
@@ -238,7 +320,7 @@ export async function saveAvTimeSeriesData(
 
     if (interval === TimeSeriesInterval.MONTHLY) {
       // Single 'all' doc
-      const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
+      const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, isSplitAdjusted);
       const latestNonPlaceholder = [...compactBars].reverse().find(b => {
         const o = Number(b.o || 0), h = Number(b.h || 0), l = Number(b.l || 0), c = Number(b.c || 0), v = Number(b.v || 0);
         return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
@@ -261,7 +343,7 @@ export async function saveAvTimeSeriesData(
     } else {
       // Year-sharded DAILY / WEEKLY
       for (const [year, bars] of barsByYear.entries()) {
-        const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year);
+        const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year, isSplitAdjusted);
         const latestNonPlaceholder = [...bars].reverse().find(b => {
           const o = Number(b.o || 0), h = Number(b.h || 0), l = Number(b.l || 0), c = Number(b.c || 0), v = Number(b.v || 0);
           return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
@@ -351,23 +433,51 @@ export async function saveAvTimeSeriesData(
       }
     );
 
-    // 8. Ensure symbol presence under symbol-data/{symbol} with minimal metadata for Console visibility
-    const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
-    await symbolDocRef.set({
-      nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttlSeconds * 1000)),
-      nextRefreshBy: '',
-      refreshedAt: Timestamp.now(),
-      refreshedBy: 'time-series-write', // or 'scheduler' depending on caller
-      ttlHuman: ''
-    }, { merge: true });
+    if (!isSplitAdjusted) {
+      // 8. Ensure symbol presence under symbol-data/{symbol} with minimal metadata for Console visibility
+      // Only update this for the primary (raw) write to avoid double writes to symbol doc
+      const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+      await symbolDocRef.set({
+        nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttlSeconds * 1000)),
+        nextRefreshBy: '',
+        refreshedAt: Timestamp.now(),
+        refreshedBy: 'time-series-write', // or 'scheduler' depending on caller
+        ttlHuman: ''
+      }, { merge: true });
+    }
 
-    console.log(`aFH sATSD ✓ ${endpoint} ${symbol} ${interval} wrote=${interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites}`);
-    log.info('timeseries.save.success', { symbol, endpoint, interval, barsWritten: interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites, durationMs: Date.now() - startTime, latestBarIso });
+    console.log(`aFH sATSD ✓ ${endpoint} ${symbol} ${interval} adj=${isSplitAdjusted} wrote=${interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites}`);
+    log.info('timeseries.save.success', { symbol, endpoint, interval, isSplitAdjusted, barsWritten: interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites, durationMs: Date.now() - startTime, latestBarIso });
   } catch (error) {
     console.error('! aFH sATSD error', (error as any)?.message || error);
-    log.error('timeseries.save.error', { symbol, endpoint, interval, error: String((error as any)?.message || error) });
+    log.error('timeseries.save.error', { symbol, endpoint, interval, isSplitAdjusted, error: String((error as any)?.message || error) });
     throw error;
   }
+}
+
+export async function saveAvTimeSeriesData(
+  data: any[],
+  symbol: string,
+  endpoint: AlphaVantageEndpoint,
+  interval: TimeSeriesInterval,
+  checkManualWriteEnabled: boolean,
+  options?: { fromMs?: number | null; toMs?: number | null; skipLegacyWrite?: boolean },
+): Promise<void> {
+  // Dual write: Raw (Legacy) and Adjusted (Side-Car)
+  // We run them sequentially or parallel. Sequential is safer for error handling (if raw fails, we stop).
+  
+  // 1. Raw / Standard (Optional Bypass)
+  if (!options?.skipLegacyWrite) {
+      await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, checkManualWriteEnabled, false, options);
+  }
+
+  // 2. Split Adjusted (Always Force Full History for Backfills)
+  // We disable emulator truncation here to ensure we capture deep historical splits (e.g. AAPL 2020, 2014)
+  // even when running in the emulator.
+  await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, checkManualWriteEnabled, true, { 
+      ...options,
+      forceFullHistory: true 
+  });
 }
 
 /**
@@ -460,27 +570,43 @@ export async function initializeTimeSeriesIfMissing(
  * @param options.skipParentMetaBump When true, do not bump the top-level time-series metadata
  * @returns Promise that resolves on success
  */
-export async function upsertAvDailyBar(options: {
-  symbol: string;
-  date: string; // YYYY-MM-DD (UTC day)
+/**
+ * Internal helper for upserting daily bars.
+ * Supports dual-writing.
+ */
+async function _internalUpsertDailyBar(
+  options: {
+    symbol: string;
+    date: string; // YYYY-MM-DD (UTC day)
   // Partial compact fields to merge (numeric only).
-  patch: Partial<CompactBar>;
-  endpoint?: AlphaVantageEndpoint; // defaults to DAILY_ADJUSTED
+    patch: Partial<CompactBar>;
+    endpoint?: AlphaVantageEndpoint; // defaults to DAILY_ADJUSTED
   // When true, do not bump the top-level time-series metadata. Used for pre-close intraday snapshots
-  skipParentMetaBump?: boolean;
+    skipParentMetaBump?: boolean;
   // Epoch ms when the daily bar first finalized (POST). If provided and fz not yet set, this will be stamped.
-  finalizedAtMs?: number;
-}): Promise<void> {
+    finalizedAtMs?: number;
+  },
+  isSplitAdjusted: boolean
+): Promise<void> {
   const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, skipParentMetaBump, finalizedAtMs } = options;
   const vendor = ApiProvider.ALPHA_VANTAGE;
   const t = new Date(`${date}T00:00:00.000Z`).getTime();
   const y = getYearFromEpochMillis(t);
-  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y);
+  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y, isSplitAdjusted);
   const yearRef = db.doc(yearDocPath);
+  const metaDocPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor, isSplitAdjusted);
+  const metaRef = db.doc(metaDocPath);
+
+  let pendingRemediation: SplitRemediationPayload | null = null;
 
   // Transactional upsert to avoid races
   await db.runTransaction(async (tx) => {
-    const snap = await tx.get(yearRef);
+    // 1. Load both year shard and top-level metadata (for split idempotency)
+    const [snap, metaSnap] = await Promise.all([
+      tx.get(yearRef),
+      tx.get(metaRef)
+    ]);
+
     const bars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
 
     const idx = bars.findIndex((b) => b.t === t);
@@ -496,9 +622,10 @@ export async function upsertAvDailyBar(options: {
         l: Number(patch.l ?? existing.l ?? patch.o ?? 0),
         c: Number(patch.c ?? existing.c ?? 0),
         v: Number(patch.v ?? existing.v ?? 0),
-        ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
-        dv: Number(patch.dv ?? existing.dv ?? 0),
-        sc: Number(patch.sc ?? existing.sc ?? 1),
+        // Persist adjusted series fields only when explicitly provided; do not fallback to close/0/1
+        ac: patch.ac != null ? Number(patch.ac) : (existing.ac != null ? Number(existing.ac) : undefined),
+        dv: patch.dv != null ? Number(patch.dv) : (existing.dv != null ? Number(existing.dv) : undefined),
+        sc: patch.sc != null ? Number(patch.sc) : (existing.sc != null ? Number(existing.sc) : undefined),
         ip: patch.ip != null ? Number(patch.ip) : existing.ip,
         io,
         it,
@@ -507,6 +634,53 @@ export async function upsertAvDailyBar(options: {
         dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
       } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
       const merged = { ...existing, ...patchBar } as CompactBar;
+
+      // --- Split Remediation Logic ---
+      // Only triggered for the split-adjusted collection
+      const isSplitEvent = isSplitAdjusted && patch.sc !== undefined && patch.sc !== 1;
+      if (isSplitEvent) {
+        const metaData = metaSnap.data()?.metadata || {};
+        const lastProcessed = metaData.latestSplitDateProcessed;
+
+        // If we haven't processed this split date yet
+        if (lastProcessed !== date) {
+          console.log(`aFH sATSD Split Detected! ${symbol} ${date} factor=${patch.sc}`);
+          // Update metadata to claim this split immediately prevents double-enqueuing
+          tx.set(metaRef, {
+            metadata: { latestSplitDateProcessed: date }
+          }, { merge: true });
+
+          // Record the event globally for audit/analytics (Dr. Reed's Recommendation)
+          const splitDocId = `${date}-${symbol}-${patch.sc}`;
+          const splitDocRef = db.collection(FirestoreCollection.SPLIT_EVENTS).doc(splitDocId);
+          tx.set(splitDocRef, {
+            symbol,
+            date,
+            factor: Number(patch.sc),
+            detectedAt: Timestamp.now(),
+            status: 'ENQUEUED'
+          }, { merge: true });
+
+          // Also persist to symbol-data/{symbol} (Local History)
+          const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+          tx.set(symbolDocRef, {
+            splitHistory: FieldValue.arrayUnion({
+              date,
+              factor: Number(patch.sc),
+              detectedAt: Timestamp.now()
+            })
+          }, { merge: true });
+
+          // Prepare payload for post-transaction dispatch
+          pendingRemediation = {
+            symbol,
+            splitDate: date,
+            splitFactor: Number(patch.sc)
+          };
+        }
+      }
+      // -------------------------------
+
       // Stamp fz if provided and not yet set, and bar is non-placeholder
       if (finalizedAtMs != null && (merged as any).fz == null) {
         const oo = Number(merged.o || 0), hh = Number(merged.h || 0), ll = Number(merged.l || 0), cc = Number(merged.c || 0);
@@ -524,9 +698,9 @@ export async function upsertAvDailyBar(options: {
         l: Number(patch.l ?? (patch.o ?? 0)),
         c: Number(patch.c ?? 0),
         v: Number(patch.v ?? 0),
-        ac: Number(patch.ac ?? patch.c ?? 0),
-        dv: Number(patch.dv ?? 0),
-        sc: Number(patch.sc ?? 1),
+        ac: patch.ac != null ? Number(patch.ac) : undefined,
+        dv: patch.dv != null ? Number(patch.dv) : undefined,
+        sc: patch.sc != null ? Number(patch.sc) : undefined,
         pc: patch.pc != null ? Number(patch.pc) : undefined,
         ch: patch.ch != null ? Number(patch.ch) : undefined,
         cp: patch.cp != null ? Number(patch.cp) : undefined,
@@ -544,6 +718,47 @@ export async function upsertAvDailyBar(options: {
         if (nonPlaceholder) (newBar as any).fz = Number(finalizedAtMs);
       }
       bars.push(newBar);
+
+      // --- Split Remediation Logic (New Bar) ---
+      const isSplitEvent = isSplitAdjusted && patch.sc !== undefined && patch.sc !== 1;
+      if (isSplitEvent) {
+        const metaData = metaSnap.data()?.metadata || {};
+        const lastProcessed = metaData.latestSplitDateProcessed;
+
+        if (lastProcessed !== date) {
+          console.log(`aFH sATSD Split Detected (New)! ${symbol} ${date} factor=${patch.sc}`);
+          tx.set(metaRef, {
+            metadata: { latestSplitDateProcessed: date }
+          }, { merge: true });
+
+          const splitDocId = `${date}-${symbol}-${patch.sc}`;
+          const splitDocRef = db.collection(FirestoreCollection.SPLIT_EVENTS).doc(splitDocId);
+          tx.set(splitDocRef, {
+            symbol,
+            date,
+            factor: Number(patch.sc),
+            detectedAt: Timestamp.now(),
+            status: 'ENQUEUED'
+          }, { merge: true });
+
+          // Also persist to symbol-data/{symbol} (Local History)
+          const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+          tx.set(symbolDocRef, {
+            splitHistory: FieldValue.arrayUnion({
+              date,
+              factor: Number(patch.sc),
+              detectedAt: Timestamp.now()
+            })
+          }, { merge: true });
+
+          pendingRemediation = {
+            symbol,
+            splitDate: date,
+            splitFactor: Number(patch.sc)
+          };
+        }
+      }
+      // -----------------------------------------
     }
 
     bars.sort((a, b) => a.t - b.t);
@@ -574,7 +789,8 @@ export async function upsertAvDailyBar(options: {
       bars,
       count: bars.length,
       firstBarTs: bars[0]?.t ?? null,
-      lastBarTs: bars[bars.length - 1] ?? null,
+      // Persist lastBarTs as the epoch millis (t) of the last bar, not the full bar object
+      lastBarTs: bars[bars.length - 1]?.t ?? null,
       latest: latestNonPlaceholder,
       latestUtcIso,
       latestEtDateTime,
@@ -586,6 +802,19 @@ export async function upsertAvDailyBar(options: {
 
   });
 
+  // Dispatch task if needed (outside transaction)
+  if (pendingRemediation) {
+    try {
+      const queue = getFunctions().taskQueue(CloudTask.REMEDIATE_SPLIT_HISTORY);
+      await queue.enqueue(pendingRemediation);
+      log.info('daily.upsert.remediation_enqueued', pendingRemediation);
+    } catch (err) {
+      log.error('daily.upsert.remediation_failed', { error: String(err), ...(pendingRemediation as SplitRemediationPayload) });
+      // Non-fatal for the daily upsert, but critical for history consistency.
+      // TODO: Consider alerting here.
+    }
+  }
+
   if (!skipParentMetaBump) {
     await bumpTimeSeriesTopLevelMetadata({
       symbol,
@@ -594,6 +823,21 @@ export async function upsertAvDailyBar(options: {
       latestDate: date,
     });
   }
+}
+
+export async function upsertAvDailyBar(options: {
+  symbol: string;
+  date: string; // YYYY-MM-DD (UTC day)
+  patch: Partial<CompactBar>;
+  endpoint?: AlphaVantageEndpoint; // defaults to DAILY_ADJUSTED
+  skipParentMetaBump?: boolean;
+  finalizedAtMs?: number;
+}): Promise<void> {
+  // Dual write: Raw (Legacy) and Adjusted (Side-Car)
+  await Promise.all([
+    _internalUpsertDailyBar(options, false),
+    _internalUpsertDailyBar(options, true)
+  ]);
 }
 
 /**
@@ -629,9 +873,9 @@ export async function upsertAvWeeklyBar(options: {
       l: Number(patch.l ?? existing.l ?? patch.o ?? 0),
       c: Number(patch.c ?? existing.c ?? 0),
       v: Number(patch.v ?? existing.v ?? 0),
-      ac: Number(patch.ac ?? existing.ac ?? patch.c ?? existing.c ?? 0),
-      dv: Number(patch.dv ?? existing.dv ?? 0),
-      sc: Number(patch.sc ?? existing.sc ?? 1),
+      ac: patch.ac != null ? Number(patch.ac) : (existing.ac != null ? Number(existing.ac) : undefined),
+      dv: patch.dv != null ? Number(patch.dv) : (existing.dv != null ? Number(existing.dv) : undefined),
+      sc: patch.sc != null ? Number(patch.sc) : (existing.sc != null ? Number(existing.sc) : undefined),
       dow: computeDowFromDateString(new Date(t).toISOString().slice(0, 10)),
     } as Partial<CompactBar> & { o: number; h: number; l: number; c: number; v: number; ac: number; dv: number; sc: number };
     bars[idx] = { ...existing, ...patchBar } as CompactBar;
@@ -645,9 +889,9 @@ export async function upsertAvWeeklyBar(options: {
       l: Number(patch.l ?? (patch.o ?? 0)),
       c: Number(patch.c ?? 0),
       v: Number(patch.v ?? 0),
-      ac: Number(patch.ac ?? patch.c ?? 0),
-      dv: Number(patch.dv ?? 0),
-      sc: Number(patch.sc ?? 1),
+      ac: patch.ac != null ? Number(patch.ac) : undefined,
+      dv: patch.dv != null ? Number(patch.dv) : undefined,
+      sc: patch.sc != null ? Number(patch.sc) : undefined,
       ic: null,
       ipc: null,
     };
@@ -975,19 +1219,6 @@ function formatEtDateTime(tsMs: number): string {
   return `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second}`;
 }
 
-// --- Shared helpers for EOD change calculations ---
-/**
- * Helper: get the preferred close value for a bar (adjusted close if present, else close).
- * @param b Bar-like object with optional ac/c
- * @returns Preferred close as number or undefined
- */
-function preferClose(b?: { ac?: number; c?: number }): number | undefined {
-  if (!b) return undefined;
-  if (typeof b.ac === 'number' && Number.isFinite(b.ac)) return b.ac;
-  if (typeof b.c === 'number' && Number.isFinite(b.c)) return b.c;
-  return undefined;
-}
-
 /**
  * Helper: round a number to 2 decimal places.
  * @param n Number to round
@@ -999,7 +1230,7 @@ function round2(n: number): number { return Math.round(n * 100) / 100; }
  * Compute EOD change metrics for a sorted array of bars in-place.
  * - ch = currClose - prevClose
  * - cp = (ch / prevClose) * 100
- * - Prefers adjusted close (ac) over close (c) and omits when baseline is missing/zero.
+ * - Uses RAW close (c) only as the baseline; omits when baseline is missing/zero.
  * @param bars Sorted ascending array of CompactBar
  */
 function computeChCpForBarsAscending(bars: Array<CompactBar>): void {
@@ -1008,8 +1239,8 @@ function computeChCpForBarsAscending(bars: Array<CompactBar>): void {
   for (let i = 0; i < bars.length; i++) {
     const curr = bars[i];
     const prev = i > 0 ? bars[i - 1] : undefined;
-    const prevClose = preferClose(prev);
-    const currClose = preferClose(curr);
+    const prevClose = prev?.c;
+    const currClose = curr?.c;
     if (prevClose != null && prevClose !== 0 && currClose != null) {
       const change = currClose - prevClose;
       const pct = (change / prevClose) * 100;
@@ -1025,7 +1256,7 @@ function computeChCpForBarsAscending(bars: Array<CompactBar>): void {
 /**
  * Recompute EOD change metrics for a specific index within a sorted bars array.
  * - Uses the immediate previous bar as the baseline.
- * - Prefers adjusted close (ac) over close (c) and omits when baseline is missing/zero.
+ * - Uses RAW close (c) only and omits when baseline is missing/zero.
  * @param bars Sorted ascending array of CompactBar
  * @param index Index of the target bar to recompute
  */
@@ -1033,8 +1264,8 @@ function computeChCpForTargetIndex(bars: Array<CompactBar>, index: number): void
   if (!Array.isArray(bars) || index < 0 || index >= bars.length) return;
   const curr = bars[index];
   const prev = index > 0 ? bars[index - 1] : undefined;
-  const prevClose = preferClose(prev);
-  const currClose = preferClose(curr);
+  const prevClose = prev?.c;
+  const currClose = curr?.c;
   if (prevClose != null && prevClose !== 0 && currClose != null) {
     const change = currClose - prevClose;
     const pct = (change / prevClose) * 100;
