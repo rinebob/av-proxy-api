@@ -11,9 +11,13 @@
 // - Baseline: prefer adjusted close (ac) over close (c). If baseline is missing or zero, omit ch/cp.
 // - Writes updates only when needed; supports --dry-run.
 
+// IMPORTANT: configure emulators before importing any module that might touch firebase-admin-init.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { setupEmulator } = require('./scripts-util');
+setupEmulator();
+
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { setupEmulator } from './scripts-util';
 
 // Load local .env if present
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
@@ -30,6 +34,18 @@ import {
 } from '../src/v2/common/firestore/firestore-paths';
 import { initializeTimeSeriesIfMissing } from '../src/v2/alpha-vantage/firestore/av-firestore-helper';
 import { writeFileSync } from 'node:fs';
+
+interface DateDowBar {
+  t: number;
+  d?: string;
+  dow?: string;
+}
+
+interface EnrichableBar extends DateDowBar {
+  c?: number;
+  ch?: number;
+  cp?: number;
+}
 
 // ---------- CLI args ----------
 const argv = process.argv.slice(2);
@@ -107,7 +123,7 @@ function endpointsForInterval(interval?: 'daily'|'weekly'|'monthly'): { ep: Alph
 
 function round2(n: number): number { return Number(n.toFixed(2)); }
 
-function ensureBarD<T extends { t: number; d?: string }>(bars: T[]): { mutated: boolean; addedCount: number } {
+function ensureBarD<T extends DateDowBar>(bars: T[]): { mutated: boolean; addedCount: number } {
   let mutated = false;
   let addedCount = 0;
   for (const b of bars) {
@@ -146,7 +162,7 @@ function enrichBarsAscending<T extends EnrichableBar>(bars: T[]): { mutated: boo
   return { mutated, changedCount, bars };
 }
 
-function ensureDowAndD<T extends { t: number; d?: string; dow?: string }>(bars: T[]): { mutated: boolean; bars: T[] } {
+function ensureDowAndD<T extends DateDowBar>(bars: T[]): { mutated: boolean; bars: T[] } {
   let mutated = false;
   for (const b of bars) {
     const dStr = new Date(b.t).toISOString().slice(0, 10);
@@ -158,7 +174,7 @@ function ensureDowAndD<T extends { t: number; d?: string; dow?: string }>(bars: 
   return { mutated, bars };
 }
 
-function hasInvalidCloses(bars: Array<{ ac?: number; c?: number }>): boolean {
+function hasInvalidCloses(bars: Array<EnrichableBar>): boolean {
   return bars.some((b, i) => {
     const close = typeof b.c === 'number' && Number.isFinite(b.c) ? b.c : undefined;
     // invalid when missing or zero for non-first bars
@@ -168,8 +184,16 @@ function hasInvalidCloses(bars: Array<{ ac?: number; c?: number }>): boolean {
 
 async function refetchRecentDailyAdjusted(symbol: string): Promise<void> {
   const handler: any = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
+  const { from, to } = parseDateRange();
   // Always use full fetch for this script to hydrate beyond the 100-bar compact limit
-  await handler.fetch({ symbol, outputsize: 'full', __checkWriteToggle: false, __phase: 'POST' });
+  await handler.fetch({
+    symbol,
+    outputsize: 'full',
+    __checkWriteToggle: false,
+    __phase: 'POST',
+    __fromMs: from ?? undefined,
+    __toMs: to ?? undefined,
+  });
 }
 
 function logLatestAndIssues(symbol: string, ep: AlphaVantageEndpoint, shard: string | number, bars: Array<{ t: number; o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; d?: string; dow?: string; ch?: number; cp?: number }>, latest?: any) {
@@ -273,10 +297,29 @@ async function repairDailyOrWeekly(symbol: string, ep: AlphaVantageEndpoint, iv:
     if (!Array.isArray(data?.bars) || data.bars.length === 0) continue;
 
     const barsArr = data.bars as Array<{ t: number; o?: number; h?: number; l?: number; c?: number; v?: number; ac?: number; d?: string; dow?: string; ch?: number; cp?: number }>;
+
+    // Optional date range guard: skip entire year shards that sit fully outside [from,to].
+    // This ensures backfills with --dateFrom only touch data on/after that boundary.
+    const { from, to } = parseDateRange();
+    if (barsArr.length) {
+      const yearFirstTs = barsArr[0].t;
+      const yearLastTs = barsArr[barsArr.length - 1].t;
+      if (from != null && yearLastTs < from) {
+        console.log(`[SKIP] ${yPath} (year ${year} entirely before from=${DATE_FROM})`);
+        continue;
+      }
+      if (to != null && yearFirstTs > to) {
+        console.log(`[SKIP] ${yPath} (year ${year} entirely after to=${DATE_TO})`);
+        continue;
+      }
+    }
     const needsRefetch = hasInvalidCloses(barsArr) || barsArr.some(b => !Number.isFinite((b.o as number)) || !Number.isFinite((b.h as number)) || !Number.isFinite((b.l as number)) || !Number.isFinite((b.v as number)));
-    if (!REPAIR_METADATA && iv === TimeSeriesInterval.DAILY && (needsRefetch || barsArr.some(b => b.ch == null || b.cp == null))) {
+    const shouldRefetchDaily = !REPAIR_METADATA && iv === TimeSeriesInterval.DAILY && (
+      FORCE_REFETCH || needsRefetch || barsArr.some(b => b.ch == null || b.cp == null)
+    );
+    if (shouldRefetchDaily) {
       if (DRY_RUN) {
-        console.log(`[DRY-RUN] Would refetch DAILY full for ${symbol} due to invalid/missing fields in ${yPath}`);
+        console.log(`[DRY-RUN] Would refetch DAILY full for ${symbol} (forceRefetch=${FORCE_REFETCH}, needsRefetch=${needsRefetch}) in ${yPath}`);
       } else {
         // Always use full fetch to hydrate gaps beyond the 100-bar compact limit
         await refetchRecentDailyAdjusted(symbol);
@@ -614,7 +657,7 @@ function computePairValue(baseline: any, target: any): number | undefined {
 async function main() {
   const start = Date.now();
   console.log('=== Backfill AV time-series (DAILY/WEEKLY/MONTHLY) ===');
-  console.log(`Filters: symbol=${SYMBOL_FILTER ?? 'ALL'}, interval=${INTERVAL_FILTER ?? 'ALL'}, year=${YEAR_FILTER ?? 'ALL'}, dryRun=${DRY_RUN}, repairMeta=${REPAIR_METADATA}, forceRefetch=${FORCE_REFETCH}, emulator=${USE_EMULATOR}`);
+  console.log(`Filters: symbol=${SYMBOL_FILTER ?? 'ALL'}, interval=${INTERVAL_FILTER ?? 'ALL'}, year=${YEAR_FILTER ?? 'ALL'}, dryRun=${DRY_RUN}, repairMeta=${REPAIR_METADATA}, forceRefetch=${FORCE_REFETCH}, emulator=${USE_EMULATOR}, dateFrom=${DATE_FROM ?? 'NONE'}, dateTo=${DATE_TO ?? 'NONE'}`);
 
   if (INVENTORY_MODE) {
     await runInventory();
