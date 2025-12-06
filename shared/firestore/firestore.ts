@@ -15,6 +15,9 @@ export enum FirestoreCollection {
     TIME_SERIES = 'time-series',
     TIME_SERIES_FINALIZATION = 'time-series-finalization',
     TIME_SERIES_STATUS = 'time-series-status',
+    
+    // Split Events (Global)
+    SPLIT_EVENTS = 'split-events',
 
     // LEGACY - refactor to use above core collections
     ECONOMIC_INDICATORS = "economic-indicators",

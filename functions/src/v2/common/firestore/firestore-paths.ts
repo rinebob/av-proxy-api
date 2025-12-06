@@ -17,19 +17,21 @@ export function getTimeSeriesDocId(endpoint: string, vendor: ApiProvider): strin
 /**
  * Canonical Firestore doc path for symbol time series.
  * E.g. symbol-data/AAPL/time-series/av-daily-adjusted
+ * If isSplitAdjusted=true, uses 'sa-time-series' collection.
  */
-export function getSymbolTimeSeriesDocPath(symbol: string, endpoint: string, vendor: ApiProvider): string {
+export function getSymbolTimeSeriesDocPath(symbol: string, endpoint: string, vendor: ApiProvider, isSplitAdjusted = false): string {
   const docId = getTimeSeriesDocId(endpoint, vendor);
-  return `${FirestoreCollection.SYMBOL_DATA}/${symbol.toUpperCase()}/${FirestoreCollection.TIME_SERIES}/${docId}`;
+  const collection = isSplitAdjusted ? 'sa-time-series' : FirestoreCollection.TIME_SERIES;
+  return `${FirestoreCollection.SYMBOL_DATA}/${symbol.toUpperCase()}/${collection}/${docId}`;
 }
 
 // ----------- Year-sharded helpers (non-intraday) -----------
-export function getSymbolTimeSeriesYearsCollectionPath(symbol: string, endpoint: string, vendor: ApiProvider): string {
-  return `${getSymbolTimeSeriesDocPath(symbol, endpoint, vendor)}/years`;
+export function getSymbolTimeSeriesYearsCollectionPath(symbol: string, endpoint: string, vendor: ApiProvider, isSplitAdjusted = false): string {
+  return `${getSymbolTimeSeriesDocPath(symbol, endpoint, vendor, isSplitAdjusted)}/years`;
 }
 
-export function getSymbolTimeSeriesYearDocPath(symbol: string, endpoint: string, vendor: ApiProvider, year: number): string {
-  return `${getSymbolTimeSeriesYearsCollectionPath(symbol, endpoint, vendor)}/${String(year)}`;
+export function getSymbolTimeSeriesYearDocPath(symbol: string, endpoint: string, vendor: ApiProvider, year: number, isSplitAdjusted = false): string {
+  return `${getSymbolTimeSeriesYearsCollectionPath(symbol, endpoint, vendor, isSplitAdjusted)}/${String(year)}`;
 }
 
 export function getYearFromEpochMillis(epochMillis: number): number {
@@ -42,9 +44,9 @@ export function getYearFromEpochMillis(epochMillis: number): number {
  * Structure:
  *   symbol-data/{symbol}/time-series/{docId}/all/data
  */
-export function getSymbolTimeSeriesAllDocPath(symbol: string, endpoint: string, vendor: ApiProvider): string {
+export function getSymbolTimeSeriesAllDocPath(symbol: string, endpoint: string, vendor: ApiProvider, isSplitAdjusted = false): string {
   // Use a subcollection "all" with a fixed doc id "data" to ensure an even number of segments.
-  return `${getSymbolTimeSeriesDocPath(symbol, endpoint, vendor)}/all/data`;
+  return `${getSymbolTimeSeriesDocPath(symbol, endpoint, vendor, isSplitAdjusted)}/all/data`;
 }
 
 // ----------- Day/Bar helpers (intraday only; currently optional) -----------

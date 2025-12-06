@@ -95,3 +95,6 @@ export { onDailyAdjustedFinalizedPublish } from './v2/partner/finalization.publi
 
 // Remove the underscore from the function name then uncomment the next line to export it
 // export { updateAllDailyTimeSeriesBulk } from './v2/alpha-vantage';
+
+// Split History Remediation Task
+export { remediateSplitHistory } from './v2/alpha-vantage/tasks/split-remediator.task';

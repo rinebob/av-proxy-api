@@ -124,7 +124,7 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
     this.validateParams(params);
 
     // Strip internal params before sending to AV
-    const { __checkWriteToggle, __phase, __run, ...publicParams } = params || {};
+    const { __checkWriteToggle, __phase, __run, __fromMs, __toMs, ...publicParams } = params || {};
     const requestParams = this.prepareRequestParams(publicParams);
 
     try {
@@ -276,7 +276,7 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
       }
 
       // Default: check write toggle (UI/gateway). Backend callers should pass __checkWriteToggle: false
-      const checkWriteToggle: boolean = __checkWriteToggle !== false;
+      const checkWriteToggle: boolean = String(__checkWriteToggle) !== 'false';
 
       if (
         symbol &&
@@ -354,7 +354,8 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
                 symbol,
                 endpoint as AlphaVantageEndpoint,
                 this.config.interval as TimeSeriesInterval,
-                checkWriteToggle
+                checkWriteToggle,
+                { fromMs: __fromMs, toMs: __toMs },
               );
           }
         } else {
@@ -366,7 +367,8 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
             symbol,
             endpoint as AlphaVantageEndpoint,
             this.config.interval as TimeSeriesInterval,
-            checkWriteToggle
+            checkWriteToggle,
+            { fromMs: __fromMs, toMs: __toMs },
           );
         }
       } else {
