@@ -211,7 +211,16 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
       truncated = true;
       bars = bars.slice(-params.limit);
     }
-    logger.debug('reader.done', { truncated, finalCount: bars.length });
+    const firstBar = bars[0];
+    const lastBar = bars[bars.length - 1];
+    logger.debug('reader.done', {
+      truncated,
+      finalCount: bars.length,
+      from,
+      to,
+      firstBarTs: firstBar?.t,
+      lastBarTs: lastBar?.t,
+    });
 
     return {
       ok: true,

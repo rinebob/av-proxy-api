@@ -2,7 +2,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import type { Request, Response } from 'express';
 
 import { withCors } from '../utils/cors-middleware';
-import { authenticateRequestEither } from '../utils/utils';
+import { authenticateRequestEither, createLogger } from '../utils/utils';
 import { getPartnerTimeSeries, type TimeSeriesReadParams } from '../common/firestore/time-series-readers';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 import { defineSecret } from 'firebase-functions/params';
@@ -13,6 +13,8 @@ const ALLOWED_INTERVALS = [
   TimeSeriesInterval.WEEKLY,
   TimeSeriesInterval.MONTHLY,
 ] as const;
+
+const logger = createLogger('[partner-time-series]');
 
 function parseInterval(val: unknown): TimeSeriesInterval | null {
   if (typeof val !== 'string') return null;
@@ -57,7 +59,30 @@ async function handler(req: Request, res: Response) {
       limit: req.query.limit != null ? Number(req.query.limit) : undefined,
     };
 
+    logger.info('partnerTimeSeries.request', {
+      method: req.method,
+      path: req.path,
+      query: req.query,
+      symbol,
+      interval,
+      params,
+    });
+
     const result = await getPartnerTimeSeries(params);
+    const firstBar = result.bars?.[0];
+    const lastBar = result.bars?.[result.bars.length - 1];
+
+    logger.info('partnerTimeSeries.response', {
+      symbol,
+      interval,
+      requested: params,
+      rangeUsed: result.rangeUsed,
+      count: result.count,
+      truncated: result.truncated,
+      availableYears: result.availableYears,
+      firstBarTs: firstBar?.t,
+      lastBarTs: lastBar?.t,
+    });
     const status = result.ok ? 200 : result.code === 'NOT_FOUND' ? 404 : 500;
     res.status(status).json({ ...result, processingTimeMs: Date.now() - start });
   } catch (e: any) {
