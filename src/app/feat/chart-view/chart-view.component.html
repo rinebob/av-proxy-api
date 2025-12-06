@@ -1,6 +1,6 @@
 <div class="chart-view-container">
-  <div class="sidebar">
-    <mat-form-field appearance="outline" class="full-width">
+  <div class="controls-bar">
+    <mat-form-field appearance="outline">
       <mat-label>Select Symbol</mat-label>
       <mat-select [value]="store.selectedSymbol()" (selectionChange)="onSymbolSelected($event.value)">
         @for (symbol of store.symbols(); track symbol) {
@@ -11,7 +11,7 @@
 
     <mat-slide-toggle 
       [checked]="store.isSplitAdjusted()" 
-      (change)="store.setSplitAdjusted($event.checked)">
+      (change)="onSplitAdjustedChange($event.checked)">
       Split Adjusted
     </mat-slide-toggle>
   </div>
@@ -23,13 +23,33 @@
 
     @if (store.selectedSymbol() && store.chartData().length > 0) {
       <!-- Chart will go here. I'll add a basic placeholder structure. -->
-      <ejs-chart id="chart-container" 
+      <ejs-chart #chart id="chart-container" 
         [primaryXAxis]="primaryXAxis" 
         [primaryYAxis]="primaryYAxis" 
+        [axes]="axes"
         [title]="title"
-        [zoomSettings]="zoomSettings">
+        [titleStyle]="titleStyle"
+        [zoomSettings]="zoomSettings"
+        [tooltip]="tooltipSettings"
+        (loaded)="onChartLoaded()"
+        (scrollEnd)="onScrollEnd($event)"
+        (scrollChanged)="onScrollChanged($event)"
+        (zoomComplete)="onZoomComplete($event)">
         <e-series-collection>
-            <e-series [dataSource]="store.chartData()" type="Candle" xName="t" high="h" low="l" open="o" close="c" volume="v" name="Price">
+            <e-series [dataSource]="store.chartData()" 
+                      type="Candle" 
+                      xName="t" high="h" low="l" open="o" close="c" 
+                      name="Price"
+                      [animation]="{ enable: false }"
+                      bullFillColor="#2ecc71"
+                      bearFillColor="#e74c3c">
+            </e-series>
+            <!-- Dummy series to force SecondaryYAxis rendering -->
+            <e-series [dataSource]="store.chartData()" 
+                      type="Line" 
+                      yAxisName="SecondaryYAxis" 
+                      xName="t" yName="c"
+                      width="0">
             </e-series>
         </e-series-collection>
       </ejs-chart>

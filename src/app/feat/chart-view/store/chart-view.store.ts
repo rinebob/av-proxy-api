@@ -46,13 +46,28 @@ export const ChartViewStore = signalStore(
                // Merge all bars from all years
                const allBars = yearsData.flatMap(yearDoc => yearDoc['bars'] || []);
                
-               // Sort by timestamp
-               allBars.sort((a: any, b: any) => a.t - b.t);
+               const transformedBars = allBars.map((b: any) => {
+                 // Handle various date formats (Firestore Timestamp, string, number)
+                 let date: Date;
+                 if (b.t && typeof b.t.toDate === 'function') {
+                   date = b.t.toDate();
+                 } else {
+                   date = new Date(b.t);
+                 }
 
-               const transformedBars = allBars.map((b: any) => ({
-                 ...b,
-                 t: new Date(b.t)
-               }));
+                 return {
+                   t: date,
+                   o: Number(b.o),
+                   h: Number(b.h),
+                   l: Number(b.l),
+                   c: Number(b.c),
+                   v: Number(b.v)
+                 };
+               });
+
+               // Sort by timestamp explicitly
+               transformedBars.sort((a, b) => a.t.getTime() - b.t.getTime());
+
                patchState(store, { chartData: transformedBars, isLoading: false });
              }),
              catchError((err) => {
