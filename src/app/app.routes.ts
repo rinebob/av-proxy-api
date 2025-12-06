@@ -9,10 +9,12 @@ import { authGuard } from './core/auth/auth.guard';
 import { SymbolManagerComponent } from './feat/symbol-manager-view/components/symbol-manager/symbol-manager.component';
 import { DashboardLayoutComponent } from './feat/admin-dashboard/components/dashboard-layout/dashboard-layout.component';
 import { HealthDashboardComponent } from './feat/health-view/comps/health-dashboard/health-dashboard.component';
+import { ChartViewComponent } from './feat/chart-view/chart-view.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'stock-data', component: StockDataComponent, canActivate: [authGuard] },
+  { path: 'charts', component: ChartViewComponent, canActivate: [authGuard] },
   { path: 'calendars', component: BzCalendarViewComponent, canActivate: [authGuard] },
   { path: 'data-maintainer', component: DataMaintainerViewComponent, canActivate: [authGuard] },
   { path: 'symbol-manager', component: SymbolManagerComponent, canActivate: [authGuard] },

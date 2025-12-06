@@ -1,0 +1,35 @@
+.chart-view-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+
+  .sidebar {
+    width: 250px;
+    padding: 1rem;
+    border-right: 1px solid #e0e0e0;
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .main-content {
+    flex: 1;
+    padding: 1rem;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+
+    .loading-indicator {
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .no-data, .placeholder {
+      padding: 2rem;
+      text-align: center;
+      color: #666;
+      font-style: italic;
+    }
+  }
+}

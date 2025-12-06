@@ -13,6 +13,11 @@ import { connectFunctionsEmulator, getFunctions, provideFunctions, Functions } f
 // Material modules
 import { provideNativeDateAdapter } from '@angular/material/core';
 
+import { registerLicense } from '@syncfusion/ej2-base';
+import { SYNC_FUSION_LICENSE_KEY } from '../secrets/syncfusion-license';
+
+registerLicense(SYNC_FUSION_LICENSE_KEY);
+
 import { environment } from '../environments/environment';
 import { routes } from './app.routes';
 import { API_BASES, type ApiBases } from './core/api/api.tokens';

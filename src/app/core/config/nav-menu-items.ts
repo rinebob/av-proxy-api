@@ -26,6 +26,14 @@ export const NAV_ITEMS: NavItem[] = [
     tooltip: 'Data maintenance tools'
   },
   {
+    displayName: 'Charts',
+    iconName: 'show_chart',
+    route: '/charts',
+    exact: false,
+    requiredRole: 'admin',
+    tooltip: 'View time series charts'
+  },
+  {
     displayName: 'Symbol Manager',
     iconName: 'list_alt',
     route: '/symbol-manager',

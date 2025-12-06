@@ -1,5 +1,6 @@
 /* You can add global styles to this file, and also import other style files */
 @use 'styles/variables' as v;
+@import '../node_modules/@syncfusion/ej2-angular-base/styles/material.css';
 
 // Material Icons
 // Loading Material Icons from local package via angular.json styles entries

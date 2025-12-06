@@ -1,0 +1,42 @@
+<div class="chart-view-container">
+  <div class="sidebar">
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Select Symbol</mat-label>
+      <mat-select [value]="store.selectedSymbol()" (selectionChange)="onSymbolSelected($event.value)">
+        @for (symbol of store.symbols(); track symbol) {
+          <mat-option [value]="symbol">{{ symbol }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-slide-toggle 
+      [checked]="store.isSplitAdjusted()" 
+      (change)="store.setSplitAdjusted($event.checked)">
+      Split Adjusted
+    </mat-slide-toggle>
+  </div>
+
+  <div class="main-content">
+    @if (store.isLoading()) {
+      <div class="loading-indicator">Loading...</div>
+    }
+
+    @if (store.selectedSymbol() && store.chartData().length > 0) {
+      <!-- Chart will go here. I'll add a basic placeholder structure. -->
+      <ejs-chart id="chart-container" 
+        [primaryXAxis]="primaryXAxis" 
+        [primaryYAxis]="primaryYAxis" 
+        [title]="title"
+        [zoomSettings]="zoomSettings">
+        <e-series-collection>
+            <e-series [dataSource]="store.chartData()" type="Candle" xName="t" high="h" low="l" open="o" close="c" volume="v" name="Price">
+            </e-series>
+        </e-series-collection>
+      </ejs-chart>
+    } @else if (store.selectedSymbol()) {
+      <div class="no-data">No data available for {{ store.selectedSymbol() }} (Year {{ currentYear }})</div>
+    } @else {
+      <div class="placeholder">Select a symbol to view chart</div>
+    }
+  </div>
+</div>

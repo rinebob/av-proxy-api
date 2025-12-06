@@ -17,6 +17,8 @@ export enum FirestoreCollection {
     TIME_SERIES_FINALIZATION = 'time-series-finalization',
     TIME_SERIES_STATUS = 'time-series-status',
     
+    YEARS = 'years',
+
     // Split Events (Global)
     SPLIT_EVENTS = 'split-events',
 
