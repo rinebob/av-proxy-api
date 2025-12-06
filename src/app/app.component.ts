@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal, ViewChild, AfterViewInit } from '@angular/core';
+import { Component, computed, effect, inject, signal, viewChild, AfterViewInit } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { CommonModule } from '@angular/common';
@@ -39,8 +39,8 @@ import { ManualFirestoreWriteToggleComponent } from './core/admin/manual-firesto
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss']
 })
-export class AppComponent implements AfterViewInit {
-  @ViewChild('sidenav') sidenav!: MatSidenav;
+export class AppComponent {
+  readonly sidenav = viewChild<MatSidenav>('sidenav');
   
   private authService = inject(AuthService);
   private router = inject(Router);
@@ -52,11 +52,12 @@ export class AppComponent implements AfterViewInit {
   readonly navItems = NAV_ITEMS;
   
   // Sidenav state
-  isHandset$ = this.breakpointObserver.observe(Breakpoints.Handset)
+  private isHandset$ = this.breakpointObserver.observe(Breakpoints.Handset)
     .pipe(
       map(result => result.matches),
       shareReplay()
     );
+  isHandset = toSignal(this.isHandset$, { initialValue: false });
   isSidenavOpen = true;
 
   // Signals
@@ -86,24 +87,24 @@ export class AppComponent implements AfterViewInit {
     });
   });
 
-  ngOnInit(): void {
-    this.titleService.setTitle('Savant API');
+  constructor() {
+    // Keep the sidenav state in sync with auth, route, and screen size
+    effect(() => {
+      // Track dependencies
+      this.isAuthenticated();
+      this.isLoginRoute();
+      this.isHandset();
+      
+      const sNav = this.sidenav();
+      
+      if (sNav) {
+        sNav.close();
+      }
+    });
   }
 
-  ngAfterViewInit(): void {
-    // Keep the sidenav state in sync with auth and route
-    effect(() => {
-      const shouldOpen = this.isAuthenticated() && !this.isLoginRoute();
-      // Defer until ViewChild is available
-      queueMicrotask(() => {
-        if (!this.sidenav) return;
-        if (shouldOpen) {
-          this.sidenav.open();
-        } else {
-          this.sidenav.close();
-        }
-      });
-    });
+  ngOnInit(): void {
+    this.titleService.setTitle('Savant API');
   }
 
   async handleLogout(): Promise<void> {
@@ -117,12 +118,18 @@ export class AppComponent implements AfterViewInit {
   }
 
   toggleSidenav() {
-    this.sidenav.toggle();
+    const sNav = this.sidenav();
+    if (sNav) {
+      sNav.toggle();
+    }
   }
 
   onNavItemClick() {
     if (this.breakpointObserver.isMatched(Breakpoints.Handset)) {
-      this.sidenav.close();
+      const sNav = this.sidenav();
+      if (sNav) {
+        sNav.close();
+      }
     }
   }
 }

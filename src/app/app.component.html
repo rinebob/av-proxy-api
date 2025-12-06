@@ -2,7 +2,7 @@
   <mat-toolbar color="primary" class="app-toolbar">
     <button
       mat-icon-button
-      (click)="sidenav.toggle()"
+      (click)="toggleSidenav()"
       class="menu-button"
       [class.invisible]="isLoginRoute() || !isAuthenticated()"
       [disabled]="isLoginRoute() || !isAuthenticated()"
@@ -43,7 +43,7 @@
                [routerLink]="item.route" 
                routerLinkActive="active"
                [routerLinkActiveOptions]="{exact: item.exact}"
-               (click)="sidenav.toggle()"
+               (click)="onNavItemClick()"
                class="nav-item">
               <mat-icon matListItemIcon class="nav-icon">{{item.iconName}}</mat-icon>
               <span matListItemTitle class="nav-label">{{item.displayName}}</span>
