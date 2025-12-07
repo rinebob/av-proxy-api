@@ -44,8 +44,7 @@ export abstract class AlphaVantageStandardHandlerBase<T = any> extends AlphaVant
           transformedData,
           symbol,
           endpoint as AlphaVantageEndpoint,
-          this.config,
-          true // Check whether manual firestore write is enabled (for manual data refresh)
+          this.config
         );
       } else if (endpoint === AlphaVantageEndpoint.GLOBAL_QUOTE) {
         console.log('[AvGlobalQuoteHandler] Skipping Firestore save for GLOBAL_QUOTE. Logging and returning data only.');

@@ -18,7 +18,6 @@ import { AuthService } from './core/auth/auth.service';
 import { environment } from '../environments/environment';
 import { NAV_ITEMS } from './core/config/nav-menu-items';
 import { NavItem } from './core/models/nav-item.model';
-import { ManualFirestoreWriteToggleComponent } from './core/admin/manual-firestore-write-toggle/manual-firestore-write-toggle.component';
 
 @Component({
   selector: 'app-root',
@@ -33,8 +32,7 @@ import { ManualFirestoreWriteToggleComponent } from './core/admin/manual-firesto
     MatListModule,
     RouterLink, 
     RouterLinkActive,
-    MatTooltipModule,
-    ManualFirestoreWriteToggleComponent
+    MatTooltipModule
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss']

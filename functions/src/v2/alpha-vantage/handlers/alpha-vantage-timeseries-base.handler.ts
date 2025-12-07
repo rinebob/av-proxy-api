@@ -275,9 +275,6 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
         bars = [latest];
       }
 
-      // Default: check write toggle (UI/gateway). Backend callers should pass __checkWriteToggle: false
-      const checkWriteToggle: boolean = String(__checkWriteToggle) !== 'false';
-
       if (
         symbol &&
         bars &&
@@ -354,7 +351,6 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
                 symbol,
                 endpoint as AlphaVantageEndpoint,
                 this.config.interval as TimeSeriesInterval,
-                checkWriteToggle,
                 { fromMs: __fromMs, toMs: __toMs },
               );
           }
@@ -367,7 +363,6 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
             symbol,
             endpoint as AlphaVantageEndpoint,
             this.config.interval as TimeSeriesInterval,
-            checkWriteToggle,
             { fromMs: __fromMs, toMs: __toMs },
           );
         }

@@ -6,47 +6,43 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 1. manualFirestoreWriteEnabled toggle doc: only admin users can read/write
-    match /config/manualFirestoreWriteEnabled {
-      allow read, write: if request.auth.token.admin == true;
-    }
 
-    // 2. All other config docs: admin only read/write
+    // 1. Config docs: admin only read/write
     match /config/{document=**} {
       allow read, write: if request.auth.token.admin == true;
     }
 
-    // 3. Tracked symbols: allow reads, admin can write
+    // 2. Tracked symbols: allow reads, admin can write
     match /tracked-symbols/{symbol} {
       allow read: if true;
       allow write: if request.auth.token.admin == true;
     }    
 
-    // 4. Symbol data: allow reads, admin can write (including all subcollections)
+    // 3. Symbol data: allow reads, admin can write (including all subcollections)
     match /symbol-data/{document=**} {
       allow read: if true;
       allow write: if request.auth.token.admin == true;
     }
 
-    // 5. MarketData collection: allow reads, admin can write
+    // 4. MarketData collection: allow reads, admin can write
     match /market-data/{docId} {
       allow read: if true;
       allow write: if request.auth.token.admin == true;
     }
 
-    // 6. News collection: allow reads, deny all writes
+    // 5. News collection: allow reads, deny all writes
     match /news/{docId} {
       allow read: if true;
       allow write: if false;
     }
 
-    // 7. Economics collection: allow reads, admin can write
+    // 6. Economics collection: allow reads, admin can write
     match /economics/{docId} {
       allow read: if true;
       allow write: if request.auth.token.admin == true;
     }
 
-    // 8. Operational collections for processing runs
+    // 7. Operational collections for processing runs
     // These are written by backend functions using Admin SDK (bypasses rules).
     // Lock down client access: no writes; reads restricted to admins only.
     match /runs/{runId} {
@@ -54,7 +50,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // 9. Health Metrics: allow clients to read only the small latest status doc.
+    // 8. Health Metrics: allow clients to read only the small latest status doc.
     // UI listens to: /health-metrics/{endpointId}/latest/status
     match /health-metrics/{endpointId}/latest/{docId} {
       allow read: if request.auth != null && docId == 'status';

@@ -6,28 +6,24 @@ import {
   SvtHistoricalOptionsDocument,
   SvtOptionsAnalysis 
 } from '@shared/alpha-vantage/av-historical-options';
-import { isManualWriteEnabled } from '../../common/firestore/manual-write-toggle';
 import { FirestoreCollection } from '@shared/firestore';
 import { ApiProvider } from '@shared/core';
 
 /**
  * Saves historical options data and analysis to Firestore
- * - Respects the manual Firestore write toggle
  * - Writes only if the symbol exists in the tracked symbols list
  * @param symbol - The stock symbol (e.g., 'AAPL')
  * @param expiration - The expiration date in 'YYYY-MM-DD' format
  * @param response - The raw API response from Alpha Vantage
  * @param analysis - The analyzed options data
  * @param endpoint - The Alpha Vantage endpoint (default: HISTORICAL_OPTIONS)
- * @param checkManualWriteEnabled - If true, checks if manual writes are enabled before saving
  */
 export async function saveAvHistoricalOptions(
   symbol: string,
   expiration: string,
   response: AvHistoricalOptionsResponse,
   analysis: SvtOptionsAnalysis,
-  endpoint: AlphaVantageEndpoint = AlphaVantageEndpoint.HISTORICAL_OPTIONS,
-  checkManualWriteEnabled: boolean = true
+  endpoint: AlphaVantageEndpoint = AlphaVantageEndpoint.HISTORICAL_OPTIONS
 ): Promise<void> {
   console.log(`[saveAvHistoricalOptions] Saving options data for ${symbol} (${expiration})`);
 
@@ -36,17 +32,7 @@ export async function saveAvHistoricalOptions(
     const docPath = `${FirestoreCollection.SYMBOL_DATA}/${symbol}/${FirestoreCollection.OPTIONS}/${expiration}`;
     const docRef = db.doc(docPath);
 
-    // 2. Check manual Firestore write enabled if required
-    if (checkManualWriteEnabled) {
-      const enabled = await isManualWriteEnabled();
-      console.log(`[saveAvHistoricalOptions] Manual Firestore write toggle enabled?`, enabled);
-      if (!enabled) {
-        console.log('[saveAvHistoricalOptions] Manual Firestore write toggle is OFF. Skipping data write.');
-        return;
-      }
-    }
-
-    // 3. Ensure the symbol is tracked before writing
+    // 2. Ensure the symbol is tracked before writing
     const symbolId = (symbol || '').trim().toUpperCase();
     if (!symbolId) {
       console.warn('[saveAvHistoricalOptions] Empty symbol after normalization. Skipping data write.');
@@ -59,7 +45,7 @@ export async function saveAvHistoricalOptions(
       return;
     }
 
-    // 4. Prepare document data
+    // 3. Prepare document data
     const document: SvtHistoricalOptionsDocument = {
       symbol,
       expiration,
@@ -70,7 +56,7 @@ export async function saveAvHistoricalOptions(
       analysis
     };
 
-    // 5. Save to Firestore
+    // 4. Save to Firestore
     await docRef.set(document, { merge: true });
     console.log(`[saveAvHistoricalOptions] Saved options data for ${symbol} (${expiration}) at path: ${docPath}`);
 

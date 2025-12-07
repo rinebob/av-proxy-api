@@ -12,7 +12,6 @@ import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 
-import { isManualWriteEnabled } from '../../common/firestore/manual-write-toggle';
 import type { SplitRemediationPayload } from '../tasks/split-remediator.task';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { adjustHistoryForBackfill } from '../logic/split-math';
@@ -32,18 +31,16 @@ const log = createLogger('av.ts'); // Abbrev: aFH sATSD
  * @param symbol - The symbol
  * @param endpoint - The Alpha Vantage endpoint
  * @param endpointConfig - The endpoint configuration
- * @param checkManualWriteEnabled - REQUIRED: must always be set by caller. If true, enforces the manual Firestore write toggle. Pass false for scheduled jobs.
  * @returns Promise that resolves when persistence and logging complete
  */
 export async function saveAvData(
   data: any,
   symbol: string,
   endpoint: AlphaVantageEndpoint,
-  endpointConfig: EndpointConfig,
-  checkManualWriteEnabled: boolean
+  endpointConfig: EndpointConfig
 ): Promise<void> {
   console.log(`aFH sAD start ${endpoint} ${symbol}`);
-  log.info('standard.save.start', { symbol, endpoint, checkManualWriteEnabled });
+  log.info('standard.save.start', { symbol, endpoint });
   const { firestorePath, ttl } = endpointConfig;
 
   if (typeof ttl !== 'number') {
@@ -59,22 +56,7 @@ export async function saveAvData(
     }
     const docPath = firestorePath.replace('{symbol}', symbol);
 
-    // 2. Check manual Firestore write enabled
-    // Note: only requests made from frontend should go through this check.  All other callers especially scheduled jobs
-    // should pass false for checkManualWriteEnabled.  This is just a mechanism to enable a ui initiated data refresh instead
-    // of waiting for the next scheduled job.
-    if (checkManualWriteEnabled) {
-      const enabled = await isManualWriteEnabled();
-      console.log(`aFH sAD toggle enabled? ${enabled}`);
-      log.debug('standard.save.toggle', { enabled });
-      if (!enabled) {
-        console.log('aFH sAD toggle OFF; skip');
-        log.info('standard.save.skip_toggle');
-        return;
-      }
-    }
-
-    // 3. If enabled or bypassed, proceed with Firestore write and refresh event logging
+    // 2. Proceed with Firestore write and refresh event logging
     await db.doc(docPath).set({ data }, { merge: true });
 
     // 4. Log refresh event using RefreshLoggerService
@@ -116,7 +98,6 @@ export async function saveAvData(
  * @param symbol Stock symbol
  * @param endpoint Alpha Vantage endpoint id
  * @param interval Shared time-series interval
- * @param checkManualWriteEnabled Enforce manual write toggle (true for UI flows)
  * @returns Promise that resolves on success
  */
 /**
@@ -128,7 +109,6 @@ async function _internalSaveAvTimeSeriesData(
   symbol: string,
   endpoint: AlphaVantageEndpoint,
   interval: TimeSeriesInterval,
-  checkManualWriteEnabled: boolean,
   isSplitAdjusted: boolean,
   options?: { fromMs?: number | null; toMs?: number | null; forceFullHistory?: boolean },
 ): Promise<void> {
@@ -185,17 +165,6 @@ async function _internalSaveAvTimeSeriesData(
 
   try {
     const startTime = Date.now();
-    // 3. Respect manual Firestore write toggle for UI/gateway-triggered calls
-    if (checkManualWriteEnabled) {
-      const enabled = await isManualWriteEnabled();
-      console.log(`aFH sATSD toggle? ${enabled}`);
-      log.debug('timeseries.save.toggle', { enabled });
-      if (!enabled) {
-        console.log('aFH sATSD toggle OFF; skip');
-        log.info('timeseries.save.skip_toggle');
-        return;
-      }
-    }
     // 3. Sharded writes do not rely on existing refreshHistory; skip reading existing doc
 
     // 4. Prepare writes for non-intraday:
@@ -460,7 +429,6 @@ export async function saveAvTimeSeriesData(
   symbol: string,
   endpoint: AlphaVantageEndpoint,
   interval: TimeSeriesInterval,
-  checkManualWriteEnabled: boolean,
   options?: { fromMs?: number | null; toMs?: number | null; skipLegacyWrite?: boolean },
 ): Promise<void> {
   // Dual write: Raw (Legacy) and Adjusted (Side-Car)
@@ -468,13 +436,13 @@ export async function saveAvTimeSeriesData(
   
   // 1. Raw / Standard (Optional Bypass)
   if (!options?.skipLegacyWrite) {
-      await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, checkManualWriteEnabled, false, options);
+      await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, false, options);
   }
 
   // 2. Split Adjusted (Always Force Full History for Backfills)
   // We disable emulator truncation here to ensure we capture deep historical splits (e.g. AAPL 2020, 2014)
   // even when running in the emulator.
-  await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, checkManualWriteEnabled, true, { 
+  await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, true, { 
       ...options,
       forceFullHistory: true 
   });

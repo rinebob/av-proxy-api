@@ -14,10 +14,6 @@
     
     <span class="spacer"></span>
     
-    @if (isAuthenticated() && isAdmin() && !isLoginRoute()) {
-      <app-manual-firestore-write-toggle />
-    }
-    
     @if (isAuthenticated() && !isLoginRoute()) {
       <div class="user-info">
         <span class="welcome-text">Welcome, {{ currentUser()?.email || 'User' }}</span>

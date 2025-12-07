@@ -20,10 +20,9 @@ export class AvHistoricalOptionsHandler extends AlphaVantageBaseHandler<AvHistor
   /**
    * Fetches historical options data from Alpha Vantage
    * @param params Request parameters (symbol is required, date is optional)
-   * @param checkManualWriteEnabled If true, checks if manual writes are enabled before saving to Firestore
    * @returns Processed historical options data wrapped in ApiResponse
    */
-  public async fetch(params: Record<string, any>, checkManualWriteEnabled: boolean = true): Promise<ApiResponse<AvHistoricalOptionsResponse>> {
+  public async fetch(params: Record<string, any>): Promise<ApiResponse<AvHistoricalOptionsResponse>> {
     console.log('========== START AvHistoricalOptionsHandler.fetch ====================');
     const startTime = Date.now();
     const { symbol, date } = params;
@@ -64,7 +63,7 @@ export class AvHistoricalOptionsHandler extends AlphaVantageBaseHandler<AvHistor
           const expiration = transformedData.data[0]?.expiration || date || new Date().toISOString().split('T')[0];
           
           // Save to Firestore (don't block the response waiting for this to complete)
-          saveAvHistoricalOptions(symbol, expiration, transformedData, analysis, this.endpoint, checkManualWriteEnabled)
+          saveAvHistoricalOptions(symbol, expiration, transformedData, analysis, this.endpoint)
             .catch(error => {
               console.error(`[${this.requestId}] [HISTORICAL-OPTIONS] Error saving to Firestore:`, error);
             });
