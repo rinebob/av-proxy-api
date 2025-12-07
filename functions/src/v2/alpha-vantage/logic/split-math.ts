@@ -87,11 +87,10 @@ function adjustBarValues(bar: CompactBar, multiplier: number): CompactBar {
     c: bar.c !== undefined ? Number((bar.c * multiplier).toFixed(4)) : undefined,
     // Re-calculate changes if they exist
     ch: bar.ch !== undefined ? Number((bar.ch * multiplier).toFixed(4)) : undefined,
-    // cp (Percent Change) remains constant during a split, technically, 
-    // but since it's a derived value, it holds true.
-    // ac (Adjusted Close) - we ignore this field generally, but if present, scale it too?
-    // Policy says: "Ignore AV adjusted close". But if we have it in our DB, we should probably keep it consistent or null it.
-    // Let's scale it to be safe so it doesn't look wildly out of place.
-    ac: bar.ac !== undefined ? Number((bar.ac * multiplier).toFixed(4)) : undefined,
+    // cp (Percent Change) remains constant during a split.
+    
+    // ac (Adjusted Close) is already adjusted by the provider (includes splits + dividends).
+    // Do NOT apply the split multiplier again, or it will be double-adjusted.
+    ac: bar.ac,
   };
 }
