@@ -57,6 +57,7 @@ async function handler(req: Request, res: Response) {
       from: (req.query.from as any) || undefined,
       to: (req.query.to as any) || undefined,
       limit: req.query.limit != null ? Number(req.query.limit) : undefined,
+      isSplitAdjusted: req.query.adjusted === 'true',
     };
 
     logger.info('partnerTimeSeries.request', {
@@ -75,6 +76,7 @@ async function handler(req: Request, res: Response) {
     logger.info('partnerTimeSeries.response', {
       symbol,
       interval,
+      isSplitAdjusted: result.isSplitAdjusted,
       requested: params,
       rangeUsed: result.rangeUsed,
       count: result.count,
