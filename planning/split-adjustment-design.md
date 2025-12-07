@@ -96,3 +96,29 @@ If `sa-time-series` does not seem to reflect a known split:
 1.  **Check `split-events` collection:** Does a document exist for `YYYY-MM-DD-{SYMBOL}-{FACTOR}`?
 2.  **Check Logs:** Look for "Backwards Pass" or "Split Detected" logs in the Cloud Functions console.
 3.  **Force Backfill:** Run the manual command above. This is self-healing; it will re-detect all splits and re-write the entire adjusted timeline.
+
+## 5. API Access (Partner Endpoint)
+
+External applications (like RelStr) can access the split-adjusted data via the `partnerTimeSeriesV2` endpoint.
+
+### Request Format
+
+Append the `adjusted=true` query parameter to the request.
+
+```http
+GET /partnerTimeSeriesV2?symbol={SYMBOL}&interval={INTERVAL}&adjusted=true
+```
+
+### Parameters
+
+*   `symbol`: The stock ticker (e.g., `NVDA`).
+*   `interval`: Time resolution (`daily`, `weekly`, `monthly`).
+*   `adjusted`: **Boolean**.
+    *   `true`: Returns data from the `sa-time-series` collection (Split-Adjusted).
+    *   `false` (or omitted): Returns data from the `time-series` collection (Raw).
+
+### Example
+
+```http
+https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerTimeSeriesV2?symbol=NVDA&interval=daily&adjusted=true
+```
