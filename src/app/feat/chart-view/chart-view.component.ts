@@ -190,34 +190,26 @@ export class ChartViewComponent implements OnInit {
     }
 
     // 2. Set initial zoom to most recent year (approx 252 trading days)
-    let zoomFactor = 1;
-    let zoomPosition = 0;
-    
     const initialDays = 252;
-    if (data.length > initialDays && this.chart.primaryXAxis) {
-        zoomFactor = initialDays / data.length;
-        zoomPosition = (data.length - initialDays) / data.length;
+    
+    setTimeout(() => {
+        if (this.chart && this.chart.primaryXAxis && data.length > initialDays) {
+            const zoomFactor = initialDays / data.length;
+            const zoomPosition = (data.length - initialDays) / data.length;
 
-        this.chart.primaryXAxis.zoomFactor = zoomFactor;
-        this.chart.primaryXAxis.zoomPosition = zoomPosition;
-        
-        // Update bound property to keep sync
-        this.primaryXAxis = {
-            ...this.primaryXAxis,
-            zoomFactor: zoomFactor,
-            zoomPosition: zoomPosition
-        };
-    }
-
-    // 3. Initial Y-axis autoscale based on the new zoom
-    this.rescaleYAxis(zoomFactor, zoomPosition);
+            this.chart.primaryXAxis.zoomFactor = zoomFactor;
+            this.chart.primaryXAxis.zoomPosition = zoomPosition;
+            
+            // 3. Initial Y-axis autoscale based on the new zoom
+            this.rescaleYAxis(zoomFactor, zoomPosition);
+        } else {
+            // Fallback if no zoom needed
+            this.rescaleYAxis(1, 0);
+        }
+    });
   }
 
   onScrollEnd(event: IScrollEventArgs): void {
-      this.handleScroll();
-  }
-
-  onScrollChanged(event: IScrollEventArgs): void {
       this.handleScroll();
   }
 

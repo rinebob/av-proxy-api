@@ -33,7 +33,6 @@
         [tooltip]="tooltipSettings"
         (loaded)="onChartLoaded()"
         (scrollEnd)="onScrollEnd($event)"
-        (scrollChanged)="onScrollChanged($event)"
         (zoomComplete)="onZoomComplete($event)">
         <e-series-collection>
             <e-series [dataSource]="store.chartData()" 
