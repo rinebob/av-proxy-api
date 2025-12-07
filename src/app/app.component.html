@@ -36,7 +36,9 @@
 
   <mat-sidenav-container class="sidenav-container" autosize>
     @if (!isLoginRoute() && isAuthenticated()) {
-      <mat-sidenav #sidenav class="sidenav" mode="side">
+      <mat-sidenav #sidenav class="sidenav" 
+        [mode]="isHandset() ? 'over' : 'side'"
+        [opened]="!isHandset()">
         <mat-nav-list>
           @for (item of filteredNavItems(); track item.route) {
             <a mat-list-item 

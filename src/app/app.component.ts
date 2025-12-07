@@ -125,11 +125,9 @@ export class AppComponent {
   }
 
   onNavItemClick() {
-    if (this.breakpointObserver.isMatched(Breakpoints.Handset)) {
-      const sNav = this.sidenav();
-      if (sNav) {
-        sNav.close();
-      }
+    const sNav = this.sidenav();
+    if (sNav) {
+      sNav.close();
     }
   }
 }
