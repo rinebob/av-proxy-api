@@ -438,3 +438,9 @@ Notes:
 ### Future Improvement (TODO)
 
 - TODO: When real-time subscription is enabled, migrate pre-close snapshots to use Alpha Vantage BULK_QUOTE (or equivalent real-time quote stream) for higher fidelity and lower latency. Until then, pre-close uses `TIME_SERIES_INTRADAY` (compact) per above.
+
+## Split Adjustment Strategy
+
+A comprehensive dual-write and backfill strategy has been implemented to handle stock splits and dividend adjustments. This ensures both real-time continuity and historical accuracy.
+
+For detailed design, real-time behavior, and manual backfill instructions, please refer to **[Split Adjustment & Data Consistency Design](./split-adjustment-design.md)**.
