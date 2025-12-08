@@ -22,5 +22,10 @@ runConfig:
   # - variable: MY_SECRET
   #   secret: mySecretRef
 env:
+  - variable: SYNC_FUSION_LICENSE_KEY
+    secret: SYNC_FUSION_LICENSE_KEY
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: MY_API_KEY
     secret: MY_API_KEY

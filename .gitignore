@@ -63,6 +63,7 @@ firebase-export-*
 !**/dist/**/*.js
 !**/dist/**/*.js.map
 !test-alpha.js
+!/scripts/gen-syncfusion-license.js
 
 # TypeScript compiled output
 **/*.d.ts
@@ -86,3 +87,10 @@ shared/node_modules
 functions/local-dev.env.alpha-vantage-proxy-api
 src/assets/misc/prompts2.txt
 functions/.tsbuildinfo
+src/secrets/
+.env
+
+# TypeScript compiled output
+src/secrets/syncfusion-license.ts
+
+!scripts/gen-syncfusion-license.js
