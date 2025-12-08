@@ -9,6 +9,14 @@
       </mat-select>
     </mat-form-field>
 
+    <mat-button-toggle-group [value]="store.selectedInterval()" (change)="onIntervalChange($event.value)" appearance="legacy">
+      <mat-button-toggle [value]="TimeSeriesInterval.DAILY">Daily</mat-button-toggle>
+      <mat-button-toggle [value]="TimeSeriesInterval.WEEKLY">Weekly</mat-button-toggle>
+      <mat-button-toggle [value]="TimeSeriesInterval.MONTHLY">Monthly</mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <button mat-stroked-button (click)="viewAll()">View All</button>
+
     <mat-slide-toggle 
       [checked]="store.isSplitAdjusted()" 
       (change)="onSplitAdjustedChange($event.checked)">

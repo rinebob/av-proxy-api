@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Firestore, collection, collectionData, doc, docData } from '@angular/fire/firestore';
 import { Observable, map } from 'rxjs';
 import { FirestoreCollection } from '@shared/firestore';
+import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
 @Injectable({
   providedIn: 'root'
@@ -16,24 +17,38 @@ export class ChartDataService {
     );
   }
 
-  getYearlyData(symbol: string, year: number, isSplitAdjusted: boolean = false): Observable<any> {
+  getAllTimeSeriesData(symbol: string, isSplitAdjusted: boolean = false, interval: TimeSeriesInterval = TimeSeriesInterval.DAILY): Observable<any[]> {
     const timeSeriesCollection = isSplitAdjusted ? FirestoreCollection.SA_TIME_SERIES : FirestoreCollection.TIME_SERIES;
-    // Currently hardcoded to av-daily-adjusted as per requirements. 
-    // In the future this could be dynamic based on vendor/endpoint.
-    const docId = `av-${FirestoreCollection.DAILY_ADJUSTED}`; 
     
-    const path = `${FirestoreCollection.SYMBOL_DATA}/${symbol}/${timeSeriesCollection}/${docId}/${FirestoreCollection.YEARS}/${year}`;
-    const docRef = doc(this.firestore, path);
-    return docData(docRef);
-  }
-
-  getAllTimeSeriesData(symbol: string, isSplitAdjusted: boolean = false): Observable<any[]> {
-    const timeSeriesCollection = isSplitAdjusted ? FirestoreCollection.SA_TIME_SERIES : FirestoreCollection.TIME_SERIES;
-    const docId = `av-${FirestoreCollection.DAILY_ADJUSTED}`;
-    const path = `${FirestoreCollection.SYMBOL_DATA}/${symbol}/${timeSeriesCollection}/${docId}/${FirestoreCollection.YEARS}`;
-    const yearsRef = collection(this.firestore, path);
+    // Construct docId based on interval
+    let docId: string;
+    switch (interval) {
+      case TimeSeriesInterval.WEEKLY:
+        docId = `av-${FirestoreCollection.WEEKLY_ADJUSTED}`;
+        break;
+      case TimeSeriesInterval.MONTHLY:
+        docId = `av-${FirestoreCollection.MONTHLY_ADJUSTED}`;
+        break;
+      case TimeSeriesInterval.DAILY:
+      default:
+        docId = `av-${FirestoreCollection.DAILY_ADJUSTED}`;
+        break;
+    }
     
-    // Fetch all year documents
-    return collectionData(yearsRef);
+    // Handle special path for Monthly "all" doc
+    if (interval === TimeSeriesInterval.MONTHLY) {
+      // Monthly uses a single 'all' doc instead of year shards
+      // Path: symbol-data/{symbol}/{collection}/{docId}/all/data
+      const path = `${FirestoreCollection.SYMBOL_DATA}/${symbol}/${timeSeriesCollection}/${docId}/all/data`;
+      const docRef = doc(this.firestore, path);
+      return docData(docRef).pipe(
+        map((doc: any) => doc?.bars || [])
+      );
+    } else {
+      // Daily/Weekly use year shards
+      const path = `${FirestoreCollection.SYMBOL_DATA}/${symbol}/${timeSeriesCollection}/${docId}/${FirestoreCollection.YEARS}`;
+      const yearsRef = collection(this.firestore, path);
+      return collectionData(yearsRef);
+    }
   }
 }

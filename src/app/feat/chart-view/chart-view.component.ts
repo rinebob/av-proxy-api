@@ -10,6 +10,7 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { FormsModule } from '@angular/forms';
 import { ChartModule, ChartComponent, CandleSeriesService, DateTimeService, TooltipService, ZoomService, CrosshairService, ZoomSettingsModel, IZoomCompleteEventArgs, IScrollEventArgs, ScrollBarService, StripLineService, StripLineSettingsModel } from '@syncfusion/ej2-angular-charts';
 import { ChartViewStore } from './store/chart-view.store';
+import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
 @Component({
   selector: 'app-chart-view',
@@ -43,6 +44,7 @@ export class ChartViewComponent implements OnInit {
   @ViewChild('chart') chart!: ChartComponent;
   readonly store = inject(ChartViewStore);
   readonly currentYear = new Date().getFullYear();
+  readonly TimeSeriesInterval = TimeSeriesInterval;
   
   private isInitialLoad = true;
 
@@ -136,6 +138,21 @@ export class ChartViewComponent implements OnInit {
     this.isInitialLoad = true;
   }
 
+  onIntervalChange(interval: TimeSeriesInterval): void {
+    this.store.setInterval(interval);
+    this.isInitialLoad = true;
+  }
+
+  viewAll(): void {
+    if (this.chart && this.chart.primaryXAxis) {
+        this.chart.primaryXAxis.zoomFactor = 1;
+        this.chart.primaryXAxis.zoomPosition = 0;
+        this.store.setZoomSettings(1, 0);
+        this.rescaleYAxis(1, 0);
+        this.chart.dataBind();
+    }
+  }
+
   onChartLoaded(): void {
     if (!this.isInitialLoad || !this.chart) return;
     
@@ -189,21 +206,54 @@ export class ChartViewComponent implements OnInit {
         this.chart.primaryXAxis.stripLines = stripLines;
     }
 
-    // 2. Set initial zoom to most recent year (approx 252 trading days)
-    const initialDays = 252;
+    // 2. Check for persisted settings first
+    const savedFactor = this.store.zoomFactor();
+    const savedPosition = this.store.zoomPosition();
+
+    if (savedFactor !== null && savedPosition !== null) {
+         // Apply persisted settings
+         setTimeout(() => {
+             if (this.chart && this.chart.primaryXAxis) {
+                 this.chart.primaryXAxis.zoomFactor = savedFactor;
+                 this.chart.primaryXAxis.zoomPosition = savedPosition;
+                 this.rescaleYAxis(savedFactor, savedPosition);
+             }
+         });
+         return;
+    }
+
+    // 3. Default initial zoom based on interval if no persistence
+    let initialPoints = 252; // Default for Daily (approx 1 year)
+    
+    switch (this.store.selectedInterval()) {
+        case TimeSeriesInterval.WEEKLY:
+            initialPoints = 104; // Approx 2 years
+            break;
+        case TimeSeriesInterval.MONTHLY:
+            initialPoints = 60; // Approx 5 years
+            break;
+        case TimeSeriesInterval.DAILY:
+        default:
+            initialPoints = 252;
+            break;
+    }
     
     setTimeout(() => {
-        if (this.chart && this.chart.primaryXAxis && data.length > initialDays) {
-            const zoomFactor = initialDays / data.length;
-            const zoomPosition = (data.length - initialDays) / data.length;
+        if (this.chart && this.chart.primaryXAxis && data.length > initialPoints) {
+            const zoomFactor = initialPoints / data.length;
+            const zoomPosition = (data.length - initialPoints) / data.length;
 
             this.chart.primaryXAxis.zoomFactor = zoomFactor;
             this.chart.primaryXAxis.zoomPosition = zoomPosition;
             
-            // 3. Initial Y-axis autoscale based on the new zoom
+            // Store these defaults so they persist if user switches immediately
+            this.store.setZoomSettings(zoomFactor, zoomPosition);
+
+            // 4. Initial Y-axis autoscale based on the new zoom
             this.rescaleYAxis(zoomFactor, zoomPosition);
         } else {
             // Fallback if no zoom needed
+            this.store.setZoomSettings(1, 0);
             this.rescaleYAxis(1, 0);
         }
     });
@@ -211,6 +261,7 @@ export class ChartViewComponent implements OnInit {
 
   onScrollEnd(event: IScrollEventArgs): void {
       this.handleScroll();
+      this.updateZoomState();
   }
 
   private handleScroll(): void {
@@ -222,9 +273,19 @@ export class ChartViewComponent implements OnInit {
       }
   }
 
+  private updateZoomState(): void {
+      if (this.chart && this.chart.primaryXAxis) {
+          this.store.setZoomSettings(
+              this.chart.primaryXAxis.zoomFactor || 1,
+              this.chart.primaryXAxis.zoomPosition || 0
+          );
+      }
+  }
+
   onZoomComplete(args: IZoomCompleteEventArgs): void {
     if (args.axis.name === 'primaryXAxis') {
       this.rescaleYAxis(args.currentZoomFactor, args.currentZoomPosition);
+      this.store.setZoomSettings(args.currentZoomFactor, args.currentZoomPosition);
     }
   }
 
