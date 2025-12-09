@@ -116,7 +116,7 @@ flowchart TB
 - __Gateways__
   - `functions/src/v2/alpha-vantage/alpha-vantage-gateway.ts` → `AlphaVantageHandlerFactory.createHandler()` → AV handlers under `functions/src/v2/alpha-vantage/handlers/`
   - `functions/src/v2/benzinga/benzinga-gateway.ts` → `BenzingaHandlerFactory.createHandler()` → BZ handlers under `functions/src/v2/benzinga/handlers/`
-  - `functions/src/v2/partner/time-series-partner.ts` → reads from Firestore time-series shards per request
+  - `functions/src/v2/partner/time-series-partner.ts` → reads from Firestore time-series shards per request (supports `adjusted=true` for split-adjusted data)
 
 - __Schedulers__
   - `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager.ts`
@@ -600,6 +600,10 @@ Querying logs
 
 Notes:
 - The legacy `{ data, metadata }` shape is deprecated for AV daily time series; all new writes use the normalized schema.
+
+For operational **manual backfill and split-adjusted data maintenance workflows** (e.g., `sync-splits.ts`, `backfill-data.ts`, `verify-data.ts`), see:
+
+- `planning/backfill-and-split-toolkit.md`
 
 ---
 

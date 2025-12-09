@@ -108,6 +108,9 @@ This document tracks the completion status of tasks outlined in the `project-pla
 - As of 2025-06-25: Frontend endpoint selection, canonical metadata, and type consolidation are complete and in sync with backend expectations.
 - As of 2025-09-15: Inbound partner notifications fully removed (webhook, subscriber, partnerEvents). System is outbound-only; announcements publish to Pub/Sub with `runs/{runId}` tracking. Emulator workflow and env cleaned up.
 - As of 2025-11-12: Cleaned up `runs/{runId}` schema to a lean document. Removed persisted `payload` and `pubsubAttributes`; added grouped `timing` and `runMeta`; normalized `counts` with numeric defaults and legacy mirrors; corrected `header.runStatus` to use `payload.runStatus`. Backfill script recommended to coerce historical null counts to 0.
+- As of 2025-12-08: Fixed production build failure by securing Syncfusion license key in Google Secret Manager and configuring Firebase App Hosting to inject it during build. Simplified build command to ensure App Hosting adapter compatibility. Charts view is now accessible in production.
+- As of 2025-12-08: Implemented interval toggle (Daily, Weekly, Monthly) for Chart View. Updated ChartDataService to support sharded and non-sharded (monthly) data reads. Adjusted initial chart zoom based on interval.
+- TODO: Scan the codebase for any remaining `__checkWriteToggle` / `manualWriteToggle*` flags and remove or inline them. These are deprecated and should not be used in new flows (see `planning/backfill-and-split-toolkit.md` section 7).
 
 ---
 
