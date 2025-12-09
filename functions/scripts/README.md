@@ -2,6 +2,10 @@
 
 Test scripts for the Alpha Vantage Proxy API.
 
+For a detailed guide to the **manual backfill and split maintenance toolkit** (including `backfill-data.ts`, `sync-splits.ts`, `manage-splits.ts`, `verify-data.ts`, and `debug-av-request.ts`), see:
+
+- `planning/backfill-and-split-toolkit.md`
+
 ## test-symbol-search.ts
 
 Tests the SYMBOL_SEARCH endpoint against both emulator and production environments.

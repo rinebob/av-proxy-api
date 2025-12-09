@@ -73,3 +73,7 @@ The publisher auto-creates `partner-data-ready` in the emulator if missing and r
 - Stop emulators: `npm run emulators:stop`
 - Clean emulator data: `npm run emulators:clean`
 - Functions dev (watch + emulators): `npm run dev:functions:emu`
+
+For detailed guidance on **manual backfill and split maintenance scripts** (e.g., `backfill-data.ts`, `sync-splits.ts`, `verify-data.ts`), see:
+
+- `planning/backfill-and-split-toolkit.md`
