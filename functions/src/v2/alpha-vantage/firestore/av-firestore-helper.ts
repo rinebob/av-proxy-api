@@ -110,7 +110,7 @@ async function _internalSaveAvTimeSeriesData(
   endpoint: AlphaVantageEndpoint,
   interval: TimeSeriesInterval,
   isSplitAdjusted: boolean,
-  options?: { fromMs?: number | null; toMs?: number | null; forceFullHistory?: boolean },
+  options?: { fromMs?: number | null; toMs?: number | null; forceFullHistory?: boolean; skipSplitPersistence?: boolean },
 ): Promise<void> {
   console.log(`aFH sATSD start ${endpoint} ${symbol} ${interval}`);
   log.info('timeseries.save.start', { symbol, endpoint, interval });
@@ -225,12 +225,13 @@ async function _internalSaveAvTimeSeriesData(
 
     // --- DETECT & PERSIST SPLIT EVENTS (Full Backfill) ---
     // Only for adjusted series writes. Captures historical splits for the split-events collection.
-    if (isSplitAdjusted) {
+    // IMPORTANT: Do NOT update symbolData.splitHistory here; that history is sourced exclusively
+    // from the dedicated AV SPLITS sync + real-time detection paths.
+    if (isSplitAdjusted && !options?.skipSplitPersistence) {
       const splits = compactBars.filter(b => b.sc !== undefined && b.sc !== 1);
       if (splits.length > 0) {
         console.log(`aFH sATSD backfilling ${splits.length} splits for ${symbol}`);
         const splitBatch = db.batch();
-        const splitHistoryUpdates: any[] = [];
         
         for (const s of splits) {
           const date = s.d;
@@ -245,20 +246,6 @@ async function _internalSaveAvTimeSeriesData(
             detectedAt: Timestamp.now(),
             status: 'PROCESSED_BACKFILL' // Distinct status indicates this was part of a full history write
           }, { merge: true });
-
-          splitHistoryUpdates.push({
-            date,
-            factor,
-            detectedAt: Timestamp.now()
-          });
-        }
-        
-        if (splitHistoryUpdates.length > 0) {
-           const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
-           // arrayUnion accepts variadic arguments
-           splitBatch.set(symbolDocRef, {
-             splitHistory: FieldValue.arrayUnion(...splitHistoryUpdates)
-           }, { merge: true });
         }
         
         await splitBatch.commit();
@@ -429,7 +416,7 @@ export async function saveAvTimeSeriesData(
   symbol: string,
   endpoint: AlphaVantageEndpoint,
   interval: TimeSeriesInterval,
-  options?: { fromMs?: number | null; toMs?: number | null; skipLegacyWrite?: boolean },
+  options?: { fromMs?: number | null; toMs?: number | null; skipLegacyWrite?: boolean; skipSplitPersistence?: boolean; forceFullHistory?: boolean },
 ): Promise<void> {
   // Dual write: Raw (Legacy) and Adjusted (Side-Car)
   // We run them sequentially or parallel. Sequential is safer for error handling (if raw fails, we stop).

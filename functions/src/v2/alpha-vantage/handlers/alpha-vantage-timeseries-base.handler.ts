@@ -1,11 +1,11 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { saveAvTimeSeriesData, upsertAvDailyBar, upsertAvWeeklyBar, upsertAvMonthlyBar, upsertAvDailyIntradaySnapshot } from '../firestore/av-firestore-helper';
 import { ApiResponse } from '@shared/core';
-import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval } from '@shared/alpha-vantage';
+import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval, AV_TIME_SERIES_ENDPOINT_CONFIGS } from '@shared/alpha-vantage';
 import type { CompactBar } from '@shared/alpha-vantage';
 import { createLogger, hr } from '../../utils/utils';
 import { DayOfWeek } from '@shared/alpha-vantage';
-import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
+import { AvIntradayHandler } from './av-intraday.handler';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 import { TradingPhase } from '@shared/health-metrics';
@@ -124,7 +124,7 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
     this.validateParams(params);
 
     // Strip internal params before sending to AV
-    const { __checkWriteToggle, __phase, __run, __fromMs, __toMs, ...publicParams } = params || {};
+    const { __checkWriteToggle, __phase, __run, __fromMs, __toMs, __skipSave, ...publicParams } = params || {};
     const requestParams = this.prepareRequestParams(publicParams);
 
     try {
@@ -135,6 +135,12 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
 
       // Persist bars if provided by subclass
       let bars = this.getBarsForStorage(transformedData);
+
+      // Return early if saving is skipped
+      if (__skipSave) {
+        hr('aVTS.H', `fetch ok (skipSave) ${endpoint} ${symbol ?? ''} ${(Date.now() - startTime)}ms [${(this as any).requestId}]`);
+        return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
+      }
 
       // For compact updates, persist only the most recent element
       const outputSize = (requestParams as any)?.outputsize as string | undefined;
@@ -193,7 +199,12 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           const BASE_DELAY_MS = Number(process.env.AV_INTRADAY_RETRY_DELAY_MS ?? 2000);
           let captured = false;
           for (let attempt = 1; attempt <= MAX_RETRIES && !captured; attempt++) {
-            const intradayHandler: any = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_INTRADAY);
+            // Use direct instantiation to avoid circular dependency with Factory
+            const intradayConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[AlphaVantageEndpoint.TIME_SERIES_INTRADAY];
+            if (!intradayConfig) {
+                throw new Error('Missing configuration for TIME_SERIES_INTRADAY');
+            }
+            const intradayHandler = new AvIntradayHandler(intradayConfig);
             const intradayApiResp: any = await intradayHandler.fetch({ symbol, interval: '1min' });
             const intradayRaw = intradayApiResp?.data;
             const rawKeys = Object.keys(intradayRaw || {});
