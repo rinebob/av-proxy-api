@@ -52,8 +52,10 @@ export class AvWeeklyTimeSeriesHandler extends AlphaVantageTimeSeriesHandlerBase
       open: Number(v.open),
       high: Number(v.high),
       low: Number(v.low),
-      close: Number(v.adjustedClose ?? v.close),
+      close: Number(v.close),
+      adjustedClose: v.adjustedClose != null ? Number(v.adjustedClose) : undefined,
       volume: Number(v.volume),
+      dividendAmount: v.dividendAmount != null ? Number(v.dividendAmount) : undefined,
     }));
     if (!bars.length) return null;
     return bars;
