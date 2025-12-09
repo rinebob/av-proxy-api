@@ -69,7 +69,27 @@ export const ChartViewStore = signalStore(
                const transformedBars = allBars.map((b: any) => {
                  // Handle various date formats (Firestore Timestamp, string, number)
                  let date: Date;
-                 if (b.t && typeof b.t.toDate === 'function') {
+
+                 // FIX: Prefer using the 'd' string (YYYY-MM-DD) to construct a Local Date
+                 // This ensures that "2025-12-08" becomes "Dec 8, 2025 00:00:00 Local"
+                 // instead of "Dec 8, 2025 00:00:00 UTC" (which might be Dec 7 Local).
+                 if (b.d && typeof b.d === 'string') {
+                    // Check for standard AV date formats
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(b.d)) {
+                        // YYYY-MM-DD (Daily/Weekly/Monthly) -> Local Midnight
+                        const [yyyy, mm, dd] = b.d.split('-').map(Number);
+                        date = new Date(yyyy, mm - 1, dd);
+                    } else if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(b.d)) {
+                        // YYYY-MM-DD HH:MM:SS (Intraday) -> Local Time
+                        const [datePart, timePart] = b.d.split(' ');
+                        const [yyyy, mm, dd] = datePart.split('-').map(Number);
+                        const [hh, min, ss] = timePart.split(':').map(Number);
+                        date = new Date(yyyy, mm - 1, dd, hh, min, ss);
+                    } else {
+                        // Fallback
+                        date = new Date(b.t);
+                    }
+                 } else if (b.t && typeof b.t.toDate === 'function') {
                    date = b.t.toDate();
                  } else if (typeof b.t === 'number') {
                     date = new Date(b.t);
