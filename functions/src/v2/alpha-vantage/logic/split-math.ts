@@ -60,7 +60,61 @@ export function adjustHistoryForBackfill(rawBars: CompactBar[]): CompactBar[] {
     // This bar is already adjusted (it's the new price).
     // But the NEXT bar (yesterday) needs to be divided by 2.0.
     if (bar.sc !== undefined && bar.sc !== 1) {
+      // HEURISTIC: Check for "Hybrid" bars (Weekly/Monthly) where O/H/L are Pre-Split but Close is Post-Split.
+      // This happens when a split occurs mid-period. The bar's High is unadjusted (high), causing a chart spike.
+      // If we detect O/H/L are consistent with Pre-Split levels (relative to Close * SC), we adjust them "in-place".
+      if (bar.sc > 1) { // Forward splits only for now (most common source of spikes)
+          const expectedPreSplit = (adjustedBar.c || 0) * bar.sc;
+          
+          // Dynamic Threshold:
+          // For large splits (e.g. 5:1, 20:1), a low threshold (0.5) is fine because PostSplit is small (0.2, 0.05).
+          // For small splits (e.g. 2:1), PostSplit is 0.5. A 0.5 threshold is dangerous as it matches PostSplit exactly.
+          // We need a threshold that is comfortably above PostSplit levels.
+          // PostSplit Level = expectedPreSplit / bar.sc.
+          // We want Threshold > PostSplit Level * Buffer (e.g. 1.2x).
+          // Threshold = ExpectedPreSplit * ThresholdFactor.
+          // ExpectedPreSplit * ThresholdFactor > (ExpectedPreSplit / bar.sc) * 1.2
+          // ThresholdFactor > 1.2 / bar.sc.
+          // Also keep a floor of 0.5 for large splits.
+          const minSafeFactor = 1.3 / bar.sc; 
+          const thresholdFactor = Math.max(0.5, minSafeFactor);
+          const threshold = expectedPreSplit * thresholdFactor;
+
+          const fixMult = 1 / bar.sc;
+
+          // Adjust O/H/L if they look like Pre-Split values
+          if (adjustedBar.o !== undefined && adjustedBar.o > threshold) {
+             // console.log(`Fixing Hybrid Open: ${bar.d} ${adjustedBar.o} -> ${adjustedBar.o * fixMult} (Thresh: ${threshold})`);
+             adjustedBar.o = Number((adjustedBar.o * fixMult).toFixed(4));
+          }
+          if (adjustedBar.h !== undefined && adjustedBar.h > threshold) {
+             // console.log(`Fixing Hybrid High: ${bar.d} ${adjustedBar.h} -> ${adjustedBar.h * fixMult}`);
+             adjustedBar.h = Number((adjustedBar.h * fixMult).toFixed(4));
+          }
+          if (adjustedBar.l !== undefined && adjustedBar.l > threshold) {
+             // console.log(`Fixing Hybrid Low: ${bar.d} ${adjustedBar.l} -> ${adjustedBar.l * fixMult}`);
+             adjustedBar.l = Number((adjustedBar.l * fixMult).toFixed(4));
+          }
+      }
+
       cumulativeMultiplier = cumulativeMultiplier / bar.sc;
+    }
+    
+    // Heuristic: Detect Anomalous Lows (e.g. GOOGL 2014-04-02 Low is half of High)
+    // This happens if Raw Low was already split-adjusted but others weren't.
+    if (adjustedBar.h !== undefined && adjustedBar.l !== undefined) {
+        if (adjustedBar.l < adjustedBar.h * 0.6) {
+            // Low is < 60% of High. Very suspicious for mega-caps.
+            // Check if Open/Close are reasonable (closer to High).
+            const c = adjustedBar.c || 0;
+            if (c > adjustedBar.h * 0.8) { // Close is high
+                // Fix Low: Set to min(Open, Close)
+                const o = adjustedBar.o || c;
+                const newLow = Math.min(o, c);
+                // console.log(`Fixed Anomalous Low: ${bar.d} ${adjustedBar.l} -> ${newLow}`);
+                adjustedBar.l = newLow;
+            }
+        }
     }
 
     return adjustedBar;
