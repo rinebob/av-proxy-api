@@ -798,6 +798,10 @@ export async function upsertAvDailyBar(options: {
 /**
  * Upserts a single weekly bar (YYYY-MM-DD) into the WEEKLY year-sharded doc.
  * - Merges, sorts ascending, updates aggregates, and bumps parent metadata
+ *
+ * @deprecated Use `mergeWeeklyCompactWindowIntoShards()` for weekly compact flows instead.
+ * This helper is retained for legacy callers that still perform per-bar weekly upserts.
+ *
  * @param options.symbol Stock symbol
  * @param options.date ISO date (UTC week anchor)
  * @param options.patch Partial CompactBar numeric fields to merge
@@ -878,8 +882,12 @@ export async function upsertAvWeeklyBar(options: {
 }
 
 /**
- * Upserts a single monthly bar (YYYY-MM-DD) into the MONTHLY single ‘all’ doc.
+ * Upserts a single monthly bar (YYYY-MM-DD) into the MONTHLY single `all` doc.
  * - Merges, sorts ascending, updates aggregates, and bumps parent metadata
+ *
+ * @deprecated Use `mergeMonthlyCompactWindowIntoAllDocs()` for monthly compact flows instead.
+ * This helper is retained for legacy callers that still perform per-bar monthly upserts.
+ *
  * @param options.symbol Stock symbol
  * @param options.date ISO date (UTC month anchor)
  * @param options.patch Partial CompactBar numeric fields to merge
@@ -956,6 +964,263 @@ export async function upsertAvMonthlyBar(options: {
     interval: TimeSeriesInterval.MONTHLY,
     latestDate: date,
   });
+}
+
+/**
+ * Merge a compact WEEKLY window into year-sharded weekly time-series docs.
+ *
+ * Semantics:
+ * - Treats the compact payload as the source of truth for the most recent weekly bars.
+ * - Rebuilds the target year shards from the compact window rather than per-bar upserts.
+ * - Handles year rollover by optionally touching the previous year when the last existing bar
+ *   in the current year shard belongs to latestYear - 1.
+ * - Writes both raw (`time-series`) and split-adjusted (`sa-time-series`) year docs with the
+ *   same bar array; split adjustments are handled earlier by the caller when needed.
+ * - After writes, bumps the top-level WEEKLY metadata via `bumpTimeSeriesTopLevelMetadata`.
+ */
+export async function mergeWeeklyCompactWindowIntoShards(options: {
+  symbol: string;
+  endpoint: AlphaVantageEndpoint;
+  storageBars: Array<{
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+    adjustedClose?: number;
+    dividendAmount?: number;
+    splitCoefficient?: number;
+  }>;
+}): Promise<void> {
+  const { symbol, endpoint, storageBars } = options;
+  if (!Array.isArray(storageBars) || storageBars.length === 0) {
+    return;
+  }
+
+  const vendor = ApiProvider.ALPHA_VANTAGE;
+
+  const parseDateYear = (dStr: string): number | null => {
+    const ts = new Date(`${dStr}T00:00:00.000Z`).getTime();
+    if (!Number.isFinite(ts)) return null;
+    return getYearFromEpochMillis(ts);
+  };
+
+  const latestYear = parseDateYear(storageBars[0].date);
+  if (latestYear == null) {
+    return;
+  }
+
+  // Inspect existing RAW weekly shard for latestYear to detect year-rollover edge case.
+  const latestYearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, latestYear, false);
+  const latestYearSnap = await db.doc(latestYearDocPath).get();
+  const existingBarsRaw: CompactBar[] = latestYearSnap.exists ? ((latestYearSnap.get('bars') ?? []) as CompactBar[]) : [];
+  const lastExisting = existingBarsRaw.length > 0 ? existingBarsRaw[existingBarsRaw.length - 1] : null;
+  const lastExistingYear = lastExisting
+    ? (lastExisting.d ? parseDateYear(lastExisting.d) : (typeof lastExisting.t === 'number' ? getYearFromEpochMillis(lastExisting.t) : null))
+    : null;
+
+  const candidateYears = new Set<number>([latestYear]);
+  if (lastExistingYear === latestYear - 1) {
+    candidateYears.add(latestYear - 1);
+  }
+
+  let latestDateForMeta: string | null = null;
+
+  for (const year of candidateYears) {
+    const yearStorageBars = storageBars.filter((b) => parseDateYear(b.date) === year);
+    if (yearStorageBars.length === 0) continue;
+
+    const yearBars: CompactBar[] = yearStorageBars.map((b) => {
+      const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
+      const dStr = new Date(t).toISOString().slice(0, 10);
+      const dow = computeDowFromDateString(dStr);
+      return {
+        t,
+        d: dStr,
+        dow,
+        o: Number(b.open),
+        h: Number(b.high),
+        l: Number(b.low),
+        c: Number(b.close),
+        v: Number(b.volume),
+        ac: b.adjustedClose != null ? Number(b.adjustedClose) : undefined,
+        dv: b.dividendAmount != null ? Number(b.dividendAmount) : undefined,
+        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : undefined,
+        ic: null,
+        ipc: null,
+      } as CompactBar;
+    });
+
+    yearBars.sort((a, b) => a.t - b.t);
+
+    const latestNonPlaceholder = [...yearBars].reverse().find((bar) => {
+      const o = Number(bar.o || 0), h = Number(bar.h || 0), l = Number(bar.l || 0), c = Number(bar.c || 0), v = Number(bar.v || 0);
+      return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
+    }) ?? (yearBars[yearBars.length - 1] ?? null);
+    const latestUtcIso = latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString() : null;
+    const latestEtDateTime = latestNonPlaceholder?.t != null ? formatEtDateTime(latestNonPlaceholder.t) : null;
+
+    for (const isSplitAdjusted of [false, true]) {
+      const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year, isSplitAdjusted);
+      await db.doc(yearDocPath).set({
+        bars: yearBars,
+        count: yearBars.length,
+        firstBarTs: yearBars[0]?.t ?? null,
+        lastBarTs: yearBars[yearBars.length - 1]?.t ?? null,
+        latest: latestNonPlaceholder,
+        latestUtcIso,
+        latestEtDateTime,
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
+    }
+
+    // Track latest date from the most recent year for top-level metadata bump.
+    if (year === latestYear && yearBars.length > 0) {
+      const last = yearBars[yearBars.length - 1];
+      latestDateForMeta = typeof last.d === 'string' && last.d.length >= 10
+        ? last.d
+        : new Date(last.t).toISOString().slice(0, 10);
+    }
+  }
+
+  if (latestDateForMeta) {
+    await bumpTimeSeriesTopLevelMetadata({
+      symbol,
+      endpoint,
+      interval: TimeSeriesInterval.WEEKLY,
+      latestDate: latestDateForMeta,
+    });
+  }
+}
+
+/**
+ * Merge a compact MONTHLY window into the single monthly `all` doc.
+ *
+ * Semantics:
+ * - Uses a date key (YYYY-MM-DD) per bar and merges incoming bars into an in-memory map
+ *   keyed by trading date.
+ * - For each date in the compact window, replaces or inserts that month in the `all` doc.
+ * - Preserves existing months outside the compact window.
+ * - Runs for both raw and split-adjusted series, sharing the same date-level merge strategy.
+ * - Keeps `bars` sorted ascending by `t` and refreshes count/first/last/`latest*` fields.
+ * - After writes, bumps the top-level MONTHLY metadata via `bumpTimeSeriesTopLevelMetadata`.
+ */
+export async function mergeMonthlyCompactWindowIntoAllDocs(options: {
+  symbol: string;
+  endpoint: AlphaVantageEndpoint;
+  storageBars: Array<{
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+    adjustedClose?: number;
+    dividendAmount?: number;
+    splitCoefficient?: number;
+  }>;
+}): Promise<void> {
+  const { symbol, endpoint, storageBars } = options;
+  if (!Array.isArray(storageBars) || storageBars.length === 0) {
+    return;
+  }
+
+  const vendor = ApiProvider.ALPHA_VANTAGE;
+
+  const ensureDate = (bar: CompactBar): string => {
+    if (typeof bar.d === 'string' && bar.d.length >= 10) {
+      return bar.d.slice(0, 10);
+    }
+    if (typeof bar.t === 'number') {
+      return new Date(bar.t).toISOString().slice(0, 10);
+    }
+    return '';
+  };
+
+  let latestDateForMeta: string | null = null;
+
+  for (const isSplitAdjusted of [false, true]) {
+    const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, isSplitAdjusted);
+    const ref = db.doc(allDocPath);
+    const snap = await ref.get();
+    const existingBars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
+
+    const map = new Map<string, CompactBar>();
+    for (const bar of existingBars) {
+      const dStr = ensureDate(bar);
+      if (!dStr) continue;
+      map.set(dStr, bar);
+    }
+
+    for (const b of storageBars) {
+      const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
+      if (!Number.isFinite(t)) continue;
+      const dStr = new Date(t).toISOString().slice(0, 10);
+      const existing = map.get(dStr);
+      const dow = computeDowFromDateString(dStr);
+
+      const merged: CompactBar = {
+        ...(existing ?? {} as CompactBar),
+        t,
+        d: dStr,
+        dow,
+        o: Number(b.open),
+        h: Number(b.high),
+        l: Number(b.low),
+        c: Number(b.close),
+        v: Number(b.volume),
+        ac: b.adjustedClose != null ? Number(b.adjustedClose) : (existing?.ac),
+        dv: b.dividendAmount != null ? Number(b.dividendAmount) : (existing?.dv),
+        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : (existing?.sc),
+        ic: existing?.ic ?? null,
+        ipc: existing?.ipc ?? null,
+      } as CompactBar;
+
+      map.set(dStr, merged);
+    }
+
+    const mergedBars = Array.from(map.values());
+    if (mergedBars.length === 0) {
+      continue;
+    }
+
+    mergedBars.sort((a, b) => a.t - b.t);
+
+    const latestNonPlaceholder = [...mergedBars].reverse().find((bar) => {
+      const o = Number(bar.o || 0), h = Number(bar.h || 0), l = Number(bar.l || 0), c = Number(bar.c || 0), v = Number(bar.v || 0);
+      return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
+    }) ?? (mergedBars[mergedBars.length - 1] ?? null);
+    const latestUtcIso = latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString() : null;
+    const latestEtDateTime = latestNonPlaceholder?.t != null ? formatEtDateTime(latestNonPlaceholder.t) : null;
+
+    await ref.set({
+      bars: mergedBars,
+      count: mergedBars.length,
+      firstBarTs: mergedBars[0]?.t ?? null,
+      lastBarTs: mergedBars[mergedBars.length - 1]?.t ?? null,
+      latest: latestNonPlaceholder,
+      latestUtcIso,
+      latestEtDateTime,
+      updatedAt: Timestamp.now(),
+    }, { merge: true });
+
+    // Use latest date from mergedBars (shared for raw/sa when present) for top-level metadata.
+    const last = mergedBars[mergedBars.length - 1];
+    const dLast = typeof last.d === 'string' && last.d.length >= 10
+      ? last.d
+      : new Date(last.t).toISOString().slice(0, 10);
+    latestDateForMeta = dLast;
+  }
+
+  if (latestDateForMeta) {
+    await bumpTimeSeriesTopLevelMetadata({
+      symbol,
+      endpoint,
+      interval: TimeSeriesInterval.MONTHLY,
+      latestDate: latestDateForMeta,
+    });
+  }
 }
 
 /**
@@ -1044,12 +1309,25 @@ export async function upsertAvDailyIntradaySnapshot(options: {
 }
 
 /**
- * Bump the top-level time-series metadata for console visibility after an upsert operation.
- * - Sets lastUpdated/nextRefreshAt and histEnd fields; maintains ttlSeconds and endpoint/vendor tags.
+ * Bump the top-level time-series metadata for console visibility after a write.
+ *
+ * Semantics:
+ * - Always sets `lastUpdated`, `nextRefreshAt`, `ttlSeconds`, `vendor`, and `endpoint`.
+ * - For DAILY/WEEKLY: derives `histStartTs`, `histEndTs`, and `availableYears` from the
+ *   underlying `years/{YYYY}` shards when present.
+ * - For MONTHLY: derives bounds and `availableYears` from the raw monthly `all` doc bars.
+ * - Falls back to `latestDate` when no bars are found (e.g., first write or partial series).
+ * - Writes `histStartDate`/`histEndDate` (Timestamp), `histStartTs`/`histEndTs` (ms),
+ *   and `availableYears` when derivable, plus `latestBarTimestamp` aligned to `histEndTs`.
+ *
+ * This function is the canonical way writers keep parent time-series metadata in sync with
+ * the actual stored bar arrays, and is used by daily upserts, weekly/monthly merges, and
+ * repair tooling.
+ *
  * @param options.symbol Stock symbol
  * @param options.endpoint AV endpoint id
  * @param options.interval TimeSeriesInterval
- * @param options.latestDate ISO date used to compute latestTs
+ * @param options.latestDate ISO date used as a fallback for histStartTs/EndTs
  * @param options.vendor Optional provider (defaults AV)
  * @returns Promise that resolves on success
  */
@@ -1069,9 +1347,86 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
     const ttlSeconds = endpointConfig.ttl;
     const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor);
     const docRef = db.doc(docPath);
-    const latestTs = new Date(`${latestDate}T00:00:00.000Z`).getTime();
+    const latestTsFromDate = new Date(`${latestDate}T00:00:00.000Z`).getTime();
+
+    // Derive histStartTs, histEndTs, and availableYears from actual shards/all-doc when possible.
+    let histStartTs: number | null = null;
+    let histEndTs: number | null = null;
+    let availableYears: number[] = [];
+
+    if (interval === TimeSeriesInterval.MONTHLY) {
+      // Use the raw monthly all-doc as the source of truth for date bounds/years.
+      const allPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, false);
+      const allSnap = await db.doc(allPath).get();
+      if (allSnap.exists) {
+        const data = allSnap.data() as any;
+        const bars: Array<{ t?: number }> = Array.isArray(data?.bars) ? data.bars : [];
+        if (bars.length) {
+          const first = bars[0];
+          const last = bars[bars.length - 1];
+          const firstTs = typeof first?.t === 'number' ? first.t : NaN;
+          const lastTs = typeof last?.t === 'number' ? last.t : NaN;
+          if (Number.isFinite(firstTs)) histStartTs = firstTs;
+          if (Number.isFinite(lastTs)) histEndTs = lastTs;
+          const yearSet = new Set<number>();
+          for (const b of bars) {
+            const t = typeof b?.t === 'number' ? b.t : NaN;
+            if (!Number.isFinite(t)) continue;
+            const y = new Date(t).getUTCFullYear();
+            if (Number.isFinite(y)) yearSet.add(y);
+          }
+          availableYears = Array.from(yearSet).sort((a, b) => a - b);
+        }
+      }
+    } else {
+      // Daily/Weekly: inspect the years subcollection and derive bounds from earliest/latest year shards.
+      const yearsColPath = `${docPath}/years`;
+      const yearsSnap = await db.collection(yearsColPath).get();
+      const years = yearsSnap.docs.map(d => Number(d.id)).filter(n => Number.isFinite(n)).sort((a, b) => a - b);
+      if (years.length) {
+        availableYears = years;
+        const earliestYear = years[0];
+        const latestYear = years[years.length - 1];
+
+        const earliestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, earliestYear, false);
+        const latestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, latestYear, false);
+        const [earliestSnap, latestSnap] = await Promise.all([
+          db.doc(earliestPath).get(),
+          db.doc(latestPath).get(),
+        ]);
+
+        if (earliestSnap.exists) {
+          const eData = earliestSnap.data() as any;
+          const eBars: Array<{ t?: number }> = Array.isArray(eData?.bars) ? eData.bars : [];
+          if (eBars.length) {
+            const first = eBars[0];
+            const firstTs = typeof first?.t === 'number' ? first.t : NaN;
+            if (Number.isFinite(firstTs)) histStartTs = firstTs;
+          }
+        }
+
+        if (latestSnap.exists) {
+          const lData = latestSnap.data() as any;
+          const lBars: Array<{ t?: number }> = Array.isArray(lData?.bars) ? lData.bars : [];
+          if (lBars.length) {
+            const last = lBars[lBars.length - 1];
+            const lastTs = typeof last?.t === 'number' ? last.t : NaN;
+            if (Number.isFinite(lastTs)) histEndTs = lastTs;
+          }
+        }
+      }
+    }
+
+    // Fallbacks: if we couldn't derive bounds from shards, fall back to latestDate when valid.
+    if (!Number.isFinite(histStartTs as number) && Number.isFinite(latestTsFromDate)) {
+      histStartTs = latestTsFromDate;
+    }
+    if (!Number.isFinite(histEndTs as number) && Number.isFinite(latestTsFromDate)) {
+      histEndTs = latestTsFromDate;
+    }
+
     const now = Timestamp.now();
-    await docRef.set({
+    const payload: any = {
       metadata: {
         symbol,
         interval,
@@ -1080,11 +1435,21 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
         ttlSeconds,
         vendor,
         endpoint,
-        histEndDate: Number.isFinite(latestTs) ? Timestamp.fromMillis(latestTs) : null,
-        histEndTs: Number.isFinite(latestTs) ? latestTs : null,
+        histEndDate: Number.isFinite(histEndTs as number) ? Timestamp.fromMillis(histEndTs as number) : null,
+        histEndTs: Number.isFinite(histEndTs as number) ? histEndTs : null,
       },
-      latestBarTimestamp: Number.isFinite(latestTs) ? Timestamp.fromMillis(latestTs) : null,
-    }, { merge: true });
+      latestBarTimestamp: Number.isFinite(histEndTs as number) ? Timestamp.fromMillis(histEndTs as number) : null,
+    };
+
+    if (Number.isFinite(histStartTs as number)) {
+      (payload.metadata as any).histStartTs = histStartTs;
+      (payload.metadata as any).histStartDate = Timestamp.fromMillis(histStartTs as number);
+    }
+    if (Array.isArray(availableYears) && availableYears.length) {
+      (payload.metadata as any).availableYears = availableYears;
+    }
+
+    await docRef.set(payload, { merge: true });
   } catch (e: any) {
     console.error('bumpTSMeta error', String(e?.message || e));
   }

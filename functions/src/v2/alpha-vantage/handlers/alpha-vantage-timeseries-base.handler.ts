@@ -1,5 +1,11 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
-import { saveAvTimeSeriesData, upsertAvDailyBar, upsertAvWeeklyBar, upsertAvMonthlyBar, upsertAvDailyIntradaySnapshot } from '../firestore/av-firestore-helper';
+import {
+  saveAvTimeSeriesData,
+  upsertAvDailyBar,
+  upsertAvDailyIntradaySnapshot,
+  mergeWeeklyCompactWindowIntoShards,
+  mergeMonthlyCompactWindowIntoAllDocs,
+} from '../firestore/av-firestore-helper';
 import { ApiResponse } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval, AV_TIME_SERIES_ENDPOINT_CONFIGS } from '@shared/alpha-vantage';
 import type { CompactBar } from '@shared/alpha-vantage';
@@ -56,14 +62,16 @@ export interface StorageBar {
  * - Transform raw provider payload into a typed shape (T) consumable by clients.
  * - Produce StorageBar[] for persistence via `getBarsForStorage()`.
  * - Persist bars to Firestore using:
- *   - Daily: upsertAvDailyBar()
- *   - Weekly: upsertAvWeeklyBar()
- *   - Monthly: upsertAvMonthlyBar()
- *   - Full/backfill: saveAvTimeSeriesData()
+ *   - Daily compact: `upsertAvDailyBar()` (single-bar upsert by date).
+ *   - Weekly compact: `mergeWeeklyCompactWindowIntoShards()` (overwrite latest-year and rollover shards from compact window).
+ *   - Monthly compact: `mergeMonthlyCompactWindowIntoAllDocs()` (merge compact window by date into monthly `all` doc).
+ *   - Full/backfill (all intervals): `saveAvTimeSeriesData()` (normalized dual-write to raw + split-adjusted series).
  *
  * Notes:
- * - When `outputsize=compact`, only the most recent bar is upserted to minimize writes.
- * - Derived deltas (pc/ch/cp) are computed from the previous adjusted close when available.
+ * - When `outputsize=compact`, only the most recent bar is considered for persistence.
+ *   - DAILY: single-bar patch into the year shard.
+ *   - WEEKLY/MONTHLY: compact window is treated as the source of truth for the latest-year shards / monthly `all` doc.
+ * - Derived deltas (pc/ch/cp) are computed from the previous **raw** close when available.
  */
 export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVantageBaseHandler<T> {
   protected readonly config: TimeSeriesEndpointConfig;
@@ -294,76 +302,78 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
       ) {
         const outputSize = (requestParams as any)?.outputsize as string | undefined;
         if (outputSize === 'compact') {
-          // Upsert only the latest bar to avoid rewriting larger arrays
+          // Compact path
           const latest = bars[0];
-          hr('aVTS.H', `upsert ${endpoint} ${symbol} date=${latest.date} [${(this as any).requestId}]`);
-          log.info('firestore.upsert', { endpointId: endpoint, symbol, date: latest.date, requestId: (this as any).requestId });
+          hr('aVTS.H', `compact ${endpoint} ${symbol} date=${latest.date} [${(this as any).requestId}]`);
+          log.info('firestore.compact', { endpointId: endpoint, symbol, date: latest.date, requestId: (this as any).requestId });
+
           if (this.config.interval === TimeSeriesInterval.DAILY) {
+            // DAILY: preserve existing single-bar upsert semantics
             const o = Number(latest.open), h = Number(latest.high), l = Number(latest.low), c = Number(latest.close);
             const invalid = !Number.isFinite(o) || !Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(c) || ((o === 0) && (h === 0) && (l === 0) && (c === 0));
             // Apply invalid-bar guard only during POST finalization flows. PRE may still upsert intraday snapshots.
             if (invalid && (__phase === TradingPhase.POST)) {
               return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
             }
-          }
-          /**
-           * Map handler StorageBar → persisted CompactBar patch
-           *
-           * StorageBar fields:
-           * - open/high/low/close/volume
-           * - adjustedClose?, dividendAmount?, splitCoefficient?
-           * - previousClose?/change?/changePercent? (enriched above for compact path)
-           * - intradayPrice?/intradayObservedAt?/intradayTime? (optional)
-           *
-           * CompactBar short keys:
-           * - o/h/l/c/v, ac (adjusted close), dv (dividend), sc (split coeff)
-           * - pc/ch/cp for derived deltas
-           * - ip/io/it for intraday snapshot fields
-           *
-           * Note: Daily upsert helper derives `it` (HH:mm America/New_York) from `io` when provided.
-           * We intentionally omit intraday fields here unless provided by the handler payload.
-           */
-          const patch: Partial<CompactBar> = {
-            o: latest.open,
-            h: latest.high,
-            l: latest.low,
-            c: latest.close,
-            v: latest.volume,
-            ac: latest.adjustedClose,
-            dv: latest.dividendAmount,
-            sc: latest.splitCoefficient,
-            // include derived fields when available
-            pc: (latest as any).previousClose,
-            ch: (latest as any).change,
-            cp: (latest as any).changePercent,
-          };
-          // Intraday mapping semantics (documented, optional):
-          // If the handler provides intradayPrice/ObservedAt, they can be forwarded as ip/io on the patch.
-          // The daily upsert helper will derive `it` from `io`.
-          // Example (left commented to avoid behavior change):
-          // if ((latest as any).intradayPrice != null) (patch as any).ip = (latest as any).intradayPrice;
-          // if ((latest as any).intradayObservedAt != null) (patch as any).io = (latest as any).intradayObservedAt;
-          const finalizedAtMs = (this.config.interval === TimeSeriesInterval.DAILY && (__phase === TradingPhase.POST))
-            ? Date.now()
-            : undefined;
-          switch (this.config.interval) {
-            case TimeSeriesInterval.DAILY:
-              await upsertAvDailyBar({ symbol, date: latest.date, patch, finalizedAtMs });
-              break;
-            case TimeSeriesInterval.WEEKLY:
-              await upsertAvWeeklyBar({ symbol, date: latest.date, patch });
-              break;
-            case TimeSeriesInterval.MONTHLY:
-              await upsertAvMonthlyBar({ symbol, date: latest.date, patch });
-              break;
-            default:
-              await saveAvTimeSeriesData(
-                bars,
-                symbol,
-                endpoint as AlphaVantageEndpoint,
-                this.config.interval as TimeSeriesInterval,
-                { fromMs: __fromMs, toMs: __toMs },
-              );
+
+            /**
+             * Map handler StorageBar → persisted CompactBar patch
+             *
+             * StorageBar fields:
+             * - open/high/low/close/volume
+             * - adjustedClose?, dividendAmount?, splitCoefficient?
+             * - previousClose?/change?/changePercent? (enriched above for compact path)
+             * - intradayPrice?/intradayObservedAt?/intradayTime? (optional)
+             *
+             * CompactBar short keys:
+             * - o/h/l/c/v, ac (adjusted close), dv (dividend), sc (split coeff)
+             * - pc/ch/cp for derived deltas
+             * - ip/io/it for intraday snapshot fields
+             *
+             * Note: Daily upsert helper derives `it` (HH:mm America/New_York) from `io` when provided.
+             * We intentionally omit intraday fields here unless provided by the handler payload.
+             */
+            const patch: Partial<CompactBar> = {
+              o: latest.open,
+              h: latest.high,
+              l: latest.low,
+              c: latest.close,
+              v: latest.volume,
+              ac: latest.adjustedClose,
+              dv: latest.dividendAmount,
+              sc: latest.splitCoefficient,
+              // include derived fields when available
+              pc: (latest as any).previousClose,
+              ch: (latest as any).change,
+              cp: (latest as any).changePercent,
+            };
+            const finalizedAtMs = (this.config.interval === TimeSeriesInterval.DAILY && (__phase === TradingPhase.POST))
+              ? Date.now()
+              : undefined;
+            await upsertAvDailyBar({ symbol, date: latest.date, patch, finalizedAtMs });
+          } else if (this.config.interval === TimeSeriesInterval.WEEKLY) {
+            // WEEKLY: compact cadence → rebuild latest-year (and rollover) shards from compact window
+            await mergeWeeklyCompactWindowIntoShards({
+              symbol: symbol!,
+              endpoint: endpoint as AlphaVantageEndpoint,
+              storageBars: bars,
+            });
+          } else if (this.config.interval === TimeSeriesInterval.MONTHLY) {
+            // MONTHLY: compact cadence → merge compact window by date into monthly all-docs (raw + sa)
+            await mergeMonthlyCompactWindowIntoAllDocs({
+              symbol: symbol!,
+              endpoint: endpoint as AlphaVantageEndpoint,
+              storageBars: bars,
+            });
+          } else {
+            // Any other intervals: fall back to full save behavior
+            await saveAvTimeSeriesData(
+              bars,
+              symbol!,
+              endpoint as AlphaVantageEndpoint,
+              this.config.interval as TimeSeriesInterval,
+              { fromMs: __fromMs, toMs: __toMs },
+            );
           }
         } else {
           // Full/backfill writes
@@ -371,7 +381,7 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           log.info('firestore.save', { endpointId: endpoint, symbol, bars: bars.length, requestId: (this as any).requestId });
           await saveAvTimeSeriesData(
             bars,
-            symbol,
+            symbol!,
             endpoint as AlphaVantageEndpoint,
             this.config.interval as TimeSeriesInterval,
             { fromMs: __fromMs, toMs: __toMs },
