@@ -155,41 +155,76 @@ Files:
 - `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager.ts` (schedulers + `refreshForEndpoints()`)
 - Handlers under `functions/src/v2/alpha-vantage/handlers/`
 
-- Pre/Post Close Cadence:
-  - `refreshAvDailyTimeSeriesPreClose`: PRE phase (daily). Writes intraday snapshot fields only; no finalized bar.
-  - `refreshAvDailyTimeSeriesPostClose`: POST phase (daily). Writes finalized daily bar and bumps parent metadata.
-  - `refreshAvWeeklyMonthlyTimeSeriesPostClose`: POST phase (weekly+monthly). Writes finalized bars and bumps metadata.
-- Storage Model (Sharded):
-  - Parent doc: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted` holds metadata (`latestBarTimestamp`, freshness)
-  - Year doc: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted/years/{YYYY}` with fields `{ bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }`
-  - Compact bar schema (from writers' `CompactBar`):
-    - `t`: epoch milliseconds (UTC)
-    - `d?`: UTC date `YYYY-MM-DD`
-    - `o`: open
-    - `h`: high
-    - `l`: low
-    - `c`: close
-    - `v`: volume (defaults to 0 if missing)
-    - `ac`: adjusted close (defaults to `c` if not provided)
-    - `dv`: dividend amount (defaults to 0)
-    - `sc`: split coefficient (defaults to 1)
-    - `pc?`: previous close for the bar’s day (if computed)
-    - `ch?`: absolute change vs previous close
-    - `cp?`: percent change vs previous close
-    - `ip?`: intraday last price snapshot (PRE phase)
-    - `io?`: intraday observed-at timestamp (epoch ms)
-    - `it?`: intraday observed-at clock string (HH:mm ET) derived from `io`
-    - `ic`: intraday absolute change vs previous close (nullable)
-    - `ipc`: intraday percent change vs previous close (nullable)
-  - Daily parent doc fields:
-    - Path: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted`
-    - Fields written by writers/bumpers:
-      - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, vendor, endpoint, histStartTs, histEndTs }`
-      - `latestBarTimestamp`: Firestore `Timestamp` of most recent finalized daily bar
-    - Note: intraday snapshot and previous-close details live on bar entries (see CompactBar), not on the parent doc.
-- Weekly and monthly follow the same sharded scheme using their respective parent docs:
-  - Weekly parent: `symbol-data/{SYMBOL}/time-series/av-weekly-adjusted`
-  - Monthly parent: `symbol-data/{SYMBOL}/time-series/av-monthly-adjusted`
+#### Cadence Overview
+
+- **Daily (TIME_SERIES_DAILY_ADJUSTED)**
+  - `refreshAvDailyTimeSeriesIntradayHourly`: PRE phase. Writes intraday snapshot fields only (`ip/io/it/ic/ipc`) into the latest daily bar; does not finalize OHLC.
+  - `refreshAvDailyTimeSeriesPreClose`: PRE phase. Same intent as above, closer to the bell.
+  - `refreshAvDailyTimeSeriesPostClose`: POST phase. Writes the finalized daily bar (OHLC, `ac`, `dv`, `sc`, `pc`, `ch`, `cp`) for **today only** and bumps parent metadata.
+  - Evening + morning retry jobs re‑attempt POST writes for symbols that failed or were late.
+
+- **Weekly / Monthly (TIME_SERIES_WEEKLY_ADJUSTED, TIME_SERIES_MONTHLY_ADJUSTED)**
+  - `refreshAvWeeklyMonthlyTimeSeriesPostClose`: POST phase. Runs **daily** on trading days.
+  - Intended behavior:
+    - Treat Alpha Vantage as the **source of truth** for weekly/monthly over the most recent compact window (~100 bars).
+    - For the compact cadence, update only the **most recent year shard** for weekly and the most recent segment of the monthly `all` document. Older years are reconciled by separate full-refresh workflows (see below).
+    - Within that most recent shard, recent completed periods and the current in‑progress period (week‑to‑date / month‑to‑date) are kept in sync with AV.
+
+#### Storage Model (Sharded)
+
+- **Daily**
+  - Parent doc: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted` holds metadata (`latestBarTimestamp`, freshness).
+  - Year doc: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted/years/{YYYY}` with fields:
+    - `bars: CompactBar[]`
+    - `count`
+    - `firstBarTs`
+    - `lastBarTs`
+    - `latest` (most recent non‑placeholder bar)
+    - `latestUtcIso`, `latestEtDateTime`
+    - `updatedAt`
+
+- **Weekly**
+  - Parent doc: `symbol-data/{SYMBOL}/time-series/av-weekly-adjusted` (top‑level metadata and latest bar timestamp).
+  - Year doc: `symbol-data/{SYMBOL}/time-series/av-weekly-adjusted/years/{YYYY}` with the same general shape as daily (`bars`, `count`, `firstBarTs`, `lastBarTs`, `latest`, `latestUtcIso`, `latestEtDateTime`, `updatedAt`).
+  - The daily compact cadence is intended to **merge** the latest weekly bars (from AV’s compact response) into the **current year** shard only, keeping the most recent weeks in sync while leaving older years to periodic full refreshes.
+
+- **Monthly**
+  - Parent doc: `symbol-data/{SYMBOL}/time-series/av-monthly-adjusted` (top‑level metadata and latest bar timestamp).
+  - Single `all` doc: `symbol-data/{SYMBOL}/time-series/av-monthly-adjusted/all` that stores the full `bars` array plus aggregate fields similar to the weekly/daily shards.
+  - The compact cadence is intended to merge the latest monthly bars (from AV’s compact response) into the tail of this `all` document; older months are refreshed by full‑history workflows.
+
+#### Compact Bar Schema
+
+All intervals (daily/weekly/monthly) share a common **CompactBar** shape written by Firestore helpers:
+
+- `t`: epoch milliseconds (UTC)
+- `d?`: UTC date `YYYY-MM-DD`
+- `o`: open
+- `h`: high
+- `l`: low
+- `c`: close
+- `v`: volume (defaults to 0 if missing)
+- `ac`: adjusted close (defaults to `c` if not provided)
+- `dv`: dividend amount (defaults to 0)
+- `sc`: split coefficient (defaults to 1)
+- `pc?`: previous close for the bar’s day/period (if computed)
+- `ch?`: absolute change vs previous close
+- `cp?`: percent change vs previous close
+- `ip?`: intraday last price snapshot (PRE phase, daily only)
+- `io?`: intraday observed-at timestamp (epoch ms)
+- `it?`: intraday observed-at clock string (HH:mm ET) derived from `io`
+- `ic`: intraday absolute change vs previous close (nullable)
+- `ipc`: intraday percent change vs previous close (nullable)
+
+Daily parent doc fields:
+
+- Path: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted`
+- Fields written by writers/bumpers:
+  - `metadata`: `{ symbol, interval, histStartDate, histEndDate, lastUpdated, vendor, endpoint, histStartTs, histEndTs }`
+  - `latestBarTimestamp`: Firestore `Timestamp` of most recent finalized daily bar
+- Note: intraday snapshot and previous-close details live on bar entries (see CompactBar), not on the parent doc.
+
+Weekly and monthly parent docs follow the same pattern, with `interval` and `endpoint` reflecting their respective AV endpoints.
 
 #### EOD change fields (Daily Adjusted)
 
@@ -600,8 +635,9 @@ Querying logs
 
 Notes:
 - The legacy `{ data, metadata }` shape is deprecated for AV daily time series; all new writes use the normalized schema.
+- Top-level time-series metadata (`histStartTs`, `histEndTs`, `availableYears`, `latestBarTimestamp`) is maintained by writers via `bumpTimeSeriesTopLevelMetadata`, which now derives its values from the actual stored shards/all-docs rather than guessing from the last refresh date.
 
-For operational **manual backfill and split-adjusted data maintenance workflows** (e.g., `sync-splits.ts`, `backfill-data.ts`, `verify-data.ts`), see:
+For operational **manual backfill and split-adjusted data maintenance workflows** (e.g., `sync-splits.ts`, `backfill-data.ts`, `verify-data.ts`, `diagnose-timeseries.ts`, `repair-timeseries-metadata.ts`), see:
 
 - `planning/backfill-and-split-toolkit.md`
 

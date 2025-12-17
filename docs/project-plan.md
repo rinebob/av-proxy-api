@@ -444,3 +444,5 @@ Notes:
 A comprehensive dual-write and backfill strategy has been implemented to handle stock splits and dividend adjustments. This ensures both real-time continuity and historical accuracy.
 
 For detailed design, real-time behavior, and manual backfill instructions, please refer to **[Split Adjustment & Data Consistency Design](./split-adjustment-design.md)**.
+
+For the **operational playbook** (backfill, diagnose, and repair across both production and emulator Firestore), including the `backfill-data.ts`, `diagnose-timeseries.ts`, and `repair-timeseries-metadata.ts` scripts, see **[Backfill & Split Maintenance Toolkit](./backfill-and-split-toolkit.md)**.

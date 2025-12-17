@@ -9,6 +9,8 @@ Scripts covered (all under `functions/scripts/`):
 - `manage-splits.ts`
 - `sync-splits.ts`
 - `verify-data.ts`
+- `diagnose-timeseries.ts`
+- `repair-timeseries-metadata.ts`
 
 Use this doc together with:
 
@@ -455,3 +457,358 @@ This toolkit plus the scheduler-based refresh flows gives you a robust way to co
 Historically, some handlers/scripts used flags like `__checkWriteToggle` or `manualWriteToggle*` to gate writes. These have been removed from current toolkit flows and should **not** be used going forward.
 
 - If you encounter references to `__checkWriteToggle` or `manualWriteToggle` in the codebase, treat them as technical debt and remove/inline as part of a future cleanup task (tracked separately in `planning/project-tasks.md` / `planning/TASK.md`).
+
+---
+
+## 8. `diagnose-timeseries.ts` – Structural Time-Series Validation
+
+### Purpose
+
+- Provide a **non-destructive structural validator** for Alpha Vantage time-series data in Firestore.
+- Check that both **raw** and **split-adjusted** time-series documents are **well-formed**, internally consistent, and compatible with the storage model described in `docs/backend-functions-overview.md`.
+- Designed to run against **either the local emulator or production**, depending on how `firebase-admin` is configured via env vars.
+
+This script complements `verify-data.ts`:
+
+- `verify-data.ts` focuses on **financial correctness** (split ratios, spike detection).
+- `diagnose-timeseries.ts` focuses on **schema/shape correctness** (sorted bars, valid timestamps, metadata alignment, etc.).
+
+### Scope
+
+- **Environments**
+  - Emulator: when `FIRESTORE_EMULATOR_HOST` / `FUNCTIONS_EMULATOR` are set and `scripts-util.setupEmulator()` is used.
+  - Production: when `firebase-admin` is initialized against the real project (no emulator env vars).
+
+- **Collections / Paths**
+  - Raw time-series: `symbol-data/{SYMBOL}/time-series/av-<interval>`
+  - Split-adjusted time-series: `symbol-data/{SYMBOL}/sa-time-series/av-<interval>`
+  - Under each parent:
+    - DAILY / WEEKLY: `.../years/{YYYY}` year shards.
+    - MONTHLY: single `.../all` document.
+
+- **Intervals** (all supported by handlers):
+  - Daily adjusted (`TIME_SERIES_DAILY_ADJUSTED`)
+  - Weekly adjusted (`TIME_SERIES_WEEKLY_ADJUSTED`)
+  - Monthly adjusted (`TIME_SERIES_MONTHLY_ADJUSTED`)
+
+- **Symbol selection**
+  - `SYMBOL` → a single symbol.
+  - `SYMBOLS` → comma-separated list.
+  - Otherwise: all symbols under `tracked-symbols`.
+
+### Checks Performed
+
+For each symbol / endpoint / interval / series (raw + split-adjusted):
+
+1. **Document presence**
+   - Parent doc exists for `time-series` and `sa-time-series`.
+   - Expected year shards (`years/{YYYY}`) or monthly `all` doc exist when referenced by metadata.
+
+2. **Bar array structure**
+   - `bars` is an array.
+   - All entries have a numeric `t` and (when present) `d` in `YYYY-MM-DD` form.
+   - Bars are **sorted ascending by `t`** (no out-of-order timestamps).
+   - `d` and `t` agree: `new Date(t).toISOString().slice(0,10) === d` when `d` is set.
+   - `dow` matches `computeDowFromDateString(d)`.
+
+3. **Numeric sanity**
+   - `o/h/l/c/v` are finite numbers (placeholder bars where all are zero are allowed but flagged).
+   - When present, `ac`, `dv`, `sc` are finite; `sc > 0`.
+   - Intraday fields (daily only):
+     - If `io` is present, `it` matches the ET clock derived from `io`.
+
+4. **Metadata alignment (year shards and monthly all-doc)**
+   - `count` equals `bars.length`.
+   - `firstBarTs` equals `bars[0].t`.
+   - `lastBarTs` equals `bars[bars.length - 1].t`.
+   - `latest` equals the latest **non-placeholder** bar, using the same heuristic as `saveAvTimeSeriesData`.
+   - `latestUtcIso` and `latestEtDateTime` correspond to `latest.t`.
+
+5. **Top-level metadata sanity**
+   - For each parent doc (`symbol-data/{SYMBOL}/(sa-)time-series/av-<interval>`):
+     - `metadata.availableYears` matches the actual set of `years/{YYYY}` docs when present.
+     - `metadata.histStartTs` and `metadata.histEndTs` align with the earliest/latest `t` across all shards/all-docs for that series.
+
+All issues are reported as structured log lines with:
+
+- `type` (e.g., `UNSORTED_BARS`, `BAD_DOW`, `META_MISMATCH`, `INVALID_NUMERIC`)
+- `path` (document path)
+- `index` (bar index when relevant)
+- `details` (brief human-readable summary)
+
+The script exits with **non-zero** status if any issues are detected, making it suitable for CI gating or manual regression checks after refactors.
+
+### Usage Examples
+
+From `functions/` (recommended ts-node invocation):
+
+```bash
+# All tracked symbols, all intervals, emulator or prod depending on env
+npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/diagnose-timeseries.ts
+
+# Single symbol, all intervals
+SYMBOL=AAPL \
+  npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/diagnose-timeseries.ts
+
+# Explicit symbol list
+SYMBOLS=NVDA,TSLA,GOOGL \
+  npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/diagnose-timeseries.ts
+```
+
+Environment selection follows the same pattern as the rest of this toolkit:
+
+- Emulator: set `FIRESTORE_EMULATOR_HOST` / `FUNCTIONS_EMULATOR=true` and use `scripts-util.setupEmulator()` in the implementation.
+- Production: omit emulator env vars so `firebase-admin` talks to the real Firestore project.
+
+---
+
+## 9. `repair-timeseries-metadata.ts` – Top-Level Metadata Repair from Stored Bars
+
+### Purpose
+
+- Repair **parent doc metadata** for Alpha Vantage time-series by recomputing it from the actual stored bars.
+- Targets both **raw** (`time-series`) and **split-adjusted** (`sa-time-series`) series for:
+  - Daily adjusted (`TIME_SERIES_DAILY_ADJUSTED`)
+  - Weekly adjusted (`TIME_SERIES_WEEKLY_ADJUSTED`)
+  - Monthly adjusted (`TIME_SERIES_MONTHLY_ADJUSTED`)
+- Fixes drift such as:
+  - `META_AVAILABLE_YEARS_MISMATCH` (metadata only lists `[2025]` but shards span 1999–2025).
+  - `META_HIST_START_MISMATCH` / `META_HIST_END_MISMATCH` (histStartTs/EndTs do not match earliest/latest bar).
+
+This script is **metadata-only**; it never mutates the bar arrays themselves.
+
+### Behavior
+
+For each tracked symbol and each AV time-series endpoint (D/W/M, raw + sa):
+
+- Resolves the canonical parent doc path using the same helpers as `diagnose-timeseries.ts`.
+- Loads the underlying data:
+  - **Daily / Weekly**: reads all `years/{YYYY}` docs and flattens their `bars` arrays.
+  - **Monthly**: reads the `all` doc and uses its `bars` array.
+- Derives:
+  - `histStartTs` = min `t` across all bars.
+  - `histEndTs` = max `t` across all bars.
+  - `years` = sorted unique set of UTC years derived from `t`.
+- Writes back to the parent `metadata` (merge update):
+  - `histStartTs`, `histEndTs` and their `Timestamp` date counterparts.
+  - `availableYears` = derived `years` array.
+  - `latestBarTimestamp` = `Timestamp` from `histEndTs` when available.
+- Logs one summary line per symbol:
+  - `[SYMBOL] updatedSeries=N` where `N` is the number of series for which metadata changed.
+- Prints `Total series updated: <count>` at the end and exits with **0** even if no changes were needed.
+
+### When to Use
+
+- After detecting widespread metadata mismatches with `diagnose-timeseries.ts` (e.g., `META_AVAILABLE_YEARS_MISMATCH`).
+- After large-scale backfills or refactors of the time-series writers (weekly/monthly merge logic, new v2 handlers).
+- As a one-time cleanup when migrating from legacy writers to the new v2 merge-based writers.
+
+Once metadata has been repaired **and** all live writers go through `saveAvTimeSeriesData` / `upsertAvDailyBar` (which call `bumpTimeSeriesTopLevelMetadata`), this script should only be needed for rare one-off fixes.
+
+### Usage Examples
+
+From `functions/` (recommended invocation):
+
+```bash
+# All tracked symbols, all D/W/M series (raw + sa)
+npx ts-node -r tsconfig-paths/register -r module-alias/register \
+  scripts/repair-timeseries-metadata.ts
+
+# Single symbol (when script supports filters, future-friendly example)
+SYMBOL=AAPL \
+  npx ts-node -r tsconfig-paths/register -r module-alias/register \
+    scripts/repair-timeseries-metadata.ts
+```
+
+### Environment Selection (Prod vs Emulator)
+
+`repair-timeseries-metadata.ts` uses the same admin initialization and emulator helper as other scripts:
+
+- **Production Firestore**
+  - Ensure `USE_EMULATOR_SCRIPTS` is **unset** or one of `0/false/off`.
+  - Ensure `FIRESTORE_EMULATOR_HOST`, `FUNCTIONS_EMULATOR`, and `FIREBASE_AUTH_EMULATOR_HOST` are **not** set.
+  - Application Default Credentials (ADC) must point at the prod project.
+
+- **Firestore Emulator**
+  - Set `USE_EMULATOR_SCRIPTS=1` (or leave unset, as scripts default to emulator) so `scripts-util.setupEmulator()` wires:
+    - `FIRESTORE_EMULATOR_HOST=localhost:8080`
+    - `FUNCTIONS_EMULATOR=true`
+    - `FIREBASE_AUTH_EMULATOR_HOST=localhost:9099`
+  - Make sure the emulator is running and pre-seeded with the symbols you care about.
+
+---
+
+## 10. PROD vs Emulator Playbook: Backfill → Diagnose → Repair
+
+This section captures the **exact sequences** that were validated during the 2025‑12 refactor for both production and emulator environments.
+
+### 10.1 Production Firestore
+
+From the repo root (PowerShell syntax shown):
+
+1. **Target PROD and configure AV key**
+
+   ```powershell
+   # Ensure scripts do NOT auto-wire the emulator
+   $env:USE_EMULATOR_SCRIPTS = "0"
+   Remove-Item Env:FIRESTORE_EMULATOR_HOST      -ErrorAction SilentlyContinue
+   Remove-Item Env:FUNCTIONS_EMULATOR           -ErrorAction SilentlyContinue
+   Remove-Item Env:FIREBASE_AUTH_EMULATOR_HOST  -ErrorAction SilentlyContinue
+
+   # Alpha Vantage API key for PROD
+   $env:ALPHAVANTAGE_API_KEY = "<PROD_AV_KEY>"
+   ```
+
+2. **Recent-window backfill via new v2 writers**
+
+   ```powershell
+   # Example: all tracked symbols, weekly+monthly only, recent window
+   $env:BACKFILL_INTERVALS       = "WEEKLY,MONTHLY"
+   $env:BACKFILL_FROM            = "2025-10-01"
+   $env:BACKFILL_TO              = "2025-12-17"
+   $env:BACKFILL_LOOKBACK_YEARS  = "0"  # ignored when FROM/TO are set
+
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/backfill-data.ts
+   ```
+
+3. **Diagnostics (structure + metadata)**
+
+   ```powershell
+   # Weekly, broad history
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval WEEKLY \
+       --from 1995-01-01 \
+       --to   2025-12-31
+
+   # Monthly
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval MONTHLY \
+       --from 2018-01-01 \
+       --to   2025-12-31
+
+   # Optional: daily, recent window
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval DAILY \
+       --from 2025-10-01 \
+       --to   2025-12-17
+   ```
+
+   - If you see only metadata issues (`META_AVAILABLE_YEARS_MISMATCH`, `META_HIST_START_MISMATCH`, etc.), proceed to step 4.
+
+4. **Repair metadata from actual bars**
+
+   ```powershell
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/repair-timeseries-metadata.ts
+   ```
+
+5. **Re-run diagnostics to confirm green state**
+
+   ```powershell
+   # Weekly (full span)
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval WEEKLY \
+       --from 1995-01-01 \
+       --to   2025-12-31
+
+   # Monthly (sanity)
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval MONTHLY \
+       --from 2018-01-01 \
+       --to   2025-12-31
+   ```
+
+### 10.2 Firestore Emulator
+
+For local development and CI-style checks, mirror the same workflow against the emulator.
+
+1. **Target emulator and AV key**
+
+   ```powershell
+   # Enable script-level emulator wiring
+   $env:USE_EMULATOR_SCRIPTS = "1"
+
+   # AV key for emulator runs
+   $env:LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY = "<AV_KEY_FOR_EMULATOR>"
+   Remove-Item Env:ALPHAVANTAGE_API_KEY -ErrorAction SilentlyContinue
+   ```
+
+   Ensure emulators are running (e.g., `npm run emulators:safe`) and `tracked-symbols` is populated.
+
+2. **Backfill via v2 writers (same window as PROD)**
+
+   ```powershell
+   $env:BACKFILL_INTERVALS       = "DAILY,WEEKLY,MONTHLY"
+   $env:BACKFILL_FROM            = "2025-10-01"
+   $env:BACKFILL_TO              = "2025-12-17"
+   $env:BACKFILL_LOOKBACK_YEARS  = "0"
+
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/backfill-data.ts
+   ```
+
+3. **Diagnostics (emulator)**
+
+   ```powershell
+   # Weekly, full span
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval WEEKLY \
+       --from 1995-01-01 \
+       --to   2025-12-31
+
+   # Daily, recent window
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval DAILY \
+       --from 2025-10-01 \
+       --to   2025-12-17
+
+   # Monthly
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval MONTHLY \
+       --from 2018-01-01 \
+       --to   2025-12-31
+   ```
+
+4. **Repair emulator metadata**
+
+   ```powershell
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/repair-timeseries-metadata.ts
+   ```
+
+5. **Re-run diagnostics on emulator**
+
+   ```powershell
+   # Weekly
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval WEEKLY \
+       --from 1995-01-01 \
+       --to   2025-12-31
+
+   # Daily
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval DAILY \
+       --from 2025-10-01 \
+       --to   2025-12-17
+
+   # Monthly
+   npx ts-node -r tsconfig-paths/register -r module-alias/register \
+     functions/scripts/diagnose-timeseries.ts \
+       --interval MONTHLY \
+       --from 2018-01-01 \
+       --to   2025-12-31
+   ```
+
+When both PROD and emulator runs report `Total issues: 0` across DAILY/WEEKLY/MONTHLY, the AV time-series storage and metadata pipeline is considered healthy.
+

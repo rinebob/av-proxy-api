@@ -77,3 +77,71 @@ The publisher auto-creates `partner-data-ready` in the emulator if missing and r
 For detailed guidance on **manual backfill and split maintenance scripts** (e.g., `backfill-data.ts`, `sync-splits.ts`, `verify-data.ts`), see:
 
 - `planning/backfill-and-split-toolkit.md`
+
+---
+
+## Time-Series Maintenance Scripts on the Emulator
+
+Once the emulators are running and you have seeded `tracked-symbols`, you can exercise the same time-series maintenance flows locally that you use in production.
+
+### Configure env for scripts (emulator)
+
+From the repo root in PowerShell:
+
+```powershell
+# Enable script-level emulator wiring
+$env:USE_EMULATOR_SCRIPTS = "1"
+
+# AV key for emulator-based scripts
+$env:LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY = "<YOUR_AV_KEY>"
+Remove-Item Env:ALPHAVANTAGE_API_KEY -ErrorAction SilentlyContinue
+```
+
+`functions/scripts/scripts-util.setupEmulator()` will ensure:
+
+- `FIRESTORE_EMULATOR_HOST=localhost:8080`
+- `FUNCTIONS_EMULATOR=true`
+- `FIREBASE_AUTH_EMULATOR_HOST=localhost:9099`
+
+### Backfill, Diagnose, Repair (Emulator)
+
+Typical sequence (from repo root):
+
+```powershell
+# 1) Backfill recent window via v2 writers
+$env:BACKFILL_INTERVALS       = "DAILY,WEEKLY,MONTHLY"
+$env:BACKFILL_FROM            = "2025-10-01"
+$env:BACKFILL_TO              = "2025-12-17"
+$env:BACKFILL_LOOKBACK_YEARS  = "0"
+
+npx ts-node -r tsconfig-paths/register -r module-alias/register `
+  functions/scripts/backfill-data.ts
+
+# 2) Diagnose structural and metadata issues
+npx ts-node -r tsconfig-paths/register -r module-alias/register `
+  functions/scripts/diagnose-timeseries.ts `
+    --interval WEEKLY `
+    --from 1995-01-01 `
+    --to   2025-12-31
+
+npx ts-node -r tsconfig-paths/register -r module-alias/register `
+  functions/scripts/diagnose-timeseries.ts `
+    --interval DAILY `
+    --from 2025-10-01 `
+    --to   2025-12-17
+
+npx ts-node -r tsconfig-paths/register -r module-alias/register `
+  functions/scripts/diagnose-timeseries.ts `
+    --interval MONTHLY `
+    --from 2018-01-01 `
+    --to   2025-12-31
+
+# 3) Repair top-level metadata from stored bars
+npx ts-node -r tsconfig-paths/register -r module-alias/register `
+  functions/scripts/repair-timeseries-metadata.ts
+
+# 4) Re-run diagnostics to confirm Total issues: 0
+```
+
+This mirrors the recommended production workflow but operates entirely against the local emulator, making it safe for experimentation and regression checks.
+
