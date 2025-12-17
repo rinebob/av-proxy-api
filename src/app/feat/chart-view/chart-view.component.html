@@ -41,7 +41,8 @@
         [tooltip]="tooltipSettings"
         (loaded)="onChartLoaded()"
         (scrollEnd)="onScrollEnd($event)"
-        (zoomComplete)="onZoomComplete($event)">
+        (zoomComplete)="onZoomComplete($event)"
+        (tooltipRender)="tooltipRender($event)">
         <e-series-collection>
             <e-series [dataSource]="store.chartData()" 
                       type="Candle" 

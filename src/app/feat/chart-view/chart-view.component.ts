@@ -8,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { FormsModule } from '@angular/forms';
-import { ChartModule, ChartComponent, CandleSeriesService, DateTimeService, TooltipService, ZoomService, CrosshairService, ZoomSettingsModel, IZoomCompleteEventArgs, IScrollEventArgs, ScrollBarService, StripLineService, StripLineSettingsModel } from '@syncfusion/ej2-angular-charts';
+import { ChartModule, ChartComponent, CandleSeriesService, DateTimeService, TooltipService, ZoomService, CrosshairService, ZoomSettingsModel, IZoomCompleteEventArgs, IScrollEventArgs, ScrollBarService, StripLineService, StripLineSettingsModel, ITooltipRenderEventArgs } from '@syncfusion/ej2-angular-charts';
 import { ChartViewStore } from './store/chart-view.store';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
@@ -286,6 +286,20 @@ export class ChartViewComponent implements OnInit {
     if (args.axis.name === 'primaryXAxis') {
       this.rescaleYAxis(args.currentZoomFactor, args.currentZoomPosition);
       this.store.setZoomSettings(args.currentZoomFactor, args.currentZoomPosition);
+    }
+  }
+
+  tooltipRender(args: ITooltipRenderEventArgs): void {
+    console.log('Tooltip Render:', args);
+    console.log('Point Data:', args.point);
+    console.log('Series Name:', args.series.name);
+    console.log('Text:', args.text);
+    
+    // Log the date specifically
+    const point = args.point as any;
+    if (point && point.x) {
+        console.log('Tooltip Date (X):', point.x);
+        console.log('Tooltip X Value (Time):', point.x.getTime ? point.x.getTime() : point.x);
     }
   }
 
