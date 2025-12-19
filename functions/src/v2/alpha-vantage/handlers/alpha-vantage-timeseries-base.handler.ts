@@ -132,7 +132,7 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
     this.validateParams(params);
 
     // Strip internal params before sending to AV
-    const { __checkWriteToggle, __phase, __run, __fromMs, __toMs, __skipSave, ...publicParams } = params || {};
+    const { __checkWriteToggle, __phase, __run, __skipSave, ...publicParams } = params || {};
     const requestParams = this.prepareRequestParams(publicParams);
 
     try {
@@ -372,7 +372,6 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
               symbol!,
               endpoint as AlphaVantageEndpoint,
               this.config.interval as TimeSeriesInterval,
-              { fromMs: __fromMs, toMs: __toMs },
             );
           }
         } else {
@@ -384,7 +383,6 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
             symbol!,
             endpoint as AlphaVantageEndpoint,
             this.config.interval as TimeSeriesInterval,
-            { fromMs: __fromMs, toMs: __toMs },
           );
         }
       } else {
