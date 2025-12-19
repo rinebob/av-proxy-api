@@ -3,6 +3,10 @@
  * Call this before importing any firebase-admin or Firestore code in scripts.
  */
 export function setupEmulator() {
+  const disable = (process.env.USE_EMULATOR_SCRIPTS || '').toLowerCase();
+  if (disable === '0' || disable === 'false' || disable === 'off') {
+    return;
+  }
   process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
   process.env['FUNCTIONS_EMULATOR'] = 'true';
   process.env['FIREBASE_AUTH_EMULATOR_HOST'] = 'localhost:9099';
