@@ -637,9 +637,11 @@ Notes:
 - The legacy `{ data, metadata }` shape is deprecated for AV daily time series; all new writes use the normalized schema.
 - Top-level time-series metadata (`histStartTs`, `histEndTs`, `availableYears`, `latestBarTimestamp`) is maintained by writers via `bumpTimeSeriesTopLevelMetadata`, which now derives its values from the actual stored shards/all-docs rather than guessing from the last refresh date.
 
-For operational **manual backfill and split-adjusted data maintenance workflows** (e.g., `sync-splits.ts`, `backfill-data.ts`, `verify-data.ts`, `diagnose-timeseries.ts`, `repair-timeseries-metadata.ts`), see:
+For operational **manual backfill and split-adjusted data maintenance workflows** (e.g., `sync-splits.ts`, reseed scripts such as `backfill-av-daily-adjusted.ts`, `verify-data.ts`, `diagnose-timeseries.ts`, `repair-timeseries-metadata.ts`, and future window-merge tooling), see:
 
 - `planning/backfill-and-split-toolkit.md`
+
+> Note: an earlier experimental script `backfill-data.ts` combined backfill and split injection but mixed date-window filtering with a full-series overwrite writer and caused a real data-loss incident. It has been removed and must not be reintroduced; new flows must follow the reseed vs window-merge model described in the toolkit.
 
 ---
 

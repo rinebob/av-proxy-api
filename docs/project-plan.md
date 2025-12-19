@@ -445,4 +445,9 @@ A comprehensive dual-write and backfill strategy has been implemented to handle 
 
 For detailed design, real-time behavior, and manual backfill instructions, please refer to **[Split Adjustment & Data Consistency Design](./split-adjustment-design.md)**.
 
-For the **operational playbook** (backfill, diagnose, and repair across both production and emulator Firestore), including the `backfill-data.ts`, `diagnose-timeseries.ts`, and `repair-timeseries-metadata.ts` scripts, see **[Backfill & Split Maintenance Toolkit](./backfill-and-split-toolkit.md)**.
+For the **operational playbook** (backfill, diagnose, and repair across both production and emulator Firestore), see **[Backfill & Split Maintenance Toolkit](./backfill-and-split-toolkit.md)**. That document defines the canonical two-mode backfill strategy for Alpha Vantage time-series:
+
+- **Destructive reseed**: delete + full rebuild via dedicated reseed scripts (e.g. `backfill-av-daily-adjusted.ts` and weekly/monthly counterparts).
+- **Non-destructive window merge**: future `backfill-timeseries-window.ts` built on the merge-aware writers (`upsertAvDailyBar`, `mergeWeeklyCompactWindowIntoShards`, `mergeMonthlyCompactWindowIntoAllDocs`).
+
+The previously experimental `backfill-data.ts` script has been removed after a data-loss incident and must not be reintroduced.

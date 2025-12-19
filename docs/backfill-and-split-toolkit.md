@@ -47,85 +47,35 @@ Unless explicitly stated, scripts can run against either **emulator** or **produ
 
 ---
 
-## 1. `backfill-data.ts` – Full-History Backfill with Split Injection
+## 1. Canonical Backfill Modes (Design Decision)
 
-### Purpose
+Going forward, AV time-series maintenance is split into **two explicit modes**:
 
-- Fetch full Alpha Vantage historical **time-series D/W/M adjusted data** for one or more symbols.
-- Normalize AV responses into the canonical bar shape.
-- Inject split coefficients from `symbol-data/{symbol}.splitHistory` into the bars.
-- Persist bars via `saveAvTimeSeriesData` using `forceFullHistory: true` and `skipSplitPersistence: true` to avoid re-detecting splits from the injected coefficients.
+1. **Destructive Reseed (Full-Series Backfill)**
+   - Intent: throw away existing time-series for a symbol/interval and **rebuild from AV as source-of-truth**.
+   - Implementation pattern:
+     - Delete the existing subtree (years/* or all-doc) and parent doc.
+     - Call the canonical v2 handler with `outputsize=full`.
+     - Let handlers write via `saveAvTimeSeriesData` / daily upserts.
+   - This is implemented in the dedicated script `backfill-av-daily-adjusted.ts` for all three intervals (daily/weekly/monthly).
+   - For WEEKLY/MONTHLY, the v2 handlers now inject split factors from `symbol-data/{symbol}.splitHistory` into the AV W/M bars and run the same `adjustHistoryForBackfill` newest→oldest pass used for DAILY. There is **no separate remediation pass** for W/M; split math for all intervals lives in the handler + Firestore helper path.
 
-This is the **main tool for rebuilding time-series history** after split corrections or logic changes.
+2. **Non-Destructive Window Merge (Partial Backfill / Repair)**
+   - Intent: refresh or repair a **date window** while preserving all bars **outside** that window.
+   - Implementation pattern:
+     - Fetch a window from AV (FULL or compact as needed).
+     - Normalize to `StorageBar[]`.
+     - Persist via merge-aware helpers:
+       - DAILY: `upsertAvDailyBar` per date.
+       - WEEKLY: `mergeWeeklyCompactWindowIntoShards`.
+       - MONTHLY: `mergeMonthlyCompactWindowIntoAllDocs`.
+   - This behavior will live in a **separate script** (e.g. `backfill-timeseries-window.ts`) and will **never** call `saveAvTimeSeriesData` with a pre-filtered subset.
 
-### Scope
+### Note on `backfill-data.ts`
 
-- Symbols:
-  - Single symbol via `SYMBOL`.
-  - Comma-separated list via `SYMBOLS`.
-  - Otherwise all `tracked-symbols` in Firestore.
-- Intervals (time-series):
-  - Daily: `TIME_SERIES_DAILY_ADJUSTED` (mapped from `TimeSeriesInterval.DAILY`).
-  - Weekly: `TIME_SERIES_WEEKLY_ADJUSTED`.
-  - Monthly: `TIME_SERIES_MONTHLY_ADJUSTED`.
-- For each symbol and interval:
-  - Calls the appropriate v2 handler (`AvDailyTimeSeriesHandler`, `AvWeeklyTimeSeriesHandler`, `AvMonthlyTimeSeriesHandler`) with `outputsize=full`.
-  - Normalizes the response into an array of `{ date, open, high, low, close, adjustedClose, volume, dividendAmount, splitCoefficient }`.
-  - Injects splits from `splitHistory` onto the first bar with `b.date >= split.date`.
-  - Optionally trims by date window before saving.
-
-### Time Window Controls
-
-Set via environment variables (all optional):
-
-- `BACKFILL_FROM`: `YYYY-MM-DD` (inclusive, start of day).
-- `BACKFILL_TO`: `YYYY-MM-DD` (inclusive, end of day).
-- `BACKFILL_LOOKBACK_YEARS`: integer `N`; if `BACKFILL_FROM` is not set, uses "today minus N years".
-
-If none are set, the script uses the full history provided by the handler/AV.
-
-### When to Use
-
-- After running `sync-splits.ts` to correct `splitHistory`.
-- After manual split patches or removals where you want the time-series to reflect the corrected history.
-- After changes to:
-  - split adjustment / hybrid bar logic,
-  - AV time-series handlers,
-  - Firestore bar schema or `saveAvTimeSeriesData` behavior.
-
-### Usage Examples
-
-From `functions/`:
-
-```bash
-# All tracked symbols, all intervals, full history
-npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/backfill-data.ts
-
-# Single symbol, all intervals
-SYMBOL=NVDA \
-  npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/backfill-data.ts
-
-# Single symbol, selected intervals
-SYMBOL=TSLA \
-BACKFILL_INTERVALS=DAILY,MONTHLY \
-  npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/backfill-data.ts
-
-# Backfill last 10 years only
-SYMBOL=AAPL \
-BACKFILL_LOOKBACK_YEARS=10 \
-  npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/backfill-data.ts
-
-# Backfill explicit date window
-SYMBOL=GOOGL \
-BACKFILL_FROM=2010-01-01 \
-BACKFILL_TO=2020-12-31 \
-  npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/backfill-data.ts
-```
-
-### Safety Notes
-
-- Uses `forceFullHistory: true`: treat as **destructive rebuild** of the time-series for the chosen symbol(s)/interval(s).
-- Ensure you are targeting the correct project/emulator and that `splitHistory` is clean and correct before running.
+- A prior script, `backfill-data.ts`, attempted to provide a combined backfill + split-injection workflow.
+- Its design mixed **windowed filtering** with a **full-series overwrite** writer, which caused a real data-loss incident (weekly 2025 truncation and monthly history loss) when used with `BACKFILL_FROM` / `BACKFILL_TO`.
+- As a result, `backfill-data.ts` has been **removed from the toolkit**. New maintenance flows must be built on the two explicit modes above and the dedicated scripts that implement them.
 
 ---
 
@@ -438,8 +388,8 @@ A typical manual repair/backfill flow:
    - Optionally simulate patches/removals with `manage-splits.ts patch/remove` before making permanent changes elsewhere.
 
 4. **Rebuild time-series with injected splits**
-   - Run `backfill-data.ts` with appropriate `SYMBOL`/`SYMBOLS`, `BACKFILL_INTERVALS`, and optional time windows.
-   - This produces a new, clean history based on the synced `splitHistory`.
+   - Run `backfill-av-daily-adjusted.ts` with appropriate `SYMBOL`/`SYMBOLS` and `INCLUDE_WEEKLY` / `INCLUDE_MONTHLY` flags.
+   - This performs a full destructive reseed for DAILY/WEEKLY/MONTHLY using the v2 handlers. Split factors are sourced from `splitHistory` (via AV SPLITS + patches) and applied inside the handler/Firestore writer pipeline.
 
 5. **Verify correctness**
    - Run `verify-data.ts` for all or a subset of symbols.
@@ -659,18 +609,12 @@ From the repo root (PowerShell syntax shown):
    $env:ALPHAVANTAGE_API_KEY = "<PROD_AV_KEY>"
    ```
 
-2. **Recent-window backfill via new v2 writers**
+2. **Backfill (high level)**
 
-   ```powershell
-   # Example: all tracked symbols, weekly+monthly only, recent window
-   $env:BACKFILL_INTERVALS       = "WEEKLY,MONTHLY"
-   $env:BACKFILL_FROM            = "2025-10-01"
-   $env:BACKFILL_TO              = "2025-12-17"
-   $env:BACKFILL_LOOKBACK_YEARS  = "0"  # ignored when FROM/TO are set
+   For production, choose one of:
 
-   npx ts-node -r tsconfig-paths/register -r module-alias/register \
-     functions/scripts/backfill-data.ts
-   ```
+   - **Destructive reseed** – use explicit reseed scripts (e.g. `backfill-av-daily-adjusted.ts` and future weekly/monthly equivalents) that delete + fully rebuild a symbol/interval.
+   - **Non-destructive window repair** – future `backfill-timeseries-window.ts`, implemented on top of `upsertAvDailyBar`, `mergeWeeklyCompactWindowIntoShards`, and `mergeMonthlyCompactWindowIntoAllDocs`.
 
 3. **Diagnostics (structure + metadata)**
 
@@ -741,17 +685,9 @@ For local development and CI-style checks, mirror the same workflow against the 
 
    Ensure emulators are running (e.g., `npm run emulators:safe`) and `tracked-symbols` is populated.
 
-2. **Backfill via v2 writers (same window as PROD)**
+2. **Backfill (high level)**
 
-   ```powershell
-   $env:BACKFILL_INTERVALS       = "DAILY,WEEKLY,MONTHLY"
-   $env:BACKFILL_FROM            = "2025-10-01"
-   $env:BACKFILL_TO              = "2025-12-17"
-   $env:BACKFILL_LOOKBACK_YEARS  = "0"
-
-   npx ts-node -r tsconfig-paths/register -r module-alias/register \
-     functions/scripts/backfill-data.ts
-   ```
+   Emulator workflows should mirror the same **reseed vs window-merge** split as production, using the same scripts but pointed at the emulator (via `USE_EMULATOR_SCRIPTS` and related env). The old `backfill-data.ts` flow has been removed and must not be reintroduced.
 
 3. **Diagnostics (emulator)**
 

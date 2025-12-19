@@ -1,23 +1,30 @@
 # Backfill: Alpha Vantage Time Series (Daily/Weekly/Monthly Adjusted)
 
-This script rebuilds Alpha Vantage time-series data in Firestore for tracked symbols by delegating to existing handlers. It is designed to be safe, resilient, and non-invasive to production code.
+This script performs a **full destructive reseed** of Alpha Vantage time-series data in Firestore for tracked symbols by delegating to the v2 handlers. It is designed to be safe, resilient, and non-invasive to production code, and is the canonical way to rebuild D/W/M series using the current split-adjustment pipeline.
 
 File: `functions/scripts/backfill-av-daily-adjusted.ts`
 
 ## What it does
 
-- Fetches time-series data via the existing handler(s):
-  - Daily Adjusted
-  - Weekly Adjusted (optional)
-  - Monthly Adjusted (optional)
-- Writes the normalized CompactBar schema to sharded year docs (daily/weekly) or the `all` doc (monthly).
-- Updates top-level time-series metadata and `latestBarTimestamp` for console visibility.
-- Optionally deletes existing series subtree(s) before re-seeding (FULL backfill) — only after a quick network probe passes.
+- For each symbol in the selected set (from `SYMBOL` / `SYMBOLS` / tracked symbols):
+  - **Optionally deletes** the existing DAILY / WEEKLY / MONTHLY time-series subtree(s) for AV adjusted endpoints.
+  - Fetches full-history time-series data via the v2 handlers for:
+    - Daily Adjusted (required)
+    - Weekly Adjusted (optional via `INCLUDE_WEEKLY`)
+    - Monthly Adjusted (optional via `INCLUDE_MONTHLY`)
+  - Lets the handlers + Firestore helper write:
+    - Normalized `CompactBar` arrays to sharded year docs (daily/weekly) or the `all` doc (monthly).
+    - Updated top-level time-series metadata and `latestBarTimestamp` for console visibility.
+- For **split-adjusted** series:
+  - DAILY uses `sc` from the provider payload and runs a single newest→oldest pass via `adjustHistoryForBackfill`.
+  - WEEKLY/MONTHLY inject `sc` from `symbol-data/{symbol}.splitHistory` onto the appropriate period-end bars, then run the same `adjustHistoryForBackfill` pass. This ensures weekly/monthly SA series are numerically consistent with the daily SA series derived from the same split history.
+
+All split math lives in the shared handler + `_internalSaveAvTimeSeriesData` + `adjustHistoryForBackfill` path; this script simply orchestrates the destructive reseed and per-symbol looping.
 
 ## Why this exists
 
-- To normalize existing time-series with the latest bar shape and metadata rules.
-- To safely rebuild data without changing production code.
+- To normalize existing time-series with the latest bar shape, metadata rules, and unified split-adjustment math for DAILY/WEEKLY/MONTHLY.
+- To safely rebuild data without changing production code, using the same v2 handlers the scheduler uses.
 - To provide strong resilience against transient network issues during bulk runs.
 
 ## Safety, Probes, and Resilience
