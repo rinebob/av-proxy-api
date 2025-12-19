@@ -110,51 +110,10 @@ async function _internalSaveAvTimeSeriesData(
   endpoint: AlphaVantageEndpoint,
   interval: TimeSeriesInterval,
   isSplitAdjusted: boolean,
-  options?: { fromMs?: number | null; toMs?: number | null; forceFullHistory?: boolean; skipSplitPersistence?: boolean },
+  options?: { skipSplitPersistence?: boolean },
 ): Promise<void> {
   console.log(`aFH sATSD start ${endpoint} ${symbol} ${interval}`);
   log.info('timeseries.save.start', { symbol, endpoint, interval });
-  // Emulator guard: trim DAILY/WEEKLY/MONTHLY to a bounded window to keep emulator datasets small.
-  // When a backfill date range is provided (via AV_TS_DATE_FROM / AV_TS_DATE_TO env vars),
-  // honor that exact range so callers can guarantee full-year coverage (e.g. 2024–2025).
-  const emulator = process.env.FUNCTIONS_EMULATOR === 'true' || !!process.env.FIRESTORE_EMULATOR_HOST;
-  const shouldTrim = emulator && !options?.forceFullHistory;
-  
-  if (shouldTrim && Array.isArray(data) && (
-    interval === TimeSeriesInterval.DAILY ||
-    interval === TimeSeriesInterval.WEEKLY ||
-    interval === TimeSeriesInterval.MONTHLY
-  )) {
-    const now = Date.now();
-    const threeYearsMs = 3 * 365 * 24 * 3600 * 1000;
-    const defaultCutoff = now - threeYearsMs;
-
-    const fromMs = options?.fromMs != null && Number.isFinite(options.fromMs) ? Number(options.fromMs) : null;
-    const toMs = options?.toMs != null && Number.isFinite(options.toMs) ? Number(options.toMs) : null;
-
-    const filtered = data.filter((b) => {
-      const t = new Date(b.date).getTime();
-      if (!Number.isFinite(t)) return false;
-      // When a date range is provided, use it as the primary filter.
-      if (fromMs != null && t < fromMs) return false;
-      if (toMs != null && t > toMs) return false;
-      // If no explicit range, fall back to the ~3-year rolling window.
-      if (fromMs == null && toMs == null && t < defaultCutoff) return false;
-      return true;
-    });
-    if (filtered.length !== data.length) {
-      const intervalLabel = String(interval);
-      console.log(`aFH sATSD emulator trim [${intervalLabel}] ${data.length}  ${filtered.length}`);
-      log.debug('timeseries.save.trim', {
-        interval: intervalLabel,
-        from: data.length,
-        to: filtered.length,
-        fromDate: fromMs ?? defaultCutoff,
-        toDate: toMs ?? null,
-      });
-      data = filtered;
-    }
-  }
   // 1. Compute metadata fields
   let histStartDate: Timestamp | null = null;
   let histEndDate: Timestamp | null = null;
@@ -213,10 +172,63 @@ async function _internalSaveAvTimeSeriesData(
     }
 
     // --- APPLY SPLIT ADJUSTMENTS (Backwards Pass) ---
-    // This ensures the persisted data is fully continuous based on all historical splits found in the dataset.
-    // Only runs during full/backfill writes AND if we are targeting the split-adjusted collection.
+    // DAILY: use provider splitCoefficient (sc) on the daily bars.
+    // WEEKLY/MONTHLY: inject sc from symbol-data/{symbol}.splitHistory (AV SPLITS),
+    // then run the same backwards-pass once over the AV W/M bars.
     if (isSplitAdjusted && compactBars.length > 0) {
-        compactBars = adjustHistoryForBackfill(compactBars);
+      if (interval !== TimeSeriesInterval.DAILY) {
+        // For WEEKLY/MONTHLY, ensure we search splits against bars in chronological
+        // order so each split maps to the correct period-end bar (not always the
+        // most recent one from a newest-first payload).
+        compactBars.sort((a, b) => a.t - b.t);
+        try {
+          const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+          const symbolSnap = await symbolDocRef.get();
+          const rawHistory = (symbolSnap.data()?.splitHistory ?? []) as Array<{ date: string; factor: number }>;
+
+          if (Array.isArray(rawHistory) && rawHistory.length > 0) {
+            const history = rawHistory
+              .filter(e => typeof e?.date === 'string' && typeof e?.factor === 'number')
+              .slice()
+              .sort((a, b) => a.date.localeCompare(b.date)); // oldest -> newest
+
+            for (const entry of history) {
+              const splitDate = entry.date;
+              const factor = entry.factor;
+              if (!splitDate || !factor || factor === 1) continue;
+
+              // First bar whose period-end date is on/after the split date.
+              const idx = compactBars.findIndex(b => {
+                const d = (b as any).d as string | undefined;
+                return typeof d === 'string' && d >= splitDate;
+              });
+              if (idx >= 0) {
+                compactBars[idx].sc = factor;
+                console.log('aFH sATSD injecting_sc_from_splitHistory', {
+                  symbol,
+                  endpoint,
+                  interval,
+                  splitDate,
+                  factor,
+                  barDate: (compactBars[idx] as any).d,
+                  sc: compactBars[idx].sc,
+                });
+                console.log('avFH _iSATSD compactBars[idx].sc: ', compactBars[idx].sc)
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('aFH sATSD splitHistory_injection_error', {
+            symbol,
+            endpoint,
+            interval,
+            error: String((e as any)?.message || e),
+          });
+        }
+      }
+
+      // Single newest->oldest pass using sc on the bars.
+      compactBars = adjustHistoryForBackfill(compactBars);
     }
     // ------------------------------------------------
 
@@ -416,22 +428,21 @@ export async function saveAvTimeSeriesData(
   symbol: string,
   endpoint: AlphaVantageEndpoint,
   interval: TimeSeriesInterval,
-  options?: { fromMs?: number | null; toMs?: number | null; skipLegacyWrite?: boolean; skipSplitPersistence?: boolean; forceFullHistory?: boolean },
+  options?: { skipLegacyWrite?: boolean; skipSplitPersistence?: boolean },
 ): Promise<void> {
   // Dual write: Raw (Legacy) and Adjusted (Side-Car)
   // We run them sequentially or parallel. Sequential is safer for error handling (if raw fails, we stop).
   
   // 1. Raw / Standard (Optional Bypass)
   if (!options?.skipLegacyWrite) {
-      await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, false, options);
+      await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, false, { skipSplitPersistence: options?.skipSplitPersistence });
   }
 
   // 2. Split Adjusted (Always Force Full History for Backfills)
   // We disable emulator truncation here to ensure we capture deep historical splits (e.g. AAPL 2020, 2014)
   // even when running in the emulator.
   await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, true, { 
-      ...options,
-      forceFullHistory: true 
+      skipSplitPersistence: options?.skipSplitPersistence,
   });
 }
 
@@ -720,8 +731,6 @@ async function _internalUpsertDailyBar(
 
     const targetIdx = bars.findIndex((b) => b.t === t);
     if (targetIdx >= 0) {
-      console.log(`aFH retry.start daily ${symbol} ${date} targetTs=${t}`);
-      log.info('daily.upsert.retry.start', { symbol, date, targetTs: t });
       // Re-hydrate baseline using current snapshot to ensure latest persisted refs
       computeChCpForTargetIndex(bars, targetIdx);
     }
