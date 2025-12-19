@@ -46,7 +46,7 @@ interface EndpointStats {
 }
 
 // Compute next refresh start time as RFC3339 UTC string for header UI
-function computeNextRefreshAtUtc(phase: TradingPhase): string | undefined {
+export function computeNextRefreshAtUtc(phase: TradingPhase): string | undefined {
   try {
     const tz = 'America/New_York';
     const now = new Date();
@@ -831,9 +831,10 @@ export async function refreshForEndpoints(
   let updateLogCapped = false;
 
   // BEGIN message (time-series only, limited to DAILY intraday/pre/post runs)
-  // Hoist runId so END uses the same ID
+  // Hoist runId so END uses the same ID and reuse computed nextRefreshAtUTC
   let beginRunId: string | null = null;
   let beginStartIso: string | null = null;
+  let beginNextRefreshAtUtc: string | undefined;
   try {
     const phasePartner: PartnerPhase = (phaseFinal === TradingPhase.PRE ? PartnerPhase.PRE : PartnerPhase.POST);
     const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(':', '');
@@ -841,6 +842,7 @@ export async function refreshForEndpoints(
     const runId = isManual ? `${marketDate}-${hhmm}-${phasePartner}-manual` : `${marketDate}-${hhmm}-${phasePartner}`;
     beginRunId = runId;
     beginStartIso = new Date().toISOString();
+    beginNextRefreshAtUtc = computeNextRefreshAtUtc(phaseFinal);
 
     // Determine if any DAILY interval present; we only emit for DAILY in this scope
     const includesDaily = endpoints.some((e) => e === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
@@ -855,6 +857,7 @@ export async function refreshForEndpoints(
         env: (process.env.NODE_ENV || 'dev') as string,
         status: PartnerPublishStatus.BEGIN,
         runStatus: PartnerRunStatus.PROCESSING,
+        nextRefreshAtUTC: beginNextRefreshAtUtc,
       };
       const runType = (phasePartner === PartnerPhase.PRE) ? PartnerRunType.TS_DAILY_PRE : PartnerRunType.TS_DAILY_POST;
       await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, { runType });

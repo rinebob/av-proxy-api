@@ -59,6 +59,10 @@ export async function enqueueDataReadyInternal(
     throw new Error(`Invalid payload: ${JSON.stringify(errors)}`);
   }
   const validPayload = value as DataReadyPayloadV1;
+  // Provide a PascalCase alias for consumers expecting NextRefreshAt in the JSON body
+  if (validPayload.nextRefreshAtUTC && !(validPayload as any).NextRefreshAt) {
+    (validPayload as any).NextRefreshAt = validPayload.nextRefreshAtUTC;
+  }
   const { runId } = validPayload;
 
   const runRef = db.collection('runs').doc(runId);
@@ -166,6 +170,7 @@ export async function enqueueDataReadyInternal(
   };
   if (validPayload.marketDate) attributes.marketDate = validPayload.marketDate;
   if (validPayload.env) attributes.env = validPayload.env;
+  if (validPayload.nextRefreshAtUTC) attributes.NextRefreshAt = validPayload.nextRefreshAtUTC;
   if (extraAttributes) {
     for (const [k, v] of Object.entries(extraAttributes)) {
       if (v != null) attributes[k] = String(v);

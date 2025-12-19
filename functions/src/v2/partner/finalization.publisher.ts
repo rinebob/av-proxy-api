@@ -3,6 +3,8 @@ import { FirestoreCollection } from '@shared/firestore';
 import { enqueueDataReadyInternal } from './data-ready.handler';
 import { PartnerPhase, PartnerRunStatus, PartnerRunType, PartnerPublishStatus } from './constants';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
+import { TradingPhase } from '@shared/health-metrics';
+import { computeNextRefreshAtUtc } from '../alpha-vantage/data-refresher/av-refresh-manager';
 
 /**
  * Publish a single partner data-ready message when a day is finalized.
@@ -28,6 +30,8 @@ export const onDailyAdjustedFinalizedPublish = onDocumentCreated({
   const finalizedCountTotal = Number(data?.finalizedCountTotal ?? 0);
   const finalizedAtUTC = typeof data?.finalizedAtUTC === 'string' ? data.finalizedAtUTC : undefined;
 
+  const nextRefreshAtUTC = computeNextRefreshAtUtc(TradingPhase.POST);
+
   const runStatus: PartnerRunStatus = (finalizedCountTotal >= totalSymbols && totalSymbols > 0)
     ? PartnerRunStatus.COMPLETED
     : PartnerRunStatus.COMPLETED; // finalization doc implies completion for the day
@@ -42,6 +46,7 @@ export const onDailyAdjustedFinalizedPublish = onDocumentCreated({
     env: (process.env.NODE_ENV || 'dev') as string,
     status: PartnerPublishStatus.END,
     runStatus,
+    nextRefreshAtUTC,
     finalizedAtUTC,
     pendingCount: 0,
     finalizedCountTotal,
