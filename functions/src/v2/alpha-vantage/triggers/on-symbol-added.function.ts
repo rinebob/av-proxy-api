@@ -42,17 +42,84 @@ export const onSymbolAdded = onDocumentCreated(
       const hms = new HealthMetricsService();
       const startedAt = Date.now();
       // Get the Alpha Vantage handler for adjusted daily time series
-      const handler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
+      const dailyHandler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED);
 
-      // Fetch the time series data with required parameters and let the handler
+      // Fetch the full daily time series data and let the handler
       // persist sharded bars and metadata (year-sharded DAILY_ADJUSTED)
-      await handler.fetch({
+      await dailyHandler.fetch({
         symbol,
         outputsize: OutputSize.FULL,
         datatype: 'json',
-        __checkWriteToggle: false // backend-triggered init should bypass manual write toggle
       });
       const durationMs = Date.now() - startedAt;
+
+      // Ensure WEEKLY full-history exists: only backfill if parent doc is missing
+      const weeklyParentRef = db.doc(
+        `${FirestoreCollection.SYMBOL_DATA}/${symbol}/time-series/av-weekly-adjusted`
+      );
+      const weeklyParentSnap = await weeklyParentRef.get();
+      if (!weeklyParentSnap.exists) {
+        console.log(`oSA.f oSA: Starting weekly full-history backfill for symbol: ${symbol}`);
+        const weeklyHandler = AlphaVantageHandlerFactory.createHandler(
+          AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED
+        );
+
+        const weeklyStartedAt = Date.now();
+        await weeklyHandler.fetch({
+          symbol,
+          outputsize: OutputSize.FULL,
+          datatype: 'json',
+        });
+
+        const weeklyDurationMs = Date.now() - weeklyStartedAt;
+
+        console.log(`oSA.f oSA: Completed weekly full-history backfill for ${symbol} in ${weeklyDurationMs}ms`);
+
+        await hms.recordSymbolRefresh(
+          AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED as any,
+          symbol,
+          RefreshStatus.SUCCESS,
+          weeklyDurationMs,
+          undefined,
+          { trigger: RefreshTrigger.SYMBOL_ADDED }
+        );
+      } else {
+        console.log(`oSA.f oSA: Weekly time-series already present for ${symbol}, skipping full-history backfill.`);
+      }
+
+      // Ensure MONTHLY full-history exists: only backfill if parent doc is missing
+      const monthlyParentRef = db.doc(
+        `${FirestoreCollection.SYMBOL_DATA}/${symbol}/time-series/av-monthly-adjusted`
+      );
+      const monthlyParentSnap = await monthlyParentRef.get();
+      if (!monthlyParentSnap.exists) {
+        console.log(`oSA.f oSA: Starting monthly full-history backfill for symbol: ${symbol}`);
+        const monthlyHandler = AlphaVantageHandlerFactory.createHandler(
+          AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED
+        );
+
+        const monthlyStartedAt = Date.now();
+        await monthlyHandler.fetch({
+          symbol,
+          outputsize: OutputSize.FULL,
+          datatype: 'json',
+        });
+
+        const monthlyDurationMs = Date.now() - monthlyStartedAt;
+
+        console.log(`oSA.f oSA: Completed monthly full-history backfill for ${symbol} in ${monthlyDurationMs}ms`);
+
+        await hms.recordSymbolRefresh(
+          AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED as any,
+          symbol,
+          RefreshStatus.SUCCESS,
+          monthlyDurationMs,
+          undefined,
+          { trigger: RefreshTrigger.SYMBOL_ADDED }
+        );
+      } else {
+        console.log(`oSA.f oSA: Monthly time-series already present for ${symbol}, skipping full-history backfill.`);
+      }
 
       // Calculate tomorrow's date
       const tomorrow = new Date();
