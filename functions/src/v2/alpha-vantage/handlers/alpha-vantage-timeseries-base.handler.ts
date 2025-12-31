@@ -150,7 +150,9 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
         return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
       }
 
-      // For compact updates, persist only the most recent element
+      // For compact updates, persist only the most recent element.
+      // Weekly/monthly helpers now merge by date into existing docs, so
+      // collapsing to the latest bar is safe across intervals.
       const outputSize = (requestParams as any)?.outputsize as string | undefined;
       if (outputSize === 'compact' && Array.isArray(bars) && bars.length > 1) {
         // Choose the bar with the maximum date (YYYY-MM-DD)
