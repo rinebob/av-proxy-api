@@ -1040,56 +1040,82 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
     const yearStorageBars = storageBars.filter((b) => parseDateYear(b.date) === year);
     if (yearStorageBars.length === 0) continue;
 
-    const yearBars: CompactBar[] = yearStorageBars.map((b) => {
-      const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
-      const dStr = new Date(t).toISOString().slice(0, 10);
-      const dow = computeDowFromDateString(dStr);
-      return {
-        t,
-        d: dStr,
-        dow,
-        o: Number(b.open),
-        h: Number(b.high),
-        l: Number(b.low),
-        c: Number(b.close),
-        v: Number(b.volume),
-        ac: b.adjustedClose != null ? Number(b.adjustedClose) : undefined,
-        dv: b.dividendAmount != null ? Number(b.dividendAmount) : undefined,
-        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : undefined,
-        ic: null,
-        ipc: null,
-      } as CompactBar;
-    });
-
-    yearBars.sort((a, b) => a.t - b.t);
-
-    const latestNonPlaceholder = [...yearBars].reverse().find((bar) => {
-      const o = Number(bar.o || 0), h = Number(bar.h || 0), l = Number(bar.l || 0), c = Number(bar.c || 0), v = Number(bar.v || 0);
-      return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
-    }) ?? (yearBars[yearBars.length - 1] ?? null);
-    const latestUtcIso = latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString() : null;
-    const latestEtDateTime = latestNonPlaceholder?.t != null ? formatEtDateTime(latestNonPlaceholder.t) : null;
-
     for (const isSplitAdjusted of [false, true]) {
       const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year, isSplitAdjusted);
-      await db.doc(yearDocPath).set({
-        bars: yearBars,
-        count: yearBars.length,
-        firstBarTs: yearBars[0]?.t ?? null,
-        lastBarTs: yearBars[yearBars.length - 1]?.t ?? null,
+      const ref = db.doc(yearDocPath);
+      const snap = await ref.get();
+      const existingBars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
+
+      // Build map of existing bars keyed by YYYY-MM-DD to preserve weeks outside the compact window.
+      const map = new Map<string, CompactBar>();
+      for (const bar of existingBars) {
+        const dStr = typeof bar.d === 'string' && bar.d.length >= 10
+          ? bar.d.slice(0, 10)
+          : (typeof bar.t === 'number' ? new Date(bar.t).toISOString().slice(0, 10) : '');
+        if (!dStr) continue;
+        map.set(dStr, bar);
+      }
+
+      // Merge incoming storage bars for this year by date into the map.
+      for (const b of yearStorageBars) {
+        const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
+        if (!Number.isFinite(t)) continue;
+        const dStr = new Date(t).toISOString().slice(0, 10);
+        const existing = map.get(dStr);
+        const dow = computeDowFromDateString(dStr);
+
+        const merged: CompactBar = {
+          ...(existing ?? {} as CompactBar),
+          t,
+          d: dStr,
+          dow,
+          o: Number(b.open),
+          h: Number(b.high),
+          l: Number(b.low),
+          c: Number(b.close),
+          v: Number(b.volume),
+          ac: b.adjustedClose != null ? Number(b.adjustedClose) : (existing?.ac),
+          dv: b.dividendAmount != null ? Number(b.dividendAmount) : (existing?.dv),
+          sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : (existing?.sc),
+          ic: existing?.ic ?? null,
+          ipc: existing?.ipc ?? null,
+        } as CompactBar;
+
+        map.set(dStr, merged);
+      }
+
+      const mergedBars = Array.from(map.values());
+      if (mergedBars.length === 0) {
+        continue;
+      }
+
+      mergedBars.sort((a, b) => a.t - b.t);
+
+      const latestNonPlaceholder = [...mergedBars].reverse().find((bar) => {
+        const o = Number(bar.o || 0), h = Number(bar.h || 0), l = Number(bar.l || 0), c = Number(bar.c || 0), v = Number(bar.v || 0);
+        return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
+      }) ?? (mergedBars[mergedBars.length - 1] ?? null);
+      const latestUtcIso = latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString() : null;
+      const latestEtDateTime = latestNonPlaceholder?.t != null ? formatEtDateTime(latestNonPlaceholder.t) : null;
+
+      await ref.set({
+        bars: mergedBars,
+        count: mergedBars.length,
+        firstBarTs: mergedBars[0]?.t ?? null,
+        lastBarTs: mergedBars[mergedBars.length - 1]?.t ?? null,
         latest: latestNonPlaceholder,
         latestUtcIso,
         latestEtDateTime,
         updatedAt: Timestamp.now(),
       }, { merge: true });
-    }
 
-    // Track latest date from the most recent year for top-level metadata bump.
-    if (year === latestYear && yearBars.length > 0) {
-      const last = yearBars[yearBars.length - 1];
-      latestDateForMeta = typeof last.d === 'string' && last.d.length >= 10
-        ? last.d
-        : new Date(last.t).toISOString().slice(0, 10);
+      // Track latest date from the most recent year for top-level metadata bump.
+      if (year === latestYear && mergedBars.length > 0) {
+        const last = mergedBars[mergedBars.length - 1];
+        latestDateForMeta = typeof last.d === 'string' && last.d.length >= 10
+          ? last.d
+          : new Date(last.t).toISOString().slice(0, 10);
+      }
     }
   }
 
@@ -1166,6 +1192,17 @@ export async function mergeMonthlyCompactWindowIntoAllDocs(options: {
       const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
       if (!Number.isFinite(t)) continue;
       const dStr = new Date(t).toISOString().slice(0, 10);
+
+      // Enforce a single bar per calendar month: before inserting this bar
+      // for YYYY-MM, remove any existing entries in the same month so only
+      // the latest monthly bar (from AV) is retained.
+      const monthKey = dStr.slice(0, 7); // YYYY-MM
+      for (const [k] of map) {
+        if (k.slice(0, 7) === monthKey) {
+          map.delete(k);
+        }
+      }
+
       const existing = map.get(dStr);
       const dow = computeDowFromDateString(dStr);
 
