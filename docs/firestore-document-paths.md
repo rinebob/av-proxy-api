@@ -133,10 +133,10 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
 
 ---
 
-## Symbol Data: Year‑Sharded Time‑Series Doc Shape (Alpha Vantage)
+## Symbol Data: Year‑Sharded Time‑Series Doc Shape (Alpha Vantage, Adjusted Only)
 
-- Path pattern (DAILY_ADJUSTED):
-  - `/symbol-data/{SYMBOL}/time-series/av-daily-adjusted/years/{YYYY}`
+- Path pattern (DAILY_ADJUSTED, **sa-time-series**):
+  - `/symbol-data/{SYMBOL}/sa-time-series/av-daily-adjusted/years/{YYYY}`
 
 - Year doc fields:
   ```json
@@ -183,4 +183,4 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
   - `fz` (finalized-at ms) is stamped when the daily bar first finalizes post-close and is present only for non-placeholder bars.
   - `io/it/ip/ic/ipc` are intraday snapshot fields and may be present from pre-close writes.
   - `latest*` fields are derived conveniences: last non-placeholder bar, its UTC/ET strings, and latest intraday observation timestamps.
-  - Monthly uses a single `all` doc at `/symbol-data/{SYMBOL}/time-series/av-monthly-adjusted/all` with the same `bars` shape.
+  - Monthly uses a single `all` doc at `/symbol-data/{SYMBOL}/sa-time-series/av-monthly-adjusted/all` with the same `bars` shape.

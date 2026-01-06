@@ -172,9 +172,28 @@ Files:
 
 #### Storage Model (Sharded)
 
-- **Daily**
-  - Parent doc: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted` holds metadata (`latestBarTimestamp`, freshness).
-  - Year doc: `symbol-data/{SYMBOL}/time-series/av-daily-adjusted/years/{YYYY}` with fields:
+> **Note (2026-01):** AV OHLCV time-series are now stored **only** under the split-adjusted collection `sa-time-series`. The legacy `time-series` collection for AV OHLCV has been wiped in prod via the `wipe-raw-timeseries.ts` admin script and is no longer written to by writers or triggers.
+
+##### Production Dataset Baseline (2026-01-04)
+
+- The production Firestore dataset is treated as a **stable API surface** for partner consumption. Time-series backfills are no longer ad hoc; any destructive reseeds must follow the documented admin scripts and be treated as change-managed operations.
+- For the current tracked universe:
+  - `tracked-symbols` contains the canonical symbol list (696 symbols as of 2026-01-04).
+  - There is a 1:1 mapping between `tracked-symbols/{symbol}` and `symbol-data/{symbol}` (no missing or empty `symbol-data` docs).
+  - For each tracked symbol, the following AV split-adjusted time-series parents exist under `symbol-data/{symbol}/sa-time-series` and have at least one shard/all document:
+    - `av-daily-adjusted`
+    - `av-weekly-adjusted`
+    - `av-monthly-adjusted`
+- Completeness checks for this baseline are performed via the admin script:
+  - `functions/scripts/find-incomplete-sa-timeseries.ts`
+    - Default mode: verifies `symbol-data` presence/emptiness for all tracked symbols and emits a JSON report.
+    - Deep mode (`DEEP_SA_CHECK=1`): additionally asserts the presence of non-empty `sa-time-series` parents and shard/all documents for the three AV adjusted intervals.
+
+Consumers should assume this baseline guarantees **existence and basic structural completeness** of the AV adjusted time-series for all tracked symbols. Freshness guarantees still derive from the scheduled refresh flows and Data‑Ready notifications described below.
+
+- **Daily (Adjusted only)**
+  - Parent doc: `symbol-data/{SYMBOL}/sa-time-series/av-daily-adjusted` holds metadata (`latestBarTimestamp`, freshness).
+  - Year doc: `symbol-data/{SYMBOL}/sa-time-series/av-daily-adjusted/years/{YYYY}` with fields:
     - `bars: CompactBar[]`
     - `count`
     - `firstBarTs`
@@ -183,14 +202,14 @@ Files:
     - `latestUtcIso`, `latestEtDateTime`
     - `updatedAt`
 
-- **Weekly**
-  - Parent doc: `symbol-data/{SYMBOL}/time-series/av-weekly-adjusted` (top‑level metadata and latest bar timestamp).
-  - Year doc: `symbol-data/{SYMBOL}/time-series/av-weekly-adjusted/years/{YYYY}` with the same general shape as daily (`bars`, `count`, `firstBarTs`, `lastBarTs`, `latest`, `latestUtcIso`, `latestEtDateTime`, `updatedAt`).
+- **Weekly (Adjusted only)**
+  - Parent doc: `symbol-data/{SYMBOL}/sa-time-series/av-weekly-adjusted` (top‑level metadata and latest bar timestamp).
+  - Year doc: `symbol-data/{SYMBOL}/sa-time-series/av-weekly-adjusted/years/{YYYY}` with the same general shape as daily (`bars`, `count`, `firstBarTs`, `lastBarTs`, `latest`, `latestUtcIso`, `latestEtDateTime`, `updatedAt`).
   - The daily compact cadence is intended to **merge** the latest weekly bars (from AV’s compact response) into the **current year** shard only, keeping the most recent weeks in sync while leaving older years to periodic full refreshes.
 
-- **Monthly**
-  - Parent doc: `symbol-data/{SYMBOL}/time-series/av-monthly-adjusted` (top‑level metadata and latest bar timestamp).
-  - Single `all` doc: `symbol-data/{SYMBOL}/time-series/av-monthly-adjusted/all` that stores the full `bars` array plus aggregate fields similar to the weekly/daily shards.
+- **Monthly (Adjusted only)**
+  - Parent doc: `symbol-data/{SYMBOL}/sa-time-series/av-monthly-adjusted` (top‑level metadata and latest bar timestamp).
+  - Single `all` doc: `symbol-data/{SYMBOL}/sa-time-series/av-monthly-adjusted/all` that stores the full `bars` array plus aggregate fields similar to the weekly/daily shards.
   - The compact cadence is intended to merge the latest monthly bars (from AV’s compact response) into the tail of this `all` document; older months are refreshed by full‑history workflows.
 
 #### Compact Bar Schema

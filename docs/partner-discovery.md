@@ -47,17 +47,21 @@ For server-to-server integrations, partners should use Google OIDC (service acco
 
 ## Data Provider & Storage Model (Overview)
 
+> **Note (2026-01):** AV OHLCV time-series for partner reads are now stored under the split-adjusted collection `sa-time-series` as described in `docs/backend-functions-overview.md` and `docs/partner-dataset-announcement.md`. The `time-series` paths referenced below reflect the earlier internal storage model and are kept for historical/internal context only. Partner-facing APIs and response shapes remain the same.
+
 - Provider (current primary): Alpha Vantage (AV)
   - We persist adjusted series by default for `DAILY`, `WEEKLY`, and `MONTHLY`.
 
-- Canonical Firestore paths (non-intraday):
+- Canonical Firestore paths (non-intraday, **current split-adjusted model**):
   - Top-level provider/interval doc (metadata only):
-    - `symbol-data/{SYMBOL}/time-series/{av-daily-adjusted|av-weekly-adjusted|av-monthly-adjusted}`
+    - `symbol-data/{SYMBOL}/sa-time-series/{av-daily-adjusted|av-weekly-adjusted|av-monthly-adjusted}`
     - Fields: `metadata{ symbol, interval, histStartTs, histEndTs, lastUpdated, ttlSeconds, vendor, endpoint }`, and `latestBarTimestamp` (Firestore Timestamp for the latest bar)
   - Year‑sharded docs for `DAILY`/`WEEKLY`:
-    - `symbol-data/{SYMBOL}/time-series/{docId}/years/{YYYY}` → `{ bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }`
+    - `symbol-data/{SYMBOL}/sa-time-series/{docId}/years/{YYYY}` → `{ bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }`
   - Single ‘all’ doc for `MONTHLY`:
-    - `symbol-data/{SYMBOL}/time-series/{docId}/all/data` → `{ bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }`
+    - `symbol-data/{SYMBOL}/sa-time-series/{docId}/all/data` → `{ bars: CompactBar[], count, firstBarTs, lastBarTs, updatedAt }`
+
+> **Legacy note:** The older `time-series` collection and paths referenced in earlier internal docs have been fully removed. All partner-facing time-series reads now come exclusively from `sa-time-series`.
 
 - Compact bar schema (subset):
   - `t` (epoch ms, UTC day)
