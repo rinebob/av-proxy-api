@@ -69,7 +69,8 @@ Going forward, AV time-series maintenance is split into **two explicit modes**:
        - DAILY: `upsertAvDailyBar` per date.
        - WEEKLY: `mergeWeeklyCompactWindowIntoShards`.
        - MONTHLY: `mergeMonthlyCompactWindowIntoAllDocs`.
-   - This behavior will live in a **separate script** (e.g. `backfill-timeseries-window.ts`) and will **never** call `saveAvTimeSeriesData` with a pre-filtered subset.
+   - This behavior now lives in the dedicated script `backfill-timeseries-window.ts` and **never** calls `saveAvTimeSeriesData` with a pre-filtered subset.
+   - `backfill-timeseries-window.ts` provides a **window-aware, non-destructive option**: it rewrites only the bars whose dates fall within `[BACKFILL_FROM, BACKFILL_TO]`, deleting any existing bars in that window and replacing them entirely with AV as source-of-truth, while leaving all earlier history intact.
 
 ### Note on `backfill-data.ts`
 

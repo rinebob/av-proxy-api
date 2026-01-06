@@ -448,6 +448,6 @@ For detailed design, real-time behavior, and manual backfill instructions, pleas
 For the **operational playbook** (backfill, diagnose, and repair across both production and emulator Firestore), see **[Backfill & Split Maintenance Toolkit](./backfill-and-split-toolkit.md)**. That document defines the canonical two-mode backfill strategy for Alpha Vantage time-series:
 
 - **Destructive reseed**: delete + full rebuild via dedicated reseed scripts (e.g. `backfill-av-daily-adjusted.ts` and weekly/monthly counterparts).
-- **Non-destructive window merge**: future `backfill-timeseries-window.ts` built on the merge-aware writers (`upsertAvDailyBar`, `mergeWeeklyCompactWindowIntoShards`, `mergeMonthlyCompactWindowIntoAllDocs`).
+- **Non-destructive window merge**: the dedicated `backfill-timeseries-window.ts` script, built on the merge-aware writers (`upsertAvDailyBar`, `mergeWeeklyCompactWindowIntoShards`, `mergeMonthlyCompactWindowIntoAllDocs`), which rewrites only a specified date window while leaving earlier history intact.
 
 The previously experimental `backfill-data.ts` script has been removed after a data-loss incident and must not be reintroduced.
