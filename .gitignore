@@ -94,3 +94,9 @@ src/secrets/
 src/secrets/syncfusion-license.ts
 
 !scripts/gen-syncfusion-license.js
+src/assets/state-street/*
+bulk-import.*
+hs_err_pid46448.log
+stock_universe.bulk-import.json
+replay_pid46448.log
+functions/scripts/find-incomplete-sa-timeseries.output.json
