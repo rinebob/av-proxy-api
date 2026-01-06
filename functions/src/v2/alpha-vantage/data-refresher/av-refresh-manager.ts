@@ -993,18 +993,7 @@ export async function refreshForEndpoints(
       })();
       const run = { id: runId, date: marketDate, dow: dowEnum, phase: phaseFinal, endpointId: endpoint, endpointShort, trigger };
       
-      // Enforce a capped batch per run for DAILY POST to respect provider limits (scoped to this endpoint and phase)
-      const isDaily = endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED;
-      const isPost = (phaseFinal === TradingPhase.POST);
-      const MAX_DAILY_POST_BATCH = 60;
-      let processedThisRun = 0;
-
       for (const symbol of symbols) {
-        if (isDaily && isPost && processedThisRun >= MAX_DAILY_POST_BATCH) {
-          const phaseLabel = isPost ? PartnerPhase.POST : PartnerPhase.PRE;
-          log.info('refresh.batch_cap_reached', { endpoint, phase: phaseLabel, cap: MAX_DAILY_POST_BATCH });
-          break;
-        }
         try {
           const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
           const baseParams: any = { 
@@ -1016,7 +1005,6 @@ export async function refreshForEndpoints(
           };
           
           await handler.fetch(baseParams);
-          processedThisRun++;
           // Track time-series refreshed count
           if (isTimeSeriesEndpoint(endpoint)) {
             const cur = tsStats.get(endpoint) || { refreshed: 0, failures: 0 };
@@ -1109,7 +1097,7 @@ export async function refreshForEndpoints(
         }
       }
       // Near-complete acceleration pass: when only a small number remain, try a short second pass on a tiny subset
-      if (isDaily && isPost && Number.isFinite(targetTs)) {
+      if (endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED && phaseFinal === TradingPhase.POST && Number.isFinite(targetTs)) {
         const total = Array.isArray(symbols) ? symbols.length : 0;
         const finalizedTotal = finalizedBefore.size + deltaFinalized.size;
         const pendingCount = Math.max(0, total - finalizedTotal);
