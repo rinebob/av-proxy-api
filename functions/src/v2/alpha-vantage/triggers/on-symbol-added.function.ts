@@ -7,10 +7,12 @@ import {
   TimeSeriesInterval
 } from '@shared/alpha-vantage';
 import { FirestoreCollection, RefreshTrigger, RefreshStatus } from '@shared/firestore';
+import { ApiProvider } from '@shared/core';
 
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { RefreshLoggerService } from '../../services/refresh-logger.service';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
+import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 
 /**
  * Cloud Function that triggers when a new symbol is added to the tracked-symbols collection.
@@ -53,10 +55,15 @@ export const onSymbolAdded = onDocumentCreated(
       });
       const durationMs = Date.now() - startedAt;
 
-      // Ensure WEEKLY full-history exists: only backfill if parent doc is missing
-      const weeklyParentRef = db.doc(
-        `${FirestoreCollection.SYMBOL_DATA}/${symbol}/time-series/av-weekly-adjusted`
+      // Ensure WEEKLY full-history exists: only backfill if adjusted parent doc is missing.
+      // We now treat sa-time-series as the sole canonical store for AV OHLCV bars.
+      const weeklyParentPath = getSymbolTimeSeriesDocPath(
+        symbol,
+        AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
+        ApiProvider.ALPHA_VANTAGE,
+        true, // isSplitAdjusted -> sa-time-series
       );
+      const weeklyParentRef = db.doc(weeklyParentPath);
       const weeklyParentSnap = await weeklyParentRef.get();
       if (!weeklyParentSnap.exists) {
         console.log(`oSA.f oSA: Starting weekly full-history backfill for symbol: ${symbol}`);
@@ -87,10 +94,14 @@ export const onSymbolAdded = onDocumentCreated(
         console.log(`oSA.f oSA: Weekly time-series already present for ${symbol}, skipping full-history backfill.`);
       }
 
-      // Ensure MONTHLY full-history exists: only backfill if parent doc is missing
-      const monthlyParentRef = db.doc(
-        `${FirestoreCollection.SYMBOL_DATA}/${symbol}/time-series/av-monthly-adjusted`
+      // Ensure MONTHLY full-history exists: only backfill if adjusted parent doc is missing.
+      const monthlyParentPath = getSymbolTimeSeriesDocPath(
+        symbol,
+        AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
+        ApiProvider.ALPHA_VANTAGE,
+        true, // isSplitAdjusted -> sa-time-series
       );
+      const monthlyParentRef = db.doc(monthlyParentPath);
       const monthlyParentSnap = await monthlyParentRef.get();
       if (!monthlyParentSnap.exists) {
         console.log(`oSA.f oSA: Starting monthly full-history backfill for symbol: ${symbol}`);
