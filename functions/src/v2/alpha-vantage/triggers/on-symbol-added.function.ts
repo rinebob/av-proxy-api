@@ -20,6 +20,7 @@ export const onSymbolAdded = onDocumentCreated(
   {
     document: `${FirestoreCollection.TRACKED_SYMBOLS}/{symbol}`,
     secrets: ['ALPHAVANTAGE_API_KEY'],
+    memory: '1GiB',
   },
   async (event) => {
     // Convert symbol to uppercase immediately when we get it
