@@ -1,5 +1,9 @@
 # Partner API Surface (Single-Page Overview)
 
+> **Status (2026-01-04):** This document is a supplementary deep-dive on the partner API surface (endpoints, auth, Pub/Sub).
+> For the up-to-date description of the production dataset guarantees and tracked universe, see
+> `docs/partner-dataset-announcement.md`.
+
 Audience: Partner backend teams integrating with Savant’s partner endpoints and Pub/Sub notifications.
 
 Last updated: 2025-11-13
