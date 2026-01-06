@@ -4,13 +4,11 @@ import { db, FieldValue } from '../../../firebase-admin-init';
 import {
   AlphaVantageEndpoint,
   OutputSize,
-  TimeSeriesInterval
 } from '@shared/alpha-vantage';
 import { FirestoreCollection, RefreshTrigger, RefreshStatus } from '@shared/firestore';
 import { ApiProvider } from '@shared/core';
 
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
-import { RefreshLoggerService } from '../../services/refresh-logger.service';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 
@@ -132,41 +130,17 @@ export const onSymbolAdded = onDocumentCreated(
         console.log(`oSA.f oSA: Monthly time-series already present for ${symbol}, skipping full-history backfill.`);
       }
 
-      // Calculate tomorrow's date
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      // Create the document data with proper typing
-      const metadata = RefreshLoggerService.getInitialTimeSeriesMetadata(
-        [], // initial metadata; actual bars persisted by handler
-        symbol,
-        TimeSeriesInterval.DAILY
-      );
-
-      console.log(`oSA.f oSA: Time series metadata: ${JSON.stringify(metadata)}`);
-
-      // Augment metadata with refresh tracking fields
-      const now = FieldValue.serverTimestamp();
-      const nextRefreshAt = FieldValue.serverTimestamp();
-
-      // Only write symbol-level metadata here (time series persisted by handler)
-      const batch = db.batch();
-
-      // --- Add refresh metadata as symbol doc properties ---
+      // Ensure a minimal symbol-data/{symbol} document exists with the new
+      // metadata fields. Time-series bars themselves are persisted by the
+      // Alpha Vantage handlers above.
       const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
-      const symbolMetadata = {
-        nextRefreshAt,
-        nextRefreshBy: '',
-        refreshedAt: now,
-        refreshedBy: RefreshTrigger.SYMBOL_ADDED,
-        ttlHuman: '' // TODO: set human-friendly TTL if needed
-      };
-      console.log(`oSA.f oSA: Symbol metadata: ${JSON.stringify(symbolMetadata)}`);
-      batch.set(symbolDocRef, symbolMetadata, { merge: true });
-
-      console.log(`oSA.f oSA: ------------ save to firestore ------------`);
-      // Commit the batch
-      await batch.commit();
+      await symbolDocRef.set(
+        {
+          createdAt: FieldValue.serverTimestamp(),
+          createdBy: 'bulk-import',
+        },
+        { merge: true },
+      );
 
       // Record request log and endpoint-symbols status for visibility
       await hms.recordSymbolRefresh(
