@@ -88,6 +88,9 @@ export { listSymbolsV2 } from './v2/common/functions/listSymbolsV2';
 
 export { requestBenzingaNews } from './v2/benzinga/data-refresher/bz-news-request-manager';
 
+// Bulk symbol import for tracked-symbols
+export { bulkImportSymbolsV2 } from './v2/alpha-vantage/bulk-import/bulk-import-symbols.function';
+
 // Partner heartbeat publisher (scheduled)
 export { partnerDataReadyHeartbeat } from './v2/partner/heartbeat.publisher';
 

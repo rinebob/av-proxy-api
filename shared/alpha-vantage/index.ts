@@ -9,6 +9,7 @@ export * from './av-historical-options';
 export * from './av-symbol-search';
 export * from './av-time-series';
 export * from './av-time-series.types';
+export * from './av-bulk-import.types';
 
 // Default export: aggregate all named exports into a single object
 import * as companyOverview from './av-company-overview';

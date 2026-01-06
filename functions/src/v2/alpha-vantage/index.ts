@@ -18,4 +18,6 @@ export {
   refreshAvWeeklyMonthlyTimeSeriesPostClose,
 } from './data-refresher/av-refresh-manager';
 
+export { bulkImportSymbolsV2 } from './bulk-import/bulk-import-symbols.function';
+
 export default AlphaVantageHandlerFactory;
