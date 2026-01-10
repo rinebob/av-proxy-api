@@ -1030,62 +1030,105 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
     const yearStorageBars = storageBars.filter((b) => parseDateYear(b.date) === year);
     if (yearStorageBars.length === 0) continue;
 
+    log.info(`weekly.merge.start symbol=${symbol} year=${year} incomingBars=${yearStorageBars.length}`, {
+      symbol,
+      year,
+      incomingBars: yearStorageBars.length,
+      dates: yearStorageBars.map(b => b.date),
+    });
+
     // Adjusted-only: write exclusively to sa-time-series.
     const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year, true);
     const ref = db.doc(yearDocPath);
     const snap = await ref.get();
     const existingBars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
+    log.info(`weekly.merge.existing symbol=${symbol} year=${year} existingBars=${existingBars.length}`, {
+      symbol,
+      year,
+      existingBars: existingBars.length,
+    });
 
-    // Compute compact window bounds for this year so we can treat it as authoritative.
-    const windowTimes: number[] = [];
-    for (const b of yearStorageBars) {
-      const ts = new Date(`${b.date}T00:00:00.000Z`).getTime();
-      if (Number.isFinite(ts)) {
-        windowTimes.push(ts);
-      }
-    }
-    if (windowTimes.length === 0) {
-      continue;
-    }
-    const windowStartTs = Math.min(...windowTimes);
-
-    // Build map of existing bars keyed by YYYY-MM-DD, but only for bars *outside*
-    // the compact window. Within [windowStartTs, windowEndTs], AV is the sole
-    // source of truth and we will fully replace any existing bars.
+    // Build map of ALL existing bars keyed by YYYY-MM-DD.
+    // This preserves intraday data (ic, ipc) that may have been written earlier in the day.
     const map = new Map<string, CompactBar>();
+    let existingInProgressDate: string | null = null;
+    let existingInProgressTs = Number.NEGATIVE_INFINITY;
+    
     for (const bar of existingBars) {
-      const tExisting = typeof bar.t === 'number'
-        ? bar.t
-        : (typeof bar.d === 'string' && bar.d.length >= 10
-          ? new Date(`${bar.d.slice(0, 10)}T00:00:00.000Z`).getTime()
-          : NaN);
-      if (!Number.isFinite(tExisting)) {
-        continue;
-      }
-      // Preserve only bars strictly before the compact window; anything within
-      // or after the window will be defined by AV's compact payload.
-      if (tExisting >= windowStartTs) {
-        continue;
-      }
       const dStr = typeof bar.d === 'string' && bar.d.length >= 10
         ? bar.d.slice(0, 10)
-        : new Date(tExisting).toISOString().slice(0, 10);
+        : (typeof bar.t === 'number' ? new Date(bar.t).toISOString().slice(0, 10) : '');
       if (!dStr) continue;
       map.set(dStr, bar);
+      
+      // Track the latest existing bar (the current in-progress bar)
+      const t = typeof bar.t === 'number' ? bar.t : new Date(`${dStr}T00:00:00.000Z`).getTime();
+      if (Number.isFinite(t) && t > existingInProgressTs) {
+        existingInProgressTs = t;
+        existingInProgressDate = dStr;
+      }
+    }
+    
+    // Remove the existing in-progress bar so it can be replaced by the new in-progress bar
+    // This handles the case where the in-progress bar's date changes (e.g., Thu->Fri)
+    if (existingInProgressDate) {
+      map.delete(existingInProgressDate);
+      log.info(`weekly.merge.remove_old_inprogress symbol=${symbol} year=${year} date=${existingInProgressDate}`, {
+        symbol,
+        year,
+        date: existingInProgressDate,
+      });
     }
 
-    // Merge incoming storage bars for this year by date into the map. Within the
-    // compact window, AV is authoritative: each date is replaced/inserted
-    // exactly once, ensuring a single bar per weekly period (including current).
+    // Merge incoming storage bars for this year by date into the map.
+    // 
+    // WEEKLY BAR SEMANTICS:
+    // - AV returns a compact window (typically 100 bars)
+    // - The LAST bar (latest date) in the AV response is the in-progress bar with TODAY's date
+    // - The in-progress bar's date changes daily (Mon->Tue->Wed->Thu->Fri)
+    // - Historical bars (completed weeks) have their week-ending date (typically Friday)
+    // - The in-progress bar (latest date) should ALWAYS be written/updated
+    // - Historical bars (not latest date) should only be written if they don't already exist
+    
+    // Find the latest bar date in the incoming data (this is the in-progress bar)
+    let latestBarDate: string | null = null;
+    let latestBarTs = Number.NEGATIVE_INFINITY;
     for (const b of yearStorageBars) {
       const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
-      if (!Number.isFinite(t)) continue;
+      if (Number.isFinite(t) && t > latestBarTs) {
+        latestBarTs = t;
+        latestBarDate = b.date;
+      }
+    }
+
+    for (const b of yearStorageBars) {
+      const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
+      if (!Number.isFinite(t)) {
+        log.warn(`weekly.merge.skip_bar symbol=${symbol} year=${year} date=${b.date} reason=invalid_timestamp`, {
+          symbol,
+          year,
+          date: b.date,
+          reason: 'invalid_timestamp',
+        });
+        continue;
+      }
       const dStr = new Date(t).toISOString().slice(0, 10);
       const existing = map.get(dStr);
       const dow = computeDowFromDateString(dStr);
+      const isInProgressBar = dStr === latestBarDate;
+
+      // Skip historical bars (not in-progress) that already exist
+      if (!isInProgressBar && existing) {
+        log.info(`weekly.merge.skip_existing symbol=${symbol} year=${year} date=${dStr}`, {
+          symbol,
+          year,
+          date: dStr,
+          reason: 'historical_bar_exists',
+        });
+        continue;
+      }
 
       const merged: CompactBar = {
-        ...(existing ?? {} as CompactBar),
         t,
         d: dStr,
         dow,
@@ -1094,15 +1137,33 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
         l: Number(b.low),
         c: Number(b.close),
         v: Number(b.volume),
-        ac: b.adjustedClose != null ? Number(b.adjustedClose) : (existing?.ac),
-        dv: b.dividendAmount != null ? Number(b.dividendAmount) : (existing?.dv),
-        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : (existing?.sc),
+        ac: b.adjustedClose != null ? Number(b.adjustedClose) : undefined,
+        dv: b.dividendAmount != null ? Number(b.dividendAmount) : undefined,
+        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : undefined,
+        ip: existing?.ip,
+        io: existing?.io,
+        it: existing?.it,
         ic: existing?.ic ?? null,
         ipc: existing?.ipc ?? null,
       } as CompactBar;
 
+      log.info(`weekly.merge.add_bar symbol=${symbol} year=${year} date=${dStr} isInProgress=${isInProgressBar}`, {
+        symbol,
+        year,
+        date: dStr,
+        isInProgressBar,
+        o: merged.o,
+        c: merged.c,
+        v: merged.v,
+      });
       map.set(dStr, merged);
     }
+
+    log.info(`weekly.merge.complete symbol=${symbol} year=${year} mapSize=${map.size}`, {
+      symbol,
+      year,
+      mapSize: map.size,
+    });
 
     const mergedBars = Array.from(map.values());
     if (mergedBars.length === 0) {

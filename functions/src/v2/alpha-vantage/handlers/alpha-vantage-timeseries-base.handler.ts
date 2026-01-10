@@ -293,7 +293,10 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           (latest as any).change = ch;
           (latest as any).changePercent = cp;
         }
-        bars = [latest];
+        // Only reduce to latest bar for DAILY. WEEKLY/MONTHLY need the full compact window.
+        if (this.config.interval === TimeSeriesInterval.DAILY) {
+          bars = [latest];
+        }
       }
 
       if (
