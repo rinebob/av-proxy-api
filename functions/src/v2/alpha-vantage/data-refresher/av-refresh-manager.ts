@@ -354,7 +354,7 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
       try {
         const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
         const fetchParams = isTimeSeriesEndpoint(endpoint)
-          ? { symbol, outputsize: 'compact', __checkWriteToggle: false }
+          ? { symbol, outputsize: 'compact' }
           : { symbol };
         const apiResponse = await handler.fetch(fetchParams);
         const durationMs = Date.now() - apiStart;
@@ -999,7 +999,6 @@ export async function refreshForEndpoints(
           const baseParams: any = { 
             symbol, 
             outputsize: OutputSize.COMPACT, 
-            __checkWriteToggle: false, 
             __phase: phaseFinal,
             __run: run,
           };
