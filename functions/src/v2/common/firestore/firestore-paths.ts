@@ -1,5 +1,7 @@
 import { FirestoreCollection } from '@shared/firestore';
 import { DATA_PROVIDERS, ApiProvider } from '@shared/core';
+import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { TradingPhase } from '@shared/health-metrics';
 
 // ----------- Canonical Time Series Path Utilities -----------
 /**
@@ -84,4 +86,29 @@ export function getSymbolTimeSeriesBarDocPath(
   barIsoDocId: string
 ): string {
   return `${getSymbolTimeSeriesBarsCollectionPath(symbol, endpoint, vendor, yyyymmdd)}/${barIsoDocId}`;
+}
+
+// ----------- Time-Series Job helpers (AV-only for now) -----------
+
+/**
+ * Returns the canonical document path for a time-series refresh job
+ * for Alpha Vantage time-series endpoints.
+ *
+ * Structure:
+ *   system/time-series-jobs/{marketDate}/jobs/{symbol-endpoint-phase}
+ *
+ * This path is used by the AV refresh manager to log per-symbol,
+ * per-date job state for the job-based time-series pipeline.
+ */
+export function getTimeSeriesJobDocPath(
+  marketDate: string, // YYYY-MM-DD (ET trading date)
+  symbol: string,
+  endpoint: AlphaVantageEndpoint,
+  phase: TradingPhase,
+): string {
+  const safeSymbol = symbol.toUpperCase();
+  const jobId = `${safeSymbol}-${endpoint}-${phase}`;
+  // Top-level collection "time-series-jobs" with per-date documents
+  // and a nested "jobs" subcollection for per-symbol jobs.
+  return `time-series-jobs/${marketDate}/jobs/${jobId}`;
 }
