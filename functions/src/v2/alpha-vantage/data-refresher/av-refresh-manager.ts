@@ -5,6 +5,7 @@
 
 import { db } from '../../../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
+import { getFunctions } from 'firebase-admin/functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-factory';
@@ -18,7 +19,7 @@ import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST
 import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
-import { getSymbolTimeSeriesYearDocPath, getYearFromEpochMillis } from '../../common/firestore/firestore-paths';
+import { getSymbolTimeSeriesYearDocPath, getYearFromEpochMillis, getTimeSeriesJobDocPath } from '../../common/firestore/firestore-paths';
 import { refreshLogger } from '../../services/refresh-logger.service';
 import { enqueueDataReadyInternal } from '../../partner/data-ready.handler';
 import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema';
@@ -28,10 +29,30 @@ import { parseAvEtTimestampMs } from '../../alpha-vantage/utils/date-utils';
 import { upsertAvDailyBar } from '../../alpha-vantage/firestore/av-firestore-helper';
 import { TradingPhase } from '@shared/health-metrics';
 import { runDailyValidation } from '../../partner/daily-validation.service';
+import { TimeSeriesJobStatus } from '../jobs/time-series-jobs.model';
+import { CloudTask } from '../../common/constants';
 
 // Structured logger (shared)
 const log = createLogger('av.refresh');
 const healthMetricsService = new HealthMetricsService();
+
+/**
+ * =======================================
+ * Time-Series Job Pipeline Feature Flags
+ * =======================================
+ * These flags are wired for a phased migration to the job-based
+ * pipeline described in `docs/time-series-job-pipeline-plan.md`.
+ * Initial deployments must preserve existing behavior; all guards
+ * should default to the current monolithic scheduler until explicitly
+ * enabled.
+ */
+
+// When true, DAILY POST schedulers will eventually create/enqueue jobs
+// for the job worker. In the initial rollout, legacy behavior remains
+// active even when this flag is on; we will gate behavioral changes
+// behind additional checks.
+const TS_JOB_PIPELINE_ENABLED_DAILY_POST =
+  String(process.env.TS_JOB_PIPELINE_ENABLED_DAILY_POST || '').toLowerCase() === 'true';
 
 // Stats collected per endpoint for clearer summaries
 interface EndpointStats {
@@ -608,17 +629,31 @@ export const refreshAvDailyTimeSeriesPostClose = onSchedule({
   );
 });
 
-// Weekly + Monthly time series: post-close every trading day
-export const refreshAvWeeklyMonthlyTimeSeriesPostClose = onSchedule({
+// Weekly time series: post-close every trading day
+export const refreshAvWeeklyTimeSeriesPostClose = onSchedule({
   schedule: TS_POST_CLOSE_SCHEDULE,
   timeZone: 'America/New_York',
+  timeoutSeconds: 600,
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
   await refreshForEndpoints(
-    [
-      AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
-      AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
-    ], 
+    [AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED], 
+    { 
+      phase: TradingPhase.POST,
+      trigger: RefreshTrigger.SCHEDULER
+    }
+  );
+});
+
+// Monthly time series: post-close every trading day
+export const refreshAvMonthlyTimeSeriesPostClose = onSchedule({
+  schedule: TS_POST_CLOSE_SCHEDULE,
+  timeZone: 'America/New_York',
+  timeoutSeconds: 600,
+  secrets: ['ALPHAVANTAGE_API_KEY'],
+}, async () => {
+  await refreshForEndpoints(
+    [AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED], 
     { 
       phase: TradingPhase.POST,
       trigger: RefreshTrigger.SCHEDULER
@@ -978,9 +1013,19 @@ export async function refreshForEndpoints(
       const endpointConfig = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpointName] || AV_ENDPOINT_CONFIGS[endpointName];
       
       if (!endpointConfig) {
-        logger.warn('refresh.skipped', { endpoint, reason: 'no_config' });
+        logger.warn(`refresh.skipped endpoint=${endpointName} reason=no_config`, { endpoint, endpointName, reason: 'no_config' });
         continue;
       }
+
+      // Log endpoint config lookup for debugging (especially for MONTHLY)
+      const configSource = AV_TIME_SERIES_ENDPOINT_CONFIGS[endpointName] ? 'AV_TIME_SERIES_ENDPOINT_CONFIGS' : 'AV_ENDPOINT_CONFIGS';
+      logger.info(`refresh.endpoint_config endpoint=${endpointName} source=${configSource}`, { 
+        endpoint, 
+        endpointName, 
+        configSource,
+        hasTtl: !!endpointConfig.ttl,
+        hasFirestorePath: !!endpointConfig.firestorePath
+      });
 
       // Build a human-readable run id and context for this endpoint
       const runId = `${marketDate}_${dowStr}_${phaseStrUpper}_${endpoint}`;
@@ -993,8 +1038,188 @@ export async function refreshForEndpoints(
       })();
       const run = { id: runId, date: marketDate, dow: dowEnum, phase: phaseFinal, endpointId: endpoint, endpointShort, trigger };
       
+      // TEST SYMBOL FILTER (Time-Series Job Pipeline)
+      // When TS_JOB_TEST_SYMBOL is set, restrict ALL work (jobs + legacy handler)
+      // to the specified symbol(s) for POST time-series endpoints. This prevents
+      // hammering Alpha Vantage during controlled rollouts.
+      //
+      // Supports either a single symbol:
+      //   TS_JOB_TEST_SYMBOL=AVGO
+      // or a comma-separated list:
+      //   TS_JOB_TEST_SYMBOL=AVGO,MSFT,SPY
+      const testSymbolRaw = String(process.env.TS_JOB_TEST_SYMBOL || '');
+      const testSymbols = new Set(
+        testSymbolRaw
+          .split(',')
+          .map((s) => s.toUpperCase().trim())
+          .filter((s) => !!s)
+      );
+
+      const isPostTimeSeriesEndpoint =
+        endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED ||
+        endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED ||
+        endpoint === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED;
+      const isTestSymbolMode = testSymbols.size > 0;
+      const isFilteredMode = isTestSymbolMode && isPostTimeSeriesEndpoint && phaseFinal === TradingPhase.POST;
+
+      if (isFilteredMode) {
+        log.info(`ts.jobs.test_symbol_mode endpoint=${endpointName} testSymbols=${Array.from(testSymbols).join(',')} totalSymbols=${symbols.length}`, {
+          endpoint,
+          endpointName,
+          testSymbols: Array.from(testSymbols),
+          totalSymbols: symbols.length,
+          phase: phaseFinal,
+        });
+      }
+
       for (const symbol of symbols) {
         try {
+          const symbolUpper = symbol.toUpperCase();
+
+          // TEST-SYMBOL FILTER: Skip all work for non-matching symbols when in filtered mode
+          if (isFilteredMode && !testSymbols.has(symbolUpper)) {
+            // Silent skip for non-matching symbols to avoid log spam (we logged the mode once above)
+            continue;
+          }
+
+          // Log symbol processing when in filtered mode
+          if (isFilteredMode) {
+            log.info(`ts.jobs.processing symbol=${symbolUpper} endpoint=${endpointName} testSymbols=${Array.from(testSymbols).join(',')}`, {
+              symbol: symbolUpper,
+              endpoint,
+              endpointName,
+              testSymbols: Array.from(testSymbols),
+              marketDate,
+              phase: phaseFinal,
+            });
+          }
+
+          // Job creation for time-series POST runs (job pipeline migration)
+          // NOTE: Decoupled from TS_LEGACY_DAILY_POST_ENABLED so that jobs
+          // continue to be created even after legacy inline writes are
+          // disabled. Legacy handler calls are controlled separately below.
+          if (
+            TS_JOB_PIPELINE_ENABLED_DAILY_POST &&
+            isPostTimeSeriesEndpoint &&
+            phaseFinal === TradingPhase.POST
+          ) {
+            const testSymbolsArr = Array.from(testSymbols);
+            log.info(`ts.jobs.create symbol=${symbolUpper} endpoint=${endpointName} testSymbols=${testSymbolsArr.join(',') || 'NONE'}`, {
+              symbol: symbolUpper,
+              endpoint,
+              endpointName,
+              testSymbols: testSymbolsArr,
+              marketDate,
+              phase: phaseFinal,
+            });
+            let shouldEnqueueTask = false;
+            try {
+              const jobPath = getTimeSeriesJobDocPath(marketDate, symbol, endpoint, phaseFinal);
+              const jobRef = db.doc(jobPath);
+              await db.runTransaction(async (tx) => {
+                const snap = await tx.get(jobRef);
+                const interval =
+                  endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
+                    ? TimeSeriesInterval.DAILY
+                    : endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED
+                      ? TimeSeriesInterval.WEEKLY
+                      : TimeSeriesInterval.MONTHLY;
+
+                if (!snap.exists) {
+                  tx.set(jobRef, {
+                    symbol,
+                    endpoint,
+                    interval,
+                    phase: phaseFinal,
+                    status: TimeSeriesJobStatus.Pending,
+                    attempts: 0,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now(),
+                  });
+                  shouldEnqueueTask = true;
+                  return;
+                }
+
+                const data = snap.data() as any;
+                const status: TimeSeriesJobStatus | undefined = data?.status;
+                // Do not overwrite terminal states; they indicate that this
+                // symbol/date has already been processed for DAILY POST.
+                if (
+                  status === TimeSeriesJobStatus.Success ||
+                  status === TimeSeriesJobStatus.PermanentFailure
+                ) {
+                  return;
+                }
+
+                tx.set(jobRef, {
+                  symbol,
+                  endpoint,
+                  interval,
+                  phase: phaseFinal,
+                  status: status ?? TimeSeriesJobStatus.Pending,
+                  attempts: typeof data?.attempts === 'number' ? data.attempts : 0,
+                  updatedAt: Timestamp.now(),
+                }, { merge: true });
+                shouldEnqueueTask = true;
+              });
+
+              // Enqueue Cloud Task only when the explicit feature flag is
+              // enabled. This allows us to turn task-based processing on
+              // per-environment without impacting legacy behavior.
+              const tasksEnabled = String(process.env.TS_TIME_SERIES_TASKS_ENABLED || '').toLowerCase() === 'true';
+              if (shouldEnqueueTask && tasksEnabled) {
+                try {
+                  const queue = getFunctions().taskQueue(CloudTask.TIME_SERIES_JOB);
+                  await queue.enqueue({
+                    marketDate,
+                    symbol,
+                    endpoint,
+                    phase: phaseFinal,
+                  });
+                  log.info(`job.enqueue_success. ep/sym/phase: ${endpoint}/${symbol}/${phase}`, {
+                    endpoint,
+                    symbol,
+                    marketDate,
+                    phase: phaseFinal,
+                  });
+                } catch (e: any) {
+                  log.warn('job.enqueue_failed', {
+                    endpoint,
+                    symbol,
+                    marketDate,
+                    phase: phaseFinal,
+                    error: String(e?.message || e),
+                  });
+                }
+              }
+            } catch (e: any) {
+              log.warn('job.shadow_create_failed', {
+                endpoint,
+                symbol,
+                marketDate,
+                phase: phaseFinal,
+                error: String(e?.message || e),
+              });
+            }
+          }
+
+          // For POST time-series endpoints, rely exclusively on the job
+          // pipeline + Cloud Tasks worker to call Alpha Vantage. The
+          // scheduler's responsibility is to enqueue one job per
+          // {symbol,endpoint,phase}. This avoids per-symbol sleeps and
+          // inline AV calls that cannot scale to the full universe within
+          // a single function invocation.
+          if (isPostTimeSeriesEndpoint && phaseFinal === TradingPhase.POST) {
+            continue;
+          }
+
+          // RATE LIMITING: Add 1 second delay between AV calls to stay under
+          // 75/min limit for non time-series endpoints still handled
+          // directly by this function. Time-series POST endpoints now rely
+          // on Cloud Tasks rate limits instead.
+          const RATE_LIMIT_DELAY_MS = 1000;
+          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
+
           const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
           const baseParams: any = { 
             symbol, 
