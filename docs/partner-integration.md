@@ -2,7 +2,7 @@
 
 This guide explains how Savant partner backends should call the Partner Time Series API endpoint (`partnerTimeSeriesV2`) securely using Google OIDC service account tokens.
 
-> Read order: Start with `docs/partner-discovery.md` for concepts, data shapes, and auth. Then use this integration guide for step-by-step setup and request examples.
+> Read order: Start with `docs/partner-discovery.md` for concepts, data shapes, and auth. Then use this integration guide for step-by-step setup and request examples. For details on how time-series data is refreshed and monitored internally (jobs, retries, validation, audits), see `docs/time-series-job-pipeline-plan.md`.
 
 > Note: This document targets the Partner Time Series endpoint only. As additional partner endpoints are introduced, we will publish separate guides or expand this document with dedicated sections.
 

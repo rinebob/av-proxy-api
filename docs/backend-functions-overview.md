@@ -155,7 +155,9 @@ Files:
 - `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager.ts` (schedulers + `refreshForEndpoints()`)
 - Handlers under `functions/src/v2/alpha-vantage/handlers/`
 
-#### Cadence Overview
+> **Planned evolution (2026-01):** Time-series refresh is being migrated from a monolithic scheduler loop to a **job-based pipeline** driven by Cloud Tasks. See `docs/time-series-job-pipeline-plan.md` for the canonical design. This section describes the current behavior; as the migration proceeds, `refreshForEndpoints()` will become orchestration-only (job creation + enqueue) and a new worker function will own per-symbol AV calls and job status updates.
+
+#### Cadence Overview (Current)
 
 - **Daily (TIME_SERIES_DAILY_ADJUSTED)**
   - `refreshAvDailyTimeSeriesIntradayHourly`: PRE phase. Writes intraday snapshot fields only (`ip/io/it/ic/ipc`) into the latest daily bar; does not finalize OHLC.
@@ -655,6 +657,8 @@ Querying logs
 Notes:
 - The legacy `{ data, metadata }` shape is deprecated for AV daily time series; all new writes use the normalized schema.
 - Top-level time-series metadata (`histStartTs`, `histEndTs`, `availableYears`, `latestBarTimestamp`) is maintained by writers via `bumpTimeSeriesTopLevelMetadata`, which now derives its values from the actual stored shards/all-docs rather than guessing from the last refresh date.
+
+> **Job Pipeline Note:** Under the new job-based design, the storage model above remains the same; what changes is *how* writes are orchestrated. Scheduled functions populate per-symbol, per-date jobs in Firestore and enqueue them to a Cloud Tasks queue. A dedicated worker performs AV calls and sharded writes, then marks jobs as `SUCCESS` / `FAILURE` / `PERMANENT_FAILURE`. Daily validation scripts and nightly audits operate over this job ledger to ensure completeness. The time-series partner endpoints (`partnerTimeSeriesV2`) and compact bar schema are unchanged from the perspective of consumers.
 
 For operational **manual backfill and split-adjusted data maintenance workflows** (e.g., `sync-splits.ts`, reseed scripts such as `backfill-av-daily-adjusted.ts`, `verify-data.ts`, `diagnose-timeseries.ts`, `repair-timeseries-metadata.ts`, and future window-merge tooling), see:
 

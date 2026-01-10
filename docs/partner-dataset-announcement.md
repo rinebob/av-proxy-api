@@ -55,6 +55,8 @@ The service runs scheduled refreshers that update time-series data on trading da
 
 Partners should treat **post‑close runs** as the canonical points for consuming finalized daily/weekly/monthly bars.
 
+> **Operational note (2026-01):** Internally, the refresh cadence is being migrated to a **job-based pipeline** backed by Cloud Tasks and a per-symbol/per-date job ledger in Firestore (see `docs/time-series-job-pipeline-plan.md`). This does not change the partner-facing API or guarantees above; it makes the refresh cycle more fault-tolerant (automatic retries, validation, and nightly audits) so that gaps in daily/weekly/monthly coverage are detected and healed automatically.
+
 ### 2.4 Access Pattern for Partners
 
 - Partners do **not** read Firestore directly.
