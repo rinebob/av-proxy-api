@@ -115,6 +115,14 @@ export enum FirestoreCollection {
 
     //////////// END HEALTH METRICS DASHBOARD ///////////////////
 
+    /////////////////// BACKFILL ///////////////////
+    
+    BACKFILL_RUNS = 'backfill-runs',
+    RUNS = 'runs',
+    
+    /////////////////// END BACKFILL ///////////////////
+
+
     /////////////////// END BENZINGA ///////////////////
 
     // For disabling / not implementing an endpoint

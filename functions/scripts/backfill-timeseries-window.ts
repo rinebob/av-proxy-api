@@ -12,13 +12,15 @@
  * Supported intervals (via INTERVALS env var): DAILY, WEEKLY, MONTHLY.
  *
  * Environment variables:
- *   BACKFILL_FROM=YYYY-MM-DD        // required lower bound (inclusive)
- *   BACKFILL_TO=YYYY-MM-DD          // optional upper bound (inclusive)
- *   SYMBOLS=NVDA,QQQ,AAPL           // optional explicit list; otherwise uses all tracked symbols
- *   INTERVALS=DAILY,WEEKLY,MONTHLY  // optional; default DAILY,WEEKLY,MONTHLY
- *   DRY_RUN=1                       // when set, log actions but do not write
- *   DELAY_MS=2500                   // optional delay between symbols
- *   USE_FIRESTORE_EMULATOR=1        // when set, use Firestore emulator
+ *   BACKFILL_ID=BF_TS_DAILY_2025-01-02_TO_TODAY_ALL_20260109T1700
+ *                                  // required; identifies a logical resumable run
+ *   BACKFILL_FROM=YYYY-MM-DD       // required lower bound (inclusive)
+ *   BACKFILL_TO=YYYY-MM-DD         // optional upper bound (inclusive); when omitted, treated as "today"
+ *   SYMBOLS=NVDA,QQQ,AAPL          // optional explicit list; otherwise uses all tracked symbols
+ *   INTERVALS=DAILY,WEEKLY,MONTHLY // optional; default DAILY,WEEKLY,MONTHLY
+ *   DRY_RUN=1                      // when set, log actions but do not write
+ *   DELAY_MS=1000                  // optional delay between symbols
+ *   USE_FIRESTORE_EMULATOR=1       // when set, use Firestore emulator
  */
 
 // Optional: configure Firestore emulator when explicitly requested via env.
@@ -59,6 +61,38 @@ interface StorageBar {
 
 type IntervalId = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
+interface BackfillRunHistoryEntry {
+  startedAt: Date;
+  endedAt?: Date;
+  reason: 'kickoff' | 'restart' | 'manual';
+  startingSymbol: string | null;
+  exitStatus?: 'ok';
+}
+
+interface BackfillRun {
+  backfillRunId: string;
+  createdAt: Date;
+  updatedAt: Date;
+
+  intervals: IntervalId[];
+  backfillFrom: string;
+  backfillTo: string | null;
+  dryRun: boolean;
+  delayMs: number;
+  scope: 'all' | 'partial';
+
+  allSymbols: string[];
+  cursorIndex: number;
+  totalSymbols: number;
+  processedCount: number;
+  lastSymbolProcessed: string | null;
+
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  lastError?: string;
+
+  history: BackfillRunHistoryEntry[];
+}
+
 function log(...args: any[]): void {
   // eslint-disable-next-line no-console
   console.log('[backfill-timeseries-window]', ...args);
@@ -94,6 +128,17 @@ function inWindow(date: string, from: string, to: string | null): boolean {
 async function getTrackedSymbols(): Promise<string[]> {
   const snap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
   return snap.docs.map((d) => d.id.toUpperCase());
+}
+
+function getBackfillId(): string {
+  const raw = String(process.env.BACKFILL_ID || '').trim();
+  if (!raw) {
+    throw new Error('Missing required env var: BACKFILL_ID');
+  }
+  if (!raw.startsWith('BF_TS_')) {
+    log('WARNING: BACKFILL_ID does not follow recommended format BF_TS_<...>. Got:', raw);
+  }
+  return raw;
 }
 
 function getAvKey(): string {
@@ -482,6 +527,8 @@ async function applyMonthlyWindow(
 // ---- MAIN ORCHESTRATION ----
 
 async function main(): Promise<void> {
+  const backfillRunId = getBackfillId();
+
   const from = getRequiredEnv('BACKFILL_FROM');
   if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(from)) {
     throw new Error(`Invalid BACKFILL_FROM format: ${from}`);
@@ -497,20 +544,135 @@ async function main(): Promise<void> {
     .filter((s) => !!s) as IntervalId[];
 
   const symbolsEnv = String(process.env.SYMBOLS || '').trim();
-  const symbols = symbolsEnv
+  const explicitSymbols = symbolsEnv
     ? symbolsEnv.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
-    : await getTrackedSymbols();
+    : null;
+  const scope: 'all' | 'partial' = explicitSymbols ? 'partial' : 'all';
+
+  // Determine universe snapshot for this logical run.
+  const universeSymbols = explicitSymbols || await getTrackedSymbols();
+  const allSymbols = [...universeSymbols].sort();
+
+  const runRef = db
+    .collection(FirestoreCollection.SYSTEM)
+    .doc(FirestoreCollection.BACKFILL_RUNS)
+    .collection(FirestoreCollection.RUNS)
+    .doc(backfillRunId);
+
+  const now = new Date();
+
+  const existingSnap = await runRef.get();
+  let run: BackfillRun;
+
+  if (!existingSnap.exists) {
+    // First-ever kickoff for this BACKFILL_ID.
+    const startingSymbol = allSymbols.length > 0 ? allSymbols[0] : null;
+    const history: BackfillRunHistoryEntry[] = [{
+      startedAt: now,
+      reason: 'kickoff',
+      startingSymbol,
+    }];
+
+    run = {
+      backfillRunId,
+      createdAt: now,
+      updatedAt: now,
+      intervals,
+      backfillFrom: from,
+      backfillTo: to,
+      dryRun,
+      delayMs,
+      scope,
+      allSymbols,
+      cursorIndex: -1,
+      totalSymbols: allSymbols.length,
+      processedCount: 0,
+      lastSymbolProcessed: null,
+      status: 'RUNNING',
+      history,
+    };
+
+    await runRef.set(run);
+  } else {
+    // Resume or manual re-run for an existing BACKFILL_ID.
+    const data = existingSnap.data() as BackfillRun;
+
+    // Basic parameter sanity check: prevent accidental reuse with different core params.
+    if (data.backfillFrom !== from || (data.backfillTo || null) !== (to || null)) {
+      throw new Error(`BACKFILL_ID ${backfillRunId} exists with different window [${data.backfillFrom}, ${data.backfillTo}]`);
+    }
+
+    // Prefer persisted universe snapshot; fall back to newly computed allSymbols if missing for any reason.
+    const persistedSymbols = Array.isArray(data.allSymbols) && data.allSymbols.length > 0
+      ? data.allSymbols
+      : allSymbols;
+
+    const startingIndex = typeof data.cursorIndex === 'number' ? data.cursorIndex + 1 : 0;
+    const startingSymbol = startingIndex < persistedSymbols.length ? persistedSymbols[startingIndex] : null;
+
+    const history: BackfillRunHistoryEntry[] = Array.isArray(data.history) ? [...data.history] : [];
+    history.push({
+      startedAt: now,
+      reason: 'restart',
+      startingSymbol,
+    });
+
+    run = {
+      ...data,
+      intervals,
+      backfillFrom: from,
+      backfillTo: to,
+      dryRun,
+      delayMs,
+      scope,
+      allSymbols: persistedSymbols,
+      status: 'RUNNING',
+      updatedAt: now,
+      history,
+    };
+
+    await runRef.set({
+      intervals: run.intervals,
+      backfillFrom: run.backfillFrom,
+      backfillTo: run.backfillTo,
+      dryRun: run.dryRun,
+      delayMs: run.delayMs,
+      scope: run.scope,
+      allSymbols: run.allSymbols,
+      cursorIndex: run.cursorIndex ?? -1,
+      totalSymbols: run.totalSymbols,
+      processedCount: run.processedCount ?? 0,
+      lastSymbolProcessed: run.lastSymbolProcessed ?? null,
+      status: run.status,
+      updatedAt: run.updatedAt,
+      history: run.history,
+    }, { merge: true });
+  }
+
+  const symbols = run.allSymbols;
+  const initialCursorIndex = typeof run.cursorIndex === 'number' ? run.cursorIndex : -1;
+  let cursorIndex = initialCursorIndex;
+  let processedCount = typeof run.processedCount === 'number' ? run.processedCount : 0;
+  let lastSymbolProcessed = run.lastSymbolProcessed ?? null;
+
+  let hadErrors = false;
+
+  const intervalsUsed = new Set<IntervalId>();
+
+  const writeEvery = 5;
 
   log('preflight', {
+    backfillRunId,
     from,
     to: to || null,
     intervals,
-    symbolsScope: symbolsEnv ? `subset[${symbols.length}]` : `ALL tracked (${symbols.length})`,
+    symbolsScope: scope === 'partial' ? `subset[${symbols.length}]` : `ALL tracked (${symbols.length})`,
     dryRun,
     delayMs,
+    totalSymbols: symbols.length,
   });
 
-  for (let i = 0; i < symbols.length; i++) {
+  for (let i = cursorIndex + 1; i < symbols.length; i++) {
     const symbol = symbols[i];
     log(`\n[${i + 1}/${symbols.length}] SYMBOL ${symbol}`);
 
@@ -524,6 +686,9 @@ async function main(): Promise<void> {
           os,
         );
         const bars = normalizeDaily(raw);
+        if (bars.length > 0) {
+          intervalsUsed.add('DAILY');
+        }
         await applyDailyWindow(symbol, from, to, bars, dryRun);
       }
 
@@ -536,6 +701,9 @@ async function main(): Promise<void> {
           os,
         );
         const bars = normalizeWeekly(raw);
+        if (bars.length > 0) {
+          intervalsUsed.add('WEEKLY');
+        }
         await applyWeeklyWindow(symbol, from, to, bars, dryRun);
       }
 
@@ -548,16 +716,70 @@ async function main(): Promise<void> {
           os,
         );
         const bars = normalizeMonthly(raw);
+        if (bars.length > 0) {
+          intervalsUsed.add('MONTHLY');
+        }
         await applyMonthlyWindow(symbol, from, to, bars, dryRun);
       }
     } catch (e: any) {
       log(`ERROR for ${symbol}:`, e?.message || e);
+      hadErrors = true;
+    }
+
+    // Update in-memory progress.
+    cursorIndex = i;
+    processedCount += 1;
+    lastSymbolProcessed = symbol;
+
+    // Periodic durable progress flush to Firestore.
+    if (processedCount % writeEvery === 0) {
+      await runRef.set({
+        cursorIndex,
+        processedCount,
+        lastSymbolProcessed,
+        updatedAt: new Date(),
+      }, { merge: true });
     }
 
     if (delayMs > 0 && i < symbols.length - 1) {
       await sleep(delayMs);
     }
   }
+
+  // Clean completion: mark run as COMPLETED and close out latest history entry.
+  const finalSnap = await runRef.get();
+  const finalData = finalSnap.data() as BackfillRun | undefined;
+  let finalHistory: BackfillRunHistoryEntry[] = (finalData && Array.isArray(finalData.history)) ? [...finalData.history] : [];
+  if (finalHistory.length > 0) {
+    const lastIdx = finalHistory.length - 1;
+    finalHistory[lastIdx] = {
+      ...finalHistory[lastIdx],
+      endedAt: new Date(),
+      exitStatus: 'ok',
+    };
+  }
+
+  await runRef.set({
+    cursorIndex,
+    processedCount,
+    lastSymbolProcessed,
+    status: 'COMPLETED',
+    updatedAt: new Date(),
+    history: finalHistory,
+  }, { merge: true });
+
+  // Update aggregate container doc for this tool under system/backfill-runs.
+  const containerRef = db
+    .collection(FirestoreCollection.SYSTEM)
+    .doc(FirestoreCollection.BACKFILL_RUNS);
+
+  await containerRef.set({
+    mostRecent: backfillRunId,
+    status: hadErrors ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED',
+    runFinished: new Date().toISOString(),
+    totalSymbols: symbols.length,
+    intervals: Array.from(intervalsUsed),
+  }, { merge: true });
 
   log('window backfill complete');
 }
