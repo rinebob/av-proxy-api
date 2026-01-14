@@ -352,6 +352,31 @@ Tuning guidelines as the universe and SLAs evolve:
   - Rely on **code-level** `rateLimits` in the function export; the Cloud Tasks UI has been observed to drift from intended settings.
   - Treat the UI as read-only status, not the source of truth for limits.
 
+### 6.5 SA Backfill Toolbox (Where This Fits)
+
+The job pipeline is designed to keep **current** DAILY / WEEKLY / MONTHLY data fresh and correct. When historical issues or AV quirks slip through, we rely on a small set of **backfill / repair tools** to clean up the past:
+
+- **SA Time-Series Window Backfill (Primary window repair)**  
+  Script: `functions/scripts/backfill-timeseries-window.ts`  
+  Use when you need to **surgically repair a bounded date window** for SA time-series:
+  - Supports DAILY / WEEKLY / MONTHLY.
+  - Deletes + rewrites bars **only inside** `[BACKFILL_FROM, BACKFILL_TO]` for the selected intervals.
+  - Persists a resumable run state in Firestore under `system/backfill-runs/runs/{backfillRunId}` and updates an aggregate summary at `system/backfill-runs`.
+  - Recommended for:
+    - Fixing AV regressions for a known date span.
+    - Cleaning up after split/history patches that affected a limited window.
+
+- **Full-history / structural rebuilders (existing scripts)**  
+  Used when an entire interval’s history for a symbol (or small universe) is known to be wrong and must be **rebuilt from scratch** using AV or daily SA as the source of truth. Examples include:
+  - Daily backfill scripts that re-fetch complete DAILY_ADJUSTED history.
+  - Weekly/monthly rebuild scripts that regenerate W/M bars from daily SA or AV compact windows.
+
+Operationally:
+
+- Prefer the **job pipeline** and validators for day-to-day correctness.
+- Reach for the **window backfill** when a **specific date range** is wrong but the rest of history is trusted.
+- Use the heavier **full-history rebuilders** sparingly, when an interval’s entire history is compromised and a targeted window repair is insufficient.
+
 ---
 
 ## 7. Job Lifecycle & Status Transitions
@@ -410,6 +435,98 @@ If validation fails:
 - Optionally:
   - Auto-requeue jobs for failed symbols.
   - After remediation, re-run validation and finalize.
+
+---
+
+## 9. Partner Notifications Integration (Job Pipeline)
+
+The ultimate purpose of this pipeline is to keep the partner-facing API surface fresh. Partners currently rely on **Pub/Sub notifications** to know when it is safe and efficient to pull data. The job pipeline must integrate cleanly with the existing RS contract while adding a more granular readiness stream.
+
+There are two distinct notification layers:
+
+1. A **run-level completion signal** that says: "for this `marketDate` and interval set, the refresh run is complete".
+2. A **symbol-level readiness stream** that allows partners to begin fetching data early as symbols complete, without waiting for the entire universe.
+
+### 9.1 Source of Truth for Readiness
+
+For the job-based pipeline, the **single source of truth** for readiness is the job document itself:
+
+- Path: `time-series-jobs/{marketDate}/jobs/{jobId}`.
+- Each job describes exactly one unit of work: `{marketDate, symbol, endpoint, interval, phase}`.
+- Terminal states are `SUCCESS` and `PERMANENT_FAILURE` (see Section 7.3).
+
+A symbol is considered **ready for partner consumption** for a given `marketDate` when:
+
+- All required time-series jobs for that symbol/date have reached a terminal state, e.g.:
+  - `{DAILY_POST, WEEKLY_POST, MONTHLY_POST}` jobs are `SUCCESS` (or a clearly-defined subset, per interval policy).
+- There are no remaining non-terminal jobs for that symbol/date in `time-series-jobs/{marketDate}/jobs`.
+
+This readiness computation is performed using job docs only; `sa-time-series` documents remain the source of truth for data but are not polled directly for partner signaling.
+
+### 9.2 Symbol-Level Readiness Stream (New Topic)
+
+To reduce partner latency, we introduce a symbol-level readiness stream that is derived from job docs.
+
+- **Topic:** `partner-symbols-ready` (new Pub/Sub topic, separate from `partner-data-ready`).
+- **Payload (conceptual):**
+
+  ```ts
+  interface SymbolsReadyPayloadV1 {
+    version: 'v1';
+    marketDate: string;   // YYYY-MM-DD (ET)
+    runId?: string;       // Optional link to the run-level event
+    symbols: string[];    // Symbols that just became fully ready for this marketDate
+    reason?: 'scheduled' | 'backfill';
+  }
+  ```
+
+- **Granularity:**
+  - Readiness is computed per **`{marketDate, symbol}`**.
+  - Intervals (DAILY/WEEKLY/MONTHLY) are handled internally by checking the corresponding jobs; the symbol stream does **not** include interval-level detail.
+
+- **Emission strategy:**
+  - As jobs transition to `SUCCESS` / `PERMANENT_FAILURE`, an aggregator tracks per-symbol readiness for the current `{marketDate, phase}`.
+  - When a symbol's required intervals are all terminal and successful, that symbol is added to an in-memory or Firestore-backed accumulator for the current run.
+  - Once the accumulator reaches a configured batch size (e.g. 10 symbols), the system publishes a `SymbolsReadyPayloadV1` with those symbols and clears that batch.
+  - Any remaining symbols in the accumulator are flushed at the end of the run.
+
+Partners who want low-latency access can subscribe to `partner-symbols-ready` and start issuing HTTPS time-series requests as soon as they see symbols of interest.
+
+### 9.3 Run-Level Completion (Existing `partner-data-ready` Topic)
+
+The existing RS integration is built around **run-level** `DataReadyPayloadV1` messages on the `partner-data-ready` topic. The job pipeline will continue to use this as the authoritative signal that a run has finished.
+
+When all relevant jobs for `{marketDate, phase, intervalSet}` are terminal (see Section 3.4 Completion invariant):
+
+- A small aggregator computes per-run summary metrics from job docs:
+  - `totalJobs` for the run.
+  - `successJobs` / `permanentFailureJobs`.
+  - `finalizedCountTotal` and `pendingCount` derived from `SUCCESS` / non-terminal counts.
+  - Explicit lists (or at least counts) of symbols that are in `PERMANENT_FAILURE`.
+
+- The aggregator then constructs a `DataReadyPayloadV1` and calls `enqueueDataReadyInternal(...)` with:
+  - `runId` following the existing RS contract (e.g. `YYYY-MM-DD-HHMM-post` or `YYYY-MM-DD-HHMM-post-manual`).
+  - `phase = POST`.
+  - `intervals = [TimeSeriesInterval.DAILY]` for DAILY runs, or appropriate combinations for W/M.
+  - `runStatus`:
+    - `'completed'` if there are no permanent-failure symbols.
+    - `'completed_with_errors'` if any permanent failures occurred.
+  - `status = END` (`PartnerPublishStatus.END`) to mark the end of the run.
+  - `symbolsUpdatedCount`, `finalizedCountTotal`, and `pendingCount` populated from job aggregates.
+  - `extraAttributes.successes` / `extraAttributes.failures` set from job counts so RS can inspect failures via existing runs documents.
+
+The **job-run completion aggregator** is responsible for emitting this single, authoritative `partner-data-ready` message per run, in addition to any symbol-level `partner-symbols-ready` batches.
+
+### 9.4 Permanent Failures and Partner Expectations
+
+Permanent failure handling is critical for partner transparency:
+
+- Jobs that reach `TimeSeriesJobStatus.PermanentFailure` indicate a symbol that the job pipeline will not retry further for that `{marketDate, endpoint, phase}` without operator intervention.
+- The run-level `DataReadyPayloadV1` should reflect this by:
+  - Setting `runStatus = 'completed_with_errors'`.
+  - Including a non-zero `failures` count in `extraAttributes` (and optionally exposing the permanent-failure symbol list via the corresponding `runs/{runId}` document, where size permits).
+
+Partners can then treat a `COMPLETED_WITH_ERRORS` run as "mostly done" while inspecting downstream logs or the `runs` collection for which symbols failed permanently.
 
 ---
 

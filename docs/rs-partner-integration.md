@@ -117,7 +117,38 @@ See:
 
 ---
 
-## 9) Troubleshooting
+## 9) Optional Symbol‑Level Readiness Stream
+
+For most use cases, RS can continue to treat `partner-data-ready` as the **only** required contract. However, the job‑based time‑series pipeline also exposes an optional, low‑latency symbol‑level stream for partners who want to begin fetching data as soon as individual symbols are finalized.
+
+- **Topic:** `partner-symbols-ready`
+- **Payload (conceptual):
+
+  ```json
+  {
+    "version": "v1",
+    "marketDate": "YYYY-MM-DD",
+    "runId": "YYYY-MM-DD-HHMM-post",   // optional link to run-level event
+    "symbols": ["AVGO", "MSFT", "SPY"],
+    "reason": "scheduled"              // or "backfill"
+  }
+  ```
+
+- **Semantics:**
+  - Each message contains a **batch of symbols** that have just become fully ready for the given `marketDate` based on job‑doc state in `time-series-jobs/{marketDate}/jobs`.
+  - Intervals (DAILY/WEEKLY/MONTHLY) are resolved internally; RS does **not** need to track per‑interval readiness.
+  - The stream is **additive**: symbols may appear in one or more batches, but the authoritative completion signal for the run remains the `partner-data-ready` END message.
+
+Suggested usage for RS:
+
+- Continue to treat `partner-data-ready` POST END as the canonical "run finished" marker.
+- Optionally subscribe to `partner-symbols-ready` to:
+  - Maintain a per‑day set of symbols that are already finalized.
+  - Start issuing `partnerTimeSeriesV2` requests for those symbols without waiting for the entire universe to complete.
+
+---
+
+## 10) Troubleshooting
 
 - Ensure subscription filter matches exact `runType`
 - Expect multiple BEGIN/END pairs per trading day for the same POST `runId` (evening/morning retries)
