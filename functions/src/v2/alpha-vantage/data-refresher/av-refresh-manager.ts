@@ -25,6 +25,7 @@ import { enqueueDataReadyInternal } from '../../partner/data-ready.handler';
 import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema';
 import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerRunType, PartnerRunStatus, PartnerPublishStatus } from '../../partner/constants';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
+import { TIME_SERIES_BASELINE_ETFS, TIME_SERIES_MASTER_SYMBOL_ORDER } from '../data/ts-master-order';
 import { parseAvEtTimestampMs } from '../../alpha-vantage/utils/date-utils';
 import { upsertAvDailyBar } from '../../alpha-vantage/firestore/av-firestore-helper';
 import { TradingPhase } from '@shared/health-metrics';
@@ -805,6 +806,37 @@ export const refreshAvIntradayRthClose1615Pre = onSchedule({
  * - Calls handler.fetch({ outputsize:'compact', __checkWriteToggle:false })
  * - Handlers persist the latest bar (CompactBar) and record Health Metrics
  */
+function orderTrackedSymbols(allTracked: string[]): string[] {
+  const baselines = TIME_SERIES_BASELINE_ETFS;
+  const master = TIME_SERIES_MASTER_SYMBOL_ORDER;
+  const baselineSet = new Set(baselines);
+  const inMaster = new Set(master);
+
+  const ordered: string[] = [];
+
+  // 1) Baseline ETFs first, in configured order
+  for (const b of baselines) {
+    if (allTracked.includes(b)) {
+      ordered.push(b);
+    }
+  }
+
+  // 2) Master-order symbols (ETF constituents), excluding baselines
+  for (const sym of master) {
+    if (allTracked.includes(sym) && !baselineSet.has(sym)) {
+      ordered.push(sym);
+    }
+  }
+
+  // 3) Any remaining tracked symbols, sorted for determinism
+  const remaining = allTracked
+    .filter((s) => !baselineSet.has(s) && !inMaster.has(s))
+    .sort();
+  ordered.push(...remaining);
+
+  return ordered;
+}
+
 export async function refreshForEndpoints(
   endpoints: AlphaVantageEndpoint[], 
   options: { 
@@ -816,13 +848,16 @@ export async function refreshForEndpoints(
 ) {
   // Destructure options early to honor force during market-closure guard
   const { force = false, phase, trigger = RefreshTrigger.SCHEDULER, marketDate: marketDateOverride } = options;
-  // Market-closure guard (ET): weekend/holiday; allow override with force=true
+  // Market-closure guard (ET): weekend/holiday; allow override with force=true.
+  // In the Functions emulator we deliberately **disable** this guard so that
+  // weekend/holiday testing does not require fiddling with the system date.
+  const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
   const mc2 = getMarketClosureInfo();
-  if (mc2.closed && !force) {
+  if (!isEmulator && mc2.closed && !force) {
     // Use top-level logger to avoid constructing per-run logger when skipping
     log.info('market.closed_skip', { reason: mc2.reason, etDate: mc2.etDate, component: RefreshLogComponent.RefreshForEndpoints });
     return; // Silent no-op beyond the single structured log
-  } else if (mc2.closed && force) {
+  } else if (!isEmulator && mc2.closed && force) {
     log.info('market.closed_force_continue', { reason: mc2.reason, etDate: mc2.etDate, component: RefreshLogComponent.RefreshForEndpoints });
   }
   const startTime = Date.now();
@@ -986,11 +1021,46 @@ export async function refreshForEndpoints(
   let targetTs: number = NaN;
   // Collect per-endpoint stats for the specific endpoints run by refreshForEndpoints (time-series only)
   const tsStats = new Map<AlphaVantageEndpoint, { refreshed: number; failures: number }>();
+  // Track, per-endpoint, which symbols had POST time-series jobs created/updated in this invocation
+  const createdSymbolsThisRun = new Map<AlphaVantageEndpoint, Set<string>>();
 
   try {
     // Load tracked symbols and types
     const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
-    symbols = symbolsSnap.docs.map(d => d.id);
+    const allTracked = symbolsSnap.docs.map(d => d.id);
+    symbols = orderTrackedSymbols(allTracked);
+
+    // Emulator convenience: always run baselines plus any extra symbols
+    // provided via a comma-separated env var. This lets us tweak the exact
+    // symbol list from the terminal without code changes while keeping prod
+    // behavior unchanged.
+    const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
+    if (isEmulator) {
+      const baselinesInTracked = TIME_SERIES_BASELINE_ETFS.filter((s) => symbols.includes(s));
+
+      const rawExtra = process.env.TS_JOB_EMULATOR_SYMBOLS; // comma-separated symbols
+      const extraTargets: string[] = [];
+      if (rawExtra && rawExtra.length > 0) {
+        for (const token of rawExtra.split(',')) {
+          const sym = token.trim().toUpperCase();
+          if (!sym) continue;
+          if (baselinesInTracked.includes(sym)) continue; // don't duplicate baselines
+          if (!extraTargets.includes(sym)) extraTargets.push(sym);
+        }
+      }
+
+      symbols = [...baselinesInTracked, ...extraTargets];
+      logger.info(
+        `refresh.symbols.emulator_default count=${symbols.length} symbols=${symbols.join(',')}`,
+        {
+          count: symbols.length,
+          baselines: baselinesInTracked,
+          extraTargets,
+          rawExtra,
+          symbols,
+        },
+      );
+    }
     
     // For time series endpoints, we'll process each symbol
     // Preflight: build finalized-before set for DAILY only
@@ -1027,8 +1097,11 @@ export async function refreshForEndpoints(
         hasFirestorePath: !!endpointConfig.firestorePath
       });
 
-      // Build a human-readable run id and context for this endpoint
-      const runId = `${marketDate}_${dowStr}_${phaseStrUpper}_${endpoint}`;
+      // Build a human-readable run id and context for this endpoint using the
+      // new dashed format: YYYY-MM-DD-DOW-PHASE-ENDPOINT-LIVE|MANUAL
+      const isManualRun = (trigger === RefreshTrigger.MANUAL) || (process.env.FUNCTIONS_EMULATOR === 'true');
+      const liveManualSuffix = isManualRun ? 'MANUAL' : 'LIVE';
+      const runId = `${marketDate}-${dowStr}-${phaseStrUpper}-${endpoint}-${liveManualSuffix}`;
       const endpointShort = (() => {
         // Shorthand mapping for readability in headers; keep simple and explicit
         if (endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED) return 'TS_DAILY_ADJ';
@@ -1063,7 +1136,7 @@ export async function refreshForEndpoints(
       const isFilteredMode = isTestSymbolMode && isPostTimeSeriesEndpoint && phaseFinal === TradingPhase.POST;
 
       if (isFilteredMode) {
-        log.info(`ts.jobs.test_symbol_mode endpoint=${endpointName} testSymbols=${Array.from(testSymbols).join(',')} totalSymbols=${symbols.length}`, {
+        log.info(`ts.jobs.test_symbol_mode endpoint=${endpointName} totalSymbols=${symbols.length}`, {
           endpoint,
           endpointName,
           testSymbols: Array.from(testSymbols),
@@ -1071,6 +1144,9 @@ export async function refreshForEndpoints(
           phase: phaseFinal,
         });
       }
+
+      // Track a deduped set of symbols for which we created/updated POST time-series jobs
+      const createdSymbolsThisEndpoint = new Set<string>();
 
       for (const symbol of symbols) {
         try {
@@ -1082,12 +1158,11 @@ export async function refreshForEndpoints(
             continue;
           }
 
-          // Log symbol processing when in filtered mode
+          // Log symbol processing when in filtered mode; keep message focused on symbol + event + marketDate
           if (isFilteredMode) {
-            log.info(`ts.jobs.processing symbol=${symbolUpper} endpoint=${endpointName} testSymbols=${Array.from(testSymbols).join(',')}`, {
+            log.info(`symbol=${symbolUpper} event=ts.jobs.processing marketDate=${marketDate}`, {
               symbol: symbolUpper,
               endpoint,
-              endpointName,
               testSymbols: Array.from(testSymbols),
               marketDate,
               phase: phaseFinal,
@@ -1104,20 +1179,23 @@ export async function refreshForEndpoints(
             phaseFinal === TradingPhase.POST
           ) {
             const testSymbolsArr = Array.from(testSymbols);
-            log.info(`ts.jobs.create symbol=${symbolUpper} endpoint=${endpointName} testSymbols=${testSymbolsArr.join(',') || 'NONE'}`, {
+            log.info(`symbol=${symbolUpper} event=ts.jobs.create marketDate=${marketDate}`, {
               symbol: symbolUpper,
               endpoint,
-              endpointName,
               testSymbols: testSymbolsArr,
               marketDate,
               phase: phaseFinal,
             });
             let shouldEnqueueTask = false;
+            let createdNewJob = false;
+            let updatedJob = false;
             try {
               const jobPath = getTimeSeriesJobDocPath(marketDate, symbol, endpoint, phaseFinal);
               const jobRef = db.doc(jobPath);
+              const dateRef = db.doc(`${FirestoreCollection.TIME_SERIES_JOBS}/${marketDate}`);
               await db.runTransaction(async (tx) => {
                 const snap = await tx.get(jobRef);
+                const dateSnap = await tx.get(dateRef);
                 const interval =
                   endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
                     ? TimeSeriesInterval.DAILY
@@ -1126,6 +1204,7 @@ export async function refreshForEndpoints(
                       : TimeSeriesInterval.MONTHLY;
 
                 if (!snap.exists) {
+                  // Initialize the job document.
                   tx.set(jobRef, {
                     symbol,
                     endpoint,
@@ -1136,7 +1215,22 @@ export async function refreshForEndpoints(
                     createdAt: Timestamp.now(),
                     updatedAt: Timestamp.now(),
                   });
+
+                  // Initialize or increment the parent date-level aggregator doc
+                  // so onTimeSeriesJobTerminal has a document to update.
+                  const existingDate = dateSnap.exists ? (dateSnap.data() as any) : {};
+                  const currentTotalJobs = typeof existingDate.totalJobs === 'number' ? existingDate.totalJobs : 0;
+                  const nextTotalJobs = currentTotalJobs + 1;
+                  const phaseStr = String(phaseFinal).toLowerCase();
+                  tx.set(dateRef, {
+                    marketDate,
+                    phase: existingDate.phase || phaseStr,
+                    totalJobs: nextTotalJobs,
+                    runId: existingDate.runId || runId || null,
+                  }, { merge: true });
+
                   shouldEnqueueTask = true;
+                  createdNewJob = true;
                   return;
                 }
 
@@ -1161,6 +1255,7 @@ export async function refreshForEndpoints(
                   updatedAt: Timestamp.now(),
                 }, { merge: true });
                 shouldEnqueueTask = true;
+                updatedJob = true;
               });
 
               // Enqueue Cloud Task only when the explicit feature flag is
@@ -1189,6 +1284,33 @@ export async function refreshForEndpoints(
                     marketDate,
                     phase: phaseFinal,
                     error: String(e?.message || e),
+                  });
+                }
+              }
+
+              // Record that this symbol had a job created/updated for this endpoint in this run
+              if (shouldEnqueueTask) {
+                createdSymbolsThisEndpoint.add(symbolUpper);
+                createdSymbolsThisRun.set(endpoint, createdSymbolsThisEndpoint);
+
+                // Explicit pipeline-stage logs so per-symbol job writes are easy to trace
+                if (createdNewJob) {
+                  log.info(`symbol=${symbolUpper} event=ts.jobs.write_new marketDate=${marketDate}`, {
+                    symbol: symbolUpper,
+                    endpoint,
+                    endpointName,
+                    marketDate,
+                    phase: phaseFinal,
+                    jobAction: 'new',
+                  });
+                } else if (updatedJob) {
+                  log.info(`symbol=${symbolUpper} event=ts.jobs.write_update marketDate=${marketDate}`, {
+                    symbol: symbolUpper,
+                    endpoint,
+                    endpointName,
+                    marketDate,
+                    phase: phaseFinal,
+                    jobAction: 'update',
                   });
                 }
               }
@@ -1356,6 +1478,18 @@ export async function refreshForEndpoints(
           }
           log.info('acceleration.complete', { endpoint, accelerated, pendingBefore: pendingCount, deltaNow: deltaFinalized.size });
         }
+      }
+      // Per-endpoint run summary log
+      if (createdSymbolsThisRun.has(endpoint)) {
+        const createdSymbols = Array.from(createdSymbolsThisRun.get(endpoint) as Set<string>);
+        log.info(`ts.jobs.run_summary endpoint=${endpointName} created=${createdSymbols}`, {
+          endpoint,
+          endpointName,
+          createdSymbols,
+          marketDate,
+          phase: phaseFinal,
+          runId,
+        });
       }
     }
   } catch (error) {
