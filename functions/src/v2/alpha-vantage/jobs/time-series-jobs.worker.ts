@@ -12,6 +12,10 @@ import {
   getSymbolTimeSeriesAllDocPath,
 } from '../../common/firestore/firestore-paths';
 import { TimeSeriesJobStatus } from './time-series-jobs.model';
+import { onTimeSeriesJobTerminal } from './time-series-jobs.aggregator';
+import { publishSymbolsReadyBatch } from '../../partner/symbols-ready.publisher';
+import { TIME_SERIES_BASELINE_ETFS } from '../data/ts-master-order';
+import { createLogger } from '../../utils/utils';
 
 /**
  * Indicates whether the time-series for a given job has reached the
@@ -43,6 +47,125 @@ export interface ProcessTimeSeriesJobPayload {
  * intended to be called by a future HTTPS/Tasks wrapper once the job
  * pipeline is ready to be enabled in non-production environments.
  */
+const BASELINE_SET = new Set(TIME_SERIES_BASELINE_ETFS);
+const BASELINE_TARGET_COUNT = TIME_SERIES_BASELINE_ETFS.length;
+const SYMBOL_BATCH_SIZE = 10;
+let firstBaselineBatchSent = false;
+let pendingSymbolsBatch: string[] = [];
+let readyBaselineSymbols = new Set<string>();
+
+// Dedicated logger for the time-series job worker so pipeline logs are easy to filter
+const logger = createLogger('av.ts.jobs.worker');
+
+async function handleNewlyReadySymbols(marketDate: string, newlyReadySymbols: string[]): Promise<void> {
+  if (!newlyReadySymbols.length) {
+    return;
+  }
+
+  // Per-symbol pipeline log: symbol has just transitioned to newly ready for this marketDate
+  for (const s of newlyReadySymbols) {
+    try {
+      logger.info(`ts.jobs.symbol_newly_ready symbol=${s} marketDate=${marketDate}`, {
+        symbol: s,
+        marketDate,
+      });
+    } catch {}
+  }
+
+  const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
+
+  // Split baselines vs non-baselines for this invocation.
+  const baselines = newlyReadySymbols.filter((s) => BASELINE_SET.has(s));
+  const others = newlyReadySymbols.filter((s) => !BASELINE_SET.has(s));
+
+  // Always accumulate non-baseline symbols into the general pending batch.
+  if (others.length) {
+    pendingSymbolsBatch.push(...others);
+  }
+
+  if (!firstBaselineBatchSent && baselines.length) {
+    // Track which baselines have become ready so far.
+    for (const s of baselines) {
+      readyBaselineSymbols.add(s);
+    }
+
+    // Only when all baselines are ready do we emit the first baseline-only batch.
+    // In the emulator, relax this guard so we emit a baseline batch as soon
+    // as the baselines participating in this run are ready. This allows
+    // symbol-ready testing with a small subset of symbols without requiring
+    // all 13 global baselines to be present.
+    if (readyBaselineSymbols.size === BASELINE_TARGET_COUNT || isEmulator) {
+      const baselineBatch = TIME_SERIES_BASELINE_ETFS.filter((s) => readyBaselineSymbols.has(s));
+      if (baselineBatch.length) {
+        await publishSymbolsReadyBatch({
+          version: 'v1',
+          marketDate,
+          symbols: baselineBatch,
+          reason: 'scheduled',
+        });
+        try {
+          logger.info(
+            `ts.jobs.publish_baseline_batch marketDate=${marketDate} symbols=[${baselineBatch.join(',')}]`,
+            {
+              marketDate,
+              symbols: baselineBatch,
+              batchType: 'baseline',
+            },
+          );
+        } catch {}
+      }
+      firstBaselineBatchSent = true;
+      // After emitting the baseline batch we no longer need to track this set.
+      readyBaselineSymbols = new Set<string>();
+    }
+  }
+
+  // After the baseline batch has been sent, apply the normal 10-symbol batching
+  // policy for all subsequent (non-baseline) symbols.
+  if (firstBaselineBatchSent && pendingSymbolsBatch.length >= SYMBOL_BATCH_SIZE) {
+    const toSend = pendingSymbolsBatch.splice(0);
+    await publishSymbolsReadyBatch({
+      version: 'v1',
+      marketDate,
+      symbols: toSend,
+      reason: 'scheduled',
+    });
+    try {
+      logger.info(
+        `ts.jobs.publish_batch marketDate=${marketDate} symbols=[${toSend.join(',')}]`,
+        {
+          marketDate,
+          symbols: toSend,
+          batchType: 'normal',
+        },
+      );
+    } catch {}
+  }
+}
+
+async function flushPendingSymbols(marketDate: string): Promise<void> {
+  if (!pendingSymbolsBatch.length) {
+    return;
+  }
+  const toSend = pendingSymbolsBatch.splice(0);
+  await publishSymbolsReadyBatch({
+    version: 'v1',
+    marketDate,
+    symbols: toSend,
+    reason: 'scheduled',
+  });
+  try {
+    logger.info(
+      `ts.jobs.publish_flush marketDate=${marketDate} symbols=[${toSend.join(',')}]`,
+      {
+        marketDate,
+        symbols: toSend,
+        batchType: 'flush',
+      },
+    );
+  } catch {}
+}
+
 export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJobPayload): Promise<void> {
   // Temporary diagnostic: introduce a fixed delay so that individual
   // task executions are clearly visible in the Cloud Tasks UI and logs.
@@ -58,6 +181,19 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
   }
 
   const { marketDate, symbol, endpoint, phase } = payload;
+
+  // Per-job pipeline log: worker invocation start for this symbol/endpoint/phase
+  try {
+    logger.info(
+      `ts.jobs.worker.start symbol=${symbol} endpoint=${endpoint} phase=${phase} marketDate=${marketDate}`,
+      {
+        symbol,
+        endpoint,
+        phase,
+        marketDate,
+      },
+    );
+  } catch {}
 
   // For Phase 1 we only support POST-phase time-series jobs for
   // DAILY/WEEKLY/MONTHLY adjusted endpoints.
@@ -108,6 +244,12 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
   });
 
   const targetTs = new Date(`${marketDate}T00:00:00.000Z`).getTime();
+  const interval: TimeSeriesInterval =
+    endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
+      ? TimeSeriesInterval.DAILY
+      : endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED
+        ? TimeSeriesInterval.WEEKLY
+        : TimeSeriesInterval.MONTHLY;
 
   try {
     const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
@@ -123,12 +265,6 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     // parent-doc timestamp fields, to avoid coupling completeness to
     // secondary summaries.
     const vendor = ApiProvider.ALPHA_VANTAGE;
-    const interval: TimeSeriesInterval =
-      endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
-        ? TimeSeriesInterval.DAILY
-        : endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED
-          ? TimeSeriesInterval.WEEKLY
-          : TimeSeriesInterval.MONTHLY;
 
     let latestMs: number | null = null;
 
@@ -163,8 +299,96 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
       // is captured by periodStatus.
       lastError: FieldValue.delete(),
     }, { merge: true });
+
+    // Optional verbose partner mode: emit a single-symbol partner notification for
+    // every SUCCESS job (per symbol+interval) so cross-project message flow can
+    // be validated without altering production batching semantics.
+    const verboseFlag = String(process.env.TS_PARTNER_VERBOSE_MESSAGES || '').toLowerCase();
+    const verboseMode = verboseFlag === 'true' || verboseFlag === 'on';
+    if (verboseMode) {
+      try {
+        await publishSymbolsReadyBatch(
+          {
+            version: 'v1',
+            marketDate,
+            symbols: [symbol],
+            reason: 'verbose',
+            interval,
+          },
+          { verbose: 'true' },
+        );
+        try {
+          logger.info(
+            `symbol=${symbol} event=ts.jobs.publish_verbose interval=${interval} marketDate=${marketDate}`,
+            {
+              symbol,
+              endpoint,
+              interval,
+              marketDate,
+              verbose: true,
+            },
+          );
+        } catch {}
+      } catch (e: any) {
+        try {
+          logger.error(
+            `symbol=${symbol} event=ts.jobs.publish_verbose_error interval=${interval} marketDate=${marketDate}`,
+            {
+              symbol,
+              endpoint,
+              interval,
+              marketDate,
+              verbose: true,
+              error: String(e?.message || e),
+            },
+          );
+        } catch {}
+      }
+    }
+
+    // Notify the date-level aggregator that this job reached a terminal SUCCESS state.
+    const { newlyReadySymbols, runJustCompleted } = await onTimeSeriesJobTerminal({
+      marketDate,
+      symbol,
+      interval,
+      status: 'SUCCESS',
+    });
+
+    await handleNewlyReadySymbols(marketDate, newlyReadySymbols);
+
+    if (runJustCompleted) {
+      await flushPendingSymbols(marketDate);
+    }
+
+    // Per-job pipeline log: worker completed successfully for this symbol
+    try {
+      logger.info(
+        `ts.jobs.worker.success symbol=${symbol} endpoint=${endpoint} phase=${phase} marketDate=${marketDate}`,
+        {
+          symbol,
+          endpoint,
+          phase,
+          marketDate,
+          periodStatus,
+        },
+      );
+    } catch {}
   } catch (e: any) {
     const errMsg = String(e?.message || e);
+
+    // Per-job pipeline log: worker error for this symbol
+    try {
+      logger.error(
+        `ts.jobs.worker.error symbol=${symbol} endpoint=${endpoint} phase=${phase} marketDate=${marketDate}`,
+        {
+          symbol,
+          endpoint,
+          phase,
+          marketDate,
+          error: errMsg,
+        },
+      );
+    } catch {}
 
     // Record the latest error on the job document for observability.
     await jobRef.set(
@@ -197,6 +421,22 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
         },
         { merge: true },
       );
+
+      // Notify the date-level aggregator that this job reached a terminal PERMANENT_FAILURE state.
+      const { newlyReadySymbols, runJustCompleted } = await onTimeSeriesJobTerminal({
+        marketDate,
+        symbol,
+        interval,
+        status: 'PERMANENT_FAILURE',
+      });
+
+      // Safety: in principle PERMANENT_FAILURE should not produce ready symbols,
+      // but handle any returned symbols for completeness.
+      await handleNewlyReadySymbols(marketDate, newlyReadySymbols);
+
+      if (runJustCompleted) {
+        await flushPendingSymbols(marketDate);
+      }
       return;
     }
 
