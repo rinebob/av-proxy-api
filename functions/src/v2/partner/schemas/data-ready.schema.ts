@@ -53,8 +53,6 @@ export interface ValidationResult<T> {
   errors?: string[];
 }
 
-// Enforce runId format: YYYY-MM-DD-HHMM-(pre|post)[-(manual|heartbeat)] using Eastern Time HHMM
-const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}-\d{4}-(pre|post)(-(manual|heartbeat))?$/;
 const MARKET_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_INTERVALS: TimeSeriesInterval[] = [
   TimeSeriesInterval.DAILY,
@@ -69,9 +67,8 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
 
   // Required fields
   if (obj.version !== 'v1') errors.push('version must be "v1"');
-  if (typeof obj.runId !== 'string' || obj.runId.length === 0) errors.push('runId is required');
-  if (obj.runId && !RUN_ID_RE.test(obj.runId)) {
-    errors.push('runId should match YYYY-MM-DD-HHMM-(pre|post)[-(manual|heartbeat)]');
+  if (typeof obj.runId !== 'string' || obj.runId.length === 0) {
+    errors.push('runId is required');
   }
   if (obj.phase !== 'pre' && obj.phase !== 'post') errors.push('phase must be "pre" or "post"');
 
