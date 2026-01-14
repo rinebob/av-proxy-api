@@ -110,5 +110,5 @@ export function getTimeSeriesJobDocPath(
   const jobId = `${safeSymbol}-${endpoint}-${phase}`;
   // Top-level collection "time-series-jobs" with per-date documents
   // and a nested "jobs" subcollection for per-symbol jobs.
-  return `time-series-jobs/${marketDate}/jobs/${jobId}`;
+  return `${FirestoreCollection.TIME_SERIES_JOBS}/${marketDate}/${FirestoreCollection.JOBS}/${jobId}`;
 }

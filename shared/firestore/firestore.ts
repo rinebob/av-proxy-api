@@ -16,6 +16,8 @@ export enum FirestoreCollection {
     SA_TIME_SERIES = 'sa-time-series',
     TIME_SERIES_FINALIZATION = 'time-series-finalization',
     TIME_SERIES_STATUS = 'time-series-status',
+    TIME_SERIES_JOBS = 'time-series-jobs',
+    JOBS = 'jobs',
     
     YEARS = 'years',
 
