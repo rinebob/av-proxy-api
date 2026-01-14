@@ -65,13 +65,12 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
   const isSplitAdjusted = params.isSplitAdjusted === true;
   const { endpoint } = resolveEndpoint(interval);
 
-  // Defaults per interval
-  const defaultPreset: TimeSeriesReadParams['range'] = interval === TimeSeriesInterval.DAILY ? '1y' : interval === TimeSeriesInterval.WEEKLY ? '5y' : 'max';
-
   // Determine from/to
   const fromExplicit = toEpoch(params.from);
   const toExplicit = toEpoch(params.to);
-  const presetApplied = params.from || params.to ? undefined : (params.range || defaultPreset);
+  // Only apply a preset when the caller explicitly provides a range. If no range/from/to
+  // are provided, we will return the full dataset (no implicit 1y/5y clamp).
+  const presetApplied = params.from || params.to ? undefined : params.range;
   const { from: fromPreset, to: toPreset } = rangeToFromTo(nowMs, presetApplied);
   const from = fromExplicit ?? fromPreset;
   const to = toExplicit ?? toPreset ?? nowMs;
@@ -129,40 +128,29 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
       return { ok: false, symbol, interval, provider: 'av', endpointDocId: docPath.split('/').pop()!, isSplitAdjusted, rangeUsed: { from, to, preset: presetApplied }, count: 0, bars: [], timestamp: new Date().toISOString(), error: 'NOT_FOUND', code: 'NOT_FOUND' };
     }
     const meta = metaSnap.data() as any;
+    const availableYearsMeta: number[] | undefined = Array.isArray(meta?.metadata?.availableYears)
+      ? meta.metadata.availableYears.filter((y: unknown) => typeof y === 'number')
+      : undefined;
     logger.debug('reader.meta', {
       hasMeta: !!meta,
-      histStartTs: meta?.metadata?.histStartTs ?? meta?.histStartTs,
+      availableYearsMeta,
       latestBarTimestamp: meta?.metadata?.latestBarTimestamp ?? meta?.latestBarTimestamp,
     });
-
-    // Determine bounds from metadata (preferred) and clamp requested range
-    const lowerBoundMs: number | undefined = Number(meta?.metadata?.histStartTs ?? meta?.histStartTs ?? undefined);
-    // Use numeric histEndTs from metadata; latestBarTimestamp is a Firestore Timestamp object
-    const upperBoundMs: number | undefined = Number(meta?.metadata?.histEndTs ?? meta?.histEndTs ?? undefined);
 
     // Start with requested years (from/to already resolved above)
     let fromYear = from != null ? new Date(from).getUTCFullYear() : undefined;
     let toYear = to != null ? new Date(to).getUTCFullYear() : undefined;
 
-    // If bounds exist, use them as defaults and clamps
-    if (fromYear == null && lowerBoundMs != null) fromYear = new Date(lowerBoundMs).getUTCFullYear();
-    if (toYear == null && upperBoundMs != null) toYear = new Date(upperBoundMs).getUTCFullYear();
-    if (lowerBoundMs != null && fromYear != null) {
-      const lbYear = new Date(lowerBoundMs).getUTCFullYear();
-      if (fromYear < lbYear) fromYear = lbYear;
-    }
-    if (upperBoundMs != null && toYear != null) {
-      const ubYear = new Date(upperBoundMs).getUTCFullYear();
-      if (toYear > ubYear) toYear = ubYear;
-    }
-
-    // If still undefined (no bounds and no explicit range), derive from preset defaults
+    // If still undefined (no explicit from/to and no preset), fall back to availableYears
+    // metadata when present. This is only used to know which year shards to read; it does
+    // not clamp or trim data, since bar-level filtering below uses the actual from/to
+    // (or returns all bars when both are undefined).
     if (fromYear == null || toYear == null) {
-      const nowYear = new Date(nowMs).getUTCFullYear();
-      // Conservative default windows mirror presets: DAILY=1y, WEEKLY=5y, MONTHLY=all (handled earlier)
-      const defaultSpanYears = interval === TimeSeriesInterval.WEEKLY ? 5 : 1;
-      toYear = toYear ?? nowYear;
-      fromYear = fromYear ?? (toYear - defaultSpanYears);
+      if (availableYearsMeta && availableYearsMeta.length) {
+        const sorted = [...availableYearsMeta].sort((a, b) => a - b);
+        fromYear = fromYear ?? sorted[0];
+        toYear = toYear ?? sorted[sorted.length - 1];
+      }
     }
 
     // Correct any inverted window after clamping (defensive)
