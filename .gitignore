@@ -100,3 +100,7 @@ hs_err_pid46448.log
 stock_universe.bulk-import.json
 replay_pid46448.log
 functions/scripts/find-incomplete-sa-timeseries.output.json
+deploy-log.txt
+functions/backfill-aapl-prod.log
+functions/backfill-aapl.log
+functions/assets/misc/terminal-notes.txt
