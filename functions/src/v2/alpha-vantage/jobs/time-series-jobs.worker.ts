@@ -13,6 +13,7 @@ import {
 } from '../../common/firestore/firestore-paths';
 import { TimeSeriesJobStatus } from './time-series-jobs.model';
 import { onTimeSeriesJobTerminal } from './time-series-jobs.aggregator';
+import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { publishSymbolsReadyBatch } from '../../partner/symbols-ready.publisher';
 import { TIME_SERIES_BASELINE_ETFS } from '../data/ts-master-order';
 import { createLogger } from '../../utils/utils';
@@ -25,6 +26,9 @@ export enum PeriodStatus {
   InProgress = 'IN_PROGRESS',
   PeriodEnd = 'PERIOD_END',
 }
+
+// Dedicated logger for the time-series job worker so pipeline logs are easy to filter
+const logger = betterLogger('tSJ.w');
 
 /**
  * Internal payload shape for processing a single time-series job.
@@ -182,17 +186,25 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
 
   const { marketDate, symbol, endpoint, phase } = payload;
 
-  // Per-job pipeline log: worker invocation start for this symbol/endpoint/phase
+  const interval: TimeSeriesInterval =
+    endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
+      ? TimeSeriesInterval.DAILY
+      : endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED
+        ? TimeSeriesInterval.WEEKLY
+        : TimeSeriesInterval.MONTHLY;
+
+  const baseLogPayload: BetterLogPayload = {
+    function: 'pSJI',
+    symbol,
+    marketDate,
+    interval,
+    endpoint,
+  };
+
+  // Per-job pipeline logs: explicit START marker + initial worker.start event
   try {
-    logger.info(
-      `ts.jobs.worker.start symbol=${symbol} endpoint=${endpoint} phase=${phase} marketDate=${marketDate}`,
-      {
-        symbol,
-        endpoint,
-        phase,
-        marketDate,
-      },
-    );
+    logger.start('ts.jobs.worker', baseLogPayload);
+    logger.info('ts.jobs.worker.start', baseLogPayload);
   } catch {}
 
   // For Phase 1 we only support POST-phase time-series jobs for
@@ -244,12 +256,6 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
   });
 
   const targetTs = new Date(`${marketDate}T00:00:00.000Z`).getTime();
-  const interval: TimeSeriesInterval =
-    endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
-      ? TimeSeriesInterval.DAILY
-      : endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED
-        ? TimeSeriesInterval.WEEKLY
-        : TimeSeriesInterval.MONTHLY;
 
   try {
     const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
@@ -362,32 +368,16 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
 
     // Per-job pipeline log: worker completed successfully for this symbol
     try {
-      logger.info(
-        `ts.jobs.worker.success symbol=${symbol} endpoint=${endpoint} phase=${phase} marketDate=${marketDate}`,
-        {
-          symbol,
-          endpoint,
-          phase,
-          marketDate,
-          periodStatus,
-        },
-      );
+      logger.info('ts.jobs.worker.success', baseLogPayload);
+      logger.end('ts.jobs.worker', baseLogPayload);
     } catch {}
   } catch (e: any) {
     const errMsg = String(e?.message || e);
 
     // Per-job pipeline log: worker error for this symbol
     try {
-      logger.error(
-        `ts.jobs.worker.error symbol=${symbol} endpoint=${endpoint} phase=${phase} marketDate=${marketDate}`,
-        {
-          symbol,
-          endpoint,
-          phase,
-          marketDate,
-          error: errMsg,
-        },
-      );
+      logger.error('ts.jobs.worker.error', baseLogPayload);
+      logger.end('ts.jobs.worker', baseLogPayload);
     } catch {}
 
     // Record the latest error on the job document for observability.

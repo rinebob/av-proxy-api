@@ -9,7 +9,7 @@ import {
 import { ApiResponse } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval, AV_TIME_SERIES_ENDPOINT_CONFIGS } from '@shared/alpha-vantage';
 import type { CompactBar } from '@shared/alpha-vantage';
-import { createLogger, hr } from '../../utils/utils';
+import { betterLogger, createLogger, hr } from '../../utils/utils';
 import { DayOfWeek } from '@shared/alpha-vantage';
 import { AvIntradayHandler } from './av-intraday.handler';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
@@ -17,7 +17,8 @@ import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 import { TradingPhase } from '@shared/health-metrics';
 import { parseAvEtTimestampMs } from '../utils/date-utils';
 
-const log = createLogger('av.handler.ts-base'); // Abbrev: aVTS.H
+const log = createLogger('av.handler.ts-base'); // Abbrev: aVTS.H (structured JSON)
+const tsLogger = betterLogger('aVTS.H'); // Human-readable Logs Explorer lines
 
 /**
  * Compact bar shape produced by AV time-series handlers prior to persistence.
@@ -121,14 +122,18 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
    * @throws Normalized provider or network errors
    */
   public async fetch(params: any = {}): Promise<ApiResponse<T>> {
-    super.logRequest(params, 'AVTimeSeriesHandlerBase.fetch');
     const startTime = Date.now();
     const endpoint = this.config.id;
     const symbol = params?.symbol;
     const phase: TradingPhase | undefined = (params as any)?.__phase;
     const runCtx: any | undefined = (params as any)?.__run; // propagated by scheduler for grouping
-    hr('aVTS.H', `fetch start ${endpoint} ${symbol ?? ''} [${(this as any).requestId}]`);
-    log.info('fetch.start', { endpointId: endpoint, symbol, requestId: (this as any).requestId });
+    tsLogger.info('ts.handler.fetch.start', {
+      function: 'tsBase',
+      symbol: symbol ?? 'n/a',
+      marketDate: 'n/a',
+      interval: this.config.interval ?? 'n/a',
+      endpoint: String(endpoint),
+    });
     this.validateParams(params);
 
     // Strip internal params before sending to AV
@@ -268,19 +273,17 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
                 );
               } catch (e) {
                 // Best effort; do not fail the handler if health recording fails
-                log.warn?.('preclose.intraday_health_record_failed', { endpointId: AlphaVantageEndpoint.TIME_SERIES_INTRADAY, symbol, error: String((e as any)?.message || e) } as any);
+                hr('aVTS.H', `pre-close intraday health-record failed ${endpoint} ${symbol} ${(e as any)?.message || e}`);
               }
               captured = true;
             }
             if (!captured) {
               hr('aVTS.H', `pre-close intraday give-up ${endpoint} ${symbol} todayEt=${todayEt} [${(this as any).requestId}]`);
-              log.warn?.('preclose.intraday_giveup', { endpointId: endpoint, symbol, todayEt, maxRetries: MAX_RETRIES } as any);
               return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
             }
           }
           // Success response without further persistence
           hr('aVTS.H', `fetch ok ${endpoint} ${symbol ?? ''} ${(Date.now() - startTime)}ms [${(this as any).requestId}]`);
-          log.info('fetch.success', { endpointId: endpoint, symbol, durationMs: Date.now() - startTime, requestId: (this as any).requestId });
           return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
         }
 
@@ -309,8 +312,13 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
         if (outputSize === 'compact') {
           // Compact path
           const latest = bars[0];
-          hr('aVTS.H', `compact ${endpoint} ${symbol} date=${latest.date} [${(this as any).requestId}]`);
-          log.info('firestore.compact', { endpointId: endpoint, symbol, date: latest.date, requestId: (this as any).requestId });
+          tsLogger.info('ts.handler.firestore.compact', {
+            function: 'tsBase',
+            symbol: symbol ?? 'n/a',
+            marketDate: latest.date ?? 'n/a',
+            interval: this.config.interval ?? 'n/a',
+            endpoint: String(endpoint),
+          });
 
           if (this.config.interval === TimeSeriesInterval.DAILY) {
             // DAILY: preserve existing single-bar upsert semantics
@@ -382,7 +390,6 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
         } else {
           // Full/backfill writes
           hr('aVTS.H', `save ${endpoint} ${symbol} bars=${bars.length} [${(this as any).requestId}]`);
-          log.info('firestore.save', { endpointId: endpoint, symbol, bars: bars.length, requestId: (this as any).requestId });
           await saveAvTimeSeriesData(
             bars,
             symbol!,
@@ -391,16 +398,32 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           );
         }
       } else {
-        hr('aVTS.H', `skip save (empty|noBars) ${endpoint} ${symbol ?? ''} [${(this as any).requestId}]`);
-        log.info('firestore.skip_or_empty', { endpointId: endpoint, symbol, hasBars: !!bars && bars.length > 0, requestId: (this as any).requestId });
+        tsLogger.info('ts.handlerfirestore.skip_or_empty', {
+        function: 'fetch',
+        symbol: symbol ?? 'n/a',
+        marketDate: 'n/a',
+        interval: this.config.interval ?? 'n/a',
+        endpoint: String(endpoint),
+      });
       }
 
-      hr('aVTS.H', `fetch ok ${endpoint} ${symbol ?? ''} ${(Date.now() - startTime)}ms [${(this as any).requestId}]`);
-      log.info('fetch.success', { endpointId: endpoint, symbol, durationMs: Date.now() - startTime, requestId: (this as any).requestId });
+      tsLogger.info('ts.handler.fetch.success', {
+        function: 'fetch',
+        symbol: symbol ?? 'n/a',
+        marketDate: 'n/a',
+        interval: this.config.interval ?? 'n/a',
+        endpoint: String(endpoint),
+      });
       return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
     } catch (error) {
-      hr('aVTS.H', `fetch error ${endpoint} ${symbol ?? ''} ${String((error as any)?.message || error)} [${(this as any).requestId}]`);
-      log.error('fetch.error', { endpointId: endpoint, symbol, error: String((error as any)?.message || error), requestId: (this as any).requestId });
+      tsLogger.error('ts.handler fetch error', {
+        function: 'fetch',
+        symbol: symbol ?? 'n/a',
+        marketDate: 'n/a',
+        interval: this.config.interval ?? 'n/a',
+        endpoint: String(endpoint),
+        error: error as string,
+      });
       throw super.normalizeError(error);
     }
   }

@@ -82,59 +82,120 @@ Controls whether the Cloud Tasks worker (`processTimeSeriesJobTask`) actually pr
   TS_TIME_SERIES_TASKS_ENABLED=true
   ```
 
-### `TS_PARTNER_VERBOSE_MESSAGES`
+---
 
-Enables **verbose partner notifications** from the time-series job worker.
+## Logging & Logs Explorer Filters (betterLogger dialect)
 
-When turned **on**, the worker will, **in addition to** the normal baseline / 10-symbol batching semantics, publish a **single-symbol** `partner-symbols-ready` message for **every SUCCESS job** (per `symbol` + `interval`).
+Project: `alpha-vantage-proxy-api`
 
-- These verbose messages:
-  - Use `reason="verbose"` in the JSON payload.
-  - Include an `interval` field in the payload (e.g. `DAILY`, `WEEKLY`, `MONTHLY`).
-  - Add a Pub/Sub attribute `verbose=true` (no extra interval attribute).
-- The existing production behavior (wait for all intervals, then batch baselines and 10-symbol groups with `reason="scheduled"`) is **unchanged**.
+### Abbreviations
 
-- Disable verbose mode (default):
+- Scheduler (time-series, `av-refresh-manager.ts`):
+  - **file**: `aVRM`
+  - **function**: `rFE` (`refreshForEndpoints`)
+- Worker (time-series jobs, `time-series-jobs.worker.ts`):
+  - **file**: `tSJ.w`
+  - **function**: `pSJI` (`processTimeSeriesJobInternal`)
+- Partner symbols-ready publisher (`symbols-ready.publisher.ts`):
+  - **file**: `sR.P`
+  - **function**: `pSRB` (`publishSymbolsReadyBatch`)
+
+### Example log lines
+
+- Scheduler, per-symbol job creation:
 
   ```text
-  TS_PARTNER_VERBOSE_MESSAGES=off
+  [aVRM rFE] event=ts.jobs.create sym=AVGO int=DAILY mktDate=2026-01-05 ep=TIME_SERIES_DAILY_ADJUSTED level=info
   ```
 
-- Enable verbose mode (extra per-symbol messages for testing RS integration):
+- Worker, per-job lifecycle:
 
   ```text
-  TS_PARTNER_VERBOSE_MESSAGES=on
+  [tSJ.w pSJI] event=ts.jobs.worker.start sym=AVGO int=DAILY mktDate=2026-01-05 ep=TIME_SERIES_DAILY_ADJUSTED level=info
+  [tSJ.w pSJI] event=ts.jobs.worker.success sym=AVGO int=DAILY mktDate=2026-01-05 ep=TIME_SERIES_DAILY_ADJUSTED level=info
+  ```
+
+- Symbols-ready publish:
+
+  ```text
+  [sR.P pSRB] event=symbols.ready.publish sym=AVGO int=DAILY mktDate=2026-01-05 ep=SYMBOLS_READY level=info
+  ```
+
+### Quick filters for a single symbol
+
+- **Full pipeline (scheduler + worker + publisher) for one symbol**:
+
+  ```text
+  text:"sym=AVGO" AND (text:"[aVRM rFE]" OR text:"[tSJ.w pSJI]" OR text:"[sR.P pSRB]")
+  ```
+
+- **Scheduler job creation/enqueue for one symbol**:
+
+  ```text
+  text:"[aVRM rFE]" AND text:"sym=AVGO"
+  ```
+
+- **Worker executions for one symbol**:
+
+  ```text
+  text:"[tSJ.w pSJI]" AND text:"sym=AVGO"
+  ```
+
+- **Symbols-ready publishes containing a symbol**:
+
+  ```text
+  text:"[sR.P pSRB]" AND text:"sym=AVGO"
   ```
 
 ---
 
-## Quick Logs Explorer Filters
+## Logs Explorer: View a Full Time-Series Run
 
-Project: `alpha-vantage-proxy-api`
+Use this query to see all logs for the time-series job pipeline (scheduler → tasks → worker → partner notifications) within a selected time window.
 
-- Daily scheduler (per-symbol job creation / enqueue):
+```text
+resource.type="cloud_run_revision"
+resource.labels.service_name=(
+  "refreshAvDailyTimeSeriesPostClose" OR
+  "refreshAvWeeklyTimeSeriesPostClose" OR
+  "refreshAvMonthlyTimeSeriesPostClose" OR
+  "processTimeSeriesJobTask" OR
+  "processTimeSeriesJobDev" OR
+  "onDailyAdjustedFinalizedPublish"
+)
+```
 
-  ```text
-  resource.type="cloud_run_revision"
-  resource.labels.service_name="refreshavdailytimeseriespostclose"
-  jsonPayload.symbol="AVGO"  # replace with symbol of interest
-  ```
+**Usage:**
 
-- Job worker (per-symbol execution / newly ready):
+- **GCP console Logs Explorer:**  
+  https://cloudlogging.app.goo.gl/FGFyBPQRwKGm7gyS6  
+  This link has the above filter with a 30-minute window.
 
-  ```text
-  resource.type="cloud_run_revision"
-  resource.labels.service_name:"processtimeseriesjobtask"
-  jsonPayload.symbol="AVGO"
-  ```
+- **[scope window]** After triggering a scheduler (for example, `refreshAvDailyTimeSeriesPostClose`), open Logs Explorer and set the query above.
+- **[time range]** Use the time dropdown to select a window around when the scheduler fired:
+  - For ad-hoc runs, choose a relative range such as `Last 15 minutes`.
+  - For precise inspection, choose a custom start/end time that tightly brackets the run.
+- **[display]** Turn off **Hide similar log entries** and sort by timestamp ascending.
 
-- Symbol-ready publishes (batches containing symbol):
+You should see, in order:
 
-  ```text
-  resource.type="cloud_run_revision"
-  jsonPayload.message:"SYMBOLS-READY.PUBLISH"
-  jsonPayload.symbols:"AVGO"
-  ```
+- **[scheduler]** Cloud Scheduler HTTP invocation of the `refreshAv*TimeSeries*` function.
+- **[TS manager]** `aVTSRM rTSJFE` logs:
+  - `ts.jobs.test_symbol_mode` (when test-symbol filtering is enabled).
+  - `START/END ts.jobs.scheduler` (symbol loop banners).
+  - `START/END ts.jobs.processing` per symbol.
+  - `ts.jobs.write_new` / `ts.jobs.write_update` for each job document.
+  - `ts.jobs.run_summary` with a count of symbols processed.
+- **[Cloud Tasks]** `tSJ.t pSJT` logs for `job.task.start` / `job.task.complete` per symbol.
+- **[worker]** `tSJ.w pSJI` logs:
+  - `ts.jobs.worker.start` / `ts.jobs.worker.success` and related events.
+- **[handler]** `aVTS.H` time-series handler logs:
+  - `ts.handler.fetch.*`, `ts.handler.firestore.compact`, and related events.
+- **[partner readiness]**
+  - `symbols.ready.publish` (`sR.P pSRB`) for each symbol.
+  - `runs.upsert.*` and `runs.end.doc` (`pDR.H eDRI`, `DATA_READY_RUN`) at the run level.
+
+This single query plus a focused time window provides an end-to-end view of a time-series job run across scheduler, job manager, worker, and partner notifications.
 
 ---
 
