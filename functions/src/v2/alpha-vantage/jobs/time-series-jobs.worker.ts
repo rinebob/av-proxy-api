@@ -15,8 +15,6 @@ import { TimeSeriesJobStatus } from './time-series-jobs.model';
 import { onTimeSeriesJobTerminal } from './time-series-jobs.aggregator';
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { publishSymbolsReadyBatch } from '../../partner/symbols-ready.publisher';
-import { TIME_SERIES_BASELINE_ETFS } from '../data/ts-master-order';
-import { createLogger } from '../../utils/utils';
 
 /**
  * Indicates whether the time-series for a given job has reached the
@@ -51,124 +49,6 @@ export interface ProcessTimeSeriesJobPayload {
  * intended to be called by a future HTTPS/Tasks wrapper once the job
  * pipeline is ready to be enabled in non-production environments.
  */
-const BASELINE_SET = new Set(TIME_SERIES_BASELINE_ETFS);
-const BASELINE_TARGET_COUNT = TIME_SERIES_BASELINE_ETFS.length;
-const SYMBOL_BATCH_SIZE = 10;
-let firstBaselineBatchSent = false;
-let pendingSymbolsBatch: string[] = [];
-let readyBaselineSymbols = new Set<string>();
-
-// Dedicated logger for the time-series job worker so pipeline logs are easy to filter
-const logger = createLogger('av.ts.jobs.worker');
-
-async function handleNewlyReadySymbols(marketDate: string, newlyReadySymbols: string[]): Promise<void> {
-  if (!newlyReadySymbols.length) {
-    return;
-  }
-
-  // Per-symbol pipeline log: symbol has just transitioned to newly ready for this marketDate
-  for (const s of newlyReadySymbols) {
-    try {
-      logger.info(`ts.jobs.symbol_newly_ready symbol=${s} marketDate=${marketDate}`, {
-        symbol: s,
-        marketDate,
-      });
-    } catch {}
-  }
-
-  const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
-
-  // Split baselines vs non-baselines for this invocation.
-  const baselines = newlyReadySymbols.filter((s) => BASELINE_SET.has(s));
-  const others = newlyReadySymbols.filter((s) => !BASELINE_SET.has(s));
-
-  // Always accumulate non-baseline symbols into the general pending batch.
-  if (others.length) {
-    pendingSymbolsBatch.push(...others);
-  }
-
-  if (!firstBaselineBatchSent && baselines.length) {
-    // Track which baselines have become ready so far.
-    for (const s of baselines) {
-      readyBaselineSymbols.add(s);
-    }
-
-    // Only when all baselines are ready do we emit the first baseline-only batch.
-    // In the emulator, relax this guard so we emit a baseline batch as soon
-    // as the baselines participating in this run are ready. This allows
-    // symbol-ready testing with a small subset of symbols without requiring
-    // all 13 global baselines to be present.
-    if (readyBaselineSymbols.size === BASELINE_TARGET_COUNT || isEmulator) {
-      const baselineBatch = TIME_SERIES_BASELINE_ETFS.filter((s) => readyBaselineSymbols.has(s));
-      if (baselineBatch.length) {
-        await publishSymbolsReadyBatch({
-          version: 'v1',
-          marketDate,
-          symbols: baselineBatch,
-          reason: 'scheduled',
-        });
-        try {
-          logger.info(
-            `ts.jobs.publish_baseline_batch marketDate=${marketDate} symbols=[${baselineBatch.join(',')}]`,
-            {
-              marketDate,
-              symbols: baselineBatch,
-              batchType: 'baseline',
-            },
-          );
-        } catch {}
-      }
-      firstBaselineBatchSent = true;
-      // After emitting the baseline batch we no longer need to track this set.
-      readyBaselineSymbols = new Set<string>();
-    }
-  }
-
-  // After the baseline batch has been sent, apply the normal 10-symbol batching
-  // policy for all subsequent (non-baseline) symbols.
-  if (firstBaselineBatchSent && pendingSymbolsBatch.length >= SYMBOL_BATCH_SIZE) {
-    const toSend = pendingSymbolsBatch.splice(0);
-    await publishSymbolsReadyBatch({
-      version: 'v1',
-      marketDate,
-      symbols: toSend,
-      reason: 'scheduled',
-    });
-    try {
-      logger.info(
-        `ts.jobs.publish_batch marketDate=${marketDate} symbols=[${toSend.join(',')}]`,
-        {
-          marketDate,
-          symbols: toSend,
-          batchType: 'normal',
-        },
-      );
-    } catch {}
-  }
-}
-
-async function flushPendingSymbols(marketDate: string): Promise<void> {
-  if (!pendingSymbolsBatch.length) {
-    return;
-  }
-  const toSend = pendingSymbolsBatch.splice(0);
-  await publishSymbolsReadyBatch({
-    version: 'v1',
-    marketDate,
-    symbols: toSend,
-    reason: 'scheduled',
-  });
-  try {
-    logger.info(
-      `ts.jobs.publish_flush marketDate=${marketDate} symbols=[${toSend.join(',')}]`,
-      {
-        marketDate,
-        symbols: toSend,
-        batchType: 'flush',
-      },
-    );
-  } catch {}
-}
 
 export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJobPayload): Promise<void> {
   // Temporary diagnostic: introduce a fixed delay so that individual
@@ -353,18 +233,12 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     }
 
     // Notify the date-level aggregator that this job reached a terminal SUCCESS state.
-    const { newlyReadySymbols, runJustCompleted } = await onTimeSeriesJobTerminal({
+    await onTimeSeriesJobTerminal({
       marketDate,
       symbol,
       interval,
       status: 'SUCCESS',
     });
-
-    await handleNewlyReadySymbols(marketDate, newlyReadySymbols);
-
-    if (runJustCompleted) {
-      await flushPendingSymbols(marketDate);
-    }
 
     // Per-job pipeline log: worker completed successfully for this symbol
     try {
@@ -413,20 +287,12 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
       );
 
       // Notify the date-level aggregator that this job reached a terminal PERMANENT_FAILURE state.
-      const { newlyReadySymbols, runJustCompleted } = await onTimeSeriesJobTerminal({
+      await onTimeSeriesJobTerminal({
         marketDate,
         symbol,
         interval,
         status: 'PERMANENT_FAILURE',
       });
-
-      // Safety: in principle PERMANENT_FAILURE should not produce ready symbols,
-      // but handle any returned symbols for completeness.
-      await handleNewlyReadySymbols(marketDate, newlyReadySymbols);
-
-      if (runJustCompleted) {
-        await flushPendingSymbols(marketDate);
-      }
       return;
     }
 

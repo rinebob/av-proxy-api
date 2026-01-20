@@ -13,10 +13,7 @@ import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-fa
 import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval, AlphaVantageEndpoint, DayOfWeek, OutputSize } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
-
-import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST_CLOSE_SCHEDULE, TS_POST_CLOSE_SCHEDULE, TS_DAILY_INTRADAY_HOURLY_SCHEDULE, TS_DAILY_POST_EVENING_RETRY_MINUTE_30, TS_DAILY_POST_EVENING_RETRY_MINUTE_00, TS_DAILY_POST_MORNING_CATCHUP_0630, TS_DAILY_POST_MORNING_CATCHUP_0700, TS_INTRADAY_RTH_CLOSE_1615 } from '../../common/function-schedules';
-
-import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent } from '../../utils/utils';
+import { AV_REFRESH_MANAGER_SCHEDULE, TS_INTRADAY_RTH_CLOSE_1615 } from '../../common/function-schedules';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
 import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent, betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
@@ -26,7 +23,7 @@ import { enqueueDataReadyInternal } from '../../partner/data-ready.handler';
 import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema';
 import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerRunType, PartnerRunStatus, PartnerPublishStatus } from '../../partner/constants';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
-import { TIME_SERIES_BASELINE_ETFS, TIME_SERIES_MASTER_SYMBOL_ORDER } from '../data/ts-master-order';
+import { TIME_SERIES_BASELINE_ETFS } from '../data/ts-master-order';
 import { parseAvEtTimestampMs } from '../../alpha-vantage/utils/date-utils';
 import { upsertAvDailyBar } from '../../alpha-vantage/firestore/av-firestore-helper';
 import { TradingPhase } from '@shared/health-metrics';
@@ -39,6 +36,9 @@ const log = createLogger('av.refresh');
 // Human-readable logger for time-series job scheduler pipeline (abbrev: aVRM)
 const tsJobLogger = betterLogger('aVRM');
 const healthMetricsService = new HealthMetricsService();
+
+// Use shared time-series helpers from dedicated manager file
+import { orderTrackedSymbols } from './av-time-series-refresh-manager';
 
 /**
  * =======================================
@@ -588,141 +588,6 @@ export const refreshAlphaVantageDataV2 = onSchedule(
  * - Bars are stored in CompactBar shape under sharded docs (DAILY/WEEKLY by year; MONTHLY single 'all')
  */
 
-// Daily time series: intraday hourly PRE (daily only)
-export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
-  schedule: TS_DAILY_INTRADAY_HOURLY_SCHEDULE,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints(
-    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
-    {
-      phase: TradingPhase.PRE,
-      trigger: RefreshTrigger.SCHEDULER,
-    }
-  );
-});
-
-// Daily time series: pre-close (daily only)
-export const refreshAvDailyTimeSeriesPreClose = onSchedule({
-  schedule: TS_DAILY_PRE_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints(
-    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED], 
-    { 
-      phase: TradingPhase.PRE,
-      trigger: RefreshTrigger.SCHEDULER
-    }
-  );
-});
-
-// Daily time series: post-close (daily only)
-export const refreshAvDailyTimeSeriesPostClose = onSchedule({
-  schedule: TS_DAILY_POST_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints(
-    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED], 
-    { 
-      phase: TradingPhase.POST,
-      trigger: RefreshTrigger.SCHEDULER
-    }
-  );
-});
-
-// Weekly time series: post-close every trading day
-export const refreshAvWeeklyTimeSeriesPostClose = onSchedule({
-  schedule: TS_POST_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  timeoutSeconds: 600,
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints(
-    [AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED], 
-    { 
-      phase: TradingPhase.POST,
-      trigger: RefreshTrigger.SCHEDULER
-    }
-  );
-});
-
-// Monthly time series: post-close every trading day
-export const refreshAvMonthlyTimeSeriesPostClose = onSchedule({
-  schedule: TS_POST_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  timeoutSeconds: 600,
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints(
-    [AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED], 
-    { 
-      phase: TradingPhase.POST,
-      trigger: RefreshTrigger.SCHEDULER
-    }
-  );
-});
-
-// Daily time series: post-close evening retries (every 30 mins)
-export const refreshAvDailyTimeSeriesPostEveningRetry30 = onSchedule({
-  schedule: TS_DAILY_POST_EVENING_RETRY_MINUTE_30,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints(
-    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
-    {
-      phase: TradingPhase.POST,
-      trigger: RefreshTrigger.SCHEDULER,
-    }
-  );
-});
-
-export const refreshAvDailyTimeSeriesPostEveningRetry00 = onSchedule({
-  schedule: TS_DAILY_POST_EVENING_RETRY_MINUTE_00,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints(
-    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
-    {
-      phase: TradingPhase.POST,
-      trigger: RefreshTrigger.SCHEDULER,
-    }
-  );
-});
-
-// Daily time series: next-morning catch-ups
-export const refreshAvDailyTimeSeriesPostMorning0630 = onSchedule({
-  schedule: TS_DAILY_POST_MORNING_CATCHUP_0630,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints(
-    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
-    {
-      phase: TradingPhase.POST,
-      trigger: RefreshTrigger.SCHEDULER,
-    }
-  );
-});
-
-export const refreshAvDailyTimeSeriesPostMorning0700 = onSchedule({
-  schedule: TS_DAILY_POST_MORNING_CATCHUP_0700,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  await refreshForEndpoints(
-    [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
-    {
-      phase: TradingPhase.POST,
-      trigger: RefreshTrigger.SCHEDULER,
-    }
-  );
-});
-
 // Intraday 1-min snapshot at 16:15 ET capturing the 16:00:00 ET RTH close
 export const refreshAvIntradayRthClose1615Pre = onSchedule({
   schedule: TS_INTRADAY_RTH_CLOSE_1615,
@@ -800,45 +665,6 @@ export const refreshAvIntradayRthClose1615Pre = onSchedule({
 
   log.info('pre1615.publish.end', { runId, marketDate, successes, failures });
 });
-
-/**
- * Helper used by schedulers to run specific endpoints at fixed times without freshness gating.
- * 
- * For each endpoint and symbol:
- * - Creates the appropriate handler via AlphaVantageHandlerFactory
- * - Calls handler.fetch({ outputsize:'compact', __checkWriteToggle:false })
- * - Handlers persist the latest bar (CompactBar) and record Health Metrics
- */
-function orderTrackedSymbols(allTracked: string[]): string[] {
-  const baselines = TIME_SERIES_BASELINE_ETFS;
-  const master = TIME_SERIES_MASTER_SYMBOL_ORDER;
-  const baselineSet = new Set(baselines);
-  const inMaster = new Set(master);
-
-  const ordered: string[] = [];
-
-  // 1) Baseline ETFs first, in configured order
-  for (const b of baselines) {
-    if (allTracked.includes(b)) {
-      ordered.push(b);
-    }
-  }
-
-  // 2) Master-order symbols (ETF constituents), excluding baselines
-  for (const sym of master) {
-    if (allTracked.includes(sym) && !baselineSet.has(sym)) {
-      ordered.push(sym);
-    }
-  }
-
-  // 3) Any remaining tracked symbols, sorted for determinism
-  const remaining = allTracked
-    .filter((s) => !baselineSet.has(s) && !inMaster.has(s))
-    .sort();
-  ordered.push(...remaining);
-
-  return ordered;
-}
 
 export async function refreshForEndpoints(
   endpoints: AlphaVantageEndpoint[], 
