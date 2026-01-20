@@ -15,6 +15,7 @@ export type AlphaVantageResponse = AlphaVantageDailyTimeSeriesResponse | AlphaVa
 // ------------------------------
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
 const LEVELS: Record<LogLevel, number> = { error: 0, warn: 1, info: 2, debug: 3 };
+
 /**
  * Create a structured JSON logger with level-based filtering.
  * Logs are emitted as single JSON objects for easy querying in Cloud Run.
@@ -45,6 +46,63 @@ export function createLogger(component: string) {
 }
 
 const logger = createLogger('utils');
+
+export interface BetterLogPayload {
+  file?: string;
+  function?: string;
+  symbol?: string;
+  marketDate?: string;
+  interval?: string;
+  endpoint?: string;
+  error?: string;
+  message?: string;
+  runId?: string;
+}
+
+export function betterLogger(file: string) {
+  const envLevel = (process.env.LOG_LEVEL || 'info').toLowerCase() as LogLevel;
+  const threshold = LEVELS[envLevel] ?? LEVELS.info;
+  const should = (level: LogLevel) => LEVELS[level] <= threshold;
+  function log(level: LogLevel, event: string, blPayload: BetterLogPayload) {
+    if (!should(level)) return;
+    const { function: fn, symbol, marketDate, interval, endpoint, message, runId } = blPayload;
+
+    let msgString = `[${file} ${fn}] event=${event}`;
+    msgString = symbol ? msgString + ` sym=${symbol}` : msgString;
+    msgString = interval ? msgString + ` int=${interval}` : msgString;
+    msgString = marketDate ? msgString + ` mktDate=${marketDate}` : msgString;
+    msgString = endpoint ? msgString + ` ep=${endpoint}` : msgString;
+    msgString = level ? msgString + ` level=${level}` : msgString;
+    msgString = message ? msgString + ` message=${message}` : msgString;
+    msgString = runId ? msgString + ` runId=${runId}` : msgString;
+
+    console.log(`${msgString}`);
+  }
+  return {
+    info: (event: string, blPayload: BetterLogPayload) => log('info', event, blPayload),
+    warn: (event: string, blPayload: BetterLogPayload) => log('warn', event, blPayload),
+    error: (event: string, blPayload: BetterLogPayload) => log('error', event, blPayload),
+    debug: (event: string, blPayload: BetterLogPayload) => log('debug', event, blPayload),
+    start: (event: string, blPayload: BetterLogPayload) => {
+        console.log(`[${file} ${blPayload.function}] ------------------------ start ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.interval ? blPayload.interval : ''} ----------------------------------`);
+        console.log(`[${file} ${blPayload.function}] start ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
+    },
+    end: (event: string, blPayload: BetterLogPayload) => {
+        console.log(`[${file} ${blPayload.function}] end ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
+        console.log(`[${file} ${blPayload.function}] -------------------------- end ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.interval ? blPayload.interval : ''} ---------------------------------`);
+        
+    },
+    startMaj: (event: string, blPayload: BetterLogPayload) => {
+        console.log(`[${file} ${blPayload.function}] =================== START ========================================`);
+        console.log(`[${file} ${blPayload.function}] START ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
+    },
+    endMaj: (event: string, blPayload: BetterLogPayload) => {
+        console.log(`[${file} ${blPayload.function}] END ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
+        console.log(`[${file} ${blPayload.function}] =================== END ========================================`);
+        
+    },
+  };
+}
 
 export const HUMAN_LOGS = process.env.HUMAN_LOGS === 'true';
 /**
