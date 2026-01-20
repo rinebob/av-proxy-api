@@ -3,6 +3,7 @@ import { db } from '../../firebase-admin-init';
 
 import { validateDataReadyPayload, type DataReadyPayloadV1 } from './schemas/data-ready.schema';
 import { PARTNER_DATA_READY_TOPIC, INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPublishStatus } from './constants';
+import { betterLogger } from '../utils/utils';
 
 /**
  * Internal Pub/Sub publisher for partner data-ready notifications.
@@ -45,6 +46,8 @@ async function publishToPubSub(payload: DataReadyPayloadV1, attributes: Record<s
  * - Publishes to Pub/Sub and marks the run as enqueued
  * - Idempotent for existing non-failed runs
  */
+const drLogger = betterLogger('pDR.H');
+
 export async function enqueueDataReadyInternal(
   payload: DataReadyPayloadV1,
   callerEmail?: string,
@@ -152,15 +155,16 @@ export async function enqueueDataReadyInternal(
 
   // Upsert run state (simplified doc)
   await runRef.set(upsert, { merge: true });
-  try {
-    // Confirm runs doc write (received)
-    console.log(JSON.stringify({
-      component: 'partner.data-ready',
-      event: 'runs.upsert.received',
-      runId,
-      path: `runs/${runId}`,
-    }));
-  } catch {}
+  // Human-readable confirmation that the runs doc was written/updated
+  drLogger.info('runs.upsert.received', {
+    function: 'eDRI',
+    symbol: 'RUN',
+    marketDate: (upsert.marketDate as string) || 'n/a',
+    interval: (upsert.interval as string) || 'n/a',
+    endpoint: 'DATA_READY_RUN',
+    runId,
+    message: 'Run doc written/updated',
+  });
 
   // Build Pub/Sub attributes (do not persist to Firestore)
   const attributes: Record<string, string> = {
@@ -184,27 +188,29 @@ export async function enqueueDataReadyInternal(
     runMeta: { messageId },
   }, { merge: true });
 
-  try {
-    // Confirm runs doc write (enqueued)
-    console.log(JSON.stringify({
-      component: 'partner.data-ready',
-      event: 'runs.upsert.enqueued',
-      runId,
-      messageId,
-      path: `runs/${runId}`,
-    }));
-  } catch {}
+  // Confirm that the run has been enqueued to Pub/Sub
+  drLogger.info('runs.upsert.enqueued', {
+    function: 'eDRI',
+    marketDate: (upsert.marketDate as string) || 'n/a',
+    interval: (upsert.interval as string) || 'n/a',
+    endpoint: 'DATA_READY_RUN',
+    runId,
+    message: 'Run enqueued to Pub/Sub',
+  });
 
   // If this is an END payload, log the final runs doc snapshot for verification
   if (validPayload.status === PartnerPublishStatus.END) {
     try {
-      const finalSnap = await runRef.get();
-      console.log(JSON.stringify({
-        component: 'partner.data-ready',
-        event: 'runs.end.doc',
-        path: `runs/${runId}`,
-        data: finalSnap.data(),
-      }));
+      await runRef.get();
+      // Final snapshot exists primarily for ad-hoc verification; keep log succinct.
+      drLogger.info('runs.end.doc', {
+        function: 'eDRI',
+        marketDate: (upsert.marketDate as string) || 'n/a',
+        interval: (upsert.interval as string) || 'n/a',
+        endpoint: 'DATA_READY_RUN',
+        runId,
+        message: 'Run doc snapshot exists. RUN COMPLETE',
+      });
     } catch {}
   }
 

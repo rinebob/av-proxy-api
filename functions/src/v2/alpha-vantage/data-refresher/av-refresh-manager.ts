@@ -18,6 +18,7 @@ import { AV_REFRESH_MANAGER_SCHEDULE, TS_DAILY_PRE_CLOSE_SCHEDULE, TS_DAILY_POST
 
 import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent } from '../../utils/utils';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
+import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent, betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { getSymbolTimeSeriesYearDocPath, getYearFromEpochMillis, getTimeSeriesJobDocPath } from '../../common/firestore/firestore-paths';
 import { refreshLogger } from '../../services/refresh-logger.service';
@@ -35,6 +36,8 @@ import { CloudTask } from '../../common/constants';
 
 // Structured logger (shared)
 const log = createLogger('av.refresh');
+// Human-readable logger for time-series job scheduler pipeline (abbrev: aVRM)
+const tsJobLogger = betterLogger('aVRM');
 const healthMetricsService = new HealthMetricsService();
 
 /**
@@ -1110,6 +1113,14 @@ export async function refreshForEndpoints(
         return String(endpoint).toUpperCase();
       })();
       const run = { id: runId, date: marketDate, dow: dowEnum, phase: phaseFinal, endpointId: endpoint, endpointShort, trigger };
+      const intervalForEndpoint: string =
+        endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
+          ? TimeSeriesInterval.DAILY
+          : endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED
+            ? TimeSeriesInterval.WEEKLY
+            : endpoint === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED
+              ? TimeSeriesInterval.MONTHLY
+              : '';
       
       // TEST SYMBOL FILTER (Time-Series Job Pipeline)
       // When TS_JOB_TEST_SYMBOL is set, restrict ALL work (jobs + legacy handler)
@@ -1128,6 +1139,8 @@ export async function refreshForEndpoints(
           .filter((s) => !!s)
       );
 
+      console.log('[aVRM rFE] testSymbols: ', testSymbols);
+
       const isPostTimeSeriesEndpoint =
         endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED ||
         endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED ||
@@ -1136,13 +1149,13 @@ export async function refreshForEndpoints(
       const isFilteredMode = isTestSymbolMode && isPostTimeSeriesEndpoint && phaseFinal === TradingPhase.POST;
 
       if (isFilteredMode) {
-        log.info(`ts.jobs.test_symbol_mode endpoint=${endpointName} totalSymbols=${symbols.length}`, {
-          endpoint,
-          endpointName,
-          testSymbols: Array.from(testSymbols),
-          totalSymbols: symbols.length,
-          phase: phaseFinal,
-        });
+        tsJobLogger.info('ts.jobs.test_symbol_mode', {
+          function: 'rFE',
+          symbol: 'MULTI',
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
       }
 
       // Track a deduped set of symbols for which we created/updated POST time-series jobs
@@ -1152,6 +1165,18 @@ export async function refreshForEndpoints(
         try {
           const symbolUpper = symbol.toUpperCase();
 
+          // Per-symbol scheduler logs: explicit START marker so we can see when
+          // the scheduler begins processing work for this symbol/endpoint.
+          try {
+            tsJobLogger.start('ts.jobs.scheduler', {
+              function: 'rFE',
+              symbol: symbolUpper,
+              marketDate,
+              interval: intervalForEndpoint,
+              endpoint: endpointName,
+            } as BetterLogPayload);
+          } catch {}
+
           // TEST-SYMBOL FILTER: Skip all work for non-matching symbols when in filtered mode
           if (isFilteredMode && !testSymbols.has(symbolUpper)) {
             // Silent skip for non-matching symbols to avoid log spam (we logged the mode once above)
@@ -1160,13 +1185,13 @@ export async function refreshForEndpoints(
 
           // Log symbol processing when in filtered mode; keep message focused on symbol + event + marketDate
           if (isFilteredMode) {
-            log.info(`symbol=${symbolUpper} event=ts.jobs.processing marketDate=${marketDate}`, {
+            tsJobLogger.info('ts.jobs.processing', {
+              function: 'rFE',
               symbol: symbolUpper,
-              endpoint,
-              testSymbols: Array.from(testSymbols),
               marketDate,
-              phase: phaseFinal,
-            });
+              interval: intervalForEndpoint,
+              endpoint: endpointName,
+            } as BetterLogPayload);
           }
 
           // Job creation for time-series POST runs (job pipeline migration)
@@ -1178,14 +1203,13 @@ export async function refreshForEndpoints(
             isPostTimeSeriesEndpoint &&
             phaseFinal === TradingPhase.POST
           ) {
-            const testSymbolsArr = Array.from(testSymbols);
-            log.info(`symbol=${symbolUpper} event=ts.jobs.create marketDate=${marketDate}`, {
+            tsJobLogger.info('ts.jobs.create', {
+              function: 'rFE',
               symbol: symbolUpper,
-              endpoint,
-              testSymbols: testSymbolsArr,
               marketDate,
-              phase: phaseFinal,
-            });
+              interval: intervalForEndpoint,
+              endpoint: endpointName,
+            } as BetterLogPayload);
             let shouldEnqueueTask = false;
             let createdNewJob = false;
             let updatedJob = false;
@@ -1271,20 +1295,21 @@ export async function refreshForEndpoints(
                     endpoint,
                     phase: phaseFinal,
                   });
-                  log.info(`job.enqueue_success. ep/sym/phase: ${endpoint}/${symbol}/${phase}`, {
-                    endpoint,
-                    symbol,
+                  tsJobLogger.info('job.enqueue_success', {
+                    function: 'rFE',
+                    symbol: symbolUpper,
                     marketDate,
-                    phase: phaseFinal,
-                  });
+                    interval: intervalForEndpoint,
+                    endpoint: endpointName,
+                  } as BetterLogPayload);
                 } catch (e: any) {
-                  log.warn('job.enqueue_failed', {
-                    endpoint,
-                    symbol,
+                  tsJobLogger.warn('job.enqueue_failed', {
+                    function: 'rFE',
+                    symbol: symbolUpper,
                     marketDate,
-                    phase: phaseFinal,
-                    error: String(e?.message || e),
-                  });
+                    interval: intervalForEndpoint,
+                    endpoint: endpointName,
+                  } as BetterLogPayload);
                 }
               }
 
@@ -1295,33 +1320,31 @@ export async function refreshForEndpoints(
 
                 // Explicit pipeline-stage logs so per-symbol job writes are easy to trace
                 if (createdNewJob) {
-                  log.info(`symbol=${symbolUpper} event=ts.jobs.write_new marketDate=${marketDate}`, {
+                  tsJobLogger.info('ts.jobs.write_new', {
+                    function: 'rFE',
                     symbol: symbolUpper,
-                    endpoint,
-                    endpointName,
                     marketDate,
-                    phase: phaseFinal,
-                    jobAction: 'new',
-                  });
+                    interval: intervalForEndpoint,
+                    endpoint: endpointName,
+                  } as BetterLogPayload);
                 } else if (updatedJob) {
-                  log.info(`symbol=${symbolUpper} event=ts.jobs.write_update marketDate=${marketDate}`, {
+                  tsJobLogger.info('ts.jobs.write_update', {
+                    function: 'rFE',
                     symbol: symbolUpper,
-                    endpoint,
-                    endpointName,
                     marketDate,
-                    phase: phaseFinal,
-                    jobAction: 'update',
-                  });
+                    interval: intervalForEndpoint,
+                    endpoint: endpointName,
+                  } as BetterLogPayload);
                 }
               }
             } catch (e: any) {
-              log.warn('job.shadow_create_failed', {
-                endpoint,
-                symbol,
+              tsJobLogger.warn('job.shadow_create_failed', {
+                function: 'rFE',
+                symbol: symbolUpper,
                 marketDate,
-                phase: phaseFinal,
-                error: String(e?.message || e),
-              });
+                interval: intervalForEndpoint,
+                endpoint: endpointName,
+              } as BetterLogPayload);
             }
           }
 
@@ -1419,7 +1442,20 @@ export async function refreshForEndpoints(
               logger.error('updateLog.error', { error: String((e as any)?.message || e) });
             }
           }
-          
+
+          // On successful symbol processing (no throw), emit END marker for the
+          // per-symbol scheduler work. We do this once we're past all symbol-level
+          // logic, including optional updateLog writes.
+          try {
+            tsJobLogger.end('ts.jobs.scheduler', {
+              function: 'rFE',
+              symbol: symbol.toUpperCase(),
+              marketDate,
+              interval: intervalForEndpoint,
+              endpoint: endpointName,
+            } as BetterLogPayload);
+          } catch {}
+
         } catch (error) {
           // Record failed refresh with run context
           await healthMetricsService.recordSymbolRefresh(
@@ -1440,8 +1476,18 @@ export async function refreshForEndpoints(
             error: error && typeof error === 'object' && 'message' in (error as any) ? String((error as any).message) : String(error),
             durationMs: Date.now() - startTime
           });
+          try {
+            tsJobLogger.end('ts.jobs.scheduler', {
+              function: 'rFE',
+              symbol: symbol.toUpperCase(),
+              marketDate,
+              interval: intervalForEndpoint,
+              endpoint: endpointName,
+            } as BetterLogPayload);
+          } catch {}
         }
       }
+
       // Near-complete acceleration pass: when only a small number remain, try a short second pass on a tiny subset
       if (endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED && phaseFinal === TradingPhase.POST && Number.isFinite(targetTs)) {
         const total = Array.isArray(symbols) ? symbols.length : 0;
@@ -1479,17 +1525,16 @@ export async function refreshForEndpoints(
           log.info('acceleration.complete', { endpoint, accelerated, pendingBefore: pendingCount, deltaNow: deltaFinalized.size });
         }
       }
+
       // Per-endpoint run summary log
       if (createdSymbolsThisRun.has(endpoint)) {
-        const createdSymbols = Array.from(createdSymbolsThisRun.get(endpoint) as Set<string>);
-        log.info(`ts.jobs.run_summary endpoint=${endpointName} created=${createdSymbols}`, {
-          endpoint,
-          endpointName,
-          createdSymbols,
+        tsJobLogger.info('ts.jobs.run_summary', {
+          function: 'rFE',
+          symbol: 'MULTI',
           marketDate,
-          phase: phaseFinal,
-          runId,
-        });
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
       }
     }
   } catch (error) {

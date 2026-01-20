@@ -1,5 +1,5 @@
 import { PARTNER_SYMBOLS_READY_TOPIC } from './constants';
-import { createLogger } from '../utils/utils';
+import { betterLogger, type BetterLogPayload } from '../utils/utils';
 
 export interface SymbolsReadyPayloadV1 {
   version: 'v1';
@@ -15,8 +15,11 @@ export interface SymbolsReadyPayloadV1 {
 /**
  * Internal Pub/Sub publisher for symbol-level readiness notifications.
  * Publishes batched symbol lists to topic `partner-symbols-ready`.
+ *
+ * Logging: uses betterLogger with file abbrev 'sR.P' (symbols-ready.publisher.ts)
+ * and function abbrev 'pSRB' (publishSymbolsReadyBatch) for human-readable lines.
  */
-const logger = createLogger('[partner-symbols-ready]');
+const logger = betterLogger('sR.P');
 
 export async function publishSymbolsReadyBatch(
   payload: SymbolsReadyPayloadV1,
@@ -49,17 +52,17 @@ export async function publishSymbolsReadyBatch(
   try {
     const messageId = await topic.publishMessage({ json: jsonPayload, attributes: attrs });
     try {
-      const symList = jsonPayload.symbols.join(',');
-      logger.info(
-        `=== SYMBOLS-READY.PUBLISH symbols=[${symList}] marketDate=${jsonPayload.marketDate} interval=${jsonPayload.interval || 'N/A'} count=${jsonPayload.symbols.length} messageId=${messageId} ===`,
-        {
-          marketDate: jsonPayload.marketDate,
-          count: jsonPayload.symbols.length,
-          symbols: jsonPayload.symbols,
-          interval: jsonPayload.interval,
-          messageId,
-        },
-      );
+      const baseLogPayload: BetterLogPayload = {
+        function: 'pSRB',
+        symbol:
+          jsonPayload.symbols.length === 1
+            ? jsonPayload.symbols[0]
+            : jsonPayload.symbols.join(','),
+        marketDate: jsonPayload.marketDate,
+        interval: jsonPayload.interval || 'n/a',
+        endpoint: 'SYMBOLS_READY',
+      };
+      logger.info('symbols.ready.publish', baseLogPayload);
     } catch {}
     return messageId;
   } catch (err: any) {

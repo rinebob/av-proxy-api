@@ -5,7 +5,7 @@ import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { AvEndpointCategory } from '@shared/alpha-vantage';
 import { createLogger, hr } from '../../utils/utils';
 
-const log = createLogger('av.handler.base'); // Abbrev: aVB.H
+const log = createLogger('av.handler.base'); // Abbrev: aVB.H (JSON)
 
 function getAlphaVantageApiKey(): string {
   if (process.env.FUNCTIONS_EMULATOR === 'true' && process.env.LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY) {
@@ -29,11 +29,7 @@ export abstract class AlphaVantageBaseHandler<T = any> {
     this.requestId = Math.random().toString(36).substring(2, 10);
 
     this.isTimeSeriesBlocked = config.category === AvEndpointCategory.TIME_SERIES;
-    if (this.isTimeSeriesBlocked) {
-      hr('aVB.H', `timeseries.blocked (${config.id})`);
-      log.warn('timeseries.blocked', { endpointId: config.id });
-    }
-
+    
     this.baseParams = {
       apikey: getAlphaVantageApiKey(),
       function: this.config.id,

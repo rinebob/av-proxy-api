@@ -1,9 +1,9 @@
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 
-import { createLogger } from '../../utils/utils';
+import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { processTimeSeriesJobInternal, type ProcessTimeSeriesJobPayload } from './time-series-jobs.worker';
 
-const log = createLogger('av.ts.jobs.task');
+const taskLogger = betterLogger('tSJ.t');
 
 /**
  * Cloud Task entry point for processing a single Alpha Vantage time-series job.
@@ -31,9 +31,18 @@ export const processTimeSeriesJobTask = onTaskDispatched<ProcessTimeSeriesJobPay
     secrets: ['ALPHAVANTAGE_API_KEY'],
   },
   async (req) => {
-    const payload = req.data;
-    log.info('job.task.start', payload as unknown as Record<string, unknown>);
+    const payload = req.data as ProcessTimeSeriesJobPayload;
+
+    const baseLogPayload: BetterLogPayload = {
+      function: 'pSJT',
+      symbol: payload.symbol,
+      marketDate: payload.marketDate,
+      interval: 'n/a',
+      endpoint: String(payload.endpoint),
+    };
+
+    taskLogger.info('job.task.start', baseLogPayload);
     await processTimeSeriesJobInternal(payload);
-    log.info('job.task.complete', payload as unknown as Record<string, unknown>);
+    taskLogger.info('job.task.complete', baseLogPayload);
   },
 );
