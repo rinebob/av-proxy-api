@@ -206,6 +206,38 @@ Operational guidance:
 
 ---
 
+### 4.5 Temporary Guard: Time-Series-Only Mode
+
+To reduce noise and risk while validating the time-series job pipeline, the main
+refresh orchestrator (`refreshForEndpoints` in `av-refresh-manager.ts`) supports
+an opt-in guard that disables all non-time-series work for a run.
+
+- **Env var:** `AV_REFRESH_TIMESERIES_ONLY`
+- **Behavior when enabled** (`true` / `1` / `on`):
+  - The `endpoints` array passed into `refreshForEndpoints` is filtered down to
+    only those for which `isTimeSeriesEndpoint(endpoint) === true`.
+  - If no time-series endpoints remain after filtering, the function logs a
+    `refresh.skip_non_timeseries_only` event and returns early (no AV calls or
+    Firestore writes for that run).
+  - If some endpoints are filtered out, a `refresh.filter_non_timeseries`
+    structured log records both the original and filtered endpoint sets.
+
+This guard is intentionally easy to reverse:
+
+- To re-enable non-time-series AV work, unset `AV_REFRESH_TIMESERIES_ONLY` or
+  set it to any value other than `true` / `1` / `on`.
+- Once unset, `refreshForEndpoints` will again process all configured endpoints
+  (including non-time-series) according to its normal logic.
+
+Operational recommendation while the job pipeline is under active development:
+
+- Keep `AV_REFRESH_TIMESERIES_ONLY` enabled in environments where you are
+  primarily validating the time-series job / worker / publisher path.
+- Explicitly remove or flip this flag as part of the rollout plan once
+  non-time-series endpoints are ready to be exercised again.
+
+---
+
 ## 5. Worker Design (Cloud Tasks)
 
 ### 5.1 New Function: `processTimeSeriesJob`

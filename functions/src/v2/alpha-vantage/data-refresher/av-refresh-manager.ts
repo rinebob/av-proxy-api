@@ -888,6 +888,37 @@ export async function refreshForEndpoints(
   const phaseFinal: TradingPhase = phase ?? TradingPhase.POST;
   const phaseStrUpper = String(phaseFinal).toUpperCase();
 
+  // Optional guard: when AV_REFRESH_TIMESERIES_ONLY is enabled, disable all
+  // non-time-series work by filtering endpoints down to the time-series set.
+  // This is a temporary, easily reversible switch while we focus on the
+  // time-series job pipeline.
+  const tsOnlyEnv = String(process.env.AV_REFRESH_TIMESERIES_ONLY || '').toLowerCase();
+  const tsOnlyMode = tsOnlyEnv === 'true' || tsOnlyEnv === '1' || tsOnlyEnv === 'on';
+  if (tsOnlyMode) {
+    const originalEndpoints = endpoints;
+    const tsEndpoints = originalEndpoints.filter((e) => isTimeSeriesEndpoint(e));
+    if (tsEndpoints.length === 0) {
+      logger.info('refresh.skip_non_timeseries_only', {
+        endpoints: originalEndpoints,
+        phase: phaseFinal,
+        marketDate,
+        reason: 'AV_REFRESH_TIMESERIES_ONLY',
+      });
+      return;
+    }
+    if (tsEndpoints.length !== originalEndpoints.length) {
+      logger.info('refresh.filter_non_timeseries', {
+        endpointsOriginal: originalEndpoints,
+        endpointsFiltered: tsEndpoints,
+        phase: phaseFinal,
+        marketDate,
+      });
+    }
+    // Narrow the endpoints array for the remainder of this invocation.
+    // eslint-disable-next-line no-param-reassign
+    endpoints = tsEndpoints;
+  }
+
   logger.info('refresh.start', { 
     endpoints, 
     force,
