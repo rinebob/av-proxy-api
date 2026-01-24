@@ -36,6 +36,10 @@ interface TimeSeriesJobsDateDoc {
   runCompletedAt?: FirebaseFirestore.Timestamp;
   runId?: string;
   dataReadyPublished?: boolean;
+  // High-level status for this marketDate run. Set to 'IN_PROGRESS' when any
+  // job is created/enqueued and flipped to 'COMPLETE' when all jobs reach a
+  // terminal state (success or permanent failure).
+  status?: string;
 }
 
 const REQUIRED_INTERVALS: ReadonlyArray<TimeSeriesInterval> = [
@@ -114,6 +118,8 @@ export async function onTimeSeriesJobTerminal(
     if (totalJobs > 0 && finishedJobs === totalJobs && !data.dataReadyPublished) {
       nextData.runCompletedAt = now;
       nextData.dataReadyPublished = true;
+      // All jobs for this marketDate have reached a terminal state.
+      nextData.status = 'COMPLETE';
       runJustCompleted = true;
     }
 
