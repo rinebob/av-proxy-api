@@ -11,7 +11,7 @@ import {
   getSymbolTimeSeriesYearDocPath,
   getSymbolTimeSeriesAllDocPath,
 } from '../../common/firestore/firestore-paths';
-import { TimeSeriesJobStatus } from './time-series-jobs.model';
+import { TimeSeriesJobStatus, TimeSeriesJobMode } from './time-series-jobs.model';
 import { onTimeSeriesJobTerminal } from './time-series-jobs.aggregator';
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { publishSymbolsReadyBatch } from '../../partner/symbols-ready.publisher';
@@ -45,6 +45,11 @@ export interface ProcessTimeSeriesJobPayload {
   symbol: string;
   endpoint: AlphaVantageEndpoint;
   phase: TradingPhase;
+
+  // Optional execution mode for this job. When omitted, the job is treated
+  // as a standard compact refresh. FULL_BACKFILL jobs perform a destructive
+  // refresh for the target symbol+endpoint using OutputSize.FULL.
+  mode?: TimeSeriesJobMode;
 }
 
 /**
@@ -114,6 +119,8 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
 
   const jobData = jobSnap.data() as any;
   const status: TimeSeriesJobStatus | undefined = jobData?.status;
+  const rawMode = jobData?.mode as TimeSeriesJobMode | undefined;
+  const mode: TimeSeriesJobMode = rawMode ?? TimeSeriesJobMode.Compact;
 
   if (status === TimeSeriesJobStatus.Success || status === TimeSeriesJobStatus.PermanentFailure) {
     // Terminal states: nothing to do.
@@ -168,7 +175,7 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
 
     await handler.fetch({
       symbol,
-      outputsize: OutputSize.COMPACT,
+      outputsize: outputSizeForJob,
       __phase: phase,
     });
 
