@@ -34,37 +34,49 @@ Last updated: 2025-11-13
 
 ## 3) Payload Schema (v1)
 
-Minimal v1:
+Minimal v1 (current implementation):
 ```json
 {
   "version": "v1",
-  "runId": "2025-09-11-post",
+  "runId": "2026-01-16-post-all-intervals-v1",
+  "marketDate": "2026-01-16",
   "phase": "post",
-  "intervals": ["DAILY"],
-  "time": 1736726400000
+  "intervals": ["DAILY", "WEEKLY", "MONTHLY"],
+  "time": 1737043200000,
+  "status": "end",
+  "finalizedCountTotal": 742,
+  "pendingCount": 0
 }
 ```
 
-Extended fields:
+Extended fields (current):
 - `marketDate`: `YYYY-MM-DD`
-- `counts`: `{ pendingCount, finalizedCountTotal, deltaCount }`
-- `timing.finalizedAtUTC`: ISO when first finalized bar was detected (POST)
-- `timing.nextRefreshAtUTC`: ISO next scheduled refresh
-- Header: `runStatus` → `processing` | `completed`
+- `phase`: `"pre"` | `"post"`
+- `intervals`: array of `TimeSeriesInterval` values (e.g. `"DAILY"`, `"WEEKLY"`, `"MONTHLY"`)
+- `time`: epoch millis when the event was published
+- `finalizedCountTotal`: number of successful time-series jobs for this `marketDate`
+- `pendingCount`: always `0` for END events
+
+Planned extensions (not yet emitted but reserved for future versions):
+- `universeVersion`: semantic version of the RS universe/config (e.g. `"v1"`)
+- `runStatus`: one of `"completed"` or `"completed_with_errors"` (from `PartnerRunStatus`), derived from `successJobs` vs `permanentFailureJobs`
+- `timing.finalizedAtUTC`: ISO timestamp when the first finalized bar was detected (POST)
+- `timing.nextRefreshAtUTC`: ISO timestamp for the next scheduled refresh
 
 ---
 
 ## 4) Attributes & Identifiers
 
-- `runType`: `ts_daily_pre` | `ts_daily_post` | `ts_weekly_post` | `ts_monthly_post`
+- `runType` (time‑series jobs): `ts-daily-pre` | `ts-daily-post` | `ts-weekly-post` | `ts-monthly-post` 
+- `runType` (all-intervals POST / universe-ready): `ts-post-all-intervals`.
 - `runId`:
-  - Scheduled: `YYYY-MM-DD-pre` | `YYYY-MM-DD-post`
-  - Manual/test: `YYYY-MM-DD-pre-<suffix>` / `YYYY-MM-DD-post-<suffix>` (1–16 lowercase letters/digits)
+  - Conventionally follows `YYYY-MM-DD-pre-*` or `YYYY-MM-DD-post-*` patterns (with optional manual/test suffix), but the backend only requires a non-empty string. The exact format is for human readability and subscriber filters, not enforced.
 
 Subscription filters (examples):
-- Finalized daily: `attributes.runType = "ts_daily_post"`
-- Daily only (both): `attributes.runType = "ts_daily_pre" OR attributes.runType = "ts_daily_post"`
-- Exclude non‑time‑series: `attributes.runType != "non_time_series"`
+- All-intervals TS universe POST (RS primary): `attributes.runType = "ts-post-all-intervals" AND attributes.phase = "post"` 
+- Finalized daily only (legacy/non-RS): `attributes.runType = "ts-daily-post"` 
+- Daily only (both): `attributes.runType = "ts-daily-pre" OR attributes.runType = "ts-daily-post"` 
+- Exclude non‑time‑series: `attributes.runType != "non-time-series"` 
 
 ---
 
@@ -76,6 +88,25 @@ Subscription filters (examples):
 - All invocations for the same phase/day update the same Firestore document:
   - `runs/{YYYY-MM-DD-pre}` or `runs/{YYYY-MM-DD-post}`
 - END updates are idempotent‑friendly; subsequent invocations will refresh the same `runs` doc fields.
+
+### 3.2 All-Intervals POST "Universe Ready" (RS contract)
+
+RS subscribes to a **single run‑level all-intervals POST message** per trading day on the existing `partner-data-ready` topic. Conceptual payload:
+```json
+{
+  "version": "v1",
+  "runId": "2026-01-16-post-all-intervals-v1",
+  "marketDate": "2026-01-16",
+  "phase": "post",
+  "intervals": ["DAILY", "WEEKLY", "MONTHLY"],
+  "universeVersion": "v1",
+  "status": "completed"  // or "completed_with_errors"
+}
+```
+
+- A small aggregator monitors job completion for the RS universe.
+- When the universe is finalized for `{marketDate, phase=POST}`, it emits a **single all-intervals POST message** on `partner-data-ready` with `runType = "ts-post-all-intervals"` and updates a corresponding `runs/{runId}` or `system/time-series-status` doc with aggregate status.
+- RS treats this all-intervals POST message as its **only required Pub/Sub trigger**.
 
 ---
 
@@ -111,15 +142,16 @@ See:
 
 ## 8) Quick Start (RS‑focused)
 
-- Subscribe to `partner-data-ready` with filter `attributes.runType = "ts_daily_post"`
-- On each POST END, read time series via `partnerTimeSeriesV2` as needed
-- Ignore messages whose `runId` contains a manual suffix
+- Subscribe to `partner-data-ready` with filter `attributes.runType = "ts-post-all-intervals" AND attributes.phase = "post"` (and `ts_weekly_post` / `ts_monthly_post` if/when RS wants those intervals).
+- On each POST **END** message, treat the run as the *only* canonical signal that the time-series universe for that date/phase is as complete as SA can make it.
+- After receiving POST END, read time series via `partnerTimeSeriesV2` as needed for RS ingestion.
+- Ignore messages whose `runId` contains a manual suffix.
 
 ---
 
 ## 9) Optional Symbol‑Level Readiness Stream
 
-For most use cases, RS can continue to treat `partner-data-ready` as the **only** required contract. However, the job‑based time‑series pipeline also exposes an optional, low‑latency symbol‑level stream for partners who want to begin fetching data as soon as individual symbols are finalized.
+For most use cases, **including RS**, `partner-data-ready` is the **only required contract**. The job‑based time‑series pipeline also exposes an optional, low‑latency symbol‑level stream for partners who explicitly choose to react to per‑symbol readiness. RS does **not** currently use this stream for its core ingestion path.
 
 - **Topic:** `partner-symbols-ready`
 - **Payload (conceptual):
@@ -134,17 +166,15 @@ For most use cases, RS can continue to treat `partner-data-ready` as the **only*
   }
   ```
 
-- **Semantics:**
-  - Each message contains a **batch of symbols** that have just become fully ready for the given `marketDate` based on job‑doc state in `time-series-jobs/{marketDate}/jobs`.
-  - Intervals (DAILY/WEEKLY/MONTHLY) are resolved internally; RS does **not** need to track per‑interval readiness.
-  - The stream is **additive**: symbols may appear in one or more batches, but the authoritative completion signal for the run remains the `partner-data-ready` END message.
+-- **Semantics:**
+  - Each message contains symbols that have just become fully ready for the given `marketDate` based on job‑doc state in `time-series-jobs/{marketDate}/jobs`.
+  - Intervals (DAILY/WEEKLY/MONTHLY) are resolved internally; consumers do **not** need to track per‑interval readiness unless they choose to.
+  - The stream is **additive**: symbols may appear in one or more messages, but the authoritative completion signal for the run remains the `partner-data-ready` END message.
 
 Suggested usage for RS:
 
-- Continue to treat `partner-data-ready` POST END as the canonical "run finished" marker.
-- Optionally subscribe to `partner-symbols-ready` to:
-  - Maintain a per‑day set of symbols that are already finalized.
-  - Start issuing `partnerTimeSeriesV2` requests for those symbols without waiting for the entire universe to complete.
+- Continue to treat `partner-data-ready` POST END as the canonical "run finished" marker and the **only** required signal for core RS ingestion.
+- RS should **not** depend on `partner-symbols-ready` for correctness. If RS ever chooses to consume this stream in the future, it should be used only as an optimization layer (e.g., for previews or incremental updates) on top of the run-level contract.
 
 ---
 

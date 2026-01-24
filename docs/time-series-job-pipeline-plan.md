@@ -474,55 +474,65 @@ If validation fails:
 
 The ultimate purpose of this pipeline is to keep the partner-facing API surface fresh. Partners currently rely on **Pub/Sub notifications** to know when it is safe and efficient to pull data. The job pipeline must integrate cleanly with the existing RS contract while adding a more granular readiness stream.
 
-There are two distinct notification layers:
-
-1. A **run-level completion signal** that says: "for this `marketDate` and interval set, the refresh run is complete".
-2. A **symbol-level readiness stream** that allows partners to begin fetching data early as symbols complete, without waiting for the entire universe.
-
-### 9.1 Source of Truth for Readiness
-
-For the job-based pipeline, the **single source of truth** for readiness is the job document itself:
-
-- Path: `time-series-jobs/{marketDate}/jobs/{jobId}`.
-- Each job describes exactly one unit of work: `{marketDate, symbol, endpoint, interval, phase}`.
-- Terminal states are `SUCCESS` and `PERMANENT_FAILURE` (see Section 7.3).
-
-A symbol is considered **ready for partner consumption** for a given `marketDate` when:
-
-- All required time-series jobs for that symbol/date have reached a terminal state, e.g.:
-  - `{DAILY_POST, WEEKLY_POST, MONTHLY_POST}` jobs are `SUCCESS` (or a clearly-defined subset, per interval policy).
-- There are no remaining non-terminal jobs for that symbol/date in `time-series-jobs/{marketDate}/jobs`.
-
-This readiness computation is performed using job docs only; `sa-time-series` documents remain the source of truth for data but are not polled directly for partner signaling.
-
-### 9.2 Symbol-Level Readiness Stream (New Topic)
-
-To reduce partner latency, we introduce a symbol-level readiness stream that is derived from job docs.
+The pipeline exposes a symbol-level readiness stream derived from job docs. This exists primarily for future or non-RS consumers who explicitly want per-symbol early signals. RS does **not** rely on this stream for its canonical ingestion; it uses the run-level `partner-data-ready` contract described in Section 9.3.
 
 - **Topic:** `partner-symbols-ready` (new Pub/Sub topic, separate from `partner-data-ready`).
-- **Payload (conceptual):**
+- **Payload (implemented):**
 
   ```ts
   interface SymbolsReadyPayloadV1 {
     version: 'v1';
     marketDate: string;   // YYYY-MM-DD (ET)
     runId?: string;       // Optional link to the run-level event
-    symbols: string[];    // Symbols that just became fully ready for this marketDate
+    /**
+     * Symbols that just became fully ready for this marketDate.
+     *
+     * NOTE: For the time-series job pipeline we currently emit
+     * exactly one symbol per message (single-element array), but
+     * the array shape preserves the option to batch in the future
+     * without breaking consumers.
+     */
+    symbols: string[];
     reason?: 'scheduled' | 'backfill';
+    /** Interval label so partners know which endpoint to hit (e.g. DAILY/WEEKLY/MONTHLY). */
+    interval: string;
+    /** ISO timestamp when the publisher sent the message. */
+    publishedAtUTC?: string;
   }
   ```
 
-- **Granularity:**
-  - Readiness is computed per **`{marketDate, symbol}`**.
-  - Intervals (DAILY/WEEKLY/MONTHLY) are handled internally by checking the corresponding jobs; the symbol stream does **not** include interval-level detail.
+**Granularity:**
+- Readiness is computed per **`{marketDate, symbol}`**.
+- Intervals (DAILY/WEEKLY/MONTHLY) are always included via the required `interval` field so partners can route to the correct endpoint.
 
-- **Emission strategy:**
-  - As jobs transition to `SUCCESS` / `PERMANENT_FAILURE`, an aggregator tracks per-symbol readiness for the current `{marketDate, phase}`.
-  - When a symbol's required intervals are all terminal and successful, that symbol is added to an in-memory or Firestore-backed accumulator for the current run.
-  - Once the accumulator reaches a configured batch size (e.g. 10 symbols), the system publishes a `SymbolsReadyPayloadV1` with those symbols and clears that batch.
-  - Any remaining symbols in the accumulator are flushed at the end of the run.
+**Emission strategy (current):**
+- As jobs transition to `SUCCESS` / `PERMANENT_FAILURE`, the aggregator updates per-symbol interval state in `time-series-jobs/{marketDate}`.
+- When a symbol's required intervals are all terminal and successful, the worker emits **one `partner-symbols-ready` message per `{marketDate, symbol, interval}`** with `symbols: [symbol]`.
+- No cross-request batching or baseline grouping is performed; each message is independent.
 
-Partners who want low-latency access can subscribe to `partner-symbols-ready` and start issuing HTTPS time-series requests as soon as they see symbols of interest.
+Partners who want low-latency access can subscribe to `partner-symbols-ready` and start issuing HTTPS time-series requests as soon as they see symbols of interest, but RS is not required to do so for correctness.
+- No single instance ever observed "all baselines ready" for the day, so the **baseline batch** was never published.
+- `firstBaselineBatchSent` never became `true` on any instance, so the **10-symbol batches** were never emitted either.
+- The only reliable notifications were the **per-symbol** messages, which do **not** depend on cross-request state.
+
+**Cost / scale analysis:**
+
+- A full time-series run currently produces on the order of ~2,200 symbol/interval notifications.
+- With ~10 runs per trading day, that is ~22,000 messages/day, or **~660,000 Pub/Sub messages/month**.
+- At Pub/Sub pricing (~$0.40 per 1M messages, plus minimal data volume), this is on the order of **cents per month**.
+- Subscriber compute (RS) at this volume is also negligible; average QPS is well below 1.
+
+Given this, the operational complexity and architectural mismatch of grouped batching **greatly outweigh** any theoretical savings in Pub/Sub or compute.
+
+**Final design choice:**
+
+- We **abandon grouped/batched partner notifications** for time-series readiness.
+- The canonical behavior of the stream is:
+  - Emit **one `partner-symbols-ready` message per `{marketDate, symbol, interval}`** when that symbol/interval becomes ready.
+  - Populate `reason` (e.g. `scheduled` vs `backfill`), `interval`, and `runId` so consumers can group and route messages by run and interval if they choose to consume this stream.
+- For RS specifically, the symbol-level stream is considered **auxiliary**; RS should continue to treat the **run-level** `partner-data-ready` signal as the authoritative contract for when it is safe to ingest a day.
+
+This design aligns with Cloud Run's scaling model, keeps the implementation simple and robust, and has negligible cost impact at the current and anticipated scales, while keeping the core correctness contract centered on the run-level signal.
 
 ### 9.3 Run-Level Completion (Existing `partner-data-ready` Topic)
 
