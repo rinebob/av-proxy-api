@@ -37,6 +37,12 @@ export enum PartnerRunType {
   TS_DAILY_POST = 'ts-daily-post',
   TS_WEEKLY_POST = 'ts-weekly-post',
   TS_MONTHLY_POST = 'ts-monthly-post',
+  /**
+   * TS_POST_ALL_INTERVALS represents a single universe-level
+   * time-series POST run that has completed DAILY, WEEKLY, and
+   * MONTHLY intervals for a given marketDate.
+   */
+  TS_POST_ALL_INTERVALS = 'ts-post-all-intervals',
 }
 
 /**
