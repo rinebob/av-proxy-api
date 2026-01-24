@@ -170,9 +170,10 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
         return this.createSuccessResponse(transformedData, this.config.ttl, startTime);
       }
 
-      // For compact updates, persist only the most recent element.
-      // Weekly/monthly helpers now merge by date into existing docs, so
-      // collapsing to the latest bar is safe across intervals.
+      // For compact updates, keep scheduler/job cadence lightweight:
+      // - DAILY: persist only the most recent bar.
+      // - WEEKLY/MONTHLY: keep the compact window; merge helpers are
+      //   responsible for appropriately overwriting latest shards/docs.
       const outputSize = (requestParams as any)?.outputsize as string | undefined;
       if (outputSize === 'compact' && Array.isArray(bars) && bars.length > 1) {
         // Choose the bar with the maximum date (YYYY-MM-DD)
@@ -311,7 +312,8 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
           (latest as any).change = ch;
           (latest as any).changePercent = cp;
         }
-        // Only reduce to latest bar for DAILY. WEEKLY/MONTHLY need the full compact window.
+        // Only reduce to latest bar for DAILY. WEEKLY/MONTHLY keep the compact
+        // window so their merge helpers can handle shard/doc updates.
         if (this.config.interval === TimeSeriesInterval.DAILY) {
           bars = [latest];
         }
