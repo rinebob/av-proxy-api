@@ -115,6 +115,10 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     return;
   }
 
+  try {
+    logger.timeStart('worker.symbol', baseLogPayload);
+  } catch {}
+
   // Mark IN_PROGRESS and bump attempts transactionally.
   await db.runTransaction(async tx => {
     const snap = await tx.get(jobRef);
@@ -242,14 +246,16 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
 
     // Per-job pipeline log: worker completed successfully for this symbol
     try {
+      logger.timeEnd('worker.symbol', baseLogPayload);
       logger.info('ts.jobs.worker.success', baseLogPayload);
       logger.end('ts.jobs.worker', baseLogPayload);
     } catch {}
   } catch (e: any) {
     const errMsg = String(e?.message || e);
 
-    // Per-job pipeline log: worker error for this symbol
     try {
+      logger.timeEnd('worker.symbol', baseLogPayload);
+      // Per-job pipeline log: worker error for this symbol
       logger.error('ts.jobs.worker.error', baseLogPayload);
       logger.end('ts.jobs.worker', baseLogPayload);
     } catch {}
