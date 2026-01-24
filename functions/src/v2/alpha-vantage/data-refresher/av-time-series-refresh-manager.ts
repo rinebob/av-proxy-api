@@ -217,8 +217,9 @@ export async function runTimeSeriesJobsForEndpoint(options: {
   phase: TradingPhase;
   trigger: RefreshTrigger;
   marketDate?: string;
+  symbols?: string[];
 }): Promise<void> {
-  const { endpoint, phase, trigger, marketDate: marketDateOverride } = options;
+  const { endpoint, phase, trigger, marketDate: marketDateOverride, symbols: symbolsOverride } = options;
 
   const fnString = 'rTSJFE';
 
@@ -417,8 +418,9 @@ export async function runTimeSeriesJobsForEndpoint(options: {
 export async function runAllTimeSeriesIntervalsPost(options: {
   trigger: RefreshTrigger;
   marketDate?: string;
+  symbols?: string[];
 }): Promise<void> {
-  const { trigger, marketDate } = options;
+  const { trigger, marketDate, symbols } = options;
 
   // DAILY
   await runTimeSeriesJobsForEndpoint({
@@ -426,6 +428,7 @@ export async function runAllTimeSeriesIntervalsPost(options: {
     phase: TradingPhase.POST,
     trigger,
     marketDate,
+    symbols,
   });
 
   // WEEKLY
@@ -434,6 +437,7 @@ export async function runAllTimeSeriesIntervalsPost(options: {
     phase: TradingPhase.POST,
     trigger,
     marketDate,
+    symbols,
   });
 
   // MONTHLY
@@ -442,6 +446,7 @@ export async function runAllTimeSeriesIntervalsPost(options: {
     phase: TradingPhase.POST,
     trigger,
     marketDate,
+    symbols,
   });
 }
 
