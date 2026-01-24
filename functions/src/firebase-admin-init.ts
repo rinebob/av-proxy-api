@@ -1,6 +1,11 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
+// Silence google-auth deprecation warnings from upstream libs (fromStream/fromJSON)
+if (!process.env.GOOGLE_AUTH_SILENCE_WARNINGS) {
+  process.env.GOOGLE_AUTH_SILENCE_WARNINGS = 'true';
+}
+
 // Initialize Firebase Admin SDK if not already initialized
 if (!admin.apps.length) {
   // Prefer default initialization so runtime provides correct project/credentials
