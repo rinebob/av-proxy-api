@@ -1,4 +1,11 @@
 /**
+ * @deprecated
+ * This window-aware, non-destructive AV time-series backfill script is
+ * superseded by the v2 time-series job pipeline and the
+ * triggerFullBackfillJobs/processFullBackfillRunTask entry points. It remains
+ * checked in for historical reference but should not be invoked for new
+ * backfills.
+ *
  * Window-aware, non-destructive AV time-series backfill.
  *
  * Semantics per symbol/interval:
