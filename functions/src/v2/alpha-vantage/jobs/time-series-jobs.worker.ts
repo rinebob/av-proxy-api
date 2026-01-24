@@ -15,6 +15,11 @@ import { TimeSeriesJobStatus } from './time-series-jobs.model';
 import { onTimeSeriesJobTerminal } from './time-series-jobs.aggregator';
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { publishSymbolsReadyBatch } from '../../partner/symbols-ready.publisher';
+import {
+  deleteDailyAdjustedForSymbol,
+  deleteWeeklyAdjustedForSymbol,
+  deleteMonthlyAdjustedForSymbol,
+} from '../firestore/av-backfill-delete-helpers';
 
 /**
  * Indicates whether the time-series for a given job has reached the
@@ -143,6 +148,24 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
 
   try {
     const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
+
+    // Derive the desired output size from the job mode. COMPACT jobs perform
+    // a small-window refresh, while FULL_BACKFILL jobs perform a destructive
+    // full history rebuild for the target symbol+endpoint.
+    const outputSizeForJob = mode === TimeSeriesJobMode.FullBackfill ? OutputSize.FULL : OutputSize.COMPACT;
+
+    if (mode === TimeSeriesJobMode.FullBackfill) {
+      // For full backfills, clear the existing sa-time-series tree for this
+      // symbol+endpoint before fetching FULL history via the canonical handler.
+      if (endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED) {
+        await deleteDailyAdjustedForSymbol(symbol);
+      } else if (endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED) {
+        await deleteWeeklyAdjustedForSymbol(symbol);
+      } else if (endpoint === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED) {
+        await deleteMonthlyAdjustedForSymbol(symbol);
+      }
+    }
+
     await handler.fetch({
       symbol,
       outputsize: OutputSize.COMPACT,
