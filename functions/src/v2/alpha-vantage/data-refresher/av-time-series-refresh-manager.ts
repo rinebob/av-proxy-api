@@ -1,5 +1,5 @@
 import { db } from '../../../firebase-admin-init';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getFunctions } from 'firebase-admin/functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
@@ -24,8 +24,9 @@ import {
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { getTimeSeriesJobDocPath } from '../../common/firestore/firestore-paths';
 import { TIME_SERIES_BASELINE_ETFS, TIME_SERIES_MASTER_SYMBOL_ORDER } from '../data/ts-master-order';
+import { TS_SCHEDULER_BATCH_SIZE, TS_FULLBACKFILL_BATCH_SIZE } from '../jobs/ts-job-batch-config';
 import { TradingPhase } from '@shared/health-metrics';
-import { TimeSeriesJobStatus } from '../jobs/time-series-jobs.model';
+import { TimeSeriesJobStatus, TimeSeriesJobMode } from '../jobs/time-series-jobs.model';
 import { CloudTask } from '../../common/constants';
 
 const tsJobLogger = betterLogger('aVTSRM');
@@ -66,8 +67,9 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
   runId: string;
   intervalForEndpoint: TimeSeriesInterval;
   endpointName: string;
+  mode?: TimeSeriesJobMode;
 }): Promise<void> {
-  const { marketDate, symbol, endpoint, phase, runId, intervalForEndpoint, endpointName } = params;
+  const { marketDate, symbol, endpoint, phase, runId, intervalForEndpoint, endpointName, mode } = params;
 
   const fnString = 'cOUTSJAMET'
 
@@ -92,7 +94,11 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
       const snap = await tx.get(jobRef);
       const dateSnap = await tx.get(dateRef);
 
+      const isFullBackfill = mode === TimeSeriesJobMode.FullBackfill;
+
       if (!snap.exists) {
+        // Fresh job doc for this symbol/endpoint/phase.
+        // For both realtime and full-backfill, initialize as Pending with 0 attempts.
         tx.set(jobRef, {
           symbol,
           endpoint,
@@ -100,13 +106,12 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
           phase,
           status: TimeSeriesJobStatus.Pending,
           attempts: 0,
+          mode,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         });
 
         const existingDate = dateSnap.exists ? (dateSnap.data() as any) : {};
-        const currentTotalJobs = typeof existingDate.totalJobs === 'number' ? existingDate.totalJobs : 0;
-        const nextTotalJobs = currentTotalJobs + 1;
         const phaseStr = String(phase).toLowerCase();
 
         tx.set(
@@ -114,8 +119,11 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
           {
             marketDate,
             phase: existingDate.phase || phaseStr,
-            totalJobs: nextTotalJobs,
             runId: existingDate.runId || runId || null,
+            // High-level run status for this marketDate. When any job is created,
+            // mark the date doc as IN_PROGRESS; the aggregator will later flip
+            // this to COMPLETE when all jobs finish.
+            status: existingDate.status || 'IN_PROGRESS',
           },
           { merge: true },
         );
@@ -128,10 +136,16 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
       const data = snap.data() as any;
       const status: TimeSeriesJobStatus | undefined = data?.status;
 
-      if (status === TimeSeriesJobStatus.Success || status === TimeSeriesJobStatus.PermanentFailure) {
+      if (!isFullBackfill && (status === TimeSeriesJobStatus.Success || status === TimeSeriesJobStatus.PermanentFailure)) {
+        // Realtime / non-full-backfill runs skip already completed jobs to avoid
+        // re-hitting AV for symbols that are known-good for this marketDate.
         return;
       }
 
+      // For full-backfill, we always reset the job to a fresh Pending state so that
+      // the worker will reprocess the symbol from scratch, regardless of any
+      // prior success. For realtime runs, we preserve existing status/attempts
+      // for in-flight jobs that are not yet terminal.
       tx.set(
         jobRef,
         {
@@ -139,8 +153,13 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
           endpoint,
           interval: intervalForEndpoint,
           phase,
-          status: status ?? TimeSeriesJobStatus.Pending,
-          attempts: typeof data?.attempts === 'number' ? data.attempts : 0,
+          status: isFullBackfill ? TimeSeriesJobStatus.Pending : status ?? TimeSeriesJobStatus.Pending,
+          attempts: isFullBackfill
+            ? 0
+            : typeof data?.attempts === 'number'
+              ? data.attempts
+              : 0,
+          mode: mode ?? data?.mode,
           updatedAt: Timestamp.now(),
         },
         { merge: true },
@@ -157,6 +176,40 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
           message: `Wrote job doc for ${marketDate} ${intervalForEndpoint} ${symbol}`
         } as BetterLogPayload);
     });
+
+    tsJobLogger.timeEnd('job.tx', {
+      function: fnString,
+      symbol,
+      marketDate,
+      interval: intervalForEndpoint,
+      endpoint: endpointName,
+    } as BetterLogPayload);
+
+    // For newly created jobs, bump the aggregate totalJobs counter outside of the
+    // per-job transaction using an atomic increment. This reduces read/modify
+    // contention on the date doc while preserving correct totals over time.
+    if (createdNewJob) {
+      try {
+        await dateRef.set(
+          {
+            totalJobs: FieldValue.increment(1),
+          },
+          { merge: true },
+        );
+      } catch (e: any) {
+        // Treat failure to bump totalJobs as a hard error so that run-level
+        // completeness checks based on this aggregate are not silently skewed.
+        tsJobLogger.error('ts.jobs.totalJobs_increment_failed', {
+          function: fnString,
+          symbol,
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+          error: String(e?.message || e),
+        } as BetterLogPayload);
+        throw e;
+      }
+    }
 
     const tasksEnabled = String(process.env.TS_TIME_SERIES_TASKS_ENABLED || '').toLowerCase() === 'true';
     if (shouldEnqueueTask && tasksEnabled) {
@@ -317,48 +370,28 @@ export async function runTimeSeriesJobsForEndpoint(options: {
   const liveManualSuffix = isManualRun ? 'MANUAL' : 'LIVE';
   const runId = `${marketDate}-${dowStr}-${phaseStrUpper}-${endpoint}-${liveManualSuffix}`;
 
-  const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
-  let symbols = orderTrackedSymbols(symbolsSnap.docs.map((d) => d.id));
+  let symbols: string[];
+  if (Array.isArray(symbolsOverride) && symbolsOverride.length > 0) {
+    symbols = orderTrackedSymbols(symbolsOverride.map((s) => s.toUpperCase()));
+  } else {
+    const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
+    symbols = orderTrackedSymbols(symbolsSnap.docs.map((d) => d.id));
 
-  const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
-  if (isEmulator) {
-    const baselinesInTracked = TIME_SERIES_BASELINE_ETFS.filter((s) => symbols.includes(s));
-    const rawExtra = process.env.TS_JOB_EMULATOR_SYMBOLS;
-    const extraTargets: string[] = [];
-    if (rawExtra && rawExtra.length > 0) {
-      for (const token of rawExtra.split(',')) {
-        const sym = token.trim().toUpperCase();
-        if (!sym) continue;
-        if (baselinesInTracked.includes(sym)) continue;
-        if (!extraTargets.includes(sym)) extraTargets.push(sym);
+    const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
+    if (isEmulator) {
+      const baselinesInTracked = TIME_SERIES_BASELINE_ETFS.filter((s) => symbols.includes(s));
+      const rawExtra = process.env.TS_JOB_EMULATOR_SYMBOLS;
+      const extraTargets: string[] = [];
+      if (rawExtra && rawExtra.length > 0) {
+        for (const token of rawExtra.split(',')) {
+          const sym = token.trim().toUpperCase();
+          if (!sym) continue;
+          if (baselinesInTracked.includes(sym)) continue;
+          if (!extraTargets.includes(sym)) extraTargets.push(sym);
+        }
       }
+      symbols = [...baselinesInTracked, ...extraTargets];
     }
-    symbols = [...baselinesInTracked, ...extraTargets];
-  }
-
-  const testSymbolRaw = String(process.env.TS_JOB_TEST_SYMBOL || '');
-  const testSymbols = new Set(
-    testSymbolRaw
-      .split(',')
-      .map((s) => s.toUpperCase().trim())
-      .filter((s) => !!s),
-  );
-
-  const isPostTimeSeriesEndpoint =
-    endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED ||
-    endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED ||
-    endpoint === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED;
-  const isTestSymbolMode = testSymbols.size > 0;
-  const isFilteredMode = isTestSymbolMode && isPostTimeSeriesEndpoint && phaseFinal === TradingPhase.POST;
-
-  if (isFilteredMode) {
-    tsJobLogger.info('ts.jobs.test_symbol_mode', {
-      function: fnString,
-      marketDate,
-      interval: intervalForEndpoint,
-      endpoint: endpointName,
-      message: `Filtered mode enabled. Running job for ${testSymbols.size} symbols`
-    } as BetterLogPayload);
   }
 
   const createdSymbolsThisEndpoint = new Set<string>();
@@ -372,47 +405,78 @@ export async function runTimeSeriesJobsForEndpoint(options: {
     message: 'BEGIN Symbol Loop '
   } as BetterLogPayload);
 
-  for (const symbol of symbols) {
-      
-      const symbolUpper = symbol.toUpperCase();
-    
+  tsJobLogger.timeStart('scheduler.endpoint', {
+    function: fnString,
+    marketDate,
+    interval: intervalForEndpoint,
+    endpoint: endpointName,
+  } as BetterLogPayload);
 
-    if (isFilteredMode && !testSymbols.has(symbolUpper)) {
-        // console.log(`aVTSRM ${fnString} bypassing ${symbolUpper}`);
-      continue;
-    }
+  // Batch scheduler-driven job creation to improve throughput while keeping
+  // Firestore load and Cloud Tasks enqueue behavior predictable.
+  for (let i = 0; i < symbols.length; i += TS_SCHEDULER_BATCH_SIZE) {
+    const chunk = symbols.slice(i, i + TS_SCHEDULER_BATCH_SIZE);
 
-    tsJobLogger.startMaj('ts.jobs.processing', {
-      function: fnString,
-      symbol: symbolUpper,
-      marketDate,
-      interval: intervalForEndpoint,
-      endpoint: endpointName,
-    } as BetterLogPayload);
+    await Promise.all(
+      chunk.map(async (symbol) => {
+        const symbolUpper = symbol.toUpperCase();
 
-    await createOrUpdateTimeSeriesJobAndMaybeEnqueueTask({
-      marketDate,
-      symbol: symbolUpper,
-      endpoint,
-      phase: phaseFinal,
-      runId,
-      intervalForEndpoint,
-      endpointName,
-    });
+        tsJobLogger.startMaj('ts.jobs.processing', {
+          function: fnString,
+          symbol: symbolUpper,
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
 
-    createdSymbolsThisEndpoint.add(symbolUpper);
+        tsJobLogger.timeStart('scheduler.symbol', {
+          function: fnString,
+          symbol: symbolUpper,
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
 
-    try {
-      tsJobLogger.endMaj('ts.jobs.processing', {
-        function: fnString,
-        symbol: symbolUpper,
-        marketDate,
-        interval: intervalForEndpoint,
-        endpoint: endpointName,
-        message: `END run for symbol ${symbolUpper}`
-      } as BetterLogPayload);
-    } catch {}
+        await createOrUpdateTimeSeriesJobAndMaybeEnqueueTask({
+          marketDate,
+          symbol: symbolUpper,
+          endpoint,
+          phase: phaseFinal,
+          runId,
+          intervalForEndpoint,
+          endpointName,
+        });
+
+        createdSymbolsThisEndpoint.add(symbolUpper);
+
+        tsJobLogger.timeEnd('scheduler.symbol', {
+          function: fnString,
+          symbol: symbolUpper,
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
+
+        try {
+          tsJobLogger.endMaj('ts.jobs.processing', {
+            function: fnString,
+            symbol: symbolUpper,
+            marketDate,
+            interval: intervalForEndpoint,
+            endpoint: endpointName,
+            message: `END run for symbol ${symbolUpper}`,
+          } as BetterLogPayload);
+        } catch {}
+      }),
+    );
   }
+
+  tsJobLogger.timeEnd('scheduler.endpoint', {
+    function: fnString,
+    marketDate,
+    interval: intervalForEndpoint,
+    endpoint: endpointName,
+  } as BetterLogPayload);
 
   tsJobLogger.endMaj('ts.jobs.scheduler', {
       function: fnString,
@@ -433,6 +497,171 @@ export async function runTimeSeriesJobsForEndpoint(options: {
   } as BetterLogPayload);
   tsJobLogger.endMaj('ts.jobs.run_summary', {})
   console.log('==========================================================');
+}
+
+/**
+ * Enqueue FULL_BACKFILL jobs for a given endpoint and symbol set.
+ * This reuses the same marketDate/runId/ordering logic as the standard
+ * scheduler but stamps jobs with TimeSeriesJobMode.FullBackfill so that
+ * the worker performs a destructive full-history rebuild for each
+ * symbol+endpoint.
+ */
+export async function enqueueFullBackfillJobsForEndpoint(options: {
+  endpoint: AlphaVantageEndpoint;
+  marketDate?: string;
+  symbols?: string[];
+}): Promise<{ marketDate: string; runId: string; symbolCount: number; interval: TimeSeriesInterval; }> {
+  const { endpoint, marketDate: marketDateOverride, symbols: symbolsOverride } = options;
+
+  const fnString = 'eFBJFE';
+
+  const tz = 'America/New_York';
+  const now = new Date();
+  let marketDate = '';
+  if (typeof marketDateOverride === 'string' && /\d{4}-\d{2}-\d{2}/.test(marketDateOverride)) {
+    marketDate = marketDateOverride;
+  } else {
+    const fmtDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    marketDate = fmtDate.format(now);
+  }
+
+  const dowIdx = Number(new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay());
+  const DOW_ENUM: DayOfWeek[] = [
+    DayOfWeek.Sun,
+    DayOfWeek.Mon,
+    DayOfWeek.Tue,
+    DayOfWeek.Wed,
+    DayOfWeek.Thu,
+    DayOfWeek.Fri,
+    DayOfWeek.Sat,
+  ];
+  const dowEnum: DayOfWeek = DOW_ENUM[dowIdx];
+  const dowStr = String(dowEnum).toUpperCase();
+
+  const endpointName = AlphaVantageEndpoint[endpoint];
+  const intervalForEndpoint: TimeSeriesInterval =
+    endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
+      ? TimeSeriesInterval.DAILY
+      : endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED
+        ? TimeSeriesInterval.WEEKLY
+        : TimeSeriesInterval.MONTHLY;
+
+  const runId = `${marketDate}-${dowStr}-POST-${endpoint}-FULL_BACKFILL`;
+
+  let symbols: string[];
+  if (Array.isArray(symbolsOverride) && symbolsOverride.length > 0) {
+    symbols = orderTrackedSymbols(symbolsOverride.map((s) => s.toUpperCase()));
+  } else {
+    const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
+    symbols = orderTrackedSymbols(symbolsSnap.docs.map((d) => d.id));
+  }
+
+  const createdSymbolsThisEndpoint = new Set<string>();
+
+  // Batch full-backfill job creation separately from the normal scheduler so
+  // that heavy, operator-driven runs can be tuned independently if needed.
+  tsJobLogger.timeStart('fullbackfill.endpoint', {
+    function: fnString,
+    marketDate,
+    interval: intervalForEndpoint,
+    endpoint: endpointName,
+  } as BetterLogPayload);
+
+  for (let i = 0; i < symbols.length; i += TS_FULLBACKFILL_BATCH_SIZE) {
+    const chunk = symbols.slice(i, i + TS_FULLBACKFILL_BATCH_SIZE);
+
+    await Promise.all(
+      chunk.map(async (symbol) => {
+        const symbolUpper = symbol.toUpperCase();
+
+        tsJobLogger.startMaj('ts.jobs.full_backfill.enqueue', {
+          function: fnString,
+          symbol: symbolUpper,
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
+
+        tsJobLogger.timeStart('fullbackfill.symbol', {
+          function: fnString,
+          symbol: symbolUpper,
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
+
+        await createOrUpdateTimeSeriesJobAndMaybeEnqueueTask({
+          marketDate,
+          symbol: symbolUpper,
+          endpoint,
+          phase: TradingPhase.POST,
+          runId,
+          intervalForEndpoint,
+          endpointName,
+          mode: TimeSeriesJobMode.FullBackfill,
+        });
+
+        createdSymbolsThisEndpoint.add(symbolUpper);
+
+        tsJobLogger.timeEnd('fullbackfill.symbol', {
+          function: fnString,
+          symbol: symbolUpper,
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
+
+        try {
+          tsJobLogger.endMaj('ts.jobs.full_backfill.enqueue', {
+            function: fnString,
+            symbol: symbolUpper,
+            marketDate,
+            interval: intervalForEndpoint,
+            endpoint: endpointName,
+            message: `ENQUEUED full-backfill job for symbol ${symbolUpper}`,
+          } as BetterLogPayload);
+        } catch {}
+      }),
+    );
+  }
+
+  tsJobLogger.timeEnd('fullbackfill.endpoint', {
+    function: fnString,
+    marketDate,
+    interval: intervalForEndpoint,
+    endpoint: endpointName,
+  } as BetterLogPayload);
+
+  // Record lightweight run metadata for this endpoint-specific full-backfill
+  // run. This gives us a clear expectedJobs count that is independent of how
+  // many job docs were "new" for this marketDate.
+  const runDocRef = db.doc(`${FirestoreCollection.BACKFILL_RUNS}/${runId}`);
+  await runDocRef.set(
+    {
+      runId,
+      type: 'full_backfill',
+      marketDate,
+      endpoint: endpointName,
+      interval: intervalForEndpoint,
+      symbolCount: createdSymbolsThisEndpoint.size,
+      expectedJobs: createdSymbolsThisEndpoint.size,
+      status: 'IN_PROGRESS',
+      runStartedAt: Timestamp.now(),
+    },
+    { merge: true },
+  );
+
+  return {
+    marketDate,
+    runId,
+    symbolCount: createdSymbolsThisEndpoint.size,
+    interval: intervalForEndpoint,
+  };
 }
 
 /**
