@@ -6,9 +6,9 @@ export interface SymbolsReadyPayloadV1 {
   marketDate: string; // YYYY-MM-DD
   symbols: string[];
   runId?: string;
-  reason?: 'scheduled' | 'backfill' | 'verbose';
-  // Optional interval label for verbose per-interval notifications, e.g. DAILY/WEEKLY/MONTHLY
-  interval?: string;
+  reason?: 'scheduled' | 'backfill';
+  // Interval label so partners know which endpoint to hit, e.g. DAILY/WEEKLY/MONTHLY
+  interval: string;
   publishedAtUTC?: string;
 }
 
