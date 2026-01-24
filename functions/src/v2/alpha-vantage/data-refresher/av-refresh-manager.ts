@@ -978,42 +978,11 @@ export async function refreshForEndpoints(
             : endpoint === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED
               ? TimeSeriesInterval.MONTHLY
               : '';
-      
-      // TEST SYMBOL FILTER (Time-Series Job Pipeline)
-      // When TS_JOB_TEST_SYMBOL is set, restrict ALL work (jobs + legacy handler)
-      // to the specified symbol(s) for POST time-series endpoints. This prevents
-      // hammering Alpha Vantage during controlled rollouts.
-      //
-      // Supports either a single symbol:
-      //   TS_JOB_TEST_SYMBOL=AVGO
-      // or a comma-separated list:
-      //   TS_JOB_TEST_SYMBOL=AVGO,MSFT,SPY
-      const testSymbolRaw = String(process.env.TS_JOB_TEST_SYMBOL || '');
-      const testSymbols = new Set(
-        testSymbolRaw
-          .split(',')
-          .map((s) => s.toUpperCase().trim())
-          .filter((s) => !!s)
-      );
-
-      console.log('[aVRM rFE] testSymbols: ', testSymbols);
 
       const isPostTimeSeriesEndpoint =
         endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED ||
         endpoint === AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED ||
         endpoint === AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED;
-      const isTestSymbolMode = testSymbols.size > 0;
-      const isFilteredMode = isTestSymbolMode && isPostTimeSeriesEndpoint && phaseFinal === TradingPhase.POST;
-
-      if (isFilteredMode) {
-        tsJobLogger.info('ts.jobs.test_symbol_mode', {
-          function: 'rFE',
-          symbol: 'MULTI',
-          marketDate,
-          interval: intervalForEndpoint,
-          endpoint: endpointName,
-        } as BetterLogPayload);
-      }
 
       // Track a deduped set of symbols for which we created/updated POST time-series jobs
       const createdSymbolsThisEndpoint = new Set<string>();
@@ -1033,23 +1002,6 @@ export async function refreshForEndpoints(
               endpoint: endpointName,
             } as BetterLogPayload);
           } catch {}
-
-          // TEST-SYMBOL FILTER: Skip all work for non-matching symbols when in filtered mode
-          if (isFilteredMode && !testSymbols.has(symbolUpper)) {
-            // Silent skip for non-matching symbols to avoid log spam (we logged the mode once above)
-            continue;
-          }
-
-          // Log symbol processing when in filtered mode; keep message focused on symbol + event + marketDate
-          if (isFilteredMode) {
-            tsJobLogger.info('ts.jobs.processing', {
-              function: 'rFE',
-              symbol: symbolUpper,
-              marketDate,
-              interval: intervalForEndpoint,
-              endpoint: endpointName,
-            } as BetterLogPayload);
-          }
 
           // Job creation for time-series POST runs (job pipeline migration)
           // NOTE: Decoupled from TS_LEGACY_DAILY_POST_ENABLED so that jobs
