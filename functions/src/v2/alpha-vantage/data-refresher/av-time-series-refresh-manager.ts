@@ -80,6 +80,14 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
     const jobRef = db.doc(jobPath);
     const dateRef = db.doc(`${FirestoreCollection.TIME_SERIES_JOBS}/${marketDate}`);
 
+    tsJobLogger.timeStart('job.tx', {
+      function: fnString,
+      symbol,
+      marketDate,
+      interval: intervalForEndpoint,
+      endpoint: endpointName,
+    } as BetterLogPayload);
+
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(jobRef);
       const dateSnap = await tx.get(dateRef);
@@ -152,6 +160,13 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
 
     const tasksEnabled = String(process.env.TS_TIME_SERIES_TASKS_ENABLED || '').toLowerCase() === 'true';
     if (shouldEnqueueTask && tasksEnabled) {
+      tsJobLogger.timeStart('job.enqueue', {
+        function: fnString,
+        symbol,
+        marketDate,
+        interval: intervalForEndpoint,
+        endpoint: endpointName,
+      } as BetterLogPayload);
       try {
         const queue = getFunctions().taskQueue(CloudTask.TIME_SERIES_JOB);
         await queue.enqueue({
@@ -160,6 +175,13 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
           endpoint,
           phase,
         });
+        tsJobLogger.timeEnd('job.enqueue', {
+          function: fnString,
+          symbol,
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
         tsJobLogger.info('job.enqueue_success', {
           function: fnString,
           symbol,
@@ -169,6 +191,13 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
           message: `Queued job for ${marketDate} ${intervalForEndpoint} ${symbol}`
         } as BetterLogPayload);
       } catch (e: any) {
+        tsJobLogger.timeEnd('job.enqueue', {
+          function: fnString,
+          symbol,
+          marketDate,
+          interval: intervalForEndpoint,
+          endpoint: endpointName,
+        } as BetterLogPayload);
         tsJobLogger.warn('job.enqueue_failed', {
           function: fnString,
           symbol,
@@ -334,14 +363,14 @@ export async function runTimeSeriesJobsForEndpoint(options: {
 
   const createdSymbolsThisEndpoint = new Set<string>();
 
-    console.log('==========================================================');
-    tsJobLogger.startMaj('ts.jobs.scheduler', {
-      function: fnString,
-      marketDate,
-      interval: intervalForEndpoint,
-      endpoint: endpointName,
-      message: 'BEGIN Symbol Loop '
-    } as BetterLogPayload);
+  console.log('==========================================================');
+  tsJobLogger.startMaj('ts.jobs.scheduler', {
+    function: fnString,
+    marketDate,
+    interval: intervalForEndpoint,
+    endpoint: endpointName,
+    message: 'BEGIN Symbol Loop '
+  } as BetterLogPayload);
 
   for (const symbol of symbols) {
       

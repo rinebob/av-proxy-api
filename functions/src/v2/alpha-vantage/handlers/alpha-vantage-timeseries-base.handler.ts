@@ -141,7 +141,22 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
     const requestParams = this.prepareRequestParams(publicParams);
 
     try {
+      // Measure raw Alpha Vantage HTTP latency separately from transform + Firestore.
+      tsLogger.timeStart('av_http', {
+        function: 'tsBase',
+        symbol: symbol ?? 'n/a',
+        marketDate: 'n/a',
+        interval: this.config.interval ?? 'n/a',
+        endpoint: String(endpoint),
+      });
       const response = await this.apiClient.get('', { params: requestParams });
+      tsLogger.timeEnd('av_http', {
+        function: 'tsBase',
+        symbol: symbol ?? 'n/a',
+        marketDate: 'n/a',
+        interval: this.config.interval ?? 'n/a',
+        endpoint: String(endpoint),
+      });
       log.debug('fetch.response.raw', { endpointId: endpoint, hasData: !!response?.data, requestId: (this as any).requestId });
       const responseData = response.data;
       const transformedData = this.transformResponse(responseData);
@@ -308,6 +323,14 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
         bars.length > 0 &&
         Object.values(AlphaVantageEndpoint).includes(endpoint as AlphaVantageEndpoint)
       ) {
+        // Measure Firestore persistence (all compact/full branches) as a single region.
+        tsLogger.timeStart('firestore_save', {
+          function: 'tsBase',
+          symbol: symbol ?? 'n/a',
+          marketDate: 'n/a',
+          interval: this.config.interval ?? 'n/a',
+          endpoint: String(endpoint),
+        });
         const outputSize = (requestParams as any)?.outputsize as string | undefined;
         if (outputSize === 'compact') {
           // Compact path
@@ -397,6 +420,13 @@ export abstract class AlphaVantageTimeSeriesHandlerBase<T = any> extends AlphaVa
             this.config.interval as TimeSeriesInterval,
           );
         }
+        tsLogger.timeEnd('firestore_save', {
+          function: 'tsBase',
+          symbol: symbol ?? 'n/a',
+          marketDate: 'n/a',
+          interval: this.config.interval ?? 'n/a',
+          endpoint: String(endpoint),
+        });
       } else {
         tsLogger.info('ts.handlerfirestore.skip_or_empty', {
         function: 'fetch',
