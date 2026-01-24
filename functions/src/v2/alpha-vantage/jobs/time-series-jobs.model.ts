@@ -16,6 +16,23 @@ export enum TimeSeriesJobStatus {
 }
 
 /**
+ * Indicates whether the time-series for a given job has reached the
+ * expected period-end bar (e.g. day/week/month) or is still in-progress.
+ */
+export enum PeriodStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  PERIOD_END = 'PERIOD_END',
+}
+
+/**
+ * Job type for routing to correct Firestore paths and aggregation logic.
+ */
+export enum TimeSeriesJobType {
+  REALTIME = 'realtime',
+  BACKFILL = 'backfill',
+}
+
+/**
  * Execution modes for a time-series job.
  * - Compact: standard small-window refresh (scheduler path).
  * - FullBackfill: destructive full history rebuild for symbol+endpoint.
@@ -23,6 +40,23 @@ export enum TimeSeriesJobStatus {
 export enum TimeSeriesJobMode {
   Compact = 'COMPACT',
   FullBackfill = 'FULL_BACKFILL',
+}
+
+/**
+ * Terminal status values for job aggregation.
+ * Used by both realtime and backfill aggregators to track job completion.
+ */
+export enum TimeSeriesJobTerminalStatus {
+  SUCCESS = 'SUCCESS',
+  PERMANENT_FAILURE = 'PERMANENT_FAILURE',
+}
+
+/**
+ * Run-level status for time-series job runs (date-level or backfill runs).
+ */
+export enum TimeSeriesRunStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETE = 'COMPLETE',
 }
 
 /**
