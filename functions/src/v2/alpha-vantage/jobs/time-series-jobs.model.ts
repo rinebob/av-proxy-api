@@ -16,6 +16,16 @@ export enum TimeSeriesJobStatus {
 }
 
 /**
+ * Execution modes for a time-series job.
+ * - Compact: standard small-window refresh (scheduler path).
+ * - FullBackfill: destructive full history rebuild for symbol+endpoint.
+ */
+export enum TimeSeriesJobMode {
+  Compact = 'COMPACT',
+  FullBackfill = 'FULL_BACKFILL',
+}
+
+/**
  * Canonical shape for an Alpha Vantage time-series refresh job
  * targeting sa-time-series data.
  */
@@ -28,6 +38,11 @@ export interface TimeSeriesJob {
   status: TimeSeriesJobStatus;
   attempts: number;
   lastError?: string;
+
+  // Optional execution mode for this job. When omitted, the job is treated
+  // as a standard compact refresh. FULL_BACKFILL jobs perform a destructive
+  // refresh for the target symbol+endpoint using OutputSize.FULL.
+  mode?: TimeSeriesJobMode;
 
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
