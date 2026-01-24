@@ -59,6 +59,20 @@ export interface BetterLogPayload {
   runId?: string;
 }
 
+// Simple in-memory timer store for console.time-like measurements keyed by logger/file + label + context
+const TIMER_STORE = new Map<string, number>();
+
+function makeTimerKey(file: string, label: string, payload: BetterLogPayload): string {
+  const parts: string[] = [file, label];
+  if (payload.function) parts.push(`fn:${payload.function}`);
+  if (payload.symbol) parts.push(`sym:${payload.symbol}`);
+  if (payload.endpoint) parts.push(`ep:${payload.endpoint}`);
+  if (payload.interval) parts.push(`int:${payload.interval}`);
+  if (payload.marketDate) parts.push(`md:${payload.marketDate}`);
+  if (payload.runId) parts.push(`run:${payload.runId}`);
+  return parts.join('|');
+}
+
 export function betterLogger(file: string) {
   const envLevel = (process.env.LOG_LEVEL || 'info').toLowerCase() as LogLevel;
   const threshold = LEVELS[envLevel] ?? LEVELS.info;
@@ -83,23 +97,57 @@ export function betterLogger(file: string) {
     warn: (event: string, blPayload: BetterLogPayload) => log('warn', event, blPayload),
     error: (event: string, blPayload: BetterLogPayload) => log('error', event, blPayload),
     debug: (event: string, blPayload: BetterLogPayload) => log('debug', event, blPayload),
+    // Lightweight console.time-style helpers for ad-hoc timing in human logs.
+    // Usage: logger.timeStart('label', {...}); ... logger.timeEnd('label', {...});
+    timeStart: (label: string, blPayload: BetterLogPayload) => {
+      const key = makeTimerKey(file, label, blPayload);
+      TIMER_STORE.set(key, Date.now());
+      const sym = blPayload.symbol ?? '';
+      const interval = blPayload.interval ?? '';
+      const intAbbrev = interval.toUpperCase().startsWith('DAY')
+        ? 'D'
+        : interval.toUpperCase().startsWith('WEEK')
+          ? 'W'
+          : interval.toUpperCase().startsWith('MONTH')
+            ? 'M'
+            : interval || '';
+      console.log(
+        `[${file} ${blPayload.function}] TIMER START label=${label} sym=${sym} int=${interval}(${intAbbrev}) ep=${blPayload.endpoint ?? ''}`,
+      );
+    },
+    timeEnd: (label: string, blPayload: BetterLogPayload) => {
+      const key = makeTimerKey(file, label, blPayload);
+      const start = TIMER_STORE.get(key);
+      const durationMs = typeof start === 'number' ? Date.now() - start : undefined;
+      TIMER_STORE.delete(key);
+      const sym = blPayload.symbol ?? '';
+      const interval = blPayload.interval ?? '';
+      const intAbbrev = interval.toUpperCase().startsWith('DAY')
+        ? 'D'
+        : interval.toUpperCase().startsWith('WEEK')
+          ? 'W'
+          : interval.toUpperCase().startsWith('MONTH')
+            ? 'M'
+            : interval || '';
+      console.log(
+        `[${file} ${blPayload.function}] TIMER END label=${label} durMs=${durationMs ?? 'n/a'} sym=${sym} int=${interval}(${intAbbrev}) ep=${blPayload.endpoint ?? ''}`,
+      );
+    },
     start: (event: string, blPayload: BetterLogPayload) => {
-        console.log(`[${file} ${blPayload.function}] ------------------------ start ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.interval ? blPayload.interval : ''} ----------------------------------`);
-        console.log(`[${file} ${blPayload.function}] start ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
+      console.log(`[${file} ${blPayload.function}] ------------------------ start ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.interval ? blPayload.interval : ''} ----------------------------------`);
+      console.log(`[${file} ${blPayload.function}] start ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
     },
     end: (event: string, blPayload: BetterLogPayload) => {
-        console.log(`[${file} ${blPayload.function}] end ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
-        console.log(`[${file} ${blPayload.function}] -------------------------- end ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.interval ? blPayload.interval : ''} ---------------------------------`);
-        
+      console.log(`[${file} ${blPayload.function}] end ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
+      console.log(`[${file} ${blPayload.function}] -------------------------- end ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.interval ? blPayload.interval : ''} ---------------------------------`);
     },
     startMaj: (event: string, blPayload: BetterLogPayload) => {
-        console.log(`[${file} ${blPayload.function}] =================== START ========================================`);
-        console.log(`[${file} ${blPayload.function}] START ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
+      console.log(`[${file} ${blPayload.function}] =================== START ========================================`);
+      console.log(`[${file} ${blPayload.function}] START ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
     },
     endMaj: (event: string, blPayload: BetterLogPayload) => {
-        console.log(`[${file} ${blPayload.function}] END ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
-        console.log(`[${file} ${blPayload.function}] =================== END ========================================`);
-        
+      console.log(`[${file} ${blPayload.function}] END ${event} ${blPayload.symbol ? blPayload.symbol : ''} ${blPayload.message ? blPayload.message : ''}`);
+      console.log(`[${file} ${blPayload.function}] =================== END ========================================`);
     },
   };
 }
