@@ -4,8 +4,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 import { FirestoreCollection } from '@shared/firestore';
 import { publishTimeSeriesRunCompletedFromJobs } from '../../partner/time-series-run-completion.publisher';
-
-export type TimeSeriesJobTerminalStatus = 'SUCCESS' | 'PERMANENT_FAILURE';
+import { TimeSeriesJobTerminalStatus } from './time-series-jobs.model';
 
 export interface OnTimeSeriesJobTerminalArgs {
   marketDate: string;
