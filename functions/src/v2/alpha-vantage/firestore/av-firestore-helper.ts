@@ -364,6 +364,11 @@ async function _internalSaveAvTimeSeriesData(
     log.info('timeseries.save.latest_bar', { symbol, endpoint, interval, latestBarIso, latestBarMs: histEndTs });
     const availableYears = Array.from(barsByYear.keys()).sort((a, b) => a - b);
     const seriesVersion = `${histEndTs ?? ''}-${availableYears.length}`;
+
+    // NOTE: We no longer use TTLs to drive refresh scheduling. nextRefreshAt is
+    // a coarse indicator of when the next POST-phase run is expected. For now,
+    // approximate this as "~next day" from the current write.
+    const nextPostRunAt = Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000));
     await docRef.set({
       metadata: {
         symbol,
@@ -371,7 +376,7 @@ async function _internalSaveAvTimeSeriesData(
         histStartDate,
         histEndDate,
         lastUpdated: Timestamp.now(),
-        nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttlSeconds * 1000)),
+        nextRefreshAt: nextPostRunAt,
         ttlSeconds,
         vendor: ApiProvider.ALPHA_VANTAGE,
         endpoint: endpoint,
@@ -401,18 +406,15 @@ async function _internalSaveAvTimeSeriesData(
       }
     );
 
-    if (!isSplitAdjusted) {
-      // 8. Ensure symbol presence under symbol-data/{symbol} with minimal metadata for Console visibility
-      // Only update this for the primary (raw) write to avoid double writes to symbol doc
-      const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
-      await symbolDocRef.set({
-        nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttlSeconds * 1000)),
-        nextRefreshBy: '',
-        refreshedAt: Timestamp.now(),
-        refreshedBy: 'time-series-write', // or 'scheduler' depending on caller
-        ttlHuman: ''
-      }, { merge: true });
-    }
+    // 8. Ensure symbol presence under symbol-data/{symbol} with minimal metadata for Console visibility.
+    // Adjusted series is now the canonical write path, so we always hydrate symbol-data here.
+    const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+    await symbolDocRef.set({
+      nextRefreshAt: nextPostRunAt,
+      nextRefreshBy: '',
+      refreshedAt: Timestamp.now(),
+      refreshedBy: 'time-series-write',
+    }, { merge: true });
 
     console.log(`aFH sATSD ✓ ${endpoint} ${symbol} ${interval} adj=${isSplitAdjusted} wrote=${interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites}`);
     log.info('timeseries.save.success', { symbol, endpoint, interval, isSplitAdjusted, barsWritten: interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites, durationMs: Date.now() - startTime, latestBarIso });
@@ -1048,60 +1050,31 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
       existingBars: existingBars.length,
     });
 
-    // Build map of ALL existing bars keyed by YYYY-MM-DD.
-    // This preserves intraday data (ic, ipc) that may have been written earlier in the day.
+    // Build map of existing bars keyed by YYYY-MM-DD so we can surgically
+    // replace only a small window of the most recent weekly bars while
+    // preserving all older history.
     const map = new Map<string, CompactBar>();
-    let existingInProgressDate: string | null = null;
-    let existingInProgressTs = Number.NEGATIVE_INFINITY;
-    
     for (const bar of existingBars) {
       const dStr = typeof bar.d === 'string' && bar.d.length >= 10
         ? bar.d.slice(0, 10)
         : (typeof bar.t === 'number' ? new Date(bar.t).toISOString().slice(0, 10) : '');
       if (!dStr) continue;
       map.set(dStr, bar);
-      
-      // Track the latest existing bar (the current in-progress bar)
-      const t = typeof bar.t === 'number' ? bar.t : new Date(`${dStr}T00:00:00.000Z`).getTime();
-      if (Number.isFinite(t) && t > existingInProgressTs) {
-        existingInProgressTs = t;
-        existingInProgressDate = dStr;
-      }
-    }
-    
-    // Remove the existing in-progress bar so it can be replaced by the new in-progress bar
-    // This handles the case where the in-progress bar's date changes (e.g., Thu->Fri)
-    if (existingInProgressDate) {
-      map.delete(existingInProgressDate);
-      log.info(`weekly.merge.remove_old_inprogress symbol=${symbol} year=${year} date=${existingInProgressDate}`, {
-        symbol,
-        year,
-        date: existingInProgressDate,
-      });
     }
 
-    // Merge incoming storage bars for this year by date into the map.
-    // 
-    // WEEKLY BAR SEMANTICS:
-    // - AV returns a compact window (typically 100 bars)
-    // - The LAST bar (latest date) in the AV response is the in-progress bar with TODAY's date
-    // - The in-progress bar's date changes daily (Mon->Tue->Wed->Thu->Fri)
-    // - Historical bars (completed weeks) have their week-ending date (typically Friday)
-    // - The in-progress bar (latest date) should ALWAYS be written/updated
-    // - Historical bars (not latest date) should only be written if they don't already exist
-    
-    // Find the latest bar date in the incoming data (this is the in-progress bar)
-    let latestBarDate: string | null = null;
-    let latestBarTs = Number.NEGATIVE_INFINITY;
-    for (const b of yearStorageBars) {
-      const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
-      if (Number.isFinite(t) && t > latestBarTs) {
-        latestBarTs = t;
-        latestBarDate = b.date;
-      }
-    }
+    // Limit writes to a small tip window to avoid rewriting the full compact
+    // history on every run. For WEEKLY we overwrite only the last 2 bars for
+    // this year shard using AV as the source of truth.
+    const WINDOW_SIZE = 2;
+    const sortedYearStorageBars = [...yearStorageBars].sort((a, b) => {
+      const ta = new Date(`${a.date}T00:00:00.000Z`).getTime();
+      const tb = new Date(`${b.date}T00:00:00.000Z`).getTime();
+      return ta - tb;
+    });
+    const windowBars = sortedYearStorageBars.slice(-WINDOW_SIZE);
 
-    for (const b of yearStorageBars) {
+    const windowDates = new Set<string>();
+    for (const b of windowBars) {
       const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
       if (!Number.isFinite(t)) {
         log.warn(`weekly.merge.skip_bar symbol=${symbol} year=${year} date=${b.date} reason=invalid_timestamp`, {
@@ -1113,22 +1086,32 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
         continue;
       }
       const dStr = new Date(t).toISOString().slice(0, 10);
-      const existing = map.get(dStr);
-      const dow = computeDowFromDateString(dStr);
-      const isInProgressBar = dStr === latestBarDate;
+      windowDates.add(dStr);
+    }
 
-      // Skip historical bars (not in-progress) that already exist
-      if (!isInProgressBar && existing) {
-        log.info(`weekly.merge.skip_existing symbol=${symbol} year=${year} date=${dStr}`, {
+    // Drop any existing bars for the window dates so they can be replaced.
+    for (const dStr of windowDates) {
+      if (map.delete(dStr)) {
+        log.info(`weekly.merge.remove_window_bar symbol=${symbol} year=${year} date=${dStr}`, {
           symbol,
           year,
           date: dStr,
-          reason: 'historical_bar_exists',
+          reason: 'window_replace',
         });
-        continue;
       }
+    }
+
+    // Insert/overwrite bars for the window dates using AV's compact payload
+    // as the source of truth, while preserving intraday fields when present.
+    for (const b of windowBars) {
+      const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
+      if (!Number.isFinite(t)) continue;
+      const dStr = new Date(t).toISOString().slice(0, 10);
+      const existing = map.get(dStr);
+      const dow = computeDowFromDateString(dStr);
 
       const merged: CompactBar = {
+        ...(existing ?? {} as CompactBar),
         t,
         d: dStr,
         dow,
@@ -1137,21 +1120,18 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
         l: Number(b.low),
         c: Number(b.close),
         v: Number(b.volume),
-        ac: b.adjustedClose != null ? Number(b.adjustedClose) : undefined,
-        dv: b.dividendAmount != null ? Number(b.dividendAmount) : undefined,
-        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : undefined,
-        ip: existing?.ip,
-        io: existing?.io,
-        it: existing?.it,
+        ac: b.adjustedClose != null ? Number(b.adjustedClose) : (existing?.ac),
+        dv: b.dividendAmount != null ? Number(b.dividendAmount) : (existing?.dv),
+        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : (existing?.sc),
         ic: existing?.ic ?? null,
         ipc: existing?.ipc ?? null,
+        it: existing?.it ?? null,
       } as CompactBar;
 
-      log.info(`weekly.merge.add_bar symbol=${symbol} year=${year} date=${dStr} isInProgress=${isInProgressBar}`, {
+      log.info(`weekly.merge.add_window_bar symbol=${symbol} year=${year} date=${dStr}`, {
         symbol,
         year,
         date: dStr,
-        isInProgressBar,
         o: merged.o,
         c: merged.c,
         v: merged.v,
@@ -1268,7 +1248,18 @@ export async function mergeMonthlyCompactWindowIntoAllDocs(options: {
     map.set(dStr, bar);
   }
 
-  for (const b of storageBars) {
+  // Limit writes to a small tip window to avoid rewriting the full compact
+  // history on every run. For MONTHLY we overwrite only the last 2 bars using
+  // AV as the source of truth, preserving all older history when present.
+  const WINDOW_SIZE = 2;
+  const sortedStorageBars = [...storageBars].sort((a, b) => {
+    const ta = new Date(`${a.date}T00:00:00.000Z`).getTime();
+    const tb = new Date(`${b.date}T00:00:00.000Z`).getTime();
+    return ta - tb;
+  });
+  const windowBars = sortedStorageBars.slice(-WINDOW_SIZE);
+
+  for (const b of windowBars) {
     const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
     if (!Number.isFinite(t)) continue;
     const dStr = new Date(t).toISOString().slice(0, 10);
@@ -1470,7 +1461,9 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
       throw new Error(`bumpTSMeta ttl missing for endpoint=${endpoint}`);
     }
     const ttlSeconds = endpointConfig.ttl;
-    const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor);
+    // Time-series job pipeline now treats the split-adjusted series as canonical.
+    // Use the adjusted series doc as the parent for metadata.
+    const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor, true);
     const docRef = db.doc(docPath);
     const latestTsFromDate = new Date(`${latestDate}T00:00:00.000Z`).getTime();
 
@@ -1480,8 +1473,8 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
     let availableYears: number[] = [];
 
     if (interval === TimeSeriesInterval.MONTHLY) {
-      // Use the raw monthly all-doc as the source of truth for date bounds/years.
-      const allPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, false);
+      // Use the adjusted monthly all-doc as the source of truth for date bounds/years.
+      const allPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, true);
       const allSnap = await db.doc(allPath).get();
       if (allSnap.exists) {
         const data = allSnap.data() as any;
@@ -1504,7 +1497,7 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
         }
       }
     } else {
-      // Daily/Weekly: inspect the years subcollection and derive bounds from earliest/latest year shards.
+      // Daily/Weekly: inspect the adjusted years subcollection and derive bounds from earliest/latest year shards.
       const yearsColPath = `${docPath}/years`;
       const yearsSnap = await db.collection(yearsColPath).get();
       const years = yearsSnap.docs.map(d => Number(d.id)).filter(n => Number.isFinite(n)).sort((a, b) => a - b);
@@ -1513,8 +1506,8 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
         const earliestYear = years[0];
         const latestYear = years[years.length - 1];
 
-        const earliestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, earliestYear, false);
-        const latestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, latestYear, false);
+        const earliestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, earliestYear, true);
+        const latestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, latestYear, true);
         const [earliestSnap, latestSnap] = await Promise.all([
           db.doc(earliestPath).get(),
           db.doc(latestPath).get(),
@@ -1551,12 +1544,16 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
     }
 
     const now = Timestamp.now();
+    // Coarse next-run indicator: approx next day. This matches the adjusted
+    // writer path and keeps metadata consistent for live compact updates.
+    const nextPostRunAt = Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000));
+
     const payload: any = {
       metadata: {
         symbol,
         interval,
         lastUpdated: now,
-        nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttlSeconds * 1000)),
+        nextRefreshAt: nextPostRunAt,
         ttlSeconds,
         vendor,
         endpoint,
@@ -1575,6 +1572,16 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
     }
 
     await docRef.set(payload, { merge: true });
+
+    // Also hydrate symbol-data so live compact updates maintain the same
+    // presence/metadata expectations as full writes.
+    const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+    await symbolDocRef.set({
+      nextRefreshAt: nextPostRunAt,
+      nextRefreshBy: '',
+      refreshedAt: now,
+      refreshedBy: 'time-series-write',
+    }, { merge: true });
   } catch (e: any) {
     console.error('bumpTSMeta error', String(e?.message || e));
   }
