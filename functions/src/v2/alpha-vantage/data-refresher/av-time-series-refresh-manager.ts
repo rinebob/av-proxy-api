@@ -9,6 +9,8 @@ import {
   DayOfWeek,
 } from '@shared/alpha-vantage';
 import { FirestoreCollection, RefreshTrigger } from '@shared/firestore';
+import { TradingPhase } from '@shared/health-metrics';
+import { TimeSeriesJobType } from '../jobs/time-series-jobs.model';
 
 import {
   TS_DAILY_PRE_CLOSE_SCHEDULE,
@@ -25,7 +27,6 @@ import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { getTimeSeriesJobDocPath } from '../../common/firestore/firestore-paths';
 import { TIME_SERIES_BASELINE_ETFS, TIME_SERIES_MASTER_SYMBOL_ORDER } from '../data/ts-master-order';
 import { TS_SCHEDULER_BATCH_SIZE, TS_FULLBACKFILL_BATCH_SIZE } from '../jobs/ts-job-batch-config';
-import { TradingPhase } from '@shared/health-metrics';
 import { TimeSeriesJobStatus, TimeSeriesJobMode } from '../jobs/time-series-jobs.model';
 import { CloudTask } from '../../common/constants';
 
@@ -227,6 +228,7 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
           symbol,
           endpoint,
           phase,
+          jobType: TimeSeriesJobType.REALTIME,
         });
         tsJobLogger.timeEnd('job.enqueue', {
           function: fnString,
@@ -595,16 +597,36 @@ export async function enqueueFullBackfillJobsForEndpoint(options: {
           endpoint: endpointName,
         } as BetterLogPayload);
 
-        await createOrUpdateTimeSeriesJobAndMaybeEnqueueTask({
-          marketDate,
+        // Create job doc in backfill-runs/{runId}/jobs/{symbol-endpoint-phase} subcollection
+        const jobId = `${symbolUpper}-${endpoint}-${TradingPhase.POST}`;
+        const jobPath = `${FirestoreCollection.BACKFILL_RUNS}/${runId}/${FirestoreCollection.JOBS}/${jobId}`;
+        const jobRef = db.doc(jobPath);
+        
+        await jobRef.set({
           symbol: symbolUpper,
           endpoint,
           phase: TradingPhase.POST,
-          runId,
-          intervalForEndpoint,
-          endpointName,
           mode: TimeSeriesJobMode.FullBackfill,
+          status: TimeSeriesJobStatus.Pending,
+          attempts: 0,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
         });
+
+        // Enqueue Cloud Task with backfill jobType
+        const tasksEnabled = String(process.env.TS_TIME_SERIES_TASKS_ENABLED || '').toLowerCase() === 'true';
+        if (tasksEnabled) {
+          const queue = getFunctions().taskQueue(CloudTask.TIME_SERIES_JOB);
+          await queue.enqueue({
+            marketDate,
+            symbol: symbolUpper,
+            endpoint,
+            phase: TradingPhase.POST,
+            mode: TimeSeriesJobMode.FullBackfill,
+            jobType: TimeSeriesJobType.BACKFILL,
+            runId,
+          });
+        }
 
         createdSymbolsThisEndpoint.add(symbolUpper);
 
@@ -641,20 +663,25 @@ export async function enqueueFullBackfillJobsForEndpoint(options: {
   // run. This gives us a clear expectedJobs count that is independent of how
   // many job docs were "new" for this marketDate.
   const runDocRef = db.doc(`${FirestoreCollection.BACKFILL_RUNS}/${runId}`);
-  await runDocRef.set(
-    {
-      runId,
-      type: 'full_backfill',
-      marketDate,
-      endpoint: endpointName,
-      interval: intervalForEndpoint,
-      symbolCount: createdSymbolsThisEndpoint.size,
-      expectedJobs: createdSymbolsThisEndpoint.size,
-      status: 'IN_PROGRESS',
-      runStartedAt: Timestamp.now(),
-    },
-    { merge: true },
-  );
+  
+  // Delete existing run doc to reset counters (in case of re-run)
+  await runDocRef.delete().catch(() => {
+    // Ignore if doc doesn't exist
+  });
+  
+  await runDocRef.set({
+    runId,
+    type: 'full_backfill',
+    marketDate,
+    endpoint: endpointName,
+    interval: intervalForEndpoint,
+    symbolCount: createdSymbolsThisEndpoint.size,
+    expectedJobs: createdSymbolsThisEndpoint.size,
+    successJobs: 0,
+    permanentFailureJobs: 0,
+    status: 'IN_PROGRESS',
+    runStartedAt: Timestamp.now(),
+  });
 
   return {
     marketDate,

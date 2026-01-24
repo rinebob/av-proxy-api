@@ -3,6 +3,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { AlphaVantageEndpoint, OutputSize, TimeSeriesInterval } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
+import { FirestoreCollection } from '@shared/firestore';
 import { TradingPhase } from '@shared/health-metrics';
 
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
@@ -11,8 +12,15 @@ import {
   getSymbolTimeSeriesYearDocPath,
   getSymbolTimeSeriesAllDocPath,
 } from '../../common/firestore/firestore-paths';
-import { TimeSeriesJobStatus, TimeSeriesJobMode } from './time-series-jobs.model';
+import {
+  TimeSeriesJobStatus,
+  TimeSeriesJobMode,
+  TimeSeriesJobTerminalStatus,
+  PeriodStatus,
+  TimeSeriesJobType,
+} from './time-series-jobs.model';
 import { onTimeSeriesJobTerminal } from './time-series-jobs.aggregator';
+import { onBackfillJobTerminal } from './backfill-job-aggregator';
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { publishSymbolsReadyBatch } from '../../partner/symbols-ready.publisher';
 import {
@@ -20,15 +28,6 @@ import {
   deleteWeeklyAdjustedForSymbol,
   deleteMonthlyAdjustedForSymbol,
 } from '../firestore/av-backfill-delete-helpers';
-
-/**
- * Indicates whether the time-series for a given job has reached the
- * expected period-end bar (e.g. day/week/month) or is still in-progress.
- */
-export enum PeriodStatus {
-  InProgress = 'IN_PROGRESS',
-  PeriodEnd = 'PERIOD_END',
-}
 
 // Dedicated logger for the time-series job worker so pipeline logs are easy to filter
 const logger = betterLogger('tSJ.w');
@@ -50,6 +49,15 @@ export interface ProcessTimeSeriesJobPayload {
   // as a standard compact refresh. FULL_BACKFILL jobs perform a destructive
   // refresh for the target symbol+endpoint using OutputSize.FULL.
   mode?: TimeSeriesJobMode;
+
+  // Job type for routing to correct Firestore paths. Defaults to Realtime.
+  // - Realtime: Uses time-series-jobs/{date}/jobs/{id} paths
+  // - Backfill: Uses backfill-jobs/{runId}/jobs/{symbol} paths
+  jobType?: TimeSeriesJobType;
+
+  // Run ID for backfill jobs. Required when jobType is 'backfill'.
+  // Format: YYYY-MM-DD-ENDPOINT-FULL_BACKFILL (e.g., "2026-01-24-DAILY-FULL_BACKFILL")
+  runId?: string;
 }
 
 /**
@@ -74,7 +82,7 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     return;
   }
 
-  const { marketDate, symbol, endpoint, phase } = payload;
+  const { marketDate, symbol, endpoint, phase, jobType, runId } = payload;
 
   const interval: TimeSeriesInterval =
     endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
@@ -107,7 +115,19 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     return;
   }
 
-  const jobPath = getTimeSeriesJobDocPath(marketDate, symbol, endpoint, phase);
+  // Route to correct Firestore path based on jobType
+  let jobPath: string;
+  if (jobType === TimeSeriesJobType.BACKFILL) {
+    if (!runId) {
+      logger.error('ts.jobs.worker.missing_runId', baseLogPayload);
+      throw new Error('runId is required for backfill jobs');
+    }
+    const jobId = `${symbol.toUpperCase()}-${endpoint}-${phase}`;
+    jobPath = `${FirestoreCollection.BACKFILL_RUNS}/${runId}/${FirestoreCollection.JOBS}/${jobId}`;
+  } else {
+    // Default to realtime path
+    jobPath = getTimeSeriesJobDocPath(marketDate, symbol, endpoint, phase);
+  }
   const jobRef = db.doc(jobPath);
 
   // Load and gate on current status.
@@ -206,7 +226,7 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     const latestValue = latestMs ?? undefined;
     const hasBar = typeof latestValue === 'number';
     const isPeriodEnd = hasBar && latestValue >= targetTs;
-    const periodStatus = isPeriodEnd ? PeriodStatus.PeriodEnd : PeriodStatus.InProgress;
+    const periodStatus = isPeriodEnd ? PeriodStatus.PERIOD_END : PeriodStatus.IN_PROGRESS;
 
     // Handler ran without throwing; treat the job itself as SUCCESS.
     // Period completion is tracked separately via periodStatus.
@@ -222,34 +242,43 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
 
     // Emit a per-symbol, per-interval partner notification for every SUCCESS job so
     // consumers (e.g. RS) can react as soon as data for that symbol/interval is
-    // available.
-    try {
-      await publishSymbolsReadyBatch({
-        version: 'v1',
-        marketDate,
-        symbols: [symbol],
-        reason: 'scheduled',
-        interval,
-      });
+    // available. Skip for backfill jobs (they're one-time operations).
+    if (jobType !== TimeSeriesJobType.BACKFILL) {
       try {
-        logger.info('ts.jobs.publish_symbol_ready', baseLogPayload);
-      } catch {}
-    } catch (e: any) {
-      try {
-        logger.error('ts.jobs.publish_symbol_ready_error', {
-          ...baseLogPayload,
-          function: 'pSJI',
+        await publishSymbolsReadyBatch({
+          version: 'v1',
+          marketDate,
+          symbols: [symbol],
+          reason: 'scheduled',
+          interval,
         });
-      } catch {}
+        try {
+          logger.info('ts.jobs.publish_symbol_ready', baseLogPayload);
+        } catch {}
+      } catch (e: any) {
+        try {
+          logger.error('ts.jobs.publish_symbol_ready_error', {
+            ...baseLogPayload,
+            function: 'pSJI',
+          });
+        } catch {}
+      }
     }
 
-    // Notify the date-level aggregator that this job reached a terminal SUCCESS state.
-    await onTimeSeriesJobTerminal({
-      marketDate,
-      symbol,
-      interval,
-      status: 'SUCCESS',
-    });
+    // Notify the appropriate aggregator that this job reached a terminal SUCCESS state.
+    // Route based on jobType: backfill jobs update backfill-runs/{runId}, realtime jobs
+    // update time-series-jobs/{marketDate}.
+    if (jobType === TimeSeriesJobType.BACKFILL) {
+      await onBackfillJobTerminal({ runId: runId!, symbol, interval, status: TimeSeriesJobTerminalStatus.SUCCESS });
+      logger.info('ts.jobs.backfill.success', { ...baseLogPayload, runId });
+    } else {
+      await onTimeSeriesJobTerminal({
+        marketDate,
+        symbol,
+        interval,
+        status: TimeSeriesJobTerminalStatus.SUCCESS,
+      });
+    }
 
     // Per-job pipeline log: worker completed successfully for this symbol
     try {
@@ -299,13 +328,18 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
         { merge: true },
       );
 
-      // Notify the date-level aggregator that this job reached a terminal PERMANENT_FAILURE state.
-      await onTimeSeriesJobTerminal({
-        marketDate,
-        symbol,
-        interval,
-        status: 'PERMANENT_FAILURE',
-      });
+      // Notify the appropriate aggregator that this job reached a terminal PERMANENT_FAILURE state.
+      if (jobType === TimeSeriesJobType.BACKFILL) {
+        await onBackfillJobTerminal({ runId: runId!, symbol, interval, status: TimeSeriesJobTerminalStatus.PERMANENT_FAILURE });
+        logger.info('ts.jobs.backfill.permanent_failure', { ...baseLogPayload, runId });
+      } else {
+        await onTimeSeriesJobTerminal({
+          marketDate,
+          symbol,
+          interval,
+          status: TimeSeriesJobTerminalStatus.PERMANENT_FAILURE,
+        });
+      }
       return;
     }
 
