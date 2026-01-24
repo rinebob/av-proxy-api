@@ -21,11 +21,11 @@ export const processTimeSeriesJobTask = onTaskDispatched<ProcessTimeSeriesJobPay
       maxBackoffSeconds: 300,
     },
     rateLimits: {
-      // Limit to a single concurrent execution. Combined with an
-      // explicit 1s delay in the worker before calling Alpha Vantage,
-      // this ensures we never exceed ~60 req/min across all jobs,
-      // independent of Cloud Tasks' internal dispatch heuristics.
-      maxConcurrentDispatches: 1,
+      // IMPORTANT: Each job does 1 AV call. Keep maxDispatchesPerSecond <= 1.2
+      // to stay under the 75 req/min AV limit with headroom while allowing
+      // higher intra-job concurrency for Firestore writes.
+      maxConcurrentDispatches: 20,
+      maxDispatchesPerSecond: 1.0,
     },
     memory: '512MiB',
     secrets: ['ALPHAVANTAGE_API_KEY'],
