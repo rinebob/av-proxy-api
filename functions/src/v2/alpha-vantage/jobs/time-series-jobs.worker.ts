@@ -220,50 +220,27 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
       lastError: FieldValue.delete(),
     }, { merge: true });
 
-    // Optional verbose partner mode: emit a single-symbol partner notification for
-    // every SUCCESS job (per symbol+interval) so cross-project message flow can
-    // be validated without altering production batching semantics.
-    const verboseFlag = String(process.env.TS_PARTNER_VERBOSE_MESSAGES || '').toLowerCase();
-    const verboseMode = verboseFlag === 'true' || verboseFlag === 'on';
-    if (verboseMode) {
+    // Emit a per-symbol, per-interval partner notification for every SUCCESS job so
+    // consumers (e.g. RS) can react as soon as data for that symbol/interval is
+    // available.
+    try {
+      await publishSymbolsReadyBatch({
+        version: 'v1',
+        marketDate,
+        symbols: [symbol],
+        reason: 'scheduled',
+        interval,
+      });
       try {
-        await publishSymbolsReadyBatch(
-          {
-            version: 'v1',
-            marketDate,
-            symbols: [symbol],
-            reason: 'verbose',
-            interval,
-          },
-          { verbose: 'true' },
-        );
-        try {
-          logger.info(
-            `symbol=${symbol} event=ts.jobs.publish_verbose interval=${interval} marketDate=${marketDate}`,
-            {
-              symbol,
-              endpoint,
-              interval,
-              marketDate,
-              verbose: true,
-            },
-          );
-        } catch {}
-      } catch (e: any) {
-        try {
-          logger.error(
-            `symbol=${symbol} event=ts.jobs.publish_verbose_error interval=${interval} marketDate=${marketDate}`,
-            {
-              symbol,
-              endpoint,
-              interval,
-              marketDate,
-              verbose: true,
-              error: String(e?.message || e),
-            },
-          );
-        } catch {}
-      }
+        logger.info('ts.jobs.publish_symbol_ready', baseLogPayload);
+      } catch {}
+    } catch (e: any) {
+      try {
+        logger.error('ts.jobs.publish_symbol_ready_error', {
+          ...baseLogPayload,
+          function: 'pSJI',
+        });
+      } catch {}
     }
 
     // Notify the date-level aggregator that this job reached a terminal SUCCESS state.
