@@ -93,6 +93,11 @@ interface JobsDateDocLike {
  *    dashboards or partner‑facing services can subscribe to this channel in
  *    order to be notified when a full time‑series refresh for a given
  *    {@link marketDate} and phase is complete.
+ *  - Downstream consumers such as RS may maintain their own feature flag or
+ *    switch to ignore or short‑circuit processing of specific
+ *    `partner-data-ready` events. This publisher does not control or observe
+ *    that behavior; from this service's perspective, the message is always
+ *    published once the run has completed.
  *
  * @param marketDate
  * A `YYYY-MM-DD` string representing the logical market date whose

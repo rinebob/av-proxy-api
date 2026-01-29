@@ -47,14 +47,17 @@ export enum PartnerRunType {
 
 /**
  * PartnerTrigger: origin of the partner data-ready message.
- * - MANUAL: initiated by a human or explicit test trigger
+ * - MANUAL: initiated by a human or explicit ad-hoc trigger
  * - SCHEDULED: initiated by a scheduled refresher run
  * - HEARTBEAT: emitted by the heartbeat publisher for connectivity testing
+ * - TEST: emitted when we want downstream consumers (e.g. RS) to receive but
+ *         deliberately skip normal processing of the message.
  */
 export enum PartnerTrigger {
   MANUAL = 'manual',
   SCHEDULED = 'scheduled',
   HEARTBEAT = 'heartbeat',
+  TEST = 'test',
 }
 
 /**

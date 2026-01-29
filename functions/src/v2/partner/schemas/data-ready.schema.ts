@@ -20,7 +20,7 @@ export interface DataReadyPayloadV1 {
   env?: 'staging' | 'prod' | string;
   traceId?: string;
 
-  // New: origin of the message (manual, scheduled, heartbeat)
+  // New: origin of the message (manual, scheduled, heartbeat, test)
   trigger?: PartnerTrigger;
 
   // Legacy SA status (keep): begin/end
@@ -114,9 +114,14 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
 
   // Optional: trigger
   if (obj.trigger != null) {
-    const allowed = [PartnerTrigger.MANUAL, PartnerTrigger.SCHEDULED, PartnerTrigger.HEARTBEAT];
+    const allowed = [
+      PartnerTrigger.MANUAL,
+      PartnerTrigger.SCHEDULED,
+      PartnerTrigger.HEARTBEAT,
+      PartnerTrigger.TEST,
+    ];
     if (!allowed.includes(obj.trigger)) {
-      errors.push('trigger must be one of: manual, scheduled, heartbeat');
+      errors.push('trigger must be one of: manual, scheduled, heartbeat, test');
     }
   }
 
