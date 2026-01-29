@@ -35,6 +35,11 @@ interface TimeSeriesJobsDateDoc {
   runCompletedAt?: FirebaseFirestore.Timestamp;
   runId?: string;
   dataReadyPublished?: boolean;
+  // True when the scheduler has finished creating/enqueuing all jobs
+  // for this marketDate/phase. This guards against declaring the
+  // universe-level run complete while additional jobs are still
+  // being created.
+  jobsCreationComplete?: boolean;
   // High-level status for this marketDate run. Set to 'IN_PROGRESS' when any
   // job is created/enqueued and flipped to 'COMPLETE' when all jobs reach a
   // terminal state (success or permanent failure).
@@ -106,6 +111,7 @@ export async function onTimeSeriesJobTerminal(
 
     const totalJobs = typeof data.totalJobs === 'number' ? data.totalJobs : 0;
     const finishedJobs = nextSuccessJobs + nextPermanentFailureJobs;
+    const jobsCreationComplete = data.jobsCreationComplete === true;
 
     const nextData: TimeSeriesJobsDateDoc = {
       ...data,
@@ -114,7 +120,16 @@ export async function onTimeSeriesJobTerminal(
       symbols,
     };
 
-    if (totalJobs > 0 && finishedJobs === totalJobs && !data.dataReadyPublished) {
+    // Only declare the universe-level run COMPLETE once:
+    //  - The scheduler has finished creating all jobs for this marketDate
+    //    (jobsCreationComplete === true), and
+    //  - Every created job has reached a terminal state.
+    if (
+      jobsCreationComplete &&
+      totalJobs > 0 &&
+      finishedJobs === totalJobs &&
+      !data.dataReadyPublished
+    ) {
       nextData.runCompletedAt = now;
       nextData.dataReadyPublished = true;
       // All jobs for this marketDate have reached a terminal state.
