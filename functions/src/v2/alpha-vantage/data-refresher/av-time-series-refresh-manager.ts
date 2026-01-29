@@ -32,6 +32,100 @@ import { CloudTask } from '../../common/constants';
 
 const tsJobLogger = betterLogger('aVTSRM');
 
+/**
+ * Computes the current trading date and day-of-week in Eastern Time.
+ *
+ * This helper centralizes ET calendar logic so that all time-series
+ * schedulers derive a consistent `marketDate` and `dow` for use in
+ * runId construction and Firestore document keys.
+ *
+ * @returns Object containing the ET trading `marketDate` (YYYY-MM-DD)
+ *          and corresponding `dow` enum value.
+ */
+function getEtMarketDateAndDow(): { marketDate: string; dow: DayOfWeek } {
+  const tz = 'America/New_York';
+  const now = new Date();
+  const fmtDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const marketDate = fmtDate.format(now);
+
+  const dowIdx = Number(new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay());
+  const DOW_ENUM: DayOfWeek[] = [
+    DayOfWeek.Sun,
+    DayOfWeek.Mon,
+    DayOfWeek.Tue,
+    DayOfWeek.Wed,
+    DayOfWeek.Thu,
+    DayOfWeek.Fri,
+    DayOfWeek.Sat,
+  ];
+  const dow: DayOfWeek = DOW_ENUM[dowIdx];
+
+  return { marketDate, dow };
+}
+
+/**
+ * Builds the canonical time-series `runId` used across realtime and
+ * backfill runs.
+ *
+ * Format:
+ *   YYYY-MM-DD-DOW-POST-LIVE|MANUAL-<SEQUENCE>-<HHMM>
+ *
+ * The `sequence` encodes the logical pass (A/B/C/X/F), while `clockEt`
+ * encodes the nominal ET start time of the run. When `clockEt` is not
+ * provided, the current ET time is used.
+ *
+ * @param params.marketDate Trading date in ET (YYYY-MM-DD).
+ * @param params.dow Day-of-week for the trading date.
+ * @param params.phase Trading phase for the run (PRE or POST).
+ * @param params.isManual Whether the run is manual/emulator (MANUAL) or
+ *                         scheduler-driven (LIVE).
+ * @param params.sequence Single-character sequence identifier for the
+ *                        run (e.g., A/B/C/X/F).
+ * @param params.clockEt Optional explicit ET time (HHMM) to embed.
+ * @returns Canonical runId string for the time-series run.
+ */
+function buildTimeSeriesRunId(params: {
+  marketDate: string;
+  dow: DayOfWeek;
+  phase: TradingPhase;
+  isManual: boolean;
+  sequence: string;
+  clockEt?: string; // HHMM; when omitted, derived from current ET time
+}): string {
+  const { marketDate, dow, phase, isManual, sequence } = params;
+  let { clockEt } = params;
+
+  const phaseStrUpper = String(phase).toUpperCase();
+  const dowStr = String(dow).toUpperCase();
+  const liveManualSuffix = isManual ? 'MANUAL' : 'LIVE';
+
+  if (!clockEt) {
+    const tz = 'America/New_York';
+    const now = new Date();
+    const etNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+    const hh = String(etNow.getHours()).padStart(2, '0');
+    const mm = String(etNow.getMinutes()).padStart(2, '0');
+    clockEt = `${hh}${mm}`;
+  }
+
+  return `${marketDate}-${dowStr}-${phaseStrUpper}-${liveManualSuffix}-${sequence}-${clockEt}`;
+}
+
+/**
+ * Orders tracked symbols so that baselines and master-listed symbols are
+ * processed first, followed by all remaining symbols in sorted order.
+ *
+ * This ensures consistent, deterministic symbol ordering across runs,
+ * which makes logs and backfill diagnostics easier to reason about.
+ *
+ * @param allTracked Raw list of tracked symbol tickers.
+ * @returns Ordered symbol list with baselines and master symbols first.
+ */
 export function orderTrackedSymbols(allTracked: string[]): string[] {
   const baselines = TIME_SERIES_BASELINE_ETFS;
   const master = TIME_SERIES_MASTER_SYMBOL_ORDER;
@@ -60,6 +154,25 @@ export function orderTrackedSymbols(allTracked: string[]): string[] {
   return ordered;
 }
 
+/**
+ * Creates or updates a single time-series job document for the given
+ * {marketDate, symbol, endpoint, phase} tuple and, when enabled, enqueues
+ * the corresponding Cloud Task.
+ *
+ * This function also ensures the aggregate date-level document is kept
+ * in sync (runId, status, totalJobs) so that the aggregator can compute
+ * universe-level completion correctly.
+ *
+ * @param params.marketDate Trading date for the job (YYYY-MM-DD, ET).
+ * @param params.symbol Uppercased symbol ticker.
+ * @param params.endpoint Alpha Vantage time-series endpoint.
+ * @param params.phase Trading phase (POST only for the new pipeline).
+ * @param params.runId Canonical run identifier for this invocation.
+ * @param params.intervalForEndpoint Logical interval for the endpoint
+ *                                   (DAILY, WEEKLY, MONTHLY).
+ * @param params.endpointName Human-readable endpoint name for logging.
+ * @param params.mode Optional job mode (realtime vs full backfill).
+ */
 async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
   marketDate: string;
   symbol: string;
@@ -296,14 +409,35 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
   }
 }
 
+/**
+ * Scheduler-facing entry point for creating/enqueuing jobs for a single
+ * Alpha Vantage time-series endpoint (DAILY/WEEKLY/MONTHLY) for a given
+ * trading date and POST phase.
+ *
+ * Callers MUST supply a canonical `runId` generated via
+ * `buildTimeSeriesRunId`. This `runId` is stored on the aggregate
+ * `time-series-jobs/{marketDate}` document and ultimately flows through
+ * to the partner `runs` collection and data-ready Pub/Sub messages.
+ *
+ * @param options.endpoint Alpha Vantage time-series endpoint to schedule.
+ * @param options.phase Trading phase (only POST is honored).
+ * @param options.trigger Logical refresh trigger (scheduler/manual).
+ * @param options.marketDate Optional explicit trading date override.
+ * @param options.symbols Optional subset of symbols to target.
+ * @param options.runId Canonical run identifier for this invocation.
+ */
 export async function runTimeSeriesJobsForEndpoint(options: {
   endpoint: AlphaVantageEndpoint;
   phase: TradingPhase;
   trigger: RefreshTrigger;
   marketDate?: string;
   symbols?: string[];
+  // Canonical run identifier for this invocation. Callers MUST construct
+  // this via buildTimeSeriesRunId so that all POST runs share a consistent
+  // format.
+  runId: string;
 }): Promise<void> {
-  const { endpoint, phase, trigger, marketDate: marketDateOverride, symbols: symbolsOverride } = options;
+  const { endpoint, phase, marketDate: marketDateOverride, symbols: symbolsOverride, runId } = options;
 
   const fnString = 'rTSJFE';
 
@@ -333,20 +467,6 @@ export async function runTimeSeriesJobsForEndpoint(options: {
     marketDate = fmtDate.format(now);
   }
 
-  const dowIdx = Number(new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay());
-  const DOW_ENUM: DayOfWeek[] = [
-    DayOfWeek.Sun,
-    DayOfWeek.Mon,
-    DayOfWeek.Tue,
-    DayOfWeek.Wed,
-    DayOfWeek.Thu,
-    DayOfWeek.Fri,
-    DayOfWeek.Sat,
-  ];
-  const dowEnum: DayOfWeek = DOW_ENUM[dowIdx];
-  const dowStr = String(dowEnum).toUpperCase();
-  const phaseStrUpper = String(phaseFinal).toUpperCase();
-
   const endpointName = AlphaVantageEndpoint[endpoint];
   const intervalForEndpoint: TimeSeriesInterval =
     endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
@@ -368,9 +488,8 @@ export async function runTimeSeriesJobsForEndpoint(options: {
     return;
   }
 
-  const isManualRun = trigger === RefreshTrigger.MANUAL || process.env.FUNCTIONS_EMULATOR === 'true';
-  const liveManualSuffix = isManualRun ? 'MANUAL' : 'LIVE';
-  const runId = `${marketDate}-${dowStr}-${phaseStrUpper}-${endpoint}-${liveManualSuffix}`;
+  // runId is supplied by the caller and must already conform to the
+  // canonical format produced by buildTimeSeriesRunId.
 
   let symbols: string[];
   if (Array.isArray(symbolsOverride) && symbolsOverride.length > 0) {
@@ -543,7 +662,6 @@ export async function enqueueFullBackfillJobsForEndpoint(options: {
     DayOfWeek.Sat,
   ];
   const dowEnum: DayOfWeek = DOW_ENUM[dowIdx];
-  const dowStr = String(dowEnum).toUpperCase();
 
   const endpointName = AlphaVantageEndpoint[endpoint];
   const intervalForEndpoint: TimeSeriesInterval =
@@ -553,7 +671,17 @@ export async function enqueueFullBackfillJobsForEndpoint(options: {
         ? TimeSeriesInterval.WEEKLY
         : TimeSeriesInterval.MONTHLY;
 
-  const runId = `${marketDate}-${dowStr}-POST-${endpoint}-FULL_BACKFILL`;
+  const isManualRun = true;
+  const runId = buildTimeSeriesRunId({
+    marketDate,
+    dow: dowEnum,
+    phase: TradingPhase.POST,
+    isManual: isManualRun,
+    // Dedicated sequence for full backfill runs so they are easily
+    // distinguishable from realtime scheduler passes while still using
+    // the unified runId format.
+    sequence: 'F',
+  });
 
   let symbols: string[];
   if (Array.isArray(symbolsOverride) && symbolsOverride.length > 0) {
@@ -692,68 +820,132 @@ export async function enqueueFullBackfillJobsForEndpoint(options: {
 }
 
 /**
- * runAllTimeSeriesIntervalsPost
+ * Orchestrates the POST time-series pipeline for all AV intervals
+ * (DAILY, WEEKLY, MONTHLY) for a single trading date.
  *
- * Convenience orchestrator that runs the time-series job pipeline for
- * DAILY, WEEKLY, and MONTHLY adjusted endpoints in a single invocation
- * for a given marketDate and POST phase. This is the primary entry
- * point for the all-intervals POST run that ultimately drives the
- * ts-post-all-intervals partner-data-ready message.
+ * This is the primary entry point for the all-intervals POST run that
+ * ultimately drives the `ts-post-all-intervals` partner data-ready
+ * message emitted from the aggregator.
+ *
+ * The {@link runId} parameter allows callers (primarily schedulers) to
+ * stamp a stable universe-level identifier that is shared across all
+ * intervals for a given pass. This MUST be constructed via
+ * {@link buildTimeSeriesRunId}; the runner will not generate its own id.
+ *
+ * @param options.trigger Logical trigger for the run (scheduler/manual).
+ * @param options.marketDate Optional explicit trading date override.
+ * @param options.symbols Optional subset of symbols to target.
+ * @param options.runId Canonical universe-level run identifier.
  */
 export async function runAllTimeSeriesIntervalsPost(options: {
   trigger: RefreshTrigger;
   marketDate?: string;
   symbols?: string[];
+  runId: string;
 }): Promise<void> {
-  const { trigger, marketDate, symbols } = options;
+  const { trigger, marketDate, symbols, runId } = options;
 
-  // DAILY
-  await runTimeSeriesJobsForEndpoint({
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
-    phase: TradingPhase.POST,
-    trigger,
-    marketDate,
-    symbols,
-  });
-
-  // WEEKLY
-  await runTimeSeriesJobsForEndpoint({
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
-    phase: TradingPhase.POST,
-    trigger,
-    marketDate,
-    symbols,
-  });
-
-  // MONTHLY
+  // MONTHLY first
   await runTimeSeriesJobsForEndpoint({
     endpoint: AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
     phase: TradingPhase.POST,
     trigger,
     marketDate,
     symbols,
+    runId,
   });
+
+  // WEEKLY next
+  await runTimeSeriesJobsForEndpoint({
+    endpoint: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
+    phase: TradingPhase.POST,
+    trigger,
+    marketDate,
+    symbols,
+    runId,
+  });
+
+  // DAILY last
+  await runTimeSeriesJobsForEndpoint({
+    endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
+    phase: TradingPhase.POST,
+    trigger,
+    marketDate,
+    symbols,
+    runId,
+  });
+
+  // Signal to the aggregator that job creation for this marketDate/phase
+  // has finished for all POST intervals. This prevents early universe-level
+  // completion when only a subset of jobs have been created.
+  const tz = 'America/New_York';
+  let effectiveMarketDate = marketDate;
+  if (!effectiveMarketDate) {
+    const now = new Date();
+    const fmtDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    effectiveMarketDate = fmtDate.format(now);
+  }
+
+  if (effectiveMarketDate) {
+    const dateRef = db.doc(`${FirestoreCollection.TIME_SERIES_JOBS}/${effectiveMarketDate}`);
+    await dateRef.set({ jobsCreationComplete: true }, { merge: true });
+  }
 }
 
-// =============================
-// Time-series schedulers (TS)
-// =============================
+/**
+ * Time-series schedulers (TS)
+ *
+ * These scheduler exports are the public, time-based entry points for
+ * the Alpha Vantage time-series pipeline. Each one is responsible for
+ * constructing a canonical runId and delegating into the shared job
+ * runner/orchestrator functions.
+ */
 
-// Daily time series: intraday hourly PRE (daily only)
+/**
+ * Daily time series: intraday hourly PRE (daily only).
+ *
+ * Uses the TS job pipeline in PRE phase to enqueue intraday jobs. The
+ * worker currently no-ops for non-POST phases, but this keeps behavior
+ * aligned with the new architecture.
+ */
 export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
   schedule: TS_DAILY_INTRADAY_HOURLY_SCHEDULE,
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
   // Wire through the TS job pipeline; the runner will handle phase gating.
+  const { marketDate, dow } = getEtMarketDateAndDow();
+
+  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
+  const runId = buildTimeSeriesRunId({
+    marketDate,
+    dow,
+    phase: TradingPhase.PRE,
+    isManual: isManualRun,
+    sequence: 'X',
+  });
+
   await runTimeSeriesJobsForEndpoint({
     endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
     phase: TradingPhase.PRE,
     trigger: RefreshTrigger.SCHEDULER,
+    marketDate,
+    runId,
   });
 });
 
-// Daily time series: pre-close (daily only)
+/**
+ * Daily time series: pre-close (daily only).
+ *
+ * PRE scheduler that mirrors the intraday hourly behavior but runs at a
+ * specific pre-close time. It wires through the TS job pipeline so that
+ * future PRE behavior can be centralized without changing call sites.
+ */
 export const refreshAvDailyTimeSeriesPreClose = onSchedule({
   schedule: TS_DAILY_PRE_CLOSE_SCHEDULE,
   timeZone: 'America/New_York',
@@ -762,20 +954,35 @@ export const refreshAvDailyTimeSeriesPreClose = onSchedule({
   // Use the TS job pipeline even for PRE scheduler; the runner will
   // safely no-op for non-POST phases while keeping behavior consistent
   // with the new architecture.
+  const { marketDate, dow } = getEtMarketDateAndDow();
+
+  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
+  const runId = buildTimeSeriesRunId({
+    marketDate,
+    dow,
+    phase: TradingPhase.PRE,
+    isManual: isManualRun,
+    sequence: 'X',
+  });
+
   await runTimeSeriesJobsForEndpoint({
     endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
     phase: TradingPhase.PRE,
     trigger: RefreshTrigger.SCHEDULER,
+    marketDate,
+    runId,
   });
 });
 
-// Daily time series: post-close (legacy daily-only entrypoint)
-//
-// In the new design, the all-intervals POST run is driven by
-// refreshAvTimeSeriesPostAllIntervals, which calls
-// runAllTimeSeriesIntervalsPost. To avoid double runs and keep the
-// contract clear, this legacy daily-only scheduler is now a no-op
-// that logs when invoked.
+/**
+ * Daily time series: post-close (legacy daily-only entrypoint).
+ *
+ * In the new design, the all-intervals POST run is driven by
+ * {@link refreshAvTimeSeriesPostAllIntervals}, which calls
+ * {@link runAllTimeSeriesIntervalsPost}. To avoid double runs and keep
+ * the contract clear, this legacy daily-only scheduler is now a no-op
+ * that only logs when invoked.
+ */
 export const refreshAvDailyTimeSeriesPostClose = onSchedule({
   schedule: TS_DAILY_POST_CLOSE_SCHEDULE,
   timeZone: 'America/New_York',
@@ -789,18 +996,44 @@ export const refreshAvDailyTimeSeriesPostClose = onSchedule({
   } as BetterLogPayload);
 });
 
-// All-intervals time series: post-close orchestrator (DAILY/WEEKLY/MONTHLY)
+/**
+ * All-intervals time series: post-close orchestrator
+ * (DAILY/WEEKLY/MONTHLY).
+ *
+ * Runs the unified POST pipeline for all time-series intervals in a
+ * single pass for the given trading date. This is the canonical
+ * orchestrator behind the `ts-post-all-intervals` partner run type.
+ */
 export const refreshAvTimeSeriesPostAllIntervals = onSchedule({
   schedule: TS_DAILY_POST_CLOSE_SCHEDULE,
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
+  const { marketDate, dow } = getEtMarketDateAndDow();
+
+  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
+  const runId = buildTimeSeriesRunId({
+    marketDate,
+    dow,
+    phase: TradingPhase.POST,
+    isManual: isManualRun,
+    sequence: 'A',
+    clockEt: '1635',
+  });
+
   await runAllTimeSeriesIntervalsPost({
     trigger: RefreshTrigger.SCHEDULER,
+    marketDate,
+    runId,
   });
 });
 
-// Weekly time series: post-close every trading day
+/**
+ * Weekly time series: post-close every trading day.
+ *
+ * Left as a logging-only no-op in the new pipeline because all-intervals
+ * POST is handled by the DAILY orchestrator.
+ */
 export const refreshAvWeeklyTimeSeriesPostClose = onSchedule({
   schedule: TS_POST_CLOSE_SCHEDULE,
   timeZone: 'America/New_York',
@@ -818,7 +1051,12 @@ export const refreshAvWeeklyTimeSeriesPostClose = onSchedule({
   } as BetterLogPayload);
 });
 
-// Monthly time series: post-close every trading day
+/**
+ * Monthly time series: post-close every trading day.
+ *
+ * Left as a logging-only no-op in the new pipeline because all-intervals
+ * POST is handled by the DAILY orchestrator.
+ */
 export const refreshAvMonthlyTimeSeriesPostClose = onSchedule({
   schedule: TS_POST_CLOSE_SCHEDULE,
   timeZone: 'America/New_York',
@@ -836,16 +1074,35 @@ export const refreshAvMonthlyTimeSeriesPostClose = onSchedule({
   } as BetterLogPayload);
 });
 
-// Daily time series: post-close evening retries (every 30 mins)
+/**
+ * Daily time series: post-close evening retries (every 30 mins).
+ *
+ * Uses the TS job pipeline to schedule additional POST runs focused on
+ * the DAILY interval only. These retries are intended to pick up
+ * symbols that failed during the primary close run.
+ */
 export const refreshAvDailyTimeSeriesPostEveningRetry30 = onSchedule({
   schedule: TS_DAILY_POST_EVENING_RETRY_MINUTE_30,
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
+  const { marketDate, dow } = getEtMarketDateAndDow();
+
+  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
+  const runId = buildTimeSeriesRunId({
+    marketDate,
+    dow,
+    phase: TradingPhase.POST,
+    isManual: isManualRun,
+    sequence: 'X',
+  });
+
   await runTimeSeriesJobsForEndpoint({
     endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
     phase: TradingPhase.POST,
     trigger: RefreshTrigger.SCHEDULER,
+    marketDate,
+    runId,
   });
 });
 
@@ -854,34 +1111,83 @@ export const refreshAvDailyTimeSeriesPostEveningRetry00 = onSchedule({
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  await runTimeSeriesJobsForEndpoint({
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
+  const { marketDate, dow } = getEtMarketDateAndDow();
+
+  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
+  const runId = buildTimeSeriesRunId({
+    marketDate,
+    dow,
     phase: TradingPhase.POST,
+    isManual: isManualRun,
+    sequence: 'B',
+    clockEt: '2100',
+  });
+
+  await runAllTimeSeriesIntervalsPost({
     trigger: RefreshTrigger.SCHEDULER,
+    marketDate,
+    runId,
   });
 });
 
-// Daily time series: next-morning catch-ups
+/**
+ * Daily time series: next-morning catch-ups (06:30 ET).
+ *
+ * Schedules a POST run targeting DAILY only to reconcile any gaps that
+ * remain after the close and evening retries, prior to market open.
+ */
 export const refreshAvDailyTimeSeriesPostMorning0630 = onSchedule({
   schedule: TS_DAILY_POST_MORNING_CATCHUP_0630,
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
+  const { marketDate, dow } = getEtMarketDateAndDow();
+
+  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
+  const runId = buildTimeSeriesRunId({
+    marketDate,
+    dow,
+    phase: TradingPhase.POST,
+    isManual: isManualRun,
+    sequence: 'X',
+  });
+
   await runTimeSeriesJobsForEndpoint({
     endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
     phase: TradingPhase.POST,
     trigger: RefreshTrigger.SCHEDULER,
+    marketDate,
+    runId,
   });
 });
 
+/**
+ * Daily time series: next-morning catch-ups (07:00 ET, all intervals).
+ *
+ * Runs the full all-intervals POST orchestrator using a distinct
+ * sequence and clock so that partner consumers can distinguish this
+ * final pre-open reconciliation pass from the previous A/B runs.
+ */
 export const refreshAvDailyTimeSeriesPostMorning0700 = onSchedule({
   schedule: TS_DAILY_POST_MORNING_CATCHUP_0700,
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  await runTimeSeriesJobsForEndpoint({
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
+  const { marketDate, dow } = getEtMarketDateAndDow();
+
+  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
+  const runId = buildTimeSeriesRunId({
+    marketDate,
+    dow,
     phase: TradingPhase.POST,
+    isManual: isManualRun,
+    sequence: 'C',
+    clockEt: '0700',
+  });
+
+  await runAllTimeSeriesIntervalsPost({
     trigger: RefreshTrigger.SCHEDULER,
+    marketDate,
+    runId,
   });
 });
