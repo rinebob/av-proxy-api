@@ -91,12 +91,68 @@ Status transitions:
 
 ## 2. Firestore Schemas
 
-### 2.1 Realtime Jobs – `time-series-jobs`
+### 2.1 Realtime Runs – `realtime-runs` (canonical)
 
-**Collection layout:**
+The canonical model for **realtime POST runs** is a **run-centric tree** that mirrors the full backfill layout:
 
 ```text
-system/time-series-jobs/{marketDate}/jobs/{symbol-endpoint-phase}
+realtime-runs/{runId}
+realtime-runs/{runId}/jobs/{symbol-endpoint-phase}
+```
+
+- `runId`: `YYYY-MM-DD-DOW-POST-LIVE|MANUAL-SEQUENCE-HHMM` (e.g. `2026-01-29-THU-POST-LIVE-A-1635`).
+- `jobId`: `${symbol}-${endpoint}-${phase}`.
+
+**Run document (high level):**
+
+```ts
+interface RealtimeRunDoc {
+  runId: string;
+  runType: 'ts-post-all-intervals';
+  marketDate: string;           // YYYY-MM-DD (ET)
+  phase: TradingPhase.POST;
+  trigger: 'scheduled' | 'manual' | 'test';
+
+  // Counters managed by the scheduler and worker/aggregator:
+  expectedJobs: number;         // total jobs this run should create
+  createdJobs: number;          // incremented as job docs are written
+  finishedJobs: number;         // incremented once per job terminal transition
+  successJobs: number;
+  permanentFailureJobs: number;
+
+  status: TimeSeriesRunStatus;  // NOT_STARTED | IN_PROGRESS | COMPLETE | COMPLETE_WITH_ERRORS
+
+  runCreatedAt: FirebaseFirestore.Timestamp;
+  runStartedAt?: FirebaseFirestore.Timestamp;
+  runCompletedAt?: FirebaseFirestore.Timestamp;
+
+  // Marker that the scheduler has finished job creation for this run.
+  jobsCreationCompleteAt?: FirebaseFirestore.Timestamp;
+
+  // Partner-data-ready side effects (Pub/Sub):
+  pdrPublishedAt?: FirebaseFirestore.Timestamp;
+  pdrMessageId?: string;
+}
+```
+
+**Realtime job documents (canonical path):**
+
+```text
+realtime-runs/{runId}/jobs/{symbol-endpoint-phase}
+```
+
+Each job document is structurally similar to the existing `time-series-jobs` job docs (see below) but is now **logically owned by a single run**. The worker will update these docs and maintain the run-level counters instead of writing to a date-level aggregate under `time-series-jobs/{marketDate}`.
+
+> **Design choice:** For realtime POST, the system will converge on **per-run counters on `realtime-runs/{runId}`** as the single source of truth for completion and partner-data-ready publishing. The legacy `time-series-jobs/{marketDate}` aggregate document is deprecated and will be removed once all schedulers and workers are migrated.
+
+### 2.2 Realtime Jobs – `time-series-jobs` (legacy, to be removed)
+
+This was the original root for realtime jobs and the date-level aggregate. New work should target `realtime-runs/{runId}` instead.
+
+**Collection layout (legacy):**
+
+```text
+time-series-jobs/{marketDate}/jobs/{symbol-endpoint-phase}
 ```
 
 - `marketDate`: `YYYY-MM-DD` (ET trading date)
@@ -127,13 +183,13 @@ interface TimeSeriesJobDoc {
 }
 ```
 
-**Date doc (aggregate per marketDate):**
+**Date doc (aggregate per marketDate) – legacy/deprecated:**
 
 ```text
-system/time-series-jobs/{marketDate}
+time-series-jobs/{marketDate}
 ```
 
-Holds:
+Historically this doc held per-date aggregates such as:
 
 - `marketDate`
 - `phase` (string)
@@ -141,12 +197,20 @@ Holds:
 - `status` (`IN_PROGRESS` | `COMPLETE`)
 - `totalJobs` (aggregate count)
 
-### 2.2 Backfill Runs – `backfill-runs`
+The new design **eliminates this aggregation layer for realtime**. Instead:
+
+- Schedulers write a single run doc under `realtime-runs/{runId}`.
+- Job creation and the worker maintain **per-run counters** on that doc.
+- The run-level aggregator uses those counters plus `jobsCreationCompleteAt` to determine completion and publish `partner-data-ready`.
+
+New implementations should treat writes to `time-series-jobs/{marketDate}` as **deprecated** and avoid adding new dependencies; the remaining code will be marked for removal once the `realtime-runs` path is fully live in production.
+
+### 2.3 Backfill Runs – `backfill-runs`
 
 **Run document:**
 
 ```text
-system/backfill-runs/{runId}
+backfill-runs/{runId}
 ```
 
 Created by `enqueueFullBackfillJobsForEndpoint`:
@@ -174,7 +238,7 @@ await runDocRef.set({
 **Backfill job documents:**
 
 ```text
-system/backfill-runs/{runId}/jobs/{symbol-endpoint-phase}
+backfill-runs/{runId}/jobs/{symbol-endpoint-phase}
 ```
 
 Created by `enqueueFullBackfillJobsForEndpoint`:

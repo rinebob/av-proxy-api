@@ -39,16 +39,25 @@ Introduce a new **Time-Series Job Pipeline**:
 
 ### 3.1 Collections & Paths
 
-New logical root:
+Historically the job pipeline used a **date-centric root**:
 
-- **Root collection:** `time-series-jobs`
-- **Per market date:**  
-  `time-series-jobs/{marketDate}/jobs/{jobId}`
+- `time-series-jobs/{marketDate}/jobs/{jobId}` plus a date aggregate at `time-series-jobs/{marketDate}`.
+
+As of the `realtime-runs` refactor, the canonical layout is now **run-centric** for realtime POST, mirroring backfill:
+
+- **Realtime runs (canonical):**
+  - `realtime-runs/{runId}`
+  - `realtime-runs/{runId}/jobs/{jobId}`
+- **Backfill runs (canonical):**
+  - `backfill-runs/{runId}`
+  - `backfill-runs/{runId}/jobs/{jobId}`
 
 Where:
 
-- `marketDate`: `YYYY-MM-DD` (ET trading date)
-- `jobId`: deterministic id, e.g. `${symbol}-${endpoint}-${phase}`
+- `runId`: `YYYY-MM-DD-DOW-POST-LIVE|MANUAL-SEQUENCE-HHMM` for realtime POST (e.g. `2026-01-29-THU-POST-LIVE-A-1635`) and a similar structured id for backfills.
+- `jobId`: deterministic id, e.g. `${symbol}-${endpoint}-${phase}`.
+
+The legacy `time-series-jobs/{marketDate}` aggregate document (with `totalJobs`, etc.) is **deprecated for realtime** and will be removed after the `realtime-runs` path is fully live in production. New work should depend on per-run counters on `realtime-runs/{runId}` instead of date-level aggregates.
 
 ### 3.2 Job Document Shape
 
@@ -144,7 +153,7 @@ For a given `marketDate` and set of endpoints/phases:
 
    - Derive `interval` from endpoint.
    - Compute `jobId = `${symbol}-${endpoint}-${phase}``.
-   - `set` `system/time-series-jobs/{marketDate}/jobs/{jobId}` with:
+   - `set` `time-series-jobs/{marketDate}/jobs/{jobId}` with:
      - `symbol, endpoint, interval, phase`
      - If new: `status: 'PENDING'`, `attempts: 0`, `createdAt`, `updatedAt`.
      - If existing and already `SUCCESS` or `PERMANENT_FAILURE`: **leave unchanged** (idempotent).
@@ -153,7 +162,7 @@ For a given `marketDate` and set of endpoints/phases:
 
 5. **Write summary doc** (optional at this stage):
 
-   - `system/time-series-jobs/{marketDate}` with aggregate counts:
+   - `time-series-jobs/{marketDate}` with aggregate counts:
      - `totalJobs`, `pending`, `success`, `failure`, `permanentFailure`.
 
 No AV calls occur in `refreshForEndpoints` in the new model.
