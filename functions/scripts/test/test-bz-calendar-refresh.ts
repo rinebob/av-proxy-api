@@ -1,4 +1,4 @@
-import { setupEmulator } from './scripts-util';
+import { setupEmulator } from '../scripts-util';
 setupEmulator();
 
 import '../src/firebase-admin-init';

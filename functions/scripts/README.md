@@ -49,13 +49,13 @@ npm install
 
 ```bash
 # Basic usage (emulator)
-npx ts-node scripts/test-symbol-search.ts "walmart"
+npx ts-node test/test-symbol-search.ts "walmart"
 
 # Production test
-npx ts-node scripts/test-symbol-search.ts --prod "walmart"
+npx ts-node test/test-symbol-search.ts --prod "walmart"
 
 # Debug mode (shows raw responses)
-npx ts-node scripts/test-symbol-search.ts --debug "walmart"
+npx ts-node test/test-symbol-search.ts --debug "walmart"
 ```
 
 ### Output
@@ -116,10 +116,10 @@ The script requires a symbol to be passed as a command-line argument.
 
 ```bash
 # Basic usage (runs against the emulator)
-npx ts-node scripts/test-save-tracked-symbol.ts GOOGL
+npx ts-node test/test-save-tracked-symbol.ts GOOGL
 
 # With debug flag (currently for logging purposes)
-npx ts-node scripts/test-save-tracked-symbol.ts MSFT --debug
+npx ts-node test/test-save-tracked-symbol.ts MSFT --debug
 ```
 
 **Note:** The `--prod` flag is recognized but not implemented for this script. It will default to running against the emulator.
@@ -170,7 +170,7 @@ npm --prefix functions run copy-shared
 
 ### Script Path
 
-- `functions/scripts/test-refresh-dispatcher.ts`
+- `functions/scripts/test/test-refresh-dispatcher.ts`
 
 ### Usage
 
@@ -185,10 +185,10 @@ npm --prefix functions run copy-shared
 cd functions
 
 # AAPL by default
-npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/test-refresh-dispatcher.ts
+npx ts-node -r tsconfig-paths/register -r module-alias/register test/test-refresh-dispatcher.ts
 
 # Specific symbol (e.g., MSFT)
-npx ts-node -r tsconfig-paths/register -r module-alias/register scripts/test-refresh-dispatcher.ts MSFT
+npx ts-node -r tsconfig-paths/register -r module-alias/register test/test-refresh-dispatcher.ts MSFT
 ```
 
 ### What it does

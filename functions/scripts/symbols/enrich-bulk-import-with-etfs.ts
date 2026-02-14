@@ -16,7 +16,7 @@
  * Usage (from functions/ directory):
  *
  *   npx ts-node -r tsconfig-paths/register -P scripts/tsconfig.json \
- *     scripts/enrich-bulk-import-with-etfs.ts
+ *     symbols/enrich-bulk-import-with-etfs.ts
  */
 
 import * as fs from 'fs';

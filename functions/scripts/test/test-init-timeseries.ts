@@ -1,7 +1,7 @@
 // Set env vars BEFORE any other imports
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { setupEmulator } from './scripts-util';
+import { setupEmulator } from '../scripts-util';
 
 setupEmulator();
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });

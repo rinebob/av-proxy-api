@@ -25,7 +25,7 @@
 // Ensure Firebase Emulator env is set BEFORE loading any firebase-admin modules.
 // Use runtime require to avoid import hoisting ordering.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-require('./scripts-util').setupEmulator();
+require('../scripts-util').setupEmulator();
 
 // Prefer IPv4 for this script to avoid IPv6 connectivity issues on some networks
 try {

@@ -1,7 +1,7 @@
 // Set emulator env and load local .env before any Firebase/Admin imports
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { setupEmulator } from './scripts-util';
+import { setupEmulator } from '../scripts-util';
 setupEmulator();
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
 

@@ -17,7 +17,7 @@
 
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { setupEmulator } from './scripts-util';
+import { setupEmulator } from '../scripts-util';
 
 // For safety, scripts default to emulator unless explicitly disabled.
 // Set USE_EMULATOR_SCRIPTS=off to target PROD.

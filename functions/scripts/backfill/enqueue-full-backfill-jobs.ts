@@ -13,7 +13,7 @@
 
 // Ensure Firebase Emulator env is set BEFORE loading any firebase-admin modules.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-require('./scripts-util').setupEmulator();
+require('../scripts-util').setupEmulator();
 
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 

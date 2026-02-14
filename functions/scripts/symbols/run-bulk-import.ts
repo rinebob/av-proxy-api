@@ -28,7 +28,7 @@
  *   BULK_IMPORT_URL="https://.../bulkImportSymbolsV2" \
  *   BULK_IMPORT_AUTH_BEARER="<token-if-required>" \
  *   npx ts-node -r tsconfig-paths/register -P scripts/tsconfig.json \
- *     scripts/run-bulk-import.ts \
+ *     backfill/run-bulk-import.ts \
  *       --file ../bulk-import.enriched_spy-qqq.json \
  *       --clientId XL_UNIVERSE_SPY_QQQ
  *
@@ -36,7 +36,7 @@
  *   BULK_IMPORT_URL="https://.../bulkImportSymbolsV2" \
  *   BULK_IMPORT_AUTH_BEARER="<token-if-required>" \
  *   npx ts-node -r tsconfig-paths/register -P scripts/tsconfig.json \
- *     scripts/run-bulk-import.ts \
+ *     backfill/run-bulk-import.ts \
  *       --file ../bulk-import.enriched_XL-non-spy-qqq.json \
  *       --clientId XL_UNIVERSE_XL_ONLY
  */
@@ -81,7 +81,7 @@ function parseArgs(argv: string[]): CliArgs {
   if (!args.file || !args.clientId) {
     // eslint-disable-next-line no-console
     console.error(
-      'Usage: ts-node scripts/run-bulk-import.ts --file <path> --clientId <CLIENT_ID> [--chunkSize <N>]',
+      'Usage: ts-node backfill/run-bulk-import.ts --file <path> --clientId <CLIENT_ID> [--chunkSize <N>]',
     );
     process.exitCode = 1;
     throw new Error('Missing required arguments file/clientId');

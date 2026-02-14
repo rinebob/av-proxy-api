@@ -1,6 +1,6 @@
 // Emulator wiring must happen before importing firebase-admin-init.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { setupEmulator } = require('./scripts-util');
+const { setupEmulator } = require('../scripts-util');
 setupEmulator();
 
 import 'dotenv/config';

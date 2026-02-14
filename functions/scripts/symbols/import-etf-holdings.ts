@@ -36,11 +36,11 @@
  *
  * Usage (from functions/ directory):
  *
- *   1) Save the pasted holdings text into a UTF-8 file, e.g. scripts/data/XBI.txt
+ *   1) Save the pasted holdings text into a UTF-8 file, e.g. backfill/data/XBI.txt
  *   2) Run:
  *
  *      npx ts-node -r tsconfig-paths/register -P scripts/tsconfig.json \
- *        scripts/import-etf-holdings.ts XBI scripts/data/XBI.txt
+ *        symbols/import-etf-holdings.ts XBI backfill/data/XBI.txt
  *
  *   This will upsert Firestore document: etf-holdings/XBI
  */

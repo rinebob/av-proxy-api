@@ -3,7 +3,7 @@
  * for rows missing it. Preserves existing values.
  *
  * Usage (from functions/):
- *   npx ts-node -r tsconfig-paths/register ./scripts/infer-trigger-for-logs.ts \
+ *   npx ts-node -r tsconfig-paths/register ./pipeline/infer-trigger-for-logs.ts \
  *     --from=2024-01-01 --to=2025-10-01 --limit=1000 --offset=0 --dryRun=1 \
  *     --endpoint=TIME_SERIES_DAILY_ADJUSTED --symbol=AAPL
  *

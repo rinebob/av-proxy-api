@@ -9,14 +9,14 @@ import { FirestoreCollection } from '@shared/firestore';
  * Usage (from functions/ directory):
  *
  *   $env:RUN_ID="2026-02-10-B-DAILY-2100-LIVE-POST"; \
- *   npx ts-node -r tsconfig-paths/register scripts/seed-b-retry-symbols.ts
+ *   npx ts-node -r tsconfig-paths/register pipeline/seed-b-retry-symbols.ts
  *
  * Optionally, to seed a specific subset of symbols instead of the full
  * tracked universe, set SYMBOLS as a comma-separated list (case-insensitive):
  *
  *   $env:RUN_ID="2026-02-10-B-DAILY-2100-LIVE-POST"; \
  *   $env:SYMBOLS="AAPL,MSFT,NVDA"; \
- *   npx ts-node -r tsconfig-paths/register scripts/seed-b-retry-symbols.ts
+ *   npx ts-node -r tsconfig-paths/register pipeline/seed-b-retry-symbols.ts
  */
 
 async function main(): Promise<void> {

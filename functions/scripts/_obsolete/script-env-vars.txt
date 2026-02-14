@@ -1,0 +1,39 @@
+
+// Powershell
+$env:ALPHA_VANTAGE_API_KEY="IXUJMB1Q6OMCUBR0"
+$env:LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY="IXUJMB1Q6OMCUBR0"
+$env:FUNCTIONS_EMULATOR = "true"
+$env:FIRESTORE_EMULATOR_HOST = "localhost:8080"
+$env:FIREBASE_AUTH_EMULATOR_HOST = "localhost:9099"
+$env:GCLOUD_PROJECT = "alpha-vantage-proxy-api"
+
+
+
+$env:FUNCTIONS_EMULATOR = "true"
+$env:FIRESTORE_EMULATOR_HOST = "localhost:8080"
+$env:FIREBASE_AUTH_EMULATOR_HOST = "localhost:9099"
+$env:GCLOUD_PROJECT = "alpha-vantage-proxy-api"
+$env:BENZINGA_CALENDAR_API_KEY="bz.BMZI5QNOKAZKUA4NDAA5Z5LWONC3LYKQ"
+$env:LOCAL_EMULATOR_BENZINGA_CALENDAR_API_KEY="bz.BMZI5QNOKAZKUA4NDAA5Z5LWONC3LYKQ"
+$env:LOCAL_EMULATOR_BENZINGA_WIIM_API_KEY=bz.ZPJEYIBXQOHA6MA6OD2T7W37RSHPRGEM
+$env:BENZINGA_WIIM_API_KEY=bz.ZPJEYIBXQOHA6MA6OD2T7W37RSHPRGEM
+
+
+Use firebase functions shell
+In functions dir
+$ firebase functions:shell
+
+// set env variables
+
+// Node.js
+process.env.FUNCTIONS_EMULATOR = "true"
+process.env.FIRESTORE_EMULATOR_HOST = "localhost:8080"
+process.env.FIREBASE_AUTH_EMULATOR_HOST = "localhost:9099"
+process.env.GCLOUD_PROJECT = "alpha-vantage-proxy-api"
+process.env.LOCAL_EMULATOR_BENZINGA_CALENDAR_API_KEY="bz.BMZI5QNOKAZKUA4NDAA5Z5LWONC3LYKQ"
+process.env.LOCAL_EMULATOR_BENZINGA_WIIM_API_KEY="bz.ZPJEYIBXQOHA6MA6OD2T7W37RSHPRGEM"
+process.env.BENZINGA_WIIM_API_KEY="bz.ZPJEYIBXQOHA6MA6OD2T7W37RSHPRGEM"
+
+// load the function then invoke it
+const bzNews = require("./lib/v2/benzinga/data-refresher/bz-news-request-manager")
+await bzNews.fetchAndPersistBenzingaNews()

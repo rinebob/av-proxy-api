@@ -8,7 +8,7 @@ import 'module-alias/register';
  *
  * Usage examples:
  *   # Autofill (derive ET phase/date, intervals=daily)
- *   npx ts-node functions/scripts/partner-data-ready-direct.ts --autofill --env dev --verbose
+ *   npx ts-node functions/scripts/partner/partner-data-ready-direct.ts --autofill --env dev --verbose
  *
  *   # Custom payload from file
  *   npx ts-node functions/scripts/partner-data-ready-direct.ts --body payload.json --verbose
@@ -110,7 +110,7 @@ function parseArgs(): Args {
 }
 
 function printHelpAndExit(code = 0) {
-  console.log(`Usage: npx ts-node functions/scripts/partner-data-ready-direct.ts [options]
+  console.log(`Usage: npx ts-node functions/scripts/partner/partner-data-ready-direct.ts [options]
 
 Options / Env:
   --autofill                Generate minimal payload server-side (derive ET phase/date)

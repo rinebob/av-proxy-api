@@ -5,7 +5,7 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
-import { setupEmulator } from './scripts-util';
+import { setupEmulator } from '../scripts-util';
 
 setupEmulator();
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });

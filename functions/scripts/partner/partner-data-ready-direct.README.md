@@ -2,7 +2,7 @@
 
 TypeScript-based direct publisher that invokes the internal `enqueueDataReadyInternal()` to publish a `DataReadyPayloadV1` message to the `partner-data-ready` Pub/Sub topic. No HTTPS endpoint is involved.
 
-- Script: `functions/scripts/partner-data-ready-direct.ts`
+- Script: `functions/scripts/partner/partner-data-ready-direct.ts`
 - Works on Windows (PowerShell/CMD), macOS, Linux
 - Publishes to the current GCP project unless you’re using the Pub/Sub emulator
 
@@ -63,7 +63,7 @@ npx ts-node functions/scripts/partner-data-ready-direct.ts --autofill --env dev 
 
 With multiple intervals:
 ```bash
-npx ts-node functions/scripts/partner-data-ready-direct.ts --autofill --env staging --intervals daily,weekly --email you@example.com --verbose
+npx ts-node functions/scripts/partner/partner-data-ready-direct.ts --autofill --env staging --intervals daily,weekly --email you@example.com --verbose
 ```
 
 ### Custom Payload (Full Control)
@@ -81,7 +81,7 @@ Create `payload.json` matching `DataReadyPayloadV1` (the script will still enfor
 ```
 Run:
 ```bash
-npx ts-node functions/scripts/partner-data-ready-direct.ts --body payload.json --email you@example.com --verbose
+npx ts-node functions/scripts/partner/partner-data-ready-direct.ts --body payload.json --email you@example.com --verbose
 ```
 
 ## Options / Env
