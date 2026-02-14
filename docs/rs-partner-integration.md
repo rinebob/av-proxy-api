@@ -2,16 +2,27 @@
 
 Audience: Relative Strength (RS) backend consuming Savant partner Data‑Ready Pub/Sub and time‑series HTTPS.
 
-Last updated: 2025-11-13
+Last updated: 2026-02-14
+
+### Related Documents
+
+This document is part of a four-document set covering the time-series job pipeline:
+
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| **`time-series-job-pipeline-plan.md`** | Design rationale, architecture decisions, migration plan, and future work. The "why + what". | Internal SA engineers |
+| **`time-series-job-pipeline-deep-dive.md`** | Technical appendix with concrete TypeScript types, code paths, Firestore shapes, and step-by-step algorithms. The "how". | Internal + RS engineering |
+| **`rs-partner-integration.md`** (this doc) | Consumer-facing contract: Pub/Sub payloads, subscription filters, `includeSymbols`/`excludeSymbols` semantics, HTTPS endpoints, quick start. | RS backend engineers |
+| **`abc-run-pipeline-flowchart.md`** | Mermaid flowcharts documenting the A/B/C pipeline visually with filenames and function names. | Internal + RS engineering |
 
 ---
 
 ## 1) What this covers
 
-- Cadence (ET): PRE hourly + 15:30; POST 16:35 + evening/morning retries
+- Cadence (ET): POST A/B/C pipeline (16:35, 21:00, 07:00 next day)
 - Payload v1, attributes, `runId` and `runType`
-- Message behavior (BEGIN/END) and `runs/{runId}` updates
-- Finalization markers and overnight continuation (`remainingSymbols`)
+- Per-interval END messages and `realtime-runs/{runId}` documents
+- A/B/C retry model with `includeSymbols` / `excludeSymbols`
 - Manual/correction runs policy
 - References to endpoints and auth
 
@@ -19,16 +30,18 @@ Last updated: 2025-11-13
 
 ## 2) Schedules & Cadence (Trading Days, ET)
 
-- PRE (intraday snapshots; no finalize)
-  - 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 15:30 ET
-  - `runType=ts_daily_pre`
-- POST (finalized writes)
-  - Initial: 16:35 ET
-  - Evening retries: 18:30, 19:00, 19:30, 20:00, 20:30, 21:00, 21:30 ET
-  - Morning catchups: 06:30, 07:00 ET (next trading morning)
-  - `runType=ts_daily_post`
-- Weekly/Monthly POST: 16:40 ET (`runType=ts_weekly_post` / `ts_monthly_post`)
-- Weekends/Holidays: No runs
+The POST pipeline uses an **A/B/C sequence model** where each pass covers all three intervals (DAILY/WEEKLY/MONTHLY) and creates per-interval `realtime-runs/{runId}` documents.
+
+| Sequence | Time (ET) | Scheduler | Description |
+|----------|-----------|-----------|-------------|
+| **A** | 16:35 | `refreshAvTimeSeriesPostAllIntervals` | Initial full-universe run. Processes all tracked symbols for DAILY, WEEKLY, and MONTHLY. |
+| **B** | 21:00 | `refreshAvDailyTimeSeriesPostEveningRetry00` | Retry run. Processes only `retrySymbols` from the A run (per interval). |
+| **C** | 07:00 next day | `refreshAvDailyTimeSeriesPostMorning0700` | Deadline retry. Processes only `retrySymbols` from the B run. Stale data treated as permanent failure. |
+
+- **PRE schedulers** (intraday hourly, pre-close): Currently **paused** in production. If re-enabled, they must use the `realtime-runs` pipeline.
+- **Weekly/Monthly POST schedulers**: Now **no-ops**; all intervals are handled by the A/B/C orchestrator (`runAllTimeSeriesIntervalsPost`).
+- **Legacy evening retries** (18:30, 19:30, 20:30 etc.): The `:30` scheduler still exists as a standalone DAILY-only X-sequence run but is **not** part of the A/B/C retry chain.
+- **Weekends/Holidays**: No runs.
 
 ---
 
@@ -38,64 +51,103 @@ This section gives RS a high-level view of **how** Savant keeps time-series data
 
 ### 2.5.1 Realtime Refresh (Daily/Weekly/Monthly)
 
-- **Job documents (Firestore)**
-  - For each trading day and symbol, Savant creates **time-series jobs** in Firestore under:
-    - `time-series-jobs/{marketDate}/jobs/{symbol-endpoint-phase}`
-  - Each job tracks:
-    - `symbol`, `endpoint` (DAILY/WEEKLY/MONTHLY adjusted), `phase` (PRE/POST)
-    - `status` (`PENDING`, `IN_PROGRESS`, `SUCCESS`, `TRANSIENT_FAILURE`, `PERMANENT_FAILURE`)
-    - `attempts`, `lastError`, and timestamps.
+- **Run and job documents (Firestore)**
+  - Each A/B/C pass creates **one run document per interval** under:
+    - `realtime-runs/{runId}` — aggregate counters, status, retry/stale symbol lists.
+  - Each run has a **jobs subcollection**:
+    - `realtime-runs/{runId}/jobs/{symbol-endpoint-phase}` — one job per symbol.
+  - The `runId` format is: `YYYY-MM-DD-DOW-SEQ-INTERVAL-LIVE|MANUAL-PHASE-HHMM`
+    - Example: `2026-02-13-THU-A-DAILY-LIVE-POST-1635`
 
-  Approximate shape (for reference, simplified from the internal model):
+  Approximate run doc shape (simplified from `RealtimeRun` interface):
+
+  ```ts
+  interface RealtimeRunDoc {
+    runId: string;
+    runType: 'ts-post-all-intervals-initial' | 'ts-post-all-intervals-retry';
+    sequence: string;                   // 'A', 'B', or 'C'
+    marketDate: string;                 // YYYY-MM-DD
+    phase: 'POST';
+    interval: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+    trigger: 'scheduler' | 'manual';
+    status: 'IN_PROGRESS' | 'COMPLETE';
+
+    createdJobs: number;
+    finishedJobs: number;
+    successJobs: number;
+    permanentFailureJobs: number;
+
+    retrySymbols?: string[];            // symbols needing retry on next pass
+    retrySuccessSymbols?: string[];     // symbols that became fresh in this pass
+    staleSymbols?: string[];            // symbols with stale vendor data
+    permanentFailureSymbols?: string[];
+
+    totalDuration?: number;             // ms from runStartedAt to runFinishedAt
+    totalDurationFormatted?: string;    // "MM:SS"
+
+    partnerDataReady?: {
+      messageSent: boolean;
+      sendTime: Timestamp;
+      messagePayload?: DataReadyPayloadV1;
+    };
+  }
+  ```
+
+  Approximate job doc shape (simplified from `TimeSeriesJob` interface):
 
   ```ts
   interface TimeSeriesJobDoc {
     symbol: string;                     // e.g. "AVGO"
     endpoint: string;                   // e.g. "TIME_SERIES_DAILY_ADJUSTED"
     interval: 'DAILY' | 'WEEKLY' | 'MONTHLY';
-    phase: 'PRE' | 'POST';
+    phase: 'POST';
 
-    status:
-      | 'PENDING'
-      | 'IN_PROGRESS'
-      | 'SUCCESS'
-      | 'TRANSIENT_FAILURE'
-      | 'PERMANENT_FAILURE';
+    status: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS'
+          | 'TRANSIENT_FAILURE' | 'PERMANENT_FAILURE';
 
-    attempts: number;                   // total attempts so far
-    lastError?: string;                 // last error message (if any)
+    attempts: number;
+    lastError?: string;
+    dataFreshness?: 'UNKNOWN' | 'FRESH' | 'STALE';
 
-    // Timestamps (Firestore Timestamp in storage)
-    createdAt: FirebaseFirestore.Timestamp;
-    updatedAt: FirebaseFirestore.Timestamp;
-    lastAttemptAt?: FirebaseFirestore.Timestamp;
-
-    // When we confirm that the intended bar exists for this date/interval
-    finalizedAtMs?: number;             // epoch millis for the target period
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+    firstAttemptedAt?: Timestamp;       // when first AV fetch started
+    lastAttemptAt?: Timestamp;
   }
   ```
 
-- **Schedulers → jobs → Cloud Tasks**
-  - Scheduled functions (PRE/POST, daily/weekly/monthly) **do not call Alpha Vantage directly**.
-  - Instead they:
-    - Compute `marketDate` and which endpoints/phases should run.
-    - Enumerate the tracked symbol universe.
-    - Upsert job docs for `{marketDate, symbol, endpoint, phase}`.
-    - Enqueue Cloud Tasks for jobs that are not yet terminal.
+- **Schedulers → orchestrator → jobs → Cloud Tasks**
+  - The A/B/C schedulers call `runAllTimeSeriesIntervalsPost()` which:
+    1. Derives `marketDate`, builds per-interval `runId`s via `RunIdFactory.createRealtime()`.
+    2. Initializes 3 `realtime-runs/{runId}` docs (MONTHLY, WEEKLY, DAILY) with `createdJobs=0, status=IN_PROGRESS`.
+    3. For **A runs**: enumerates the full tracked-symbol universe per interval.
+    4. For **B/C runs**: calls `getRetrySymbolsForInterval()` to read `retrySymbols` from the prior sequence's run doc (B reads A, C reads B). If no retry symbols exist, the run is immediately marked `COMPLETE` with `createdJobs=0`.
+    5. Creates job docs under `realtime-runs/{runId}/jobs/` and enqueues Cloud Tasks.
 
 - **Workers (Cloud Tasks)**
-  - Each job is processed by a single worker function (`processTimeSeriesJobTask`):
-    - Calls Alpha Vantage at a bounded rate (queue‑level rate limits + 1s internal delay) to respect AV limits.
-    - Writes bars to Firestore via the existing handlers (daily/weekly/monthly, split‑adjusted SA trees).
-    - Verifies that the **latest bar timestamp** for the interval is at or after `marketDate`.
-    - Updates the job’s `status` to `SUCCESS` or, after repeated failures, `PERMANENT_FAILURE`.
+  - Each job is processed by `processTimeSeriesJobTask` → `processTimeSeriesJobInternal`:
+    - Calls Alpha Vantage at a bounded rate (queue-level rate limits + fixed delay).
+    - Writes bars to Firestore (split-adjusted SA trees).
+    - Determines **`dataFreshness`** by comparing `lastBarTs` to `marketDate` midnight:
+      - `FRESH`: latest bar is at or after the target period end.
+      - `STALE`: bar exists but is before the target period end.
+      - `UNKNOWN`: no bar timestamp available.
+    - Updates the parent run doc's `retrySymbols` / `staleSymbols` / `retrySuccessSymbols` arrays based on freshness.
+    - For **deadline runs** (C run, `deadlineRun=true`): if data is STALE, throws `STALE_AT_DEADLINE` which routes through the retry/permanent-failure path.
+    - After `MAX_JOB_ATTEMPTS` (5), marks the job `PERMANENT_FAILURE`.
+
+- **Aggregator (`realtime-run-aggregator.ts`)**
+  - `onRealtimeRunJobTerminal()` increments `successJobs`/`permanentFailureJobs`/`finishedJobs` on the run doc.
+  - **Fast path**: when `finishedJobs === createdJobs`, marks run `COMPLETE` and emits a `partner-data-ready` END message.
+  - **Slow path**: if outside `MAX_RUN_DURATION_MS` window, calls `reconcileRunJobs()` to re-count from the jobs subcollection and force-complete.
 
 - **What RS should take from this**
-  - Savant has **per‑symbol, per‑endpoint, per‑day job state** behind the scenes.
-  - The **all‑intervals POST `partner-data-ready` message** RS consumes is emitted **after** the relevant jobs for the RS universe have reached terminal states for that day (success or permanent failure).
-  - If a small number of symbols fail permanently, the run will eventually report `completed_with_errors` in a future payload version; RS can still treat the day as “done” while optionally inspecting failures.
+  - Savant has **per-symbol, per-interval, per-run job state** behind the scenes.
+  - Each interval run emits its own `partner-data-ready` END message when complete.
+  - Runs with permanent failures report `runStatus: "completed_with_errors"`. RS can still treat the day as "done" while optionally inspecting failures.
+  - The `includeSymbols` / `excludeSymbols` fields on the PDR message tell RS exactly which symbols to fetch (see Section 3).
 
-> For deeper internals, see `docs/time-series-job-pipeline-plan.md`. RS does not need that document for normal operations.
+> For deeper internals, see `docs/abc-run-pipeline-flowchart.md`. RS does not need that document for normal operations.
 
 ### 2.5.2 Full Backfill (Admin‑Only, One‑Off)
 
@@ -123,105 +175,137 @@ Full backfills are **operator‑initiated maintenance runs** that rebuild comple
 
 ## 3) Payload Schema (v1)
 
-Minimal v1 (current implementation):
+Each `partner-data-ready` END message covers a **single interval** for a single A/B/C run. Example payload for an A-run DAILY completion:
+
 ```json
 {
   "version": "v1",
-  "runId": "2026-01-16-post-all-intervals-v1",
-  "marketDate": "2026-01-16",
+  "runId": "2026-02-13-THU-A-DAILY-LIVE-POST-1635",
+  "marketDate": "2026-02-13",
   "phase": "post",
-  "intervals": ["DAILY", "WEEKLY", "MONTHLY"],
-  "time": 1737043200000,
+  "intervals": ["DAILY"],
+  "time": 1739487600000,
   "status": "end",
+  "runStatus": "completed",
+  "durationMs": 245000,
   "finalizedCountTotal": 742,
-  "pendingCount": 0
+  "pendingCount": 0,
+  "env": "prod",
+  "trigger": "scheduled",
+  "excludeSymbols": ["ACME", "XYZ"]
 }
 ```
 
-Extended fields (current):
-- `marketDate`: `YYYY-MM-DD`
-- `phase`: `"pre"` | `"post"`
-- `intervals`: array of `TimeSeriesInterval` values (e.g. `"DAILY"`, `"WEEKLY"`, `"MONTHLY"`)
-- `time`: epoch millis when the event was published
-- `finalizedCountTotal`: number of successful time-series jobs for this `marketDate`
-- `pendingCount`: always `0` for END events
+Example payload for a B-run retry completion:
 
-Trigger semantics:
+```json
+{
+  "version": "v1",
+  "runId": "2026-02-13-THU-B-DAILY-LIVE-POST-2100",
+  "marketDate": "2026-02-13",
+  "phase": "post",
+  "intervals": ["DAILY"],
+  "time": 1739505600000,
+  "status": "end",
+  "runStatus": "completed",
+  "durationMs": 32000,
+  "finalizedCountTotal": 5,
+  "pendingCount": 0,
+  "env": "prod",
+  "trigger": "scheduled",
+  "includeSymbols": ["ACME", "XYZ"]
+}
+```
 
-- `trigger` is an optional field in the JSON body and a mirrored Pub/Sub
-  attribute. RS uses it as an advisory hint for how to treat the message:
+### Field reference (actively emitted)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | `"v1"` | Schema version. |
+| `runId` | string | Canonical run ID (see Section 4). |
+| `marketDate` | `YYYY-MM-DD` | Trading date in ET. |
+| `phase` | `"post"` | Always `"post"` for the A/B/C pipeline. |
+| `intervals` | string[] | **Single-element array**: `["DAILY"]`, `["WEEKLY"]`, or `["MONTHLY"]`. |
+| `time` | number | Epoch millis when the message was published. |
+| `status` | `"end"` | Always `"end"` for completion messages. |
+| `runStatus` | string | `"completed"` or `"completed_with_errors"` (if any permanent failures). |
+| `durationMs` | number | Run duration in milliseconds (runStartedAt → runFinishedAt). |
+| `finalizedCountTotal` | number | Count of successful jobs for this run. |
+| `pendingCount` | number | Always `0` for END events. |
+| `env` | string | Environment label (e.g. `"prod"`, `"dev"`). |
+| `trigger` | string | `"scheduled"` or `"manual"`. |
+| `includeSymbols` | string[] | **B/C retry runs only**: symbols that became FRESH in this pass. RS should fetch only these. |
+| `excludeSymbols` | string[] | **A initial runs only**: symbols that are still STALE/failed. RS should fetch the full universe minus these. |
+
+### Symbol semantics for RS
+
+- **A run** (`ts-post-all-intervals-initial`): RS treats the universe as `tracked-symbols \ excludeSymbols`. If `excludeSymbols` is empty/absent, the entire universe is ready.
+- **B/C run** (`ts-post-all-intervals-retry`): RS treats `includeSymbols` as the exact set of symbols that became fresh. If `includeSymbols` is empty/absent, no new symbols became fresh in this pass.
+
+### Trigger semantics
+
+- `trigger` is an optional field in the JSON body and a mirrored Pub/Sub attribute:
   - `"scheduled"`: normal production run (RS processes the message).
   - `"manual"`: ad-hoc/manual run (RS may log or optionally process).
-  - `"test"`: **dry-run / no-op** – RS receives the message but skips normal
-    ingestion logic. This is useful when SA wants to validate payload shape or
-    wiring without advancing RS state.
+  - `"test"`: **dry-run / no-op** – RS skips normal ingestion logic.
 
-Planned extensions (not yet emitted but reserved for future versions):
+### Reserved fields (not yet emitted)
+
 - `universeVersion`: semantic version of the RS universe/config (e.g. `"v1"`)
-- `runStatus`: one of `"completed"` or `"completed_with_errors"` (from `PartnerRunStatus`), derived from `successJobs` vs `permanentFailureJobs`
-- `timing.finalizedAtUTC`: ISO timestamp when the first finalized bar was detected (POST)
-- `timing.nextRefreshAtUTC`: ISO timestamp for the next scheduled refresh
+- `finalizedAtUTC`: ISO timestamp when the first finalized bar was detected
+- `nextRefreshAtUTC`: ISO timestamp for the next scheduled refresh
 
 ---
 
 ## 4) Attributes & Identifiers
 
-- `runType` (time‑series jobs): `ts-daily-pre` | `ts-daily-post` | `ts-weekly-post` | `ts-monthly-post` 
-- `runType` (all-intervals POST / universe-ready): `ts-post-all-intervals`.
-- `runId`:
-  - Conventionally follows `YYYY-MM-DD-pre-*` or `YYYY-MM-DD-post-*` patterns (with optional manual/test suffix), but the backend only requires a non-empty string. The exact format is for human readability and subscriber filters, not enforced.
+- `runType` (Pub/Sub attribute): `ts-post-all-intervals` for all A/B/C POST messages. This is the only `runType` RS needs to filter on.
+- `runId` format: `YYYY-MM-DD-DOW-SEQ-INTERVAL-LIVE|MANUAL-PHASE-HHMM`
+  - Example: `2026-02-13-THU-A-DAILY-LIVE-POST-1635`
+  - Components: marketDate, day-of-week, sequence (A/B/C/X), interval (DAILY/WEEKLY/MONTHLY), LIVE or MANUAL, phase (POST), ET clock label (HHMM).
+- `interval` attribute: `DAILY`, `WEEKLY`, or `MONTHLY` — mirrors the single element in the payload's `intervals` array.
 
 Subscription filters (examples):
-- All-intervals TS universe POST (RS primary): `attributes.runType = "ts-post-all-intervals" AND attributes.phase = "post"` 
-- Finalized daily only (legacy/non-RS): `attributes.runType = "ts-daily-post"` 
-- Daily only (both): `attributes.runType = "ts-daily-pre" OR attributes.runType = "ts-daily-post"` 
-- Exclude non‑time‑series: `attributes.runType != "non-time-series"` 
+
+- **RS primary** (all-intervals POST): `attributes.runType = "ts-post-all-intervals" AND attributes.phase = "post"`
+  This yields **up to 9 messages per trading day** (3 intervals × 3 sequences A/B/C). B/C runs with no retry symbols emit no message (run completes with 0 jobs).
+- Exclude non‑time‑series: `attributes.runType != "non-time-series"`
 
 ---
 
-## 5) Message Behavior and Runs Document
+## 5) Message Behavior and Run Documents
 
-- Every scheduled invocation publishes two messages for the same per‑day/per‑phase `runId`:
-  - BEGIN → `runStatus=processing`
-  - END → metrics, optional `remainingSymbols` sample (POST only)
-- All invocations for the same phase/day update the same Firestore document:
-  - `runs/{YYYY-MM-DD-pre}` or `runs/{YYYY-MM-DD-post}`
-- END updates are idempotent‑friendly; subsequent invocations will refresh the same `runs` doc fields.
+- The new pipeline emits **only END messages** (no BEGIN). Each END message is published when a `realtime-runs/{runId}` document transitions to `COMPLETE`.
+- Each A/B/C pass produces **one `realtime-runs/{runId}` document per interval** (up to 3 per pass: DAILY, WEEKLY, MONTHLY).
+- The `partnerDataReady` field on the run doc records whether the PDR message was sent, when, and the full payload for debugging.
 
-### 3.2 All-Intervals POST "Universe Ready" (RS contract)
+### All-Intervals POST "Universe Ready" (RS contract)
 
-RS subscribes to a **single run‑level all-intervals POST message** per trading day on the existing `partner-data-ready` topic. Conceptual payload:
-```json
-{
-  "version": "v1",
-  "runId": "2026-01-16-post-all-intervals-v1",
-  "marketDate": "2026-01-16",
-  "phase": "post",
-  "intervals": ["DAILY", "WEEKLY", "MONTHLY"],
-  "universeVersion": "v1",
-  "status": "completed"  // or "completed_with_errors"
-}
-```
+RS subscribes to **run-level POST messages** on the `partner-data-ready` topic. Savant emits **one message per interval per logical run (A/B/C)**:
 
-- A small aggregator monitors job completion for the RS universe.
-- When the universe is finalized for `{marketDate, phase=POST}`, it emits a **single all-intervals POST message** on `partner-data-ready` with `runType = "ts-post-all-intervals"` and updates a corresponding `runs/{runId}` or `system/time-series-status` doc with aggregate status.
-- RS treats this all-intervals POST message as its **only required Pub/Sub trigger**.
+- The `realtime-run-aggregator` monitors job completion for each `(marketDate, interval, sequence)` run.
+- When all jobs for a run reach terminal state, the aggregator marks the run `COMPLETE` and publishes a single `partner-data-ready` END message with `runType = "ts-post-all-intervals"`.
+- The message includes `includeSymbols` or `excludeSymbols` based on the run type (see Section 3).
+- RS treats these per-interval END messages as its **required Pub/Sub triggers**. For core correctness, RS can treat the **C-run END messages** as the canonical "universe ready" signals and treat earlier A/B messages as optional early/partial signals.
 
 ---
 
-## 6) Finalization & Overnight Continuation (POST)
+## 6) A/B/C Retry Model & Manual Runs
 
-- Finalization markers:
-  - `timing.finalizedAtUTC` appears when first finalized bars are detected for the day
-  - Root transparency doc: `system/time-series-finalization/daily-adjusted/{marketDate}` (FYI)
-- Continuation logic:
-  - Tracks symbols finalized before run start vs those finalized during the run
-  - Computes pending; when few remain, runs a targeted acceleration pass
-  - END payload may include a small `remainingSymbols` sample if pending > 0
+### Retry flow
 
-Manual/correction runs:
-- Operator‑triggered with `runId` suffix (e.g., `-manual-1905`)
-- RS policy: ignore these runs
+The A/B/C pipeline replaces the legacy finalization/continuation logic:
+
+1. **A run** (16:35 ET): Processes the full universe. Symbols with STALE data are added to `retrySymbols` on the run doc.
+2. **B run** (21:00 ET): Reads `retrySymbols` from the A run doc (per interval). Processes only those symbols.
+3. **C run** (07:00 ET next day): Reads `retrySymbols` from the B run doc. Processes only those symbols with `deadlineRun=true` — STALE data is treated as `PERMANENT_FAILURE`.
+
+Symbols that become FRESH during a B/C run are recorded in `retrySuccessSymbols` and surfaced as `includeSymbols` in the PDR message.
+
+### Manual/correction runs
+
+- Operator-triggered runs use `MANUAL` in the runId (e.g., `2026-02-13-THU-A-DAILY-MANUAL-POST-1635`).
+- RS policy: ignore messages where `trigger === "manual"` or where the runId contains `MANUAL`.
 
 ---
 
@@ -241,10 +325,12 @@ See:
 
 ## 8) Quick Start (RS‑focused)
 
-- Subscribe to `partner-data-ready` with filter `attributes.runType = "ts-post-all-intervals" AND attributes.phase = "post"` (and `ts_weekly_post` / `ts_monthly_post` if/when RS wants those intervals).
-- On each POST **END** message, treat the run as the *only* canonical signal that the time-series universe for that date/phase is as complete as SA can make it.
-- After receiving POST END, read time series via `partnerTimeSeriesV2` as needed for RS ingestion.
-- Ignore messages whose `runId` contains a manual suffix.
+1. Subscribe to `partner-data-ready` with filter `attributes.runType = "ts-post-all-intervals" AND attributes.phase = "post"`.
+2. Expect **multiple END messages per trading day** — one per interval per A/B/C sequence that has work to do. Each message covers a single interval (e.g. `intervals: ["DAILY"]`).
+3. On receiving an **A-run** END message: fetch the full universe minus `excludeSymbols` (if present) via `partnerTimeSeriesV2`.
+4. On receiving a **B/C-run** END message: fetch only the symbols listed in `includeSymbols` (if present). These are symbols that became fresh in this retry pass.
+5. For core correctness, RS can treat the **C-run END messages** as the canonical "universe ready" signals and treat earlier A/B messages as optional early/partial signals.
+6. Ignore messages where `trigger === "manual"` or where the `runId` contains `MANUAL`.
 
 ---
 
@@ -253,20 +339,20 @@ See:
 For most use cases, **including RS**, `partner-data-ready` is the **only required contract**. The job‑based time‑series pipeline also exposes an optional, low‑latency symbol‑level stream for partners who explicitly choose to react to per‑symbol readiness. RS does **not** currently use this stream for its core ingestion path.
 
 - **Topic:** `partner-symbols-ready`
-- **Payload (conceptual):
+- **Payload (conceptual):**
 
   ```json
   {
     "version": "v1",
     "marketDate": "YYYY-MM-DD",
-    "runId": "YYYY-MM-DD-HHMM-post",   // optional link to run-level event
+    "runId": "2026-02-13-THU-A-DAILY-LIVE-POST-1635",
     "symbols": ["AVGO", "MSFT", "SPY"],
-    "reason": "scheduled"              // or "backfill"
+    "reason": "scheduled"
   }
   ```
 
--- **Semantics:**
-  - Each message contains symbols that have just become fully ready for the given `marketDate` based on job‑doc state in `time-series-jobs/{marketDate}/jobs`.
+- **Semantics:**
+  - Each message contains symbols that have just reached SUCCESS for a given `marketDate` based on job state in `realtime-runs/{runId}/jobs/`.
   - Intervals (DAILY/WEEKLY/MONTHLY) are resolved internally; consumers do **not** need to track per‑interval readiness unless they choose to.
   - The stream is **additive**: symbols may appear in one or more messages, but the authoritative completion signal for the run remains the `partner-data-ready` END message.
 
@@ -279,13 +365,15 @@ Suggested usage for RS:
 
 ## 10) Troubleshooting
 
-- Ensure subscription filter matches exact `runType`
-- Expect multiple BEGIN/END pairs per trading day for the same POST `runId` (evening/morning retries)
-- Use `marketDate` (if present) to key per‑day logic
+- Ensure subscription filter matches exact `runType` (`ts-post-all-intervals`).
+- Expect **multiple END messages per trading day** — up to one per interval per A/B/C sequence. There are no BEGIN messages in the new pipeline.
+- Use `marketDate` to key per-day logic. Use `runId` to deduplicate.
+- If a B/C run has no retry symbols, it completes immediately with `createdJobs=0` and **no PDR message is emitted**.
+- Check `realtime-runs/{runId}` in Firestore for run-level diagnostics including `partnerDataReady`, `retrySymbols`, `permanentFailureSymbols`, and `nonSuccessJobs`.
 
 ---
 
-## 10) Operational Appendix (RS)
+## 11) Operational Appendix (RS)
 
 - Auth (server‑to‑server):
   - Google OIDC ID token from an allowlisted service account (SA)
@@ -318,3 +406,4 @@ Suggested usage for RS:
 References:
 - `docs/partner-integration.md` (auth details, examples)
 - `docs/partner-api-surface.md` (endpoints overview)
+- `docs/abc-run-pipeline-flowchart.md` (Mermaid flowcharts of the A/B/C pipeline internals)

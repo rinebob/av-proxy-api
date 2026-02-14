@@ -1,5 +1,21 @@
 # Time-Series Job Pipeline – Design & Migration Plan
 
+> **Last updated:** 2026-02-14  
+> **Implementation status:** Sections 1–8 reflect the current, live pipeline (realtime-runs, A/B/C schedulers, PDRs). Sections 9–12 are future work/backlog items and are marked as such.
+
+### Related Documents
+
+This document is part of a four-document set covering the time-series job pipeline:
+
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| **`time-series-job-pipeline-plan.md`** (this doc) | Design rationale, architecture decisions, migration plan, and future work. The "why + what". | Internal SA engineers |
+| **`time-series-job-pipeline-deep-dive.md`** | Technical appendix with concrete TypeScript types, code paths, Firestore shapes, and step-by-step algorithms. The "how". | Internal + RS engineering |
+| **`rs-partner-integration.md`** | Consumer-facing contract: Pub/Sub payloads, subscription filters, `includeSymbols`/`excludeSymbols` semantics, HTTPS endpoints, quick start. | RS backend engineers |
+| **`abc-run-pipeline-flowchart.md`** | Mermaid flowcharts documenting the A/B/C pipeline visually with filenames and function names. | Internal + RS engineering |
+
+---
+
 ## 1. Problem Statement
 
 The current Alpha Vantage time-series refresh pipeline (daily/weekly/monthly, pre/post-close) is:
@@ -39,11 +55,7 @@ Introduce a new **Time-Series Job Pipeline**:
 
 ### 3.1 Collections & Paths
 
-Historically the job pipeline used a **date-centric root**:
-
-- `time-series-jobs/{marketDate}/jobs/{jobId}` plus a date aggregate at `time-series-jobs/{marketDate}`.
-
-As of the `realtime-runs` refactor, the canonical layout is now **run-centric** for realtime POST, mirroring backfill:
+Historically the job pipeline used a **date-centric root** under `time-series-jobs/{marketDate}`. That layout has been fully superseded and all realtime work now uses the **run-centric** model described below. New code MUST NOT write to or depend on `time-series-jobs/{marketDate}`.
 
 - **Realtime runs (canonical):**
   - `realtime-runs/{runId}`
@@ -54,69 +66,42 @@ As of the `realtime-runs` refactor, the canonical layout is now **run-centric** 
 
 Where:
 
-- `runId`: `YYYY-MM-DD-DOW-POST-LIVE|MANUAL-SEQUENCE-HHMM` for realtime POST (e.g. `2026-01-29-THU-POST-LIVE-A-1635`) and a similar structured id for backfills.
+- `runId` (realtime, all-intervals POST):
+  - Format: `YYYY-MM-DD-DOW-SEQUENCE-INTERVAL-LIVE|MANUAL-PHASE-HHMM`
+  - Example: `2026-01-29-THU-A-DAILY-LIVE-POST-1635`.
+  - There is **one realtime run per interval** (DAILY, WEEKLY, MONTHLY) for a given trading date and sequence.
+  - `SEQUENCE` segment:
+    - `A` → initial A run (close-time all-intervals POST driven by `refreshAvTimeSeriesPostAllIntervals`, clockEt=1635).
+    - `B` → evening retry B run (all-intervals POST driven by `refreshAvDailyTimeSeriesPostEveningRetry00`, clockEt=2100).
+    - `C` → next-morning cleanup C run (all-intervals POST driven by `refreshAvDailyTimeSeriesPostMorning0700`, clockEt=0700).
+  - `HHMM` is the ET clock label identifying when the run was nominally scheduled (e.g. `1635`, `2100`, `0700`). This is always required and is set by the caller.
+- `runId` (backfill): `YYYY-MM-DD-DOW-POST-<INTERVAL>-FULL_BACKFILL` for full-history backfills (e.g. `2026-02-01-SUN-POST-DAILY-FULL_BACKFILL`). Each interval (DAILY, WEEKLY, MONTHLY) gets its own backfill run doc.
 - `jobId`: deterministic id, e.g. `${symbol}-${endpoint}-${phase}`.
-
-The legacy `time-series-jobs/{marketDate}` aggregate document (with `totalJobs`, etc.) is **deprecated for realtime** and will be removed after the `realtime-runs` path is fully live in production. New work should depend on per-run counters on `realtime-runs/{runId}` instead of date-level aggregates.
 
 ### 3.2 Job Document Shape
 
 ```ts
-// NOTE: in implementation these should be backed by shared enums, not raw strings.
-// e.g. AlphaVantageEndpoint, TimeSeriesInterval, TradingPhase, TimeSeriesJobStatus.
+// NOTE: in implementation these are backed by shared enums, not raw strings.
+// See time-series-jobs.model.ts for canonical definitions.
 interface TimeSeriesJob {
   symbol: string;
   endpoint: AlphaVantageEndpoint; // e.g. TIME_SERIES_DAILY_ADJUSTED | TIME_SERIES_WEEKLY_ADJUSTED | TIME_SERIES_MONTHLY_ADJUSTED
   interval: TimeSeriesInterval;   // DAILY | WEEKLY | MONTHLY
   phase: TradingPhase;            // PRE | POST
 
-  status: TimeSeriesJobStatus;    // PENDING | IN_PROGRESS | SUCCESS | FAILURE | PERMANENT_FAILURE
+  status: TimeSeriesJobStatus;    // PENDING | IN_PROGRESS | SUCCESS | TRANSIENT_FAILURE | PERMANENT_FAILURE
   attempts: number;
   lastError?: string;
 
+  // Data freshness relative to the target marketDate/period.
+  // Orthogonal to job status — a job can be SUCCESS but STALE.
+  dataFreshness?: TimeSeriesDataFreshness; // UNKNOWN | FRESH | STALE
+
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
+  firstAttemptedAt?: FirebaseFirestore.Timestamp; // when first AV fetch started
   lastAttemptAt?: FirebaseFirestore.Timestamp;
-
-  // When we verify that latestBarTimestamp (or equivalent) matches the intended bar for this date
-  finalizedAtMs?: number;
 }
-```
-
-### 3.3 Interval Semantics (DAILY vs WEEKLY vs MONTHLY)
-
-The pipeline intentionally treats intervals differently, reflecting both AV semantics and storage layout:
-
-- **DAILY**
-  - Each POST job for a given `marketDate` writes **a single daily bar** for that date via `upsertAvDailyBar` using `outputsize=compact`.
-  - We do **not** attempt to reconstruct older days from the compact window on POST; historical gaps are addressed via backfill tooling (see Section 6.5).
-  - Storage: year-sharded docs under `sa-time-series/{symbol}/sa-time-series/av-daily-adjusted/years/{year}`.
-- **WEEKLY**
-  - Compact window is treated as authoritative for the latest year(s).
-  - POST jobs for WEEKLY endpoints merge the compact window into year-sharded docs via `mergeWeeklyCompactWindowIntoShards`, rebuilding the latest-year shards and rollover segments.
-  - Storage: year-sharded docs under `sa-time-series/{symbol}/sa-time-series/av-weekly-adjusted/years/{year}`.
-- **MONTHLY**
-  - Compact window is treated as authoritative for the full monthly range.
-  - POST jobs merge the compact window into the single `all` doc via `mergeMonthlyCompactWindowIntoAllDocs`.
-  - Storage: `sa-time-series/{symbol}/sa-time-series/av-monthly-adjusted/all`.
-
-This means:
-
-- The **job pipeline** guarantees that DAILY/WEEKLY/MONTHLY have the correct **latest bar** for each marketDate.
-- **Historical DAILY gaps** (e.g., only Fridays present) are repaired via backfill scripts, not by the schedulers.
-
-### 3.4 Invariants
-
-For a given `marketDate` and set of endpoints/phases:
-
-- **Completion invariant:**  
-  The refresh cycle for that date is logically complete when:
-  - All jobs satisfy `status ∈ {SUCCESS, PERMANENT_FAILURE}`.
-  - Data validation (existing daily validation script) passes.
-
-- **Staleness detection:**  
-  Symbols that are stale are exactly:
-  - Jobs with `status ∈ {PENDING, IN_PROGRESS, FAILURE}` for `marketDate = today`.
 
 ---
 
@@ -153,7 +138,7 @@ For a given `marketDate` and set of endpoints/phases:
 
    - Derive `interval` from endpoint.
    - Compute `jobId = `${symbol}-${endpoint}-${phase}``.
-   - `set` `time-series-jobs/{marketDate}/jobs/{jobId}` with:
+   - `set` `realtime-runs/{runId}/jobs/{jobId}` with:
      - `symbol, endpoint, interval, phase`
      - If new: `status: 'PENDING'`, `attempts: 0`, `createdAt`, `updatedAt`.
      - If existing and already `SUCCESS` or `PERMANENT_FAILURE`: **leave unchanged** (idempotent).
@@ -162,7 +147,7 @@ For a given `marketDate` and set of endpoints/phases:
 
 5. **Write summary doc** (optional at this stage):
 
-   - `time-series-jobs/{marketDate}` with aggregate counts:
+   - `realtime-runs/{runId}` with aggregate counts:
      - `totalJobs`, `pending`, `success`, `failure`, `permanentFailure`.
 
 No AV calls occur in `refreshForEndpoints` in the new model.
@@ -177,84 +162,96 @@ Keep existing cron schedules in `function-schedules.ts`:
 
 Change their semantics from "do work" to **"populate/refresh jobs and enqueue tasks"** for the relevant `{marketDate, phase, endpoints}` set.
 
-### 4.3 Weekly vs Monthly Schedulers (Implemented)
+### 4.3 Realtime POST Orchestrator & Weekly/Monthly Schedulers
 
-To avoid Cloud Function timeouts during job creation for the full symbol universe, the combined weekly+monthly post-close scheduler has been split into two separate scheduled functions in `av-refresh-manager.ts`:
+#### 4.3.1 Canonical All-Intervals POST Orchestrator (Run A / B / C)
+
+In the current pipeline, the **canonical realtime POST entrypoint** for time-series is `runAllTimeSeriesIntervalsPost` (in `av-time-series-refresh-manager.ts`). It is invoked by three schedulers that represent the A/B/C realtime runs for POST:
+
+- **Run A – primary close-time pass**
+  - Scheduler: `refreshAvTimeSeriesPostAllIntervals`
+  - Cron: `TS_DAILY_POST_CLOSE_SCHEDULE` (16:35 ET)
+  - Behavior:
+    - Computes market context via `getEtMarketDateAndDow()`.
+    - Calls `runAllTimeSeriesIntervalsPost({ trigger: SCHEDULER, sequence: 'A', clockEt: '1635', ... })`.
+    - `runAllTimeSeriesIntervalsPost` builds one interval-specific `runId` per interval using `buildRealtimeIntervalRunId(...)` → `RunIdFactory.createRealtime()` in the `YYYY-MM-DD-DOW-SEQUENCE-INTERVAL-LIVE|MANUAL-PHASE-HHMM` format.
+    - For each interval (MONTHLY, WEEKLY, DAILY), it initializes `realtime-runs/{runId}` and calls `runTimeSeriesJobsForEndpoint(...)` which in turn uses `createRealtimeRunJobAndEnqueueTask(...)` to create jobs under `realtime-runs/{runId}/jobs/{jobId}` and enqueue Cloud Tasks.
+
+- **Run B – same-evening retry pass**
+  - Scheduler: `refreshAvDailyTimeSeriesPostEveningRetry00`
+  - Cron: `TS_DAILY_POST_EVENING_RETRY_MINUTE_00` (21:00 ET)
+  - Behavior:
+    - Calls `runAllTimeSeriesIntervalsPost({ trigger: SCHEDULER, sequence: 'B', clockEt: '2100', ... })`.
+    - For each interval, the orchestrator reads `retrySymbols` from the corresponding A run doc via `getRetrySymbolsForInterval()` and creates jobs **only** for those symbols. If no retry symbols exist, the run is immediately marked `COMPLETE` with `createdJobs=0`.
+
+- **Run C – next-morning cleanup pass**
+  - Scheduler: `refreshAvDailyTimeSeriesPostMorning0700`
+  - Cron: `TS_DAILY_POST_MORNING_CATCHUP_0700` (07:00 ET)
+  - Behavior:
+    - Uses `getLatestRetryRunMarketDateForInterval(TimeSeriesInterval.DAILY)` to identify the **target marketDate** for cleanup (typically yesterday's date).
+    - If no retry runs exist, it logs `ts.jobs.a_run.skip_no_retry` and returns without creating a run.
+    - Otherwise calls `runAllTimeSeriesIntervalsPost({ trigger: SCHEDULER, sequence: 'C', clockEt: '0700', marketDate: targetMarketDate, ... })`.
+    - For each interval, the orchestrator reads `retrySymbols` from the corresponding B run doc via `getRetrySymbolsForInterval()` and creates jobs only for those symbols with `deadlineRun: true` so the worker can apply stale-at-deadline semantics.
+
+#### 4.3.2 Weekly/Monthly POST Schedulers
+
+The legacy weekly/monthly POST schedulers are retained for compatibility but are now **logging-only no-ops** in the new pipeline:
 
 - `refreshAvWeeklyTimeSeriesPostClose`
-  - Runs on `TS_POST_CLOSE_SCHEDULE`.
-  - Endpoints: `[TIME_SERIES_WEEKLY_ADJUSTED]`.
-  - `timeoutSeconds: 600`.
 - `refreshAvMonthlyTimeSeriesPostClose`
-  - Runs on `TS_POST_CLOSE_SCHEDULE`.
-  - Endpoints: `[TIME_SERIES_MONTHLY_ADJUSTED]`.
-  - `timeoutSeconds: 600` (can be increased further if needed as tracked symbol count grows).
 
-Both functions call `refreshForEndpoints` with `phase=POST` and **only populate jobs + enqueue tasks**; all AV calls are delegated to the Cloud Tasks worker.
+Both run on `TS_POST_CLOSE_SCHEDULE`, but they no longer create jobs or call AV handlers; they emit structured logs indicating that all-intervals POST is handled by `refreshAvTimeSeriesPostAllIntervals`.
 
 ### 4.4 Feature Flags & Env Toggles
 
-Several environment variables gate behavior for the schedulers and job pipeline:
+Environment variables that gate behavior for the schedulers and job pipeline:
 
-- `TS_JOB_PIPELINE_ENABLED_DAILY_POST`
-  - When `true`, POST time-series schedulers populate job docs for DAILY/WEEKLY/MONTHLY endpoints.
-  - Allows incremental rollout of the job pipeline without changing scheduler cron wiring.
+- ~~`TS_JOB_PIPELINE_ENABLED_DAILY_POST`~~ — **Removed.** The pipeline is now always active for all POST intervals. This transitional flag was removed once the pipeline was validated in production.
 - `TS_TIME_SERIES_TASKS_ENABLED`
   - When `true`, schedulers will **enqueue Cloud Tasks** for time-series jobs that are `PENDING` or non-terminal.
   - When `false`, job docs can still be created, but no tasks are dispatched; useful for dry runs.
+  - The worker also checks this flag and early-returns in non-emulator environments when `false`.
 - `TS_JOB_TEST_SYMBOL`
   - Optional, comma-separated list of symbols (e.g., `AVGO` or `AVGO,MSFT,SPY`).
   - When set, POST time-series schedulers restrict both job creation and legacy handler work to this subset to avoid hammering AV during rollouts.
 
 Operational guidance:
 
-- Enable `TS_JOB_PIPELINE_ENABLED_DAILY_POST` first, verify job creation and worker behavior using `TS_JOB_TEST_SYMBOL`.
-- Then enable `TS_TIME_SERIES_TASKS_ENABLED` to turn on actual Cloud Tasks processing.
- - Once the job pipeline is stable in production for all POST time-series endpoints, these feature flags are considered **transitional** and should be simplified or removed so that schedulers and workers behave consistently across environments without extra toggles.
-
+- `TS_TIME_SERIES_TASKS_ENABLED` must be `true` in production for the pipeline to function.
+- Use `TS_JOB_TEST_SYMBOL` during rollouts to restrict the symbol universe for testing.
 
 ---
 
 ### 4.5 Temporary Guard: Time-Series-Only Mode
 
-To reduce noise and risk while validating the time-series job pipeline, the main
-refresh orchestrator (`refreshForEndpoints` in `av-refresh-manager.ts`) supports
-an opt-in guard that disables all non-time-series work for a run.
+To reduce noise and risk while validating the time-series job pipeline, the main refresh orchestrator (`refreshForEndpoints` in `av-refresh-manager.ts`) supports an opt-in guard that disables all non-time-series work for a run.
 
 - **Env var:** `AV_REFRESH_TIMESERIES_ONLY`
 - **Behavior when enabled** (`true` / `1` / `on`):
-  - The `endpoints` array passed into `refreshForEndpoints` is filtered down to
-    only those for which `isTimeSeriesEndpoint(endpoint) === true`.
-  - If no time-series endpoints remain after filtering, the function logs a
-    `refresh.skip_non_timeseries_only` event and returns early (no AV calls or
-    Firestore writes for that run).
-  - If some endpoints are filtered out, a `refresh.filter_non_timeseries`
-    structured log records both the original and filtered endpoint sets.
+  - The `endpoints` array passed into `refreshForEndpoints` is filtered down to only those for which `isTimeSeriesEndpoint(endpoint) === true`.
+  - If no time-series endpoints remain after filtering, the function logs a `refresh.skip_non_timeseries_only` event and returns early (no AV calls or Firestore writes for that run).
+  - If some endpoints are filtered out, a `refresh.filter_non_timeseries` structured log records both the original and filtered endpoint sets.
 
 This guard is intentionally easy to reverse:
 
-- To re-enable non-time-series AV work, unset `AV_REFRESH_TIMESERIES_ONLY` or
-  set it to any value other than `true` / `1` / `on`.
-- Once unset, `refreshForEndpoints` will again process all configured endpoints
-  (including non-time-series) according to its normal logic.
+- To re-enable non-time-series AV work, unset `AV_REFRESH_TIMESERIES_ONLY` or set it to any value other than `true` / `1` / `on`.
+- Once unset, `refreshForEndpoints` will again process all configured endpoints (including non-time-series) according to its normal logic.
 
 Operational recommendation while the job pipeline is under active development:
 
-- Keep `AV_REFRESH_TIMESERIES_ONLY` enabled in environments where you are
-  primarily validating the time-series job / worker / publisher path.
-- Explicitly remove or flip this flag as part of the rollout plan once
-  non-time-series endpoints are ready to be exercised again.
+- Keep `AV_REFRESH_TIMESERIES_ONLY` enabled in environments where you are primarily validating the time-series job / worker / publisher path.
+- Explicitly remove or flip this flag as part of the rollout plan once non-time-series endpoints are ready to be exercised again.
 
 ---
 
 ## 5. Worker Design (Cloud Tasks)
 
-### 5.1 New Function: `processTimeSeriesJob`
+### 5.1 Function: `processTimeSeriesJobTask` → `processTimeSeriesJobInternal`
 
 **Trigger:**
 
-- HTTPS endpoint behind Cloud Tasks, or background handler for Cloud Tasks.
-- Auth enforced (only Cloud Tasks queue can call).
+- Cloud Tasks handler (`onTaskDispatched`), auth enforced by Cloud Tasks queue.
+- Configuration centralized in `job-config.ts`: `CLOUD_TASKS_RATE_LIMITS`, `CLOUD_TASKS_RETRY_CONFIG`, `JOB_FUNCTION_MEMORY`.
 
 **Payload:**
 
@@ -263,14 +260,18 @@ Operational recommendation while the job pipeline is under active development:
   "marketDate": "2026-01-05",
   "symbol": "AAPL",
   "endpoint": "TIME_SERIES_DAILY_ADJUSTED",
-  "phase": "POST"
+  "phase": "POST",
+  "runId": "2026-01-05-MON-A-DAILY-LIVE-POST-1635",
+  "jobType": "realtime",
+  "mode": "COMPACT",
+  "deadlineRun": false
 }
 ```
 
 **Algorithm:**
 
 1. **Load job**:
-   - Path: `system/time-series-jobs/{marketDate}/jobs/{jobId}`.
+   - Path: `realtime-runs/{runId}/jobs/{jobId}`.
    - If job is missing → optionally treat as no-op or recreate as `PENDING`.
    - If `status ∈ {SUCCESS, PERMANENT_FAILURE}` → idempotent **no-op**, acknowledge task.
 
@@ -288,11 +289,11 @@ Operational recommendation while the job pipeline is under active development:
    Verification is always based on **series metadata derived from bars**, using `lastBarTs` as the authoritative "latest bar" timestamp:
 
    - **DAILY**:
-     - Read the year doc under `sa-time-series` (e.g. `.../av-daily-adjusted/years/2026`).
+     - Read the year doc under `sa-time-series` (e.g. `.../av-daily-adjusted/years/{year}`).
      - Use `lastBarTs` from that year doc.
      - Treat the job as complete if `lastBarTs >= targetTs`, incomplete otherwise.
    - **WEEKLY**:
-     - Read the WEEKLY year doc under `sa-time-series` (e.g. `.../av-weekly-adjusted/years/2026`).
+     - Read the WEEKLY year doc under `sa-time-series` (e.g. `.../av-weekly-adjusted/years/{year}`).
      - Use `lastBarTs` from that year doc.
      - Treat the job as complete if `lastBarTs >= targetTs`, incomplete otherwise.
    - **MONTHLY**:
@@ -318,25 +319,48 @@ Operational recommendation while the job pipeline is under active development:
      - Write time-series bars via `saveAvTimeSeriesData` to `sa-time-series`.
      - Update top-level metadata, `latestBarTimestamp`, etc.
 
-5. **Verify write**:
+5. **Verify write + derive freshness**:
 
    - For DAILY/WEEKLY/MONTHLY jobs, read the appropriate time-series document in `sa-time-series` (DAILY/WEEKLY year doc, MONTHLY all doc) and rely on `lastBarTs` to determine completeness (see step 3).
-   - If verification passes:
-     - `status: 'SUCCESS'`
-     - `finalizedAtMs = targetTs`
-     - `updatedAt = now`.
+   - Compute a **data freshness** signal, orthogonal to job status:
 
-6. **Error handling / mismatches**:
+     - `TimeSeriesDataFreshness.FRESH` when `lastBarTs >= targetTs`.
+     - `TimeSeriesDataFreshness.STALE` when a bar exists but `lastBarTs < targetTs`.
+     - `TimeSeriesDataFreshness.UNKNOWN` when no bar has been recorded yet.
+
+   - If the handler call succeeds, always mark the job itself as `status: 'SUCCESS'` and persist:
+
+     - `periodStatus` (`PERIOD_END` vs `IN_PROGRESS`).
+     - Optional `finalizedAtMs = targetTs` when `PERIOD_END`.
+     - `dataFreshness` as above.
+
+   - For realtime jobs with a `runId`, the worker also maintains per-run symbol lists on `realtime-runs/{runId}`:
+
+     - When `dataFreshness === STALE`:
+       - Append `symbol` to `staleSymbols` and `retrySymbols`.
+     - When a previously-stale symbol becomes `FRESH` (B/C retry pass):
+       - Remove `symbol` from `retrySymbols` and append to `retrySuccessSymbols`.
+     - When the job reaches `PERMANENT_FAILURE` (after `MAX_JOB_ATTEMPTS` retries):
+       - The realtime run aggregator appends `symbol` to `permanentFailureSymbols` and `retrySymbols`.
+
+   - This yields four per-run arrays:
+
+     - `staleSymbols`: symbols that were still stale for that run's target `marketDate`/interval.
+     - `permanentFailureSymbols`: symbols that ultimately hard-failed for that run.
+     - `retrySymbols`: the **canonical superset** (`stale ∪ permanentFailure`) that future A/B/C runs will use to drive selective re-fetching.
+     - `retrySuccessSymbols`: symbols that were in the retry set but became FRESH during this pass. Used to derive `includeSymbols` in the PDR message for B/C runs.
+
+6. **Error handling / mismatches + deadline semantics**:
 
    - If AV call fails (throttle, network, 500, malformed, empty data):
      - `status: 'FAILURE'`
      - `lastError`: truncated error string
      - `updatedAt = now`.
-   - If AV returns but `latestBarTimestamp` does not match expected date:
-     - Treat as `FAILURE` with `lastError = 'latestBarTimestamp mismatch'`.
-   - If `attempts > MAX_ATTEMPTS` (e.g. 5):
-     - `status: 'PERMANENT_FAILURE'`
-     - Stop re-enqueueing this job (Cloud Tasks retry + our logic together).
+   - If AV returns but `latestBarTimestamp` does not match the expected `marketDate` (i.e. `dataFreshness === STALE`):
+     - For A/B runs, treat this as **successful but stale** (`status: SUCCESS`, `dataFreshness: STALE`) so later passes can re-check these symbols using the per-run `retrySymbols` list.
+     - For the C (deadline) run, when the task payload includes `deadlineRun: true` and `dataFreshness === STALE` after a fetch, the worker throws a `"STALE_AT_DEADLINE"` error so the job flows through the existing retry path:
+       - For `attempts < MAX_ATTEMPTS`, mark `TRANSIENT_FAILURE` and **rethrow**; Cloud Tasks retries according to `retryConfig`.
+       - Once `attempts >= MAX_ATTEMPTS`, mark `status: 'PERMANENT_FAILURE'` and notify the realtime run aggregator, which updates `permanentFailureJobs`, `permanentFailureSymbols`, and `retrySymbols` for that run.
 
 ---
 
@@ -358,19 +382,20 @@ Jobs no longer need per-loop throttling; **queue-level config** controls through
 
 ### 6.2 Implemented Worker Limits & Diagnostics (Current State)
 
-The initial rollout of the job worker uses conservative, code-level rate limiting and retry behavior:
+All configuration is centralized in `job-config.ts`:
 
 - **Cloud Tasks worker export** (`processTimeSeriesJobTask` in `time-series-jobs.task.ts`):
-  - `rateLimits.maxConcurrentDispatches = 1`.
-  - `retryConfig.maxAttempts = 5`, with backoff between 10s and 300s.
+  - `rateLimits.maxConcurrentDispatches = 20` (from `CLOUD_TASKS_RATE_LIMITS`).
+  - `rateLimits.maxDispatchesPerSecond = 1.0` — stays under AV 75/min limit.
+  - `retryConfig.maxAttempts = 5`, with backoff between 10s and 300s (from `CLOUD_TASKS_RETRY_CONFIG`).
+  - `memory = '512MiB'` (from `JOB_FUNCTION_MEMORY`).
 - **Worker implementation** (`processTimeSeriesJobInternal` in `time-series-jobs.worker.ts`):
-  - Adds a fixed **1s delay** at the start of each job to further spread AV calls and make individual executions visible in logs/UI.
-  - Treats errors as **TransientFailure** for attempts `< MAX_ATTEMPTS`, rethrowing so Cloud Tasks retries.
-  - After `MAX_ATTEMPTS`, marks jobs as **PermanentFailure** and stops retrying.
-- **Supported endpoints in Phase 1**:
+  - Adds a fixed **1s delay** (`JOB_EXECUTION_DELAY_MS`) at the start of each job to further spread AV calls.
+  - Treats errors as **TransientFailure** for attempts `< MAX_JOB_ATTEMPTS` (5), rethrowing so Cloud Tasks retries.
+  - After `MAX_JOB_ATTEMPTS`, marks jobs as **PermanentFailure** and stops retrying.
+- **Aggregator timeout**: `MAX_RUN_DURATION_MS` (60 minutes) — if a run hasn't completed within this window, the aggregator reconciles from the jobs subcollection and force-completes.
+- **Supported endpoints**:
   - `TIME_SERIES_DAILY_ADJUSTED`, `TIME_SERIES_WEEKLY_ADJUSTED`, `TIME_SERIES_MONTHLY_ADJUSTED` for **POST** phase only.
-
-This combination guarantees strictly serialized AV time-series calls with a clearly bounded retry envelope while the pipeline is being validated.
 
 ### 6.3 Scheduler Interaction
 
@@ -385,20 +410,19 @@ Each scheduled run (PRE/POST):
 Tuning guidelines as the universe and SLAs evolve:
 
 - **Throughput vs safety**
-  - At `maxConcurrentDispatches = 1` and a 1s delay inside the worker, effective AV call rate is ~1/sec → ~60/min, under the 75/min limit.
-  - To increase throughput in the future, consider:
-    - Removing or reducing the internal 1s delay once confidence is high.
-    - Increasing `maxConcurrentDispatches` slightly (e.g., 2–3) while monitoring AV throttling and Firestore load.
+  - At `maxDispatchesPerSecond = 1.0` and `maxConcurrentDispatches = 20`, effective AV call rate is ~1/sec → ~60/min, under the 75/min limit. The 20 concurrent dispatches allow Firestore writes to overlap while the 1/sec dispatch rate gates AV calls.
+  - The internal 1s delay (`JOB_EXECUTION_DELAY_MS`) further spreads calls.
+  - To increase throughput in the future, consider increasing `maxDispatchesPerSecond` slightly while monitoring AV throttling.
 - **Queue UI vs code settings**
-  - Rely on **code-level** `rateLimits` in the function export; the Cloud Tasks UI has been observed to drift from intended settings.
+  - Rely on **code-level** `rateLimits` in the function export (via `job-config.ts`); the Cloud Tasks UI has been observed to drift from intended settings.
   - Treat the UI as read-only status, not the source of truth for limits.
 
 ### 6.5 SA Backfill Toolbox (Where This Fits)
 
 The job pipeline is designed to keep **current** DAILY / WEEKLY / MONTHLY data fresh and correct. When historical issues or AV quirks slip through, we rely on a small set of **backfill / repair tools** to clean up the past:
 
-- **SA Time-Series Window Backfill (Primary window repair)**  
-  Script: `functions/scripts/backfill-timeseries-window.ts`  
+- **SA Time-Series Window Backfill (Primary window repair)**
+  Script: `functions/scripts/backfill-timeseries-window.ts`
   Use when you need to **surgically repair a bounded date window** for SA time-series:
   - Supports DAILY / WEEKLY / MONTHLY.
   - Deletes + rewrites bars **only inside** `[BACKFILL_FROM, BACKFILL_TO]` for the selected intervals.
@@ -407,7 +431,7 @@ The job pipeline is designed to keep **current** DAILY / WEEKLY / MONTHLY data f
     - Fixing AV regressions for a known date span.
     - Cleaning up after split/history patches that affected a limited window.
 
-- **Full-history / structural rebuilders (existing scripts)**  
+- **Full-history / structural rebuilders (existing scripts)**
   Used when an entire interval’s history for a symbol (or small universe) is known to be wrong and must be **rebuilt from scratch** using AV or daily SA as the source of truth. Examples include:
   - Daily backfill scripts that re-fetch complete DAILY_ADJUSTED history.
   - Weekly/monthly rebuild scripts that regenerate W/M bars from daily SA or AV compact windows.
@@ -451,137 +475,45 @@ Terminal states are `SUCCESS` and `PERMANENT_FAILURE`; all others are considered
 
 ## 8. Status & Finalization Integration
 
-### 7.1 `system/time-series-status`
+### 7.1 `system/time-series-status` *(Future Work)*
 
 For `DAILY_ADJUSTED` and each `marketDate`:
 
-- Derive status from job docs:
+- Derive status from **realtime run docs** for that date and interval:
 
-  - `totalSymbols = total job count for marketDate & DAILY`.
-  - `finalizedCountTotal = count(status == SUCCESS)`.
-  - `pendingCount = count(status ∈ {PENDING, IN_PROGRESS, FAILURE})`.
+  - Filter `realtime-runs` where `marketDate` matches and `interval = DAILY`.
+  - `totalSymbols = sum(createdJobs)` across those runs.
+  - `finalizedCountTotal = sum(successJobs)`.
+  - `pendingCount = totalSymbols - finalizedCountTotal - sum(permanentFailureJobs)`.
 
 - Persist these aggregates into the existing `system/time-series-status` doc shape so the Health UI can remain mostly unchanged but with richer backing data.
 
-### 7.2 Finalization Docs
+### 7.2 Finalization Docs *(Future Work)*
 
 Finalization for `marketDate` should occur only when:
 
 1. All `DAILY` POST jobs for that `marketDate` have `status ∈ {SUCCESS, PERMANENT_FAILURE}`.
 2. Daily validation passes.
 
-If validation fails:
-
-- Mark status as "needs remediation" in `system/time-series-status`.
-- Optionally:
-  - Auto-requeue jobs for failed symbols.
-  - After remediation, re-run validation and finalize.
-
 ---
 
 ## 9. Partner Notifications Integration (Job Pipeline)
+
+> **Status:** This section describes the intended, steady-state integration for
+> partner notifications based on the `realtime-runs` model. Portions of it are
+> implemented today (run-level PDR for A/B/C runs); others should be treated as
+> **future work / backlog**, not as a description of current production
+> behavior.
 
 The ultimate purpose of this pipeline is to keep the partner-facing API surface fresh. Partners currently rely on **Pub/Sub notifications** to know when it is safe and efficient to pull data. The job pipeline must integrate cleanly with the existing RS contract while adding a more granular readiness stream.
 
 The pipeline exposes a symbol-level readiness stream derived from job docs. This exists primarily for future or non-RS consumers who explicitly want per-symbol early signals. RS does **not** rely on this stream for its canonical ingestion; it uses the run-level `partner-data-ready` contract described in Section 9.3.
 
 - **Topic:** `partner-symbols-ready` (new Pub/Sub topic, separate from `partner-data-ready`).
-- **Payload (implemented):**
-
-  ```ts
-  interface SymbolsReadyPayloadV1 {
-    version: 'v1';
-    marketDate: string;   // YYYY-MM-DD (ET)
-    runId?: string;       // Optional link to the run-level event
-    /**
-     * Symbols that just became fully ready for this marketDate.
-     *
-     * NOTE: For the time-series job pipeline we currently emit
-     * exactly one symbol per message (single-element array), but
-     * the array shape preserves the option to batch in the future
-     * without breaking consumers.
-     */
-    symbols: string[];
-    reason?: 'scheduled' | 'backfill';
-    /** Interval label so partners know which endpoint to hit (e.g. DAILY/WEEKLY/MONTHLY). */
-    interval: string;
-    /** ISO timestamp when the publisher sent the message. */
-    publishedAtUTC?: string;
-  }
-  ```
-
-**Granularity:**
-- Readiness is computed per **`{marketDate, symbol}`**.
-- Intervals (DAILY/WEEKLY/MONTHLY) are always included via the required `interval` field so partners can route to the correct endpoint.
-
-**Emission strategy (current):**
-- As jobs transition to `SUCCESS` / `PERMANENT_FAILURE`, the aggregator updates per-symbol interval state in `time-series-jobs/{marketDate}`.
-- When a symbol's required intervals are all terminal and successful, the worker emits **one `partner-symbols-ready` message per `{marketDate, symbol, interval}`** with `symbols: [symbol]`.
-- No cross-request batching or baseline grouping is performed; each message is independent.
-
-Partners who want low-latency access can subscribe to `partner-symbols-ready` and start issuing HTTPS time-series requests as soon as they see symbols of interest, but RS is not required to do so for correctness.
-- No single instance ever observed "all baselines ready" for the day, so the **baseline batch** was never published.
-- `firstBaselineBatchSent` never became `true` on any instance, so the **10-symbol batches** were never emitted either.
-- The only reliable notifications were the **per-symbol** messages, which do **not** depend on cross-request state.
-
-**Cost / scale analysis:**
-
-- A full time-series run currently produces on the order of ~2,200 symbol/interval notifications.
-- With ~10 runs per trading day, that is ~22,000 messages/day, or **~660,000 Pub/Sub messages/month**.
-- At Pub/Sub pricing (~$0.40 per 1M messages, plus minimal data volume), this is on the order of **cents per month**.
-- Subscriber compute (RS) at this volume is also negligible; average QPS is well below 1.
-
-Given this, the operational complexity and architectural mismatch of grouped batching **greatly outweigh** any theoretical savings in Pub/Sub or compute.
-
-**Final design choice:**
-
-- We **abandon grouped/batched partner notifications** for time-series readiness.
-- The canonical behavior of the stream is:
-  - Emit **one `partner-symbols-ready` message per `{marketDate, symbol, interval}`** when that symbol/interval becomes ready.
-  - Populate `reason` (e.g. `scheduled` vs `backfill`), `interval`, and `runId` so consumers can group and route messages by run and interval if they choose to consume this stream.
-- For RS specifically, the symbol-level stream is considered **auxiliary**; RS should continue to treat the **run-level** `partner-data-ready` signal as the authoritative contract for when it is safe to ingest a day.
-
-This design aligns with Cloud Run's scaling model, keeps the implementation simple and robust, and has negligible cost impact at the current and anticipated scales, while keeping the core correctness contract centered on the run-level signal.
-
-### 9.3 Run-Level Completion (Existing `partner-data-ready` Topic)
-
-The existing RS integration is built around **run-level** `DataReadyPayloadV1` messages on the `partner-data-ready` topic. The job pipeline will continue to use this as the authoritative signal that a run has finished.
-
-When all relevant jobs for `{marketDate, phase, intervalSet}` are terminal (see Section 3.4 Completion invariant):
-
-- A small aggregator computes per-run summary metrics from job docs:
-  - `totalJobs` for the run.
-  - `successJobs` / `permanentFailureJobs`.
-  - `finalizedCountTotal` and `pendingCount` derived from `SUCCESS` / non-terminal counts.
-  - Explicit lists (or at least counts) of symbols that are in `PERMANENT_FAILURE`.
-
-- The aggregator then constructs a `DataReadyPayloadV1` and calls `enqueueDataReadyInternal(...)` with:
-  - `runId` following the existing RS contract (e.g. `YYYY-MM-DD-HHMM-post` or `YYYY-MM-DD-HHMM-post-manual`).
-  - `phase = POST`.
-  - `intervals = [TimeSeriesInterval.DAILY]` for DAILY runs, or appropriate combinations for W/M.
-  - `runStatus`:
-    - `'completed'` if there are no permanent-failure symbols.
-    - `'completed_with_errors'` if any permanent failures occurred.
-  - `status = END` (`PartnerPublishStatus.END`) to mark the end of the run.
-  - `symbolsUpdatedCount`, `finalizedCountTotal`, and `pendingCount` populated from job aggregates.
-  - `extraAttributes.successes` / `extraAttributes.failures` set from job counts so RS can inspect failures via existing runs documents.
-
-The **job-run completion aggregator** is responsible for emitting this single, authoritative `partner-data-ready` message per run, in addition to any symbol-level `partner-symbols-ready` batches.
-
-### 9.4 Permanent Failures and Partner Expectations
-
-Permanent failure handling is critical for partner transparency:
-
-- Jobs that reach `TimeSeriesJobStatus.PermanentFailure` indicate a symbol that the job pipeline will not retry further for that `{marketDate, endpoint, phase}` without operator intervention.
-- The run-level `DataReadyPayloadV1` should reflect this by:
-  - Setting `runStatus = 'completed_with_errors'`.
-  - Including a non-zero `failures` count in `extraAttributes` (and optionally exposing the permanent-failure symbol list via the corresponding `runs/{runId}` document, where size permits).
-
-Partners can then treat a `COMPLETED_WITH_ERRORS` run as "mostly done" while inspecting downstream logs or the `runs` collection for which symbols failed permanently.
 
 ---
 
-## 9. Health UI / Angular & NgRx Signal Store
+## 9. Health UI / Angular & NgRx Signal Store *(Future Work)*
 
 ### 8.1 New Backend Read Surface
 
@@ -599,99 +531,47 @@ Add or extend an API endpoint to expose per-date job summaries:
     - `pending` symbols
     - `failure` symbols with `lastError`
 
-### 8.2 HealthDashboardStore Changes
+---
 
-In the Angular app (NgRx Signal Store + Signals):
+## 9. Migration Strategy *(Historical / Future Work)*
 
-- Extend `HealthDashboardStore` to hold:
+### 9.1 Phase 1 – Completed: All-Intervals POST with Realtime Runs
 
-  - `jobSummaryByDate: Record<string, JobSummary>`
-  - `staleSymbolSample: string[]`
-  - `failedSymbolSample: { symbol: string; error: string }[]`
+**Status:** Complete. The job pipeline is fully live for all POST intervals (DAILY, WEEKLY, MONTHLY) using the `realtime-runs` model.
 
-- Computed signals:
+What's implemented today:
 
-  - `isDateFullyFinalized(marketDate)`: derived from job summary.
-  - `hasOutstandingFailures(marketDate)`.
-  - `staleCount`, `failureCount` for quick badges.
+- **Schema & job creation**:
+  - Realtime jobs are created under `realtime-runs/{runId}/jobs/{...}` for all intervals.
+  - Each interval gets its own run document per sequence (A/B/C).
+  - RunIds use the `YYYY-MM-DD-DOW-SEQUENCE-INTERVAL-LIVE|MANUAL-PHASE-HHMM` format (generated by `RunIdFactory.createRealtime()` in `runid-factory.ts`).
+- **Worker**:
+  - `processTimeSeriesJobInternal` handles all intervals in POST phase.
+  - Supports `COMPACT` (realtime) and `FULL_BACKFILL` modes.
+  - Tracks `dataFreshness` (FRESH/STALE/UNKNOWN) and maintains per-run `retrySymbols`, `staleSymbols`, and `retrySuccessSymbols`.
+- **Schedulers**:
+  - A/B/C POST schedulers (`refreshAvTimeSeriesPostAllIntervals`,
+    `refreshAvDailyTimeSeriesPostEveningRetry00`,
+    `refreshAvDailyTimeSeriesPostMorning0700`) invoke
+    `runAllTimeSeriesIntervalsPost` and create jobs for all intervals.
+  - B/C runs use `getRetrySymbolsForInterval()` to read retry symbols from the prior sequence's run doc.
+  - Weekly/monthly POST schedulers are now logging-only no-ops.
+- **Cloud Tasks**:
+  - Queue `CloudTask.TIME_SERIES_JOB` processes tasks with rate limits and retries (config in `job-config.ts`).
+- **Aggregation & PDR**:
+  - `onRealtimeRunJobTerminal` maintains per-run counters and emits run-level
+    `partner-data-ready` END messages for each completed interval run.
+  - PDR messages include `includeSymbols` (B/C retry runs) or `excludeSymbols` (A initial runs) for RS consumption.
+  - Fast-path completion when `finishedJobs === createdJobs`; slow-path reconciliation via `reconcileRunJobs()` after `MAX_RUN_DURATION_MS`.
 
-This gives:
-
-- Precise visibility:
-  - "We have N symbols still not finalized for 2026-01-05; here are 25 of them."
-- Clear distinction between:
-  - `PENDING` (not yet processed by workers),
-  - `FAILURE` (retried but still failing),
-  - `PERMANENT_FAILURE` (taken out of rotation pending manual remediation).
-
-### 9.3 Daily PRE vs POST Rows (Operator Workflow)
-
-The Health Dashboard should surface **separate rows** for DAILY PRE and DAILY POST job sets:
-
-- **DAILY PRE row** (intraday snapshot health):
-  - Jobs: `{marketDate, symbol, DAILY, PRE}`.
-  - Metrics: `totalJobs`, `successCount`, `pendingCount`, `failureCount`.
-  - Purpose: confirm that the pre-close snapshot pass (and any intraday PRE runs we choose to track as jobs) have executed for the symbol universe.
-
-- **DAILY POST row** (final bar health):
-  - Jobs: `{marketDate, symbol, DAILY, POST}`.
-  - Metrics: same as above.
-  - Operator workflow:
-    - If `pendingCount = 0` and `failureCount = 0` → treat DAILY POST for that date as complete.
-    - If `failureCount > 0` → drill into failed jobs list and optionally **requeue selected jobs** via an admin action.
-
-Weekly/monthly can follow the same pattern (POST-only rows), but the critical operator flow each morning is:
-
-- Check DAILY PRE row for obvious anomalies.
-- Check DAILY POST row for completion and any remaining failures.
+Future work (see later sections) focuses on:
+- Health UI and richer status aggregation (`system/time-series-status`).
+- Optional symbol-level readiness streams.
+- Operational tooling for manual remediation and audits.
 
 ---
 
-## 9. Migration Strategy
-
-### 9.1 Phase 1 – Introduce Job Model for DAILY POST Only
-
-1. Implement the schema and job creation for **DAILY POST** only:
-   - Keep WEEKLY/MONTHLY on the legacy loop initially.
-2. Add `processTimeSeriesJob` worker for DAILY POST.
-3. Configure Cloud Tasks queue and wire scheduler to:
-   - Populate DAILY POST jobs.
-   - Enqueue tasks for them.
-4. In emulator/staging:
-   - Run legacy loop and job pipeline in parallel (shadow mode).
-   - Compare `latestBarTimestamp` and job status for a sample of symbols.
-
-### 9.2 Phase 2 – Switch DAILY POST Fully to Jobs
-
-1. Disable direct AV calls inside `refreshForEndpoints` for DAILY POST.
-2. Rely exclusively on job pipeline for DAILY POST.
-3. Validate for a period in staging and then Prod:
-   - All symbols for each marketDate have matching `latestBarTimestamp` and job `status`.
-
-### 9.3 Phase 3 – Extend to WEEKLY/MONTHLY POST
-
-1. Create jobs and workers for `TIME_SERIES_WEEKLY_ADJUSTED` and `TIME_SERIES_MONTHLY_ADJUSTED` POST.
-2. Reuse the same job schema and worker, with interval-specific verification logic.
-3. Integrate WEEKLY/MONTHLY job summaries into Health UI.
-
-### 9.4 Phase 4 – PRE Phase & Long-Tail Remediation
-
-1. Decide which PRE flows warrant jobs (likely only daily PRE if we want job tracking there).
-2. Optionally create PRE jobs for intraday snapshots that are critical to partners.
-3. Add tooling/scripts to:
-   - Backfill jobs for historical dates with known gaps.
-   - Run workers to repair missing bars.
-
-### 9.5 Phase 5 – Clean-Up Legacy Paths
-
-1. Once job pipeline is stable for all intervals:
-   - Remove any remaining per-symbol AV loops in schedulers.
-   - Simplify `refreshForEndpoints` to orchestration-only concerns.
-2. Update docs (`backend-functions-overview.md`, `partner-discovery.md`, etc.) to describe the job-driven pipeline as the canonical design.
-
----
-
-## 10. Deprecation / Removal Targets
+## 10. Deprecation / Removal Targets *(Historical / Future Work)*
 
 As the job-based pipeline becomes the source of truth for time-series refresh, the following code paths are candidates for deprecation and eventual removal:
 
@@ -700,26 +580,9 @@ As the job-based pipeline becomes the source of truth for time-series refresh, t
   - The "near-complete acceleration" logic that re-runs a small subset of DAILY POST symbols to try to catch stragglers.
   - Any logic in this module that infers completion solely from `latestBarTimestamp` rather than from job status + validation.
 
-- **Legacy time-series updaters (if any remain):**
-  - Historical updaters such as `updateDailyTimeSeries` / `av-daily-time-series-updater` that iterate over all symbols and call AV directly.
-  - Any scripts or functions that assume "one scheduled run implies all symbols updated" without consulting job documents.
-
-- **Health metrics based only on request logs:**
-  - Portions of the Health view that treat per-request success/failure as a proxy for freshness.
-  - Over time, these should be replaced or augmented so that **job summaries** and **job statuses** are the primary health indicators for time-series.
-
-During implementation we should:
-
-- Tag affected code with `// TODO: deprecate (time-series job pipeline)`.
-- Maintain a short list of deprecation items in `TASK.md`.
-- Remove or simplify the legacy paths only after:
-  - Daily POST is fully job-driven in Prod and stable.
-  - Weekly/monthly POST has been migrated.
-  - The Health UI is wired to job summaries and validated in real usage.
-
 ---
 
-## 11. Open Questions / TODOs
+## 11. Open Questions / TODOs *(Backlog)*
 
 - **Job granularity:**
   - One job per `{symbol, endpoint, phase, marketDate}` is the baseline. Do we ever want per-phase-only or multi-endpoint jobs?
@@ -730,7 +593,7 @@ During implementation we should:
 
 ---
 
-## 12. Verification & Audit Strategy
+## 12. Verification & Audit Strategy *(Future Work)*
 
 This pipeline relies on **three layers of protection** to minimize the need for manual or bulk backfills.
 
