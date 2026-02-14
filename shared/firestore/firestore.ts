@@ -18,6 +18,9 @@ export enum FirestoreCollection {
     TIME_SERIES_STATUS = 'time-series-status',
     TIME_SERIES_JOBS = 'time-series-jobs',
     JOBS = 'jobs',
+
+    // Realtime time-series runs (canonical realtime POST pipeline)
+    REALTIME_RUNS = 'realtime-runs',
     
     YEARS = 'years',
 

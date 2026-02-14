@@ -58,9 +58,15 @@ export const partnerDataReadyPublishV2 = onRequest(async (req: Request, res: Res
         time: Date.now(),
         marketDate,
         env: typeof body.env === 'string' ? body.env : (process.env.NODE_ENV || 'dev'),
-        trigger: (body.trigger === PartnerTrigger.HEARTBEAT || body.trigger === PartnerTrigger.SCHEDULED || body.trigger === PartnerTrigger.MANUAL)
-          ? body.trigger
-          : PartnerTrigger.MANUAL,
+        // Preserve explicit trigger values including TEST; default to MANUAL
+        // when trigger is omitted or not recognized.
+        trigger:
+          body.trigger === PartnerTrigger.HEARTBEAT ||
+          body.trigger === PartnerTrigger.SCHEDULED ||
+          body.trigger === PartnerTrigger.MANUAL ||
+          body.trigger === PartnerTrigger.TEST
+            ? body.trigger
+            : PartnerTrigger.MANUAL,
       } as DataReadyPayloadV1;
     } else {
       payload = body as DataReadyPayloadV1;

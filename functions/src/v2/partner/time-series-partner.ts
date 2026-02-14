@@ -104,7 +104,7 @@ const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
 const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
 
 const functionOptions: HttpsOptions = {
-  memory: '256MiB',
+  memory: '1GiB',
   maxInstances: 20,
   timeoutSeconds: 60,
   secrets: [allowedServiceAccounts, expectedGoogleAudience]

@@ -64,7 +64,7 @@ export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * 1-5';
  */
 export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 16 * * 1-5';
 export const TS_DAILY_POST_EVENING_RETRY_MINUTE_30 = '30 18-21 * * 1-5';
-export const TS_DAILY_POST_EVENING_RETRY_MINUTE_00 = '0 19-21 * * 1-5';
+export const TS_DAILY_POST_EVENING_RETRY_MINUTE_00 = '0 21 * * 1-5';
 export const TS_DAILY_POST_MORNING_CATCHUP_0630 = '30 6 * * 1-5';
 export const TS_DAILY_POST_MORNING_CATCHUP_0700 = '0 7 * * 1-5';
 
