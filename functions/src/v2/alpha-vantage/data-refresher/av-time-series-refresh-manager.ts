@@ -24,11 +24,11 @@ import {
 } from '../../common/function-schedules';
 
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
-import { getTimeSeriesJobDocPath } from '../../common/firestore/firestore-paths';
 import { TIME_SERIES_BASELINE_ETFS, TIME_SERIES_MASTER_SYMBOL_ORDER } from '../data/ts-master-order';
 import { TS_SCHEDULER_BATCH_SIZE, TS_FULLBACKFILL_BATCH_SIZE } from '../jobs/ts-job-batch-config';
-import { TimeSeriesJobStatus, TimeSeriesJobMode } from '../jobs/time-series-jobs.model';
+import { TimeSeriesJobStatus, TimeSeriesJobMode, TimeSeriesRunStatus } from '../jobs/time-series-jobs.model';
 import { CloudTask } from '../../common/constants';
+import { RunIdFactory, type RealtimeRunParams } from '../jobs/runid-factory';
 
 const tsJobLogger = betterLogger('aVTSRM');
 
@@ -68,52 +68,50 @@ function getEtMarketDateAndDow(): { marketDate: string; dow: DayOfWeek } {
   return { marketDate, dow };
 }
 
+
 /**
- * Builds the canonical time-series `runId` used across realtime and
- * backfill runs.
+ * Builds a canonical realtime POST `runId` for a specific interval.
  *
- * Format:
- *   YYYY-MM-DD-DOW-POST-LIVE|MANUAL-<SEQUENCE>-<HHMM>
+ * Format: YYYY-MM-DD-DOW-SEQUENCE-INTERVAL-LIVE|MANUAL-PHASE-HHMM
+ * Example: 2026-01-29-THU-A-DAILY-LIVE-POST-1635
  *
- * The `sequence` encodes the logical pass (A/B/C/X/F), while `clockEt`
- * encodes the nominal ET start time of the run. When `clockEt` is not
- * provided, the current ET time is used.
- *
- * @param params.marketDate Trading date in ET (YYYY-MM-DD).
- * @param params.dow Day-of-week for the trading date.
- * @param params.phase Trading phase for the run (PRE or POST).
- * @param params.isManual Whether the run is manual/emulator (MANUAL) or
- *                         scheduler-driven (LIVE).
- * @param params.sequence Single-character sequence identifier for the
- *                        run (e.g., A/B/C/X/F).
- * @param params.clockEt Optional explicit ET time (HHMM) to embed.
- * @returns Canonical runId string for the time-series run.
+ * The clockEt is always required for identification purposes.
  */
-function buildTimeSeriesRunId(params: {
+function buildRealtimeIntervalRunId(params: {
   marketDate: string;
   dow: DayOfWeek;
-  phase: TradingPhase;
+  interval: TimeSeriesInterval;
   isManual: boolean;
   sequence: string;
-  clockEt?: string; // HHMM; when omitted, derived from current ET time
+  phase: TradingPhase;
+  clockEt: string; // Required ET time (HHMM) for identification
 }): string {
-  const { marketDate, dow, phase, isManual, sequence } = params;
-  let { clockEt } = params;
+  const realtimeParams: RealtimeRunParams = {
+    marketDate: params.marketDate,
+    dow: params.dow,
+    interval: params.interval,
+    isManual: params.isManual,
+    sequence: params.sequence,
+    phase: params.phase,
+    clockEt: params.clockEt,
+  };
+  
+  return RunIdFactory.createRealtime(realtimeParams);
+}
 
-  const phaseStrUpper = String(phase).toUpperCase();
-  const dowStr = String(dow).toUpperCase();
-  const liveManualSuffix = isManual ? 'MANUAL' : 'LIVE';
-
-  if (!clockEt) {
-    const tz = 'America/New_York';
-    const now = new Date();
-    const etNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
-    const hh = String(etNow.getHours()).padStart(2, '0');
-    const mm = String(etNow.getMinutes()).padStart(2, '0');
-    clockEt = `${hh}${mm}`;
-  }
-
-  return `${marketDate}-${dowStr}-${phaseStrUpper}-${liveManualSuffix}-${sequence}-${clockEt}`;
+/**
+ * Builds a backfill-specific `runId` for `backfill-runs/{runId}`.
+ *
+ * Uses the RunIdFactory to ensure consistency with the rest of the pipeline.
+ *
+ * Example: 2026-01-31-SAT-POST-DAILY-FULL_BACKFILL
+ */
+function buildBackfillRunId(params: {
+  marketDate: string;
+  dow: DayOfWeek;
+  interval: TimeSeriesInterval;
+}): string {
+  return RunIdFactory.createBackfill(params);
 }
 
 /**
@@ -154,26 +152,35 @@ export function orderTrackedSymbols(allTracked: string[]): string[] {
   return ordered;
 }
 
+async function getLatestRetryRunMarketDateForInterval(
+  interval: TimeSeriesInterval,
+): Promise<string | null> {
+  const runsRef = db.collection(FirestoreCollection.REALTIME_RUNS);
+
+  const snap = await runsRef
+    .where('interval', '==', interval)
+    .where('runType', '==', 'ts-post-all-intervals-retry')
+    .orderBy('marketDate', 'desc')
+    .limit(1)
+    .get();
+
+  if (snap.empty) {
+    return null;
+  }
+
+  const data = snap.docs[0].data() as any;
+  const md = String(data.marketDate || '');
+  return md || null;
+}
+
 /**
- * Creates or updates a single time-series job document for the given
- * {marketDate, symbol, endpoint, phase} tuple and, when enabled, enqueues
- * the corresponding Cloud Task.
+ * Creates or updates a realtime job document under `realtime-runs/{runId}/jobs/{jobId}`
+ * and, when enabled, enqueues the corresponding Cloud Task.
  *
- * This function also ensures the aggregate date-level document is kept
- * in sync (runId, status, totalJobs) so that the aggregator can compute
- * universe-level completion correctly.
- *
- * @param params.marketDate Trading date for the job (YYYY-MM-DD, ET).
- * @param params.symbol Uppercased symbol ticker.
- * @param params.endpoint Alpha Vantage time-series endpoint.
- * @param params.phase Trading phase (POST only for the new pipeline).
- * @param params.runId Canonical run identifier for this invocation.
- * @param params.intervalForEndpoint Logical interval for the endpoint
- *                                   (DAILY, WEEKLY, MONTHLY).
- * @param params.endpointName Human-readable endpoint name for logging.
- * @param params.mode Optional job mode (realtime vs full backfill).
+ * This is the canonical helper for POST realtime runs. It also increments the
+ * `createdJobs` counter on the parent run document when a new job is created.
  */
-async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
+async function createRealtimeRunJobAndEnqueueTask(options: {
   marketDate: string;
   symbol: string;
   endpoint: AlphaVantageEndpoint;
@@ -181,263 +188,172 @@ async function createOrUpdateTimeSeriesJobAndMaybeEnqueueTask(params: {
   runId: string;
   intervalForEndpoint: TimeSeriesInterval;
   endpointName: string;
-  mode?: TimeSeriesJobMode;
+  // When true, marks the resulting job as part of a deadline run (e.g. C run)
+  // so the worker can treat persistently stale data as a terminal failure
+  // after exhausting retries.
+  deadlineRun?: boolean;
 }): Promise<void> {
-  const { marketDate, symbol, endpoint, phase, runId, intervalForEndpoint, endpointName, mode } = params;
+  const { marketDate, symbol, endpoint, phase, runId, intervalForEndpoint, endpointName, deadlineRun } = options;
 
-  const fnString = 'cOUTSJAMET'
+  const fnString = 'cRRJAET';
 
-  let shouldEnqueueTask = false;
+  const jobId = `${symbol}-${endpoint}-${phase}`;
+  const runPath = `${FirestoreCollection.REALTIME_RUNS}/${runId}`;
+  const runRef = db.doc(runPath);
+  const jobPath = `${runPath}/${FirestoreCollection.JOBS}/${jobId}`;
+  const jobRef = db.doc(jobPath);
+
   let createdNewJob = false;
-  let updatedJob = false;
+  let skippedForRun = false;
 
-  try {
-    const jobPath = getTimeSeriesJobDocPath(marketDate, symbol, endpoint, phase);
-    const jobRef = db.doc(jobPath);
-    const dateRef = db.doc(`${FirestoreCollection.TIME_SERIES_JOBS}/${marketDate}`);
+  tsJobLogger.timeStart('realtime_job.tx', {
+    function: fnString,
+    symbol,
+    marketDate,
+    interval: intervalForEndpoint,
+    endpoint: endpointName,
+  } as BetterLogPayload);
 
-    tsJobLogger.timeStart('job.tx', {
-      function: fnString,
-      symbol,
-      marketDate,
-      interval: intervalForEndpoint,
-      endpoint: endpointName,
-    } as BetterLogPayload);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(jobRef);
+    const nowTs = Timestamp.now();
 
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(jobRef);
-      const dateSnap = await tx.get(dateRef);
-
-      const isFullBackfill = mode === TimeSeriesJobMode.FullBackfill;
-
-      if (!snap.exists) {
-        // Fresh job doc for this symbol/endpoint/phase.
-        // For both realtime and full-backfill, initialize as Pending with 0 attempts.
-        tx.set(jobRef, {
-          symbol,
-          endpoint,
-          interval: intervalForEndpoint,
-          phase,
-          status: TimeSeriesJobStatus.Pending,
-          attempts: 0,
-          mode,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        });
-
-        const existingDate = dateSnap.exists ? (dateSnap.data() as any) : {};
-        const phaseStr = String(phase).toLowerCase();
-
-        tx.set(
-          dateRef,
-          {
-            marketDate,
-            phase: existingDate.phase || phaseStr,
-            runId: existingDate.runId || runId || null,
-            // High-level run status for this marketDate. When any job is created,
-            // mark the date doc as IN_PROGRESS; the aggregator will later flip
-            // this to COMPLETE when all jobs finish.
-            status: existingDate.status || 'IN_PROGRESS',
-          },
-          { merge: true },
-        );
-
-        shouldEnqueueTask = true;
-        createdNewJob = true;
-        return;
-      }
-
-      const data = snap.data() as any;
-      const status: TimeSeriesJobStatus | undefined = data?.status;
-
-      if (!isFullBackfill && (status === TimeSeriesJobStatus.Success || status === TimeSeriesJobStatus.PermanentFailure)) {
-        // Realtime / non-full-backfill runs skip already completed jobs to avoid
-        // re-hitting AV for symbols that are known-good for this marketDate.
-        return;
-      }
-
-      // For full-backfill, we always reset the job to a fresh Pending state so that
-      // the worker will reprocess the symbol from scratch, regardless of any
-      // prior success. For realtime runs, we preserve existing status/attempts
-      // for in-flight jobs that are not yet terminal.
-      tx.set(
-        jobRef,
-        {
-          symbol,
-          endpoint,
-          interval: intervalForEndpoint,
-          phase,
-          status: isFullBackfill ? TimeSeriesJobStatus.Pending : status ?? TimeSeriesJobStatus.Pending,
-          attempts: isFullBackfill
-            ? 0
-            : typeof data?.attempts === 'number'
-              ? data.attempts
-              : 0,
-          mode: mode ?? data?.mode,
-          updatedAt: Timestamp.now(),
-        },
-        { merge: true },
-      );
-      shouldEnqueueTask = true;
-      updatedJob = true;
-
-      tsJobLogger.info('job.doc_write', {
-          function: fnString,
-          symbol,
-          marketDate,
-          interval: intervalForEndpoint,
-          endpoint: endpointName,
-          message: `Wrote job doc for ${marketDate} ${intervalForEndpoint} ${symbol}`
-        } as BetterLogPayload);
-    });
-
-    tsJobLogger.timeEnd('job.tx', {
-      function: fnString,
-      symbol,
-      marketDate,
-      interval: intervalForEndpoint,
-      endpoint: endpointName,
-    } as BetterLogPayload);
-
-    // For newly created jobs, bump the aggregate totalJobs counter outside of the
-    // per-job transaction using an atomic increment. This reduces read/modify
-    // contention on the date doc while preserving correct totals over time.
-    if (createdNewJob) {
-      try {
-        await dateRef.set(
-          {
-            totalJobs: FieldValue.increment(1),
-          },
-          { merge: true },
-        );
-      } catch (e: any) {
-        // Treat failure to bump totalJobs as a hard error so that run-level
-        // completeness checks based on this aggregate are not silently skewed.
-        tsJobLogger.error('ts.jobs.totalJobs_increment_failed', {
-          function: fnString,
-          symbol,
-          marketDate,
-          interval: intervalForEndpoint,
-          endpoint: endpointName,
-          error: String(e?.message || e),
-        } as BetterLogPayload);
-        throw e;
-      }
+    if (!snap.exists) {
+      // Fresh realtime job doc for this symbol/endpoint/phase.
+      tx.set(jobRef, {
+        symbol,
+        endpoint,
+        interval: intervalForEndpoint,
+        phase,
+        status: TimeSeriesJobStatus.Pending,
+        attempts: 0,
+        createdAt: nowTs,
+        updatedAt: nowTs,
+      });
+      createdNewJob = true;
+      return;
     }
 
-    const tasksEnabled = String(process.env.TS_TIME_SERIES_TASKS_ENABLED || '').toLowerCase() === 'true';
-    if (shouldEnqueueTask && tasksEnabled) {
-      tsJobLogger.timeStart('job.enqueue', {
+    const data = snap.data() as any;
+    const status: TimeSeriesJobStatus | undefined = data?.status;
+
+    // For realtime runs, we skip already terminal jobs to avoid re-enqueueing
+    // work that has reached SUCCESS or PERMANENT_FAILURE. Track these as
+    // "skipped" so the parent run doc has an explicit count of symbols that
+    // required no new work for this invocation.
+    if (status === TimeSeriesJobStatus.Success || status === TimeSeriesJobStatus.PermanentFailure) {
+      skippedForRun = true;
+      return;
+    }
+
+    tx.set(
+      jobRef,
+      {
+        symbol,
+        endpoint,
+        interval: intervalForEndpoint,
+        phase,
+        status: status ?? TimeSeriesJobStatus.Pending,
+        attempts:
+          typeof data?.attempts === 'number'
+            ? data.attempts
+            : 0,
+        updatedAt: nowTs,
+      },
+      { merge: true },
+    );
+  });
+
+  tsJobLogger.timeEnd('realtime_job.tx', {
+    function: fnString,
+    symbol,
+    marketDate,
+    interval: intervalForEndpoint,
+    endpoint: endpointName,
+  } as BetterLogPayload);
+
+  if (createdNewJob) {
+    await runRef.set(
+      {
+        createdJobs: FieldValue.increment(1),
+      },
+      { merge: true },
+    );
+  }
+  if (skippedForRun) {
+    await runRef.set(
+      {
+        skippedSymbolsCount: FieldValue.increment(1),
+      },
+      { merge: true },
+    );
+  }
+
+  const tasksEnabled = String(process.env.TS_TIME_SERIES_TASKS_ENABLED || '').toLowerCase() === 'true';
+  if (tasksEnabled) {
+    tsJobLogger.timeStart('realtime_job.enqueue', {
+      function: fnString,
+      symbol,
+      marketDate,
+      interval: intervalForEndpoint,
+      endpoint: endpointName,
+    } as BetterLogPayload);
+    try {
+      const queue = getFunctions().taskQueue(CloudTask.TIME_SERIES_JOB);
+      await queue.enqueue({
+        marketDate,
+        symbol,
+        endpoint,
+        phase,
+        jobType: TimeSeriesJobType.REALTIME,
+        runId,
+        // Mark whether this job belongs to a deadline run; the worker
+        // will interpret this to potentially treat stale data as a
+        // terminal failure after MAX_ATTEMPTS.
+        deadlineRun: !!deadlineRun,
+      });
+      tsJobLogger.timeEnd('realtime_job.enqueue', {
         function: fnString,
         symbol,
         marketDate,
         interval: intervalForEndpoint,
         endpoint: endpointName,
       } as BetterLogPayload);
-      try {
-        const queue = getFunctions().taskQueue(CloudTask.TIME_SERIES_JOB);
-        await queue.enqueue({
-          marketDate,
-          symbol,
-          endpoint,
-          phase,
-          jobType: TimeSeriesJobType.REALTIME,
-        });
-        tsJobLogger.timeEnd('job.enqueue', {
-          function: fnString,
-          symbol,
-          marketDate,
-          interval: intervalForEndpoint,
-          endpoint: endpointName,
-        } as BetterLogPayload);
-        tsJobLogger.info('job.enqueue_success', {
-          function: fnString,
-          symbol,
-          marketDate,
-          interval: intervalForEndpoint,
-          endpoint: endpointName,
-          message: `Queued job for ${marketDate} ${intervalForEndpoint} ${symbol}`
-        } as BetterLogPayload);
-      } catch (e: any) {
-        tsJobLogger.timeEnd('job.enqueue', {
-          function: fnString,
-          symbol,
-          marketDate,
-          interval: intervalForEndpoint,
-          endpoint: endpointName,
-        } as BetterLogPayload);
-        tsJobLogger.warn('job.enqueue_failed', {
-          function: fnString,
-          symbol,
-          marketDate,
-          interval: intervalForEndpoint,
-          endpoint: endpointName,
-          error: String(e?.message || e),
-          message: `Queue job FAILED for ${marketDate} ${intervalForEndpoint} ${symbol}`
-        } as BetterLogPayload);
-      }
+    } catch (e: any) {
+      tsJobLogger.timeEnd('realtime_job.enqueue', {
+        function: fnString,
+        symbol,
+        marketDate,
+        interval: intervalForEndpoint,
+        endpoint: endpointName,
+      } as BetterLogPayload);
+      tsJobLogger.warn('realtime_job.enqueue_failed', {
+        function: fnString,
+        symbol,
+        marketDate,
+        interval: intervalForEndpoint,
+        endpoint: endpointName,
+        error: String(e?.message || e),
+      } as BetterLogPayload);
     }
-
-    if (shouldEnqueueTask) {
-      if (createdNewJob) {
-        tsJobLogger.info('ts.jobs.write_new', {
-          function: fnString,
-          symbol,
-          marketDate,
-          interval: intervalForEndpoint,
-          endpoint: endpointName,
-        } as BetterLogPayload);
-      } else if (updatedJob) {
-        tsJobLogger.info('ts.jobs.write_update', {
-          function: fnString,
-          symbol,
-          marketDate,
-          interval: intervalForEndpoint,
-          endpoint: endpointName,
-        } as BetterLogPayload);
-      }
-    }
-  } catch (e: any) {
-    tsJobLogger.warn('job.shadow_create_failed', {
-      function: fnString,
-      symbol,
-      marketDate,
-      interval: intervalForEndpoint,
-      endpoint: endpointName,
-      error: String(e?.message || e),
-    } as BetterLogPayload);
   }
 }
 
-/**
- * Scheduler-facing entry point for creating/enqueuing jobs for a single
- * Alpha Vantage time-series endpoint (DAILY/WEEKLY/MONTHLY) for a given
- * trading date and POST phase.
- *
- * Callers MUST supply a canonical `runId` generated via
- * `buildTimeSeriesRunId`. This `runId` is stored on the aggregate
- * `time-series-jobs/{marketDate}` document and ultimately flows through
- * to the partner `runs` collection and data-ready Pub/Sub messages.
- *
- * @param options.endpoint Alpha Vantage time-series endpoint to schedule.
- * @param options.phase Trading phase (only POST is honored).
- * @param options.trigger Logical refresh trigger (scheduler/manual).
- * @param options.marketDate Optional explicit trading date override.
- * @param options.symbols Optional subset of symbols to target.
- * @param options.runId Canonical run identifier for this invocation.
- */
 export async function runTimeSeriesJobsForEndpoint(options: {
   endpoint: AlphaVantageEndpoint;
   phase: TradingPhase;
   trigger: RefreshTrigger;
   marketDate?: string;
   symbols?: string[];
-  // Canonical run identifier for this invocation. Callers MUST construct
-  // this via buildTimeSeriesRunId so that all POST runs share a consistent
-  // format.
+  // Canonical run identifier for this invocation. All realtime jobs
+  // must have a runId in the new pipeline.
   runId: string;
+  // When true, marks all jobs created by this invocation as part of a
+  // deadline run (e.g. the C run), allowing the worker to treat
+  // persistently stale data as a terminal failure after retries.
+  deadlineRun?: boolean;
 }): Promise<void> {
-  const { endpoint, phase, marketDate: marketDateOverride, symbols: symbolsOverride, runId } = options;
+  const { endpoint, phase, marketDate: marketDateOverride, symbols: symbolsOverride, runId, deadlineRun } = options;
 
   const fnString = 'rTSJFE';
 
@@ -475,44 +391,12 @@ export async function runTimeSeriesJobsForEndpoint(options: {
         ? TimeSeriesInterval.WEEKLY
         : TimeSeriesInterval.MONTHLY;
 
-  const isJobPipelineEnabled = String(process.env.TS_JOB_PIPELINE_ENABLED_DAILY_POST || '').toLowerCase() === 'true';
-  if (!isJobPipelineEnabled) {
-    tsJobLogger.info('ts.jobs.pipeline_disabled', {
-      function: fnString,
-      symbol: 'MULTI',
-      marketDate,
-      interval: intervalForEndpoint,
-      endpoint: endpointName,
-      message: 'Jobs pipeline DISABLED. Terminating process'
-    } as BetterLogPayload);
-    return;
-  }
-
-  // runId is supplied by the caller and must already conform to the
-  // canonical format produced by buildTimeSeriesRunId.
-
   let symbols: string[];
   if (Array.isArray(symbolsOverride) && symbolsOverride.length > 0) {
     symbols = orderTrackedSymbols(symbolsOverride.map((s) => s.toUpperCase()));
   } else {
     const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
     symbols = orderTrackedSymbols(symbolsSnap.docs.map((d) => d.id));
-
-    const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
-    if (isEmulator) {
-      const baselinesInTracked = TIME_SERIES_BASELINE_ETFS.filter((s) => symbols.includes(s));
-      const rawExtra = process.env.TS_JOB_EMULATOR_SYMBOLS;
-      const extraTargets: string[] = [];
-      if (rawExtra && rawExtra.length > 0) {
-        for (const token of rawExtra.split(',')) {
-          const sym = token.trim().toUpperCase();
-          if (!sym) continue;
-          if (baselinesInTracked.includes(sym)) continue;
-          if (!extraTargets.includes(sym)) extraTargets.push(sym);
-        }
-      }
-      symbols = [...baselinesInTracked, ...extraTargets];
-    }
   }
 
   const createdSymbolsThisEndpoint = new Set<string>();
@@ -558,7 +442,7 @@ export async function runTimeSeriesJobsForEndpoint(options: {
           endpoint: endpointName,
         } as BetterLogPayload);
 
-        await createOrUpdateTimeSeriesJobAndMaybeEnqueueTask({
+        await createRealtimeRunJobAndEnqueueTask({
           marketDate,
           symbol: symbolUpper,
           endpoint,
@@ -566,6 +450,7 @@ export async function runTimeSeriesJobsForEndpoint(options: {
           runId,
           intervalForEndpoint,
           endpointName,
+          deadlineRun,
         });
 
         createdSymbolsThisEndpoint.add(symbolUpper);
@@ -614,18 +499,19 @@ export async function runTimeSeriesJobsForEndpoint(options: {
     marketDate,
     interval: intervalForEndpoint,
     endpoint: endpointName,
-    message: `Created ${createdSymbolsThisEndpoint.size} symbols for ${endpointName}`
+    message: `Created ${createdSymbolsThisEndpoint.size} symbols for ${endpointName}`,
   } as BetterLogPayload);
-  tsJobLogger.endMaj('ts.jobs.run_summary', {})
+  tsJobLogger.endMaj('ts.jobs.run_summary', {} as BetterLogPayload);
   console.log('==========================================================');
 }
 
 /**
  * Enqueue FULL_BACKFILL jobs for a given endpoint and symbol set.
- * This reuses the same marketDate/runId/ordering logic as the standard
- * scheduler but stamps jobs with TimeSeriesJobMode.FullBackfill so that
- * the worker performs a destructive full-history rebuild for each
- * symbol+endpoint.
+ *
+ * Backfill orchestration is fully separated from realtime. This helper
+ * shares the symbol ordering and marketDate derivation logic with the
+ * realtime scheduler, but uses a dedicated backfill runId format and
+ * the `backfill-runs/{runId}` hierarchy.
  */
 export async function enqueueFullBackfillJobsForEndpoint(options: {
   endpoint: AlphaVantageEndpoint;
@@ -671,16 +557,12 @@ export async function enqueueFullBackfillJobsForEndpoint(options: {
         ? TimeSeriesInterval.WEEKLY
         : TimeSeriesInterval.MONTHLY;
 
-  const isManualRun = true;
-  const runId = buildTimeSeriesRunId({
+  // Backfill runs use a dedicated runId format that is distinct from
+  // realtime runs and encodes the target interval directly.
+  const runId = buildBackfillRunId({
     marketDate,
     dow: dowEnum,
-    phase: TradingPhase.POST,
-    isManual: isManualRun,
-    // Dedicated sequence for full backfill runs so they are easily
-    // distinguishable from realtime scheduler passes while still using
-    // the unified runId format.
-    sequence: 'F',
+    interval: intervalForEndpoint,
   });
 
   let symbols: string[];
@@ -821,63 +703,36 @@ export async function enqueueFullBackfillJobsForEndpoint(options: {
 
 /**
  * Orchestrates the POST time-series pipeline for all AV intervals
- * (DAILY, WEEKLY, MONTHLY) for a single trading date.
+ * (DAILY/WEEKLY/MONTHLY) for a single trading date.
  *
  * This is the primary entry point for the all-intervals POST run that
  * ultimately drives the `ts-post-all-intervals` partner data-ready
  * message emitted from the aggregator.
  *
- * The {@link runId} parameter allows callers (primarily schedulers) to
- * stamp a stable universe-level identifier that is shared across all
- * intervals for a given pass. This MUST be constructed via
- * {@link buildTimeSeriesRunId}; the runner will not generate its own id.
+ * The scheduler supplies a sequence and optional clock label so that
+ * multiple POST passes for the same trading date (A/B/C) can be
+ * distinguished at the runId level while still letting this helper
+ * construct interval-specific runIds.
  *
  * @param options.trigger Logical trigger for the run (scheduler/manual).
  * @param options.marketDate Optional explicit trading date override.
  * @param options.symbols Optional subset of symbols to target.
- * @param options.runId Canonical universe-level run identifier.
+ * @param options.isManualRun Whether this run should be labeled MANUAL.
+ * @param options.sequence Single-character sequence identifier (e.g. A/B/C).
+ * @param options.clockEt Optional ET clock label (HHMM) to embed in runIds.
  */
 export async function runAllTimeSeriesIntervalsPost(options: {
   trigger: RefreshTrigger;
   marketDate?: string;
   symbols?: string[];
-  runId: string;
+  isManualRun: boolean;
+  sequence: string;
+  clockEt: string; // Required ET time (HHMM) - must be provided by caller
 }): Promise<void> {
-  const { trigger, marketDate, symbols, runId } = options;
+  const { trigger, marketDate, symbols, isManualRun, sequence, clockEt } = options;
 
-  // MONTHLY first
-  await runTimeSeriesJobsForEndpoint({
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
-    phase: TradingPhase.POST,
-    trigger,
-    marketDate,
-    symbols,
-    runId,
-  });
-
-  // WEEKLY next
-  await runTimeSeriesJobsForEndpoint({
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
-    phase: TradingPhase.POST,
-    trigger,
-    marketDate,
-    symbols,
-    runId,
-  });
-
-  // DAILY last
-  await runTimeSeriesJobsForEndpoint({
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
-    phase: TradingPhase.POST,
-    trigger,
-    marketDate,
-    symbols,
-    runId,
-  });
-
-  // Signal to the aggregator that job creation for this marketDate/phase
-  // has finished for all POST intervals. This prevents early universe-level
-  // completion when only a subset of jobs have been created.
+  // Derive an effective marketDate (ET) for this run so we can stamp the
+  // corresponding realtime-runs/{runId} document with stable context.
   const tz = 'America/New_York';
   let effectiveMarketDate = marketDate;
   if (!effectiveMarketDate) {
@@ -891,9 +746,438 @@ export async function runAllTimeSeriesIntervalsPost(options: {
     effectiveMarketDate = fmtDate.format(now);
   }
 
-  if (effectiveMarketDate) {
-    const dateRef = db.doc(`${FirestoreCollection.TIME_SERIES_JOBS}/${effectiveMarketDate}`);
-    await dateRef.set({ jobsCreationComplete: true }, { merge: true });
+  // Compute day-of-week based on the effective marketDate rather than the
+  // current clock time. This keeps the runId stable for manual/backfill
+  // callers that override marketDate.
+  let dow: DayOfWeek;
+  try {
+    const [yStr, mStr, dStr] = effectiveMarketDate!.split('-');
+    const y = Number(yStr);
+    const m = Number(mStr);
+    const d = Number(dStr);
+    const dateUtc = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+    const dowIdx = dateUtc.getUTCDay();
+    const DOW_ENUM: DayOfWeek[] = [
+      DayOfWeek.Sun,
+      DayOfWeek.Mon,
+      DayOfWeek.Tue,
+      DayOfWeek.Wed,
+      DayOfWeek.Thu,
+      DayOfWeek.Fri,
+      DayOfWeek.Sat,
+    ];
+    dow = DOW_ENUM[dowIdx];
+  } catch {
+    // Fallback: if parsing fails for any reason, derive from current ET
+    // clock so we still produce a valid runId.
+    const { dow: fallbackDow } = getEtMarketDateAndDow();
+    dow = fallbackDow;
+  }
+
+  const nowTs = Timestamp.now();
+
+  // Distinguish initial full-universe runs from retry-only passes so that
+  // partner consumers (RS) can interpret retrySymbols correctly:
+  // - ts-post-all-intervals-initial: primary close run (sequence A, full universe).
+  // - ts-post-all-intervals-retry: retry-only passes (B / C).
+  const runTypeValue = sequence === 'A'
+    ? 'ts-post-all-intervals-initial'
+    : 'ts-post-all-intervals-retry';
+
+  // Treat the C run in the A/B/C sequence as the logical deadline run for
+  // data freshness. Jobs created under this runId will be marked with
+  // deadlineRun so the worker can convert persistently stale data into
+  // permanent failures after exhausting retries.
+  const isDeadlineRun = sequence === 'C';
+
+  // Build interval-specific runIds so that each interval has its own
+  // realtime-runs/{runId} document and counters, mirroring the backfill
+  // per-interval pattern.
+  const monthlyRunId = buildRealtimeIntervalRunId({
+    marketDate: effectiveMarketDate,
+    dow,
+    interval: TimeSeriesInterval.MONTHLY,
+    isManual: isManualRun,
+    sequence,
+    phase: TradingPhase.POST,
+    clockEt,
+  });
+
+  const weeklyRunId = buildRealtimeIntervalRunId({
+    marketDate: effectiveMarketDate,
+    dow,
+    interval: TimeSeriesInterval.WEEKLY,
+    isManual: isManualRun,
+    sequence,
+    phase: TradingPhase.POST,
+    clockEt,
+  });
+
+  const dailyRunId = buildRealtimeIntervalRunId({
+    marketDate: effectiveMarketDate,
+    dow,
+    interval: TimeSeriesInterval.DAILY,
+    isManual: isManualRun,
+    sequence,
+    phase: TradingPhase.POST,
+    clockEt,
+  });
+
+  const monthlyRunRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${monthlyRunId}`);
+  const weeklyRunRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${weeklyRunId}`);
+  const dailyRunRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${dailyRunId}`);
+
+  // Emit a canonical run-start log for all-intervals POST runs so external
+  // alerting (e.g. SMS via Cloud Monitoring) can reliably detect when a new
+  // sequence begins for a given trading date. Include PT clock context so
+  // SMS/text alerts can reference local time.
+  const ptTz = 'America/Los_Angeles';
+  const nowPt = new Date();
+  const actualDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ptTz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(nowPt);
+  const startTimePt = new Intl.DateTimeFormat('en-US', {
+    timeZone: ptTz,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(nowPt);
+  const isScheduledRun = trigger === RefreshTrigger.SCHEDULER && !isManualRun;
+
+  tsJobLogger.info('ts.post_all_intervals.run_start', {
+    function: 'rATSRP',
+    marketDate: effectiveMarketDate,
+    message: `POST all-intervals run START seq=${sequence} scheduled=${isScheduledRun} mktDate=${effectiveMarketDate} actualDate=${actualDate} startTimePt=${startTimePt}`,
+  } as BetterLogPayload);
+
+  // Initialize or update the canonical realtime run documents. These mirror the
+  // backfill-runs layout but are used for realtime POST runs only, one per
+  // interval.
+  await Promise.all([
+    monthlyRunRef.set(
+      {
+        runId: monthlyRunId,
+        runType: runTypeValue,
+        sequence,
+        marketDate: effectiveMarketDate,
+        phase: TradingPhase.POST,
+        interval: TimeSeriesInterval.MONTHLY,
+        trigger,
+        status: 'IN_PROGRESS',
+        runCreatedAt: nowTs,
+        runStartedAt: nowTs,
+        createdJobs: 0,
+        finishedJobs: 0,
+        successJobs: 0,
+        permanentFailureJobs: 0,
+        retrySuccessSymbols: [],
+        partnerDataReady: {
+          messageSent: false,
+          // Epoch start as a sentinel for "not yet sent".
+          sendTime: Timestamp.fromMillis(0),
+          messagePayload: undefined,
+        },
+      },
+      { merge: true },
+    ),
+    weeklyRunRef.set(
+      {
+        runId: weeklyRunId,
+        runType: runTypeValue,
+        sequence,
+        marketDate: effectiveMarketDate,
+        phase: TradingPhase.POST,
+        interval: TimeSeriesInterval.WEEKLY,
+        trigger,
+        status: 'IN_PROGRESS',
+        runCreatedAt: nowTs,
+        runStartedAt: nowTs,
+        createdJobs: 0,
+        finishedJobs: 0,
+        successJobs: 0,
+        permanentFailureJobs: 0,
+        partnerDataReady: {
+          messageSent: false,
+          sendTime: Timestamp.fromMillis(0),
+          messagePayload: undefined,
+        },
+      },
+      { merge: true },
+    ),
+    dailyRunRef.set(
+      {
+        runId: dailyRunId,
+        runType: runTypeValue,
+        sequence,
+        marketDate: effectiveMarketDate,
+        phase: TradingPhase.POST,
+        interval: TimeSeriesInterval.DAILY,
+        trigger,
+        status: 'IN_PROGRESS',
+        runCreatedAt: nowTs,
+        runStartedAt: nowTs,
+        createdJobs: 0,
+        finishedJobs: 0,
+        successJobs: 0,
+        permanentFailureJobs: 0,
+        partnerDataReady: {
+          messageSent: false,
+          sendTime: Timestamp.fromMillis(0),
+          messagePayload: undefined,
+        },
+      },
+      { merge: true },
+    ),
+  ]);
+  // For A runs or when an explicit symbol override is provided, schedule
+  // jobs for the standard universe (tracked-symbols or the supplied list).
+  // For B/C retry runs without an explicit symbol list, restrict job
+  // creation per-interval to the retrySymbols from the prior run:
+  //   - B runs read retrySymbols from the corresponding A run.
+  //   - C runs read retrySymbols from the corresponding B run.
+
+  const hasExplicitSymbols = Array.isArray(symbols) && symbols.length > 0;
+
+  // Helper to resolve the per-interval retrySymbols for B/C runs.
+  async function getRetrySymbolsForInterval(interval: TimeSeriesInterval): Promise<string[]> {
+    // Only used for non-A sequences without explicit symbol overrides.
+    if (sequence === 'A' || hasExplicitSymbols) {
+      return [];
+    }
+
+    const sourceSequence = sequence === 'B' ? 'A' : 'B';
+
+    // Prototype: use only the new DOW-inclusive interval runId format for
+    // retry lookups. This keeps B/C completely independent of any clockEt
+    // label embedded in prior runs.
+    const sourceClockEt = sourceSequence === 'A' ? '1635' : sourceSequence === 'B' ? '2100' : '0000';
+    const sourceRunId = buildRealtimeIntervalRunId({
+      marketDate: effectiveMarketDate!,
+      dow,
+      interval,
+      isManual: isManualRun,
+      sequence: sourceSequence,
+      phase: TradingPhase.POST,
+      clockEt: sourceClockEt,
+    });
+
+    const sourceRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${sourceRunId}`);
+    const sourceSnap = await sourceRef.get();
+    const sourceData = sourceSnap.data() as any | undefined;
+    const arr: string[] = Array.isArray(sourceData?.retrySymbols) ? sourceData.retrySymbols : [];
+    return arr.map((s) => String(s).toUpperCase());
+  }
+
+  // MONTHLY first
+  // A-sequence runs (initial) and any explicit symbol overrides use the
+  // full tracked-symbol universe. B/C runs without explicit symbols use the
+  // retrySymbols from the prior run.
+  if (sequence === 'A' || hasExplicitSymbols) {
+    await monthlyRunRef.set(
+      {
+        jobsCreationStartedAt: Timestamp.now(),
+      },
+      { merge: true },
+    );
+    await runTimeSeriesJobsForEndpoint({
+      endpoint: AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
+      phase: TradingPhase.POST,
+      trigger,
+      marketDate,
+      symbols,
+      runId: monthlyRunId,
+      deadlineRun: isDeadlineRun,
+    });
+    await monthlyRunRef.set(
+      {
+        jobsCreationCompletedAt: Timestamp.now(),
+      },
+      { merge: true },
+    );
+  } else {
+    const monthlyRetrySymbols = await getRetrySymbolsForInterval(TimeSeriesInterval.MONTHLY);
+    if (monthlyRetrySymbols.length > 0) {
+      await monthlyRunRef.set(
+        {
+          retrySymbols: monthlyRetrySymbols,
+          jobsCreationStartedAt: Timestamp.now(),
+        },
+        { merge: true },
+      );
+      await runTimeSeriesJobsForEndpoint({
+        endpoint: AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
+        phase: TradingPhase.POST,
+        trigger,
+        marketDate,
+        symbols: monthlyRetrySymbols,
+        runId: monthlyRunId,
+        deadlineRun: isDeadlineRun,
+      });
+      await monthlyRunRef.set(
+        {
+          jobsCreationCompletedAt: Timestamp.now(),
+        },
+        { merge: true },
+      );
+    } else {
+      // No retry symbols for this interval: trivially complete run with zero jobs
+      const completedAt = Timestamp.now();
+      await monthlyRunRef.set(
+        {
+          jobsCreationStartedAt: completedAt,
+          jobsCreationCompletedAt: completedAt,
+          createdJobs: 0,
+          finishedJobs: 0,
+          successJobs: 0,
+          permanentFailureJobs: 0,
+          status: TimeSeriesRunStatus.COMPLETE,
+          runFinishedAt: completedAt,
+          totalDuration: 0,
+          totalDurationFormatted: '00:00',
+        },
+        { merge: true },
+      );
+    }
+  }
+
+  // WEEKLY next
+  if (sequence === 'A' || hasExplicitSymbols) {
+    await weeklyRunRef.set(
+      {
+        jobsCreationStartedAt: Timestamp.now(),
+      },
+      { merge: true },
+    );
+    await runTimeSeriesJobsForEndpoint({
+      endpoint: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
+      phase: TradingPhase.POST,
+      trigger,
+      marketDate,
+      symbols,
+      runId: weeklyRunId,
+      deadlineRun: isDeadlineRun,
+    });
+    await weeklyRunRef.set(
+      {
+        jobsCreationCompletedAt: Timestamp.now(),
+      },
+      { merge: true },
+    );
+  } else {
+    const weeklyRetrySymbols = await getRetrySymbolsForInterval(TimeSeriesInterval.WEEKLY);
+    if (weeklyRetrySymbols.length > 0) {
+      await weeklyRunRef.set(
+        {
+          retrySymbols: weeklyRetrySymbols,
+          jobsCreationStartedAt: Timestamp.now(),
+        },
+        { merge: true },
+      );
+      await runTimeSeriesJobsForEndpoint({
+        endpoint: AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
+        phase: TradingPhase.POST,
+        trigger,
+        marketDate,
+        symbols: weeklyRetrySymbols,
+        runId: weeklyRunId,
+        deadlineRun: isDeadlineRun,
+      });
+      await weeklyRunRef.set(
+        {
+          jobsCreationCompletedAt: Timestamp.now(),
+        },
+        { merge: true },
+      );
+    } else {
+      const completedAt = Timestamp.now();
+      await weeklyRunRef.set(
+        {
+          jobsCreationStartedAt: completedAt,
+          jobsCreationCompletedAt: completedAt,
+          createdJobs: 0,
+          finishedJobs: 0,
+          successJobs: 0,
+          permanentFailureJobs: 0,
+          status: TimeSeriesRunStatus.COMPLETE,
+          runFinishedAt: completedAt,
+          totalDuration: 0,
+          totalDurationFormatted: '00:00',
+        },
+        { merge: true },
+      );
+    }
+  }
+
+  // DAILY last
+  if (sequence === 'A' || hasExplicitSymbols) {
+    await dailyRunRef.set(
+      {
+        jobsCreationStartedAt: Timestamp.now(),
+      },
+      { merge: true },
+    );
+    await runTimeSeriesJobsForEndpoint({
+      endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
+      phase: TradingPhase.POST,
+      trigger,
+      marketDate,
+      symbols,
+      runId: dailyRunId,
+      deadlineRun: isDeadlineRun,
+    });
+    await dailyRunRef.set(
+      {
+        jobsCreationCompletedAt: Timestamp.now(),
+      },
+      { merge: true },
+    );
+  } else {
+    const dailyRetrySymbols = await getRetrySymbolsForInterval(TimeSeriesInterval.DAILY);
+    if (dailyRetrySymbols.length > 0) {
+      await dailyRunRef.set(
+        {
+          retrySymbols: dailyRetrySymbols,
+          jobsCreationStartedAt: Timestamp.now(),
+        },
+        { merge: true },
+      );
+      await runTimeSeriesJobsForEndpoint({
+        endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
+        phase: TradingPhase.POST,
+        trigger,
+        marketDate,
+        symbols: dailyRetrySymbols,
+        runId: dailyRunId,
+        deadlineRun: isDeadlineRun,
+      });
+      await dailyRunRef.set(
+        {
+          jobsCreationCompletedAt: Timestamp.now(),
+        },
+        { merge: true },
+      );
+    } else {
+      const completedAt = Timestamp.now();
+      await dailyRunRef.set(
+        {
+          jobsCreationStartedAt: completedAt,
+          jobsCreationCompletedAt: completedAt,
+          createdJobs: 0,
+          finishedJobs: 0,
+          successJobs: 0,
+          permanentFailureJobs: 0,
+          status: TimeSeriesRunStatus.COMPLETE,
+          runFinishedAt: completedAt,
+          totalDuration: 0,
+          totalDurationFormatted: '00:00',
+        },
+        { merge: true },
+      );
+    }
   }
 }
 
@@ -909,9 +1193,11 @@ export async function runAllTimeSeriesIntervalsPost(options: {
 /**
  * Daily time series: intraday hourly PRE (daily only).
  *
- * Uses the TS job pipeline in PRE phase to enqueue intraday jobs. The
- * worker currently no-ops for non-POST phases, but this keeps behavior
- * aligned with the new architecture.
+ * NOTE: This scheduler is currently paused in production. When/if it is
+ * re-enabled, it MUST be wired to the same realtime-runs job pipeline as
+ * the POST A/B/C schedulers and MUST NOT write jobs under the legacy
+ * `time-series-jobs/{marketDate}` path. The `realtime-runs/{runId}` tree is
+ * the only supported critical-path storage for time-series jobs.
  */
 export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
   schedule: TS_DAILY_INTRADAY_HOURLY_SCHEDULE,
@@ -922,12 +1208,14 @@ export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
   const { marketDate, dow } = getEtMarketDateAndDow();
 
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const runId = buildTimeSeriesRunId({
+  const runId = buildRealtimeIntervalRunId({
     marketDate,
     dow,
-    phase: TradingPhase.PRE,
+    interval: TimeSeriesInterval.DAILY,
     isManual: isManualRun,
     sequence: 'X',
+    phase: TradingPhase.POST,
+    clockEt: '0000', // Default for intraday runs
   });
 
   await runTimeSeriesJobsForEndpoint({
@@ -942,9 +1230,12 @@ export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
 /**
  * Daily time series: pre-close (daily only).
  *
- * PRE scheduler that mirrors the intraday hourly behavior but runs at a
- * specific pre-close time. It wires through the TS job pipeline so that
- * future PRE behavior can be centralized without changing call sites.
+ * NOTE: This scheduler is currently paused in production. When/if it is
+ * re-enabled, it MUST be routed through the realtime-runs pipeline (or an
+ * updated PRE-equivalent) and MUST NOT depend on `time-series-jobs` as a
+ * canonical job root. Any PRE tracking should still converge on
+ * `realtime-runs/{runId}/jobs/...` so that a single pipeline remains
+ * authoritative.
  */
 export const refreshAvDailyTimeSeriesPreClose = onSchedule({
   schedule: TS_DAILY_PRE_CLOSE_SCHEDULE,
@@ -957,12 +1248,14 @@ export const refreshAvDailyTimeSeriesPreClose = onSchedule({
   const { marketDate, dow } = getEtMarketDateAndDow();
 
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const runId = buildTimeSeriesRunId({
+  const runId = buildRealtimeIntervalRunId({
     marketDate,
     dow,
-    phase: TradingPhase.PRE,
+    interval: TimeSeriesInterval.DAILY,
     isManual: isManualRun,
     sequence: 'X',
+    phase: TradingPhase.PRE,
+    clockEt: '0000', // Default for PRE close runs
   });
 
   await runTimeSeriesJobsForEndpoint({
@@ -1003,28 +1296,35 @@ export const refreshAvDailyTimeSeriesPostClose = onSchedule({
  * Runs the unified POST pipeline for all time-series intervals in a
  * single pass for the given trading date. This is the canonical
  * orchestrator behind the `ts-post-all-intervals` partner run type.
+ *
+ * All schedulers that create POST jobs for DAILY/WEEKLY/MONTHLY MUST go
+ * through this orchestrator (or a future equivalent) so that all jobs are
+ * created under `realtime-runs/{runId}/jobs/...`. The legacy
+ * `time-series-jobs/{marketDate}` collection is no longer part of the
+ * supported critical path and should not be written to by new code.
  */
 export const refreshAvTimeSeriesPostAllIntervals = onSchedule({
   schedule: TS_DAILY_POST_CLOSE_SCHEDULE,
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  const { marketDate, dow } = getEtMarketDateAndDow();
+}, async (event) => {
+  const { marketDate } = getEtMarketDateAndDow();
 
-  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const runId = buildTimeSeriesRunId({
-    marketDate,
-    dow,
-    phase: TradingPhase.POST,
-    isManual: isManualRun,
-    sequence: 'A',
-    clockEt: '1635',
-  });
+  // Optional runMode flag allows manual callers (e.g. gcloud functions call)
+  // to force MANUAL runIds in production without relying on env vars.
+  const rawRunMode = (event && (event as any).data && (event as any).data.runMode) as string | undefined;
+  const normalizedRunMode = rawRunMode ? String(rawRunMode).toLowerCase() : undefined;
+  const isManualOverride = normalizedRunMode === 'manual';
+
+  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true' || isManualOverride;
+  const trigger = isManualOverride ? RefreshTrigger.MANUAL : RefreshTrigger.SCHEDULER;
 
   await runAllTimeSeriesIntervalsPost({
-    trigger: RefreshTrigger.SCHEDULER,
+    trigger,
     marketDate,
-    runId,
+    isManualRun,
+    sequence: 'A',
+    clockEt: '1635',
   });
 });
 
@@ -1089,12 +1389,14 @@ export const refreshAvDailyTimeSeriesPostEveningRetry30 = onSchedule({
   const { marketDate, dow } = getEtMarketDateAndDow();
 
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const runId = buildTimeSeriesRunId({
+  const runId = buildRealtimeIntervalRunId({
     marketDate,
     dow,
-    phase: TradingPhase.POST,
+    interval: TimeSeriesInterval.DAILY,
     isManual: isManualRun,
     sequence: 'X',
+    phase: TradingPhase.POST,
+    clockEt: '0000', // Default for evening retry runs
   });
 
   await runTimeSeriesJobsForEndpoint({
@@ -1111,22 +1413,16 @@ export const refreshAvDailyTimeSeriesPostEveningRetry00 = onSchedule({
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  const { marketDate, dow } = getEtMarketDateAndDow();
+  const { marketDate } = getEtMarketDateAndDow();
 
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const runId = buildTimeSeriesRunId({
-    marketDate,
-    dow,
-    phase: TradingPhase.POST,
-    isManual: isManualRun,
-    sequence: 'B',
-    clockEt: '2100',
-  });
 
   await runAllTimeSeriesIntervalsPost({
     trigger: RefreshTrigger.SCHEDULER,
     marketDate,
-    runId,
+    isManualRun,
+    sequence: 'B',
+    clockEt: '2100',
   });
 });
 
@@ -1135,6 +1431,12 @@ export const refreshAvDailyTimeSeriesPostEveningRetry00 = onSchedule({
  *
  * Schedules a POST run targeting DAILY only to reconcile any gaps that
  * remain after the close and evening retries, prior to market open.
+ *
+ * NOTE: This scheduler is currently paused. If we decide to keep a
+ * DAILY-only catch-up pass in the future, it should be reworked to use the
+ * same per-interval realtime-runs model as the A/B/C POST runs (one
+ * `realtime-runs/{runId}` doc for DAILY) rather than introducing a
+ * divergent code path.
  */
 export const refreshAvDailyTimeSeriesPostMorning0630 = onSchedule({
   schedule: TS_DAILY_POST_MORNING_CATCHUP_0630,
@@ -1144,12 +1446,14 @@ export const refreshAvDailyTimeSeriesPostMorning0630 = onSchedule({
   const { marketDate, dow } = getEtMarketDateAndDow();
 
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const runId = buildTimeSeriesRunId({
+  const runId = buildRealtimeIntervalRunId({
     marketDate,
     dow,
-    phase: TradingPhase.POST,
+    interval: TimeSeriesInterval.DAILY,
     isManual: isManualRun,
     sequence: 'X',
+    phase: TradingPhase.POST,
+    clockEt: '0000', // Default for morning catch-up runs
   });
 
   await runTimeSeriesJobsForEndpoint({
@@ -1173,21 +1477,22 @@ export const refreshAvDailyTimeSeriesPostMorning0700 = onSchedule({
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  const { marketDate, dow } = getEtMarketDateAndDow();
-
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const runId = buildTimeSeriesRunId({
-    marketDate,
-    dow,
-    phase: TradingPhase.POST,
-    isManual: isManualRun,
-    sequence: 'C',
-    clockEt: '0700',
-  });
+  const targetMarketDate = await getLatestRetryRunMarketDateForInterval(TimeSeriesInterval.DAILY);
+
+  if (!targetMarketDate) {
+    tsJobLogger.info('ts.jobs.a_run.skip_no_retry', {
+      function: 'rTSDPM0700',
+      reason: 'no_retry_runs_found',
+    } as BetterLogPayload);
+    return;
+  }
 
   await runAllTimeSeriesIntervalsPost({
     trigger: RefreshTrigger.SCHEDULER,
-    marketDate,
-    runId,
+    marketDate: targetMarketDate,
+    isManualRun,
+    sequence: 'C',
+    clockEt: '0700',
   });
 });
