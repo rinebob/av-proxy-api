@@ -2,6 +2,7 @@ import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { processTimeSeriesJobInternal, type ProcessTimeSeriesJobPayload } from './time-series-jobs.worker';
+import { CLOUD_TASKS_RATE_LIMITS, CLOUD_TASKS_RETRY_CONFIG, JOB_FUNCTION_MEMORY } from './job-config';
 
 const taskLogger = betterLogger('tSJ.t');
 
@@ -15,19 +16,9 @@ const taskLogger = betterLogger('tSJ.t');
  */
 export const processTimeSeriesJobTask = onTaskDispatched<ProcessTimeSeriesJobPayload>(
   {
-    retryConfig: {
-      maxAttempts: 5,
-      minBackoffSeconds: 10,
-      maxBackoffSeconds: 300,
-    },
-    rateLimits: {
-      // IMPORTANT: Each job does 1 AV call. Keep maxDispatchesPerSecond <= 1.2
-      // to stay under the 75 req/min AV limit with headroom while allowing
-      // higher intra-job concurrency for Firestore writes.
-      maxConcurrentDispatches: 20,
-      maxDispatchesPerSecond: 1.0,
-    },
-    memory: '512MiB',
+    retryConfig: CLOUD_TASKS_RETRY_CONFIG,
+    rateLimits: CLOUD_TASKS_RATE_LIMITS,
+    memory: JOB_FUNCTION_MEMORY,
     secrets: ['ALPHAVANTAGE_API_KEY'],
   },
   async (req) => {
