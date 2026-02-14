@@ -1,6 +1,6 @@
 # Firestore Data Structure (Canonical Reference)
 
-_Last updated: 2025-09-16_
+_Last updated: 2026-02-14_
 
 This document describes the canonical Firestore data structure for the Financial Data Proxy API Surface project.
 
@@ -11,11 +11,14 @@ This document describes the canonical Firestore data structure for the Financial
 | Collection         | First-Level Doc ID | Example Path                                      | Purpose/Notes                                   |
 |--------------------|-------------------|---------------------------------------------------|-------------------------------------------------|
 | tracked-symbols    | Symbol            | /tracked-symbols/MSFT                             | List of all tracked symbols                     |
-| symbol-data        | Symbol            | /symbol-data/AAPL/time-series/av-daily            | **All symbol-specific data grouped by symbol**  |
+| symbol-data        | Symbol            | /symbol-data/AAPL/sa-time-series/av-daily-adjusted | **All symbol-specific data grouped by symbol**  |
+| realtime-runs      | Run ID            | /realtime-runs/2026-02-14-FRI-A-DAILY-LIVE-POST-1635 | **Time-series job pipeline run tracking (A/B/C)** |
+| backfill-runs      | Run ID            | /backfill-runs/{runId}                            | **Full backfill run tracking**                  |
+| jobs               | Job ID            | /jobs/{runId}_{symbol}_{endpoint}                 | **Individual time-series job documents**         |
 | market-data        | Request-based     | /market-data/bz-ipos                              | Market-wide or endpoint-specific data           |
 | economics          | Request-based     | /economics/bz-economic-calendar                   | Macroeconomic data (e.g., GDP, CPI)             |
 | news               | Request-based     | /news/<doc-name>                                  | News articles, sentiment, or related data       |
-| runs               | Run ID            | /runs/2025-09-11-post                              | Processing state machine for internal jobs      |
+| runs               | Run ID            | /runs/2025-09-11-post                              | **Legacy** — PDR publisher run tracking (pre-pipeline) |
 
 ---
 
@@ -25,17 +28,19 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
 
 | Subcollection      | Example Path                                            | Purpose/Notes                         |
 |--------------------|--------------------------------------------------------|---------------------------------------|
-| time-series        | /symbol-data/AAPL/time-series/av-daily                  | Symbol time-series data (by canonical AV doc id) |
+| sa-time-series     | /symbol-data/AAPL/sa-time-series/av-daily-adjusted      | **Canonical** split-adjusted time-series (D/W/M) |
 | earnings           | /symbol-data/AAPL/earnings/bz-earnings                 | Earnings data for the symbol          |
 | dividends          | /symbol-data/AAPL/dividends/bz-dividends               | Dividend data for the symbol          |
 | company-overview   | /symbol-data/AAPL/company-overview/av-company-overview | Company overview/fundamental data     |
 | ...                | ...                                                    | Add new subcollections as needed      |
 
+> **Legacy note:** The older `time-series` subcollection has been **wiped in production** and is no longer written. All OHLCV reads now use `sa-time-series` exclusively.
+
 ---
 
 ## Time-Series Sharded Storage (Alpha Vantage)
 
-- Canonical path per interval: `symbol-data/{symbol}/time-series/{provider-interval}` (e.g., `av-daily-adjusted`).
+- Canonical path per interval: `symbol-data/{symbol}/sa-time-series/{provider-interval}` (e.g., `av-daily-adjusted`).
 - Shards by year: `years/{YYYY}` holding arrays of compact bars. See the detailed shape in "Symbol Data: Year‑Sharded Time‑Series Doc Shape" below.
 - The top-level time-series doc may store minimal metadata such as `latestBarTimestamp` and derived fields for freshness; all bars live in year documents.
 
@@ -58,46 +63,46 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
 
 ---
 
-## Operational Collections (Internal Jobs)
+## Operational Collections (Time-Series Job Pipeline)
 
-- runs/{runId}
-  - Purpose: state machine tracking processing lifecycle for internal refresh/notification jobs
-  - Example path: `/runs/2025-09-11-post-1000`
-  - Canonical fields (lean schema):
-    - `status: 'received' | 'enqueued' | 'processing' | 'completed' | 'completed_with_errors' | 'failed'`
-    - `phase: 'pre' | 'post'`
-    - `intervals: string[]` (e.g., `["daily"]`)
-    - `marketDate: string` (YYYY-MM-DD)
-    - `counts: {`
-      - `symbolsUpdated: number`
-      - `baselinesUpdated: number`
-      - `symbolsUpdatedCount: number` (legacy mirror)
-      - `baselinesUpdatedCount: number` (legacy mirror)
-      - `}`
-    - `header: { runStatus: 'processing' | 'completed' | 'completed_with_errors' | null }`
-    - `timing: {`
-      - `createdAt: serverTimestamp`
-      - `updatedAt: serverTimestamp`
-      - `enqueuedAt: serverTimestamp | null`
-      - `endTimeUTC: string | null` (RFC3339 UTC)
-      - `nextRefreshAtUTC: string | null` (RFC3339 UTC)
-      - `}`
-    - `runMeta: {`
-      - `requestId: string`
-      - `messageId: string | null` (Pub/Sub message id)
-      - `publisherEmail: string`
-      - `env: string`
-      - `runType: string` (e.g., `ts-daily-pre`, `heartbeat`)
-      - `trigger: 'manual' | 'scheduled' | 'heartbeat' | undefined`
-      - `payloadVersion: 'v1'`
-      - `}`
-    - `warnings?: string[]`
-    - `error?: string`
+The time-series job pipeline uses three collections. For full details see `docs/time-series-job-pipeline-deep-dive.md`.
 
-  - Notes:
-    - We do not persist the full inbound payload or Pub/Sub attributes in this document.
-    - `header.runStatus` reflects the payload's `runStatus` (not legacy `status` begin/end).
-    - Legacy count keys remain during transition; prefer reading normalized keys.
+### realtime-runs/{runId}
+
+- Purpose: Tracks A/B/C scheduled run lifecycle, per-interval job counts, retry symbols, and PDR publishing.
+- Run ID format: `YYYY-MM-DD-DOW-SEQ-INTERVAL-LIVE|MANUAL-PHASE-HHMM`
+- Example: `/realtime-runs/2026-02-14-FRI-A-DAILY-LIVE-POST-1635`
+- Key fields:
+  - `status: 'IN_PROGRESS' | 'COMPLETE'`
+  - `sequence: 'A' | 'B' | 'C'`
+  - `runType: 'REALTIME'`
+  - `createdJobs, finishedJobs, successJobs, permanentFailureJobs` (atomic counters)
+  - `retrySymbols, retrySuccessSymbols, staleSymbols, permanentFailureSymbols` (arrays)
+  - `partnerDataReady: { publishedAt, messageId }` (set when PDR is emitted)
+  - `runCreatedAt, runStartedAt, runFinishedAt` (Timestamps)
+
+### backfill-runs/{runId}
+
+- Purpose: Tracks full-backfill run lifecycle (same shape as realtime-runs but `runType: 'BACKFILL'`).
+- Example: `/backfill-runs/2026-01-23-BACKFILL-DAILY-1200`
+
+### jobs/{jobId}
+
+- Purpose: Individual per-symbol/per-endpoint job documents.
+- Job ID format: `{runId}_{SYMBOL}_{ENDPOINT}`
+- Key fields:
+  - `status: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'TRANSIENT_FAILURE' | 'PERMANENT_FAILURE'`
+  - `symbol, endpoint, interval, phase, marketDate, runId`
+  - `attempts, maxAttempts` (retry tracking)
+  - `dataFreshness: 'UNKNOWN' | 'FRESH' | 'STALE'`
+  - `createdAt, updatedAt, firstAttemptedAt`
+
+### runs/{runId} (Legacy)
+
+> **Deprecated.** The `runs` collection was used by the pre-pipeline PDR publisher. It is still written by the direct publisher script but is not used by the A/B/C pipeline.
+
+- Example path: `/runs/2025-09-11-post-1000`
+- See git history for the legacy schema.
 
 ---
 

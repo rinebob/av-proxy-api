@@ -195,6 +195,7 @@ What this command does:
   ```
 
 - Writes/updates the corresponding Firestore run document under `realtime-runs/{runId}`.
+- **Note:** The direct publisher script generates a simplified `runId` (e.g., `2026-02-06-0346-pre`). Production PDRs from the A/B/C pipeline use the full format: `YYYY-MM-DD-DOW-SEQ-INTERVAL-LIVE|MANUAL-PHASE-HHMM` (e.g., `2026-02-14-FRI-A-DAILY-LIVE-POST-1635`). RS should accept both formats.
 - Publishes the payload to the **`partner-data-ready`** topic with standard attributes:
   - `runId`, `version`, `phase`, `marketDate`, `env`
 - Prints a JSON summary including:

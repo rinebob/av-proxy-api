@@ -62,8 +62,8 @@ The publisher auto-creates `partner-data-ready` in the emulator if missing and r
 - Code: `functions/src/v2/partner/data-ready.handler.ts` in `publishToPubSub()`
 
 ## Firestore paths (time series)
-- Canonical path (new): `symbol-data/{symbol}/time-series/{vendor-endpoint}`
-- The refresher writes time-series only to the canonical path to avoid legacy duplicates like `daily-adjusted`.
+- Canonical path: `symbol-data/{symbol}/sa-time-series/{vendor-endpoint}` (e.g., `av-daily-adjusted`)
+- The legacy `time-series` collection has been wiped in production; all writes go to `sa-time-series`.
 
 ## Known constraints
 - HISTORICAL_OPTIONS is currently skipped to avoid Firestore 1MB document size limits until a sharded/GCS strategy is implemented.

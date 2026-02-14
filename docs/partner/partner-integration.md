@@ -274,7 +274,7 @@ gcloud run services update partnerTimeSeriesV2 \
 - Partners do not need to trigger refresh; reads come from Firestore.
 
 > **Note (2026-01):** AV OHLCV time-series storage has moved to the split-adjusted `sa-time-series` collection as documented in `docs/backend-functions-overview.md` and `docs/partner-dataset-announcement.md`. Any references in this guide to `symbol-data/{SYMBOL}/time-series/{...}` are historical/internal/legacy/deprecated and do not change the partner API contract or response shapes.
-time-series has been removed;.
+
 ## 11) Audit & Monitoring
 - View Cloud Run → Logs for `partnerTimeSeriesV2` to audit invocations and denials
 - Suggested Cloud Logging filter (adjust project/region/service as needed):

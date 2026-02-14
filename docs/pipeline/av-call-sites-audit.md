@@ -317,10 +317,12 @@ The job pipeline design calls for queue-level rate limiting:
 ```yaml
 av-timeseries-jobs:
   maxDispatchesPerSecond: 1.0
-  maxConcurrentDispatches: 10
+  maxConcurrentDispatches: 20
 ```
 
-This would provide additional protection, but we still need per-call delays because:
+> **Note (2026-02):** Cloud Tasks queue config is now implemented and centralized in `job-config.ts`. The values above reflect the current production settings.
+
+This provides additional protection, but we still need per-call delays because:
 1. Legacy handler runs outside Cloud Tasks
 2. Multiple schedulers could run concurrently
 3. Defense in depth

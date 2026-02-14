@@ -7,34 +7,36 @@ All commands can be run from any terminal / default project as long as you pass 
 
 ---
 
-## Manual Scheduler Triggers
+## Manual Scheduler Triggers (A/B/C Pipeline)
 
-### Daily TIME_SERIES_DAILY_ADJUSTED (POST close)
+### A Run — POST all intervals (4:35 PM ET)
 
 ```bash
 gcloud scheduler jobs run \
-  firebase-schedule-refreshAvDailyTimeSeriesPostClose-us-central1 \
+  firebase-schedule-refreshAvTimeSeriesPostAllIntervals-us-central1 \
   --location=us-central1 \
   --project=alpha-vantage-proxy-api
 ```
 
-### Weekly TIME_SERIES_WEEKLY_ADJUSTED (POST close)
+### B Run — Evening retry (9:00 PM ET)
 
 ```bash
 gcloud scheduler jobs run \
-  firebase-schedule-refreshAvWeeklyTimeSeriesPostClose-us-central1 \
+  firebase-schedule-refreshAvDailyTimeSeriesPostEveningRetry00-us-central1 \
   --location=us-central1 \
   --project=alpha-vantage-proxy-api
 ```
 
-### Monthly TIME_SERIES_MONTHLY_ADJUSTED (POST close)
+### C Run — Morning retry (7:00 AM ET next day)
 
 ```bash
 gcloud scheduler jobs run \
-  firebase-schedule-refreshAvMonthlyTimeSeriesPostClose-us-central1 \
+  firebase-schedule-refreshAvDailyTimeSeriesPostMorning0700-us-central1 \
   --location=us-central1 \
   --project=alpha-vantage-proxy-api
 ```
+
+> **Note:** The A run processes all intervals (DAILY, WEEKLY, MONTHLY) for the full symbol universe. B and C runs only process retry symbols (symbols that failed or returned stale data in the prior run).
 
 ---
 
@@ -156,9 +158,9 @@ Use this query to see all logs for the time-series job pipeline (scheduler → t
 ```text
 resource.type="cloud_run_revision"
 resource.labels.service_name=(
-  "refreshAvDailyTimeSeriesPostClose" OR
-  "refreshAvWeeklyTimeSeriesPostClose" OR
-  "refreshAvMonthlyTimeSeriesPostClose" OR
+  "refreshAvTimeSeriesPostAllIntervals" OR
+  "refreshAvDailyTimeSeriesPostEveningRetry00" OR
+  "refreshAvDailyTimeSeriesPostMorning0700" OR
   "processTimeSeriesJobTask" OR
   "processTimeSeriesJobDev" OR
   "onDailyAdjustedFinalizedPublish"
@@ -207,10 +209,10 @@ The schedulers and workers for this pipeline run as **Cloud Run services** behin
 
 In project `alpha-vantage-proxy-api` you will typically see at least:
 
-- `refreshavdailytimeseriespostclose`
-- `refreshavweeklytimeseriespostclose`
-- `refreshavmonthlytimeseriespostclose`
-- `processtimeseriesjobtask` (Cloud Tasks worker for time-series jobs)
+- `refresh-av-time-series-post-all-intervals` (A run — all intervals)
+- `refresh-av-daily-time-series-post-evening-retry` (B run — evening retry)
+- `refresh-av-daily-time-series-post-morning-retry` (C run — morning retry)
+- `process-time-series-job-task` (Cloud Tasks worker for time-series jobs)
 
 > Note: Service names are visible in Logs Explorer as `resource.labels.service_name` and in the Cloud Run UI.
 
@@ -220,7 +222,7 @@ For **any** of the above services:
 
 1. Go to **Google Cloud Console** for project `alpha-vantage-proxy-api`.
 2. Navigate to **Cloud Run → Services**.
-3. Click the service you want to inspect, e.g. `refreshavdailytimeseriespostclose` or `processtimeseriesjobtask`.
+3. Click the service you want to inspect, e.g. `refreshavtimeseriespostallintervals` or `processtimeseriesjobtask`.
 4. In the service detail page, click the **Edit & deploy new revision** button.
 5. Scroll down to the **Environment variables, secrets & volumes** section.
 6. Under **Environment variables**:
@@ -239,7 +241,7 @@ For **any** of the above services:
 
 Environment variables to keep in sync across this pipeline:
 
-- **Schedulers** (e.g. `refreshavdailytimeseriespostclose`):
+- **Schedulers** (e.g. `refreshavtimeseriespostallintervals`):
   - `TS_JOB_TEST_SYMBOL` – controls which symbols get jobs for that run.
 
 - **Job worker** (`processtimeseriesjobtask`):

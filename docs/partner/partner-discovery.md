@@ -2,7 +2,7 @@
 
 Audience: External partner engineering/admin teams integrating with Savant partner endpoints. This document explains partner-facing surfaces, authentication, data schemas, and operational expectations.
 
-Last updated: 2025-11-13
+Last updated: 2026-02-14
 
 > Start here: Read this discovery guide first to understand the surface area, data shapes, and auth model. When ready to make requests, proceed to `docs/partner-integration.md` for step-by-step integration examples.
 
@@ -12,7 +12,7 @@ Last updated: 2025-11-13
 
 SavantApi.com maintains a centralized, Firestore-backed market data service. Partner applications consume data through secure HTTPS endpoints operated on Firebase/Cloud Run. The current partner-exposed surface focuses on normalized time series data aggregated from Alpha Vantage (AV) and stored in a sharded Firestore schema.
 
-For server-to-server integrations, partners should use Google OIDC (service account identity tokens) with allowlisting. See `docs/partner-integration.md` for end-to-end examples. For discovery and event-driven processing, see `docs/rel-str_partner-data-ready-pubsub-integration.md`.
+For server-to-server integrations, partners should use Google OIDC (service account identity tokens) with allowlisting. See `docs/partner-integration.md` for end-to-end examples. For discovery and event-driven processing, see `docs/rs-partner-integration.md`.
 
 ### Operational Checklist (Quick Start)
 - Ensure Cloud Run requires authentication; remove `allUsers` from invokers
@@ -111,13 +111,14 @@ Partners should consume Data‑Ready notifications to know when new data is avai
 
 - Topic: `partner-data-ready`
 - Payload v1 highlights:
-  - `runId`: `YYYY-MM-DD-(pre|post)[-suffix]`
+  - `runId`: `YYYY-MM-DD-DOW-SEQ-INTERVAL-LIVE|MANUAL-PHASE-HHMM` (e.g., `2026-02-14-FRI-A-DAILY-LIVE-POST-1635`)
   - `phase`: `pre` | `post`
-  - `timing.finalizedAtUTC?`: when the first finalized bar for the day was detected (POST)
-  - `timing.nextRefreshAtUTC`: schedule-driven next refresh
-  - Attributes include `runType` to target phases/intervals (`ts_daily_pre`, `ts_daily_post`, `ts_weekly_post`, `ts_monthly_post`, `non_time_series`)
-- Use subscription filters to select only what you need (e.g., only finalized `post` runs).
-- See: `docs/rel-str_partner-data-ready-pubsub-integration.md` for the full schema and filter examples.
+  - `runStatus`: `completed` | `completed_with_errors`
+  - `includeSymbols` / `excludeSymbols`: symbol lists for A/B/C retry semantics
+  - Attributes include `runType` (primary: `ts-post-all-intervals`) and `interval` (`DAILY`, `WEEKLY`, `MONTHLY`)
+- One END message is emitted **per interval per logical run** (A/B/C).
+- Use subscription filters to select only what you need (e.g., `attributes.runType = "ts-post-all-intervals"`).
+- See: `docs/rs-partner-integration.md` for the full schema, payload examples, and subscription filter guidance.
 
 Notes:
 - Root system docs for transparency (internal reference):
@@ -217,13 +218,16 @@ Authorization: Bearer <id_token>
 
 We normalize upstream data into a sharded Firestore schema to support high-volume writes and efficient reads.
 
-- Canonical collection: `symbol-data/{SYMBOL}/time-series/{provider-interval}`
+- Canonical collection: `symbol-data/{SYMBOL}/sa-time-series/{provider-interval}`
   - Non-intraday sharding: `years/{YYYY}` (bar documents grouped under the year)
+  - Monthly uses a single `all` doc instead of year shards
   - Top-level doc stores metadata fields such as `latestBarTimestamp`
   - Provider-interval IDs:
     - `av-daily-adjusted`
     - `av-weekly-adjusted`
     - `av-monthly-adjusted`
+
+> **Legacy note:** The older `time-series` collection has been **wiped in production**. All reads now use `sa-time-series` exclusively.
 
 - Bar document schema (compact):
 ```

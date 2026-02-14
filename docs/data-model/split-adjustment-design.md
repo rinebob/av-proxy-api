@@ -4,10 +4,10 @@
 
 This system implements a **Dual-Write Architecture** to handle stock splits and dividend adjustments robustly. It maintains two parallel time-series collections in Firestore:
 
-1.  **`time-series` (Legacy/Raw)**
-    *   **Purpose:** Stores data exactly as returned by the Alpha Vantage API.
-    *   **Use Case:** Viewing raw data and debugging.
-    *   **Behavior:** Truncated to ~3 years in Emulator/Local environments to save space.  Prod db has all historical data.
+1.  **`time-series` (Legacy/Raw) — REMOVED**
+    *   **Status:** This collection has been **wiped in production** and is no longer written.
+    *   **Historical purpose:** Stored data exactly as returned by the Alpha Vantage API.
+    *   **Current state:** All reads and writes now use `sa-time-series` exclusively.
 
 2.  **`sa-time-series` (Split-Adjusted)**
     *   **Purpose:** Stores fully adjusted OHLCV data.
@@ -113,12 +113,12 @@ GET /partnerTimeSeriesV2?symbol={SYMBOL}&interval={INTERVAL}&adjusted=true
 
 *   `symbol`: The stock ticker (e.g., `NVDA`).
 *   `interval`: Time resolution (`daily`, `weekly`, `monthly`).
-*   `adjusted`: **Boolean**.
-    *   `true`: Returns data from the `sa-time-series` collection (Split-Adjusted).
-    *   `false` (or omitted): Returns data from the `time-series` collection (Raw).
+*   `adjusted`: **Boolean** (optional).
+    *   `true` (or omitted): Returns data from the `sa-time-series` collection (Split-Adjusted). This is the default.
+    *   The legacy `time-series` (raw) collection has been **wiped in production**, so all reads effectively return split-adjusted data.
 
 ### Example
 
 ```http
-https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerTimeSeriesV2?symbol=NVDA&interval=daily&adjusted=true
+https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerTimeSeriesV2?symbol=NVDA&interval=daily
 ```
