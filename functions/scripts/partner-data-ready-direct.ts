@@ -8,7 +8,7 @@ import 'module-alias/register';
  *
  * Usage examples:
  *   # Autofill (derive ET phase/date, intervals=daily)
- *   npx ts-node functions/scripts/partner-data-ready-direct.ts --autofill --env dev --email you@example.com --verbose
+ *   npx ts-node functions/scripts/partner-data-ready-direct.ts --autofill --env dev --verbose
  *
  *   # Custom payload from file
  *   npx ts-node functions/scripts/partner-data-ready-direct.ts --body payload.json --verbose
@@ -42,9 +42,9 @@ interface Args {
   env?: string;
   intervals?: string; // comma-separated
   bodyPath?: string; // JSON file path
-  email?: string; // provenance email, optional
   attributes?: string; // k=v,k2=v2 list to attach as Pub/Sub message attributes
   phase?: PartnerPhase;
+  trigger?: PartnerTrigger;
   verbose: boolean;
 }
 
@@ -60,9 +60,9 @@ function parseArgs(): Args {
     env: getEnv('ENV'),
     intervals: getEnv('INTERVALS'),
     bodyPath: getEnv('BODY'),
-    email: getEnv('EMAIL'),
     attributes: getEnv('ATTRS') || getEnv('ATTRIBUTES'),
     phase: undefined,
+    trigger: undefined,
     verbose: getEnv('VERBOSE', '0') === '1',
   };
   for (let i = 0; i < argv.length; i++) {
@@ -73,8 +73,15 @@ function parseArgs(): Args {
       case '--env': out.env = n; i++; break;
       case '--intervals': out.intervals = n; i++; break;
       case '--body': out.bodyPath = n; i++; break;
-      case '--email': out.email = n; i++; break;
       case '--attributes': out.attributes = n; i++; break;
+      case '--trigger':
+        if (n !== 'manual' && n !== 'scheduled' && n !== 'heartbeat' && n !== 'test') {
+          console.error('--trigger must be one of "manual", "scheduled", "heartbeat", or "test"');
+          process.exit(2);
+        }
+        out.trigger = n as PartnerTrigger;
+        i++;
+        break;
       case '--phase':
         if (n !== 'pre' && n !== 'post') {
           console.error('--phase must be "pre" or "post"');
@@ -110,14 +117,14 @@ Options / Env:
   --env NAME                env field when using --autofill (e.g., dev|staging|prod)
   --intervals LIST          comma-separated intervals for --autofill (daily,weekly,monthly)
   --phase pre|post          override auto phase detection for --autofill
+  --trigger VALUE           override trigger (manual|scheduled|heartbeat|test) for both modes
   --body PATH               path to JSON with full DataReadyPayloadV1
-  --email ADDRESS           provenance email (defaults to INTERNAL_PUBLISHER_AUDIT_EMAIL)
   --attributes LIST         message attributes as k=v,k2=v2 (added alongside runId/version/phase)
   --verbose                 verbose output
   -h, --help                show help
 
 Env overrides:
-  ENV, INTERVALS, BODY, EMAIL, ATTRS|ATTRIBUTES, VERBOSE
+  ENV, INTERVALS, BODY, ATTRS|ATTRIBUTES, VERBOSE
 `);
   process.exit(code);
 }
@@ -168,11 +175,31 @@ async function main() {
 
   if (args.autofill) {
     const { phase: autoPhase, marketDate } = derivePhaseAndMarketDate();
-    const phase: PartnerPhase = (args.phase as PartnerPhase) ?? autoPhase;
     const intervals: TimeSeriesInterval[] = args.intervals
       ? args.intervals.split(',').map((s) => s.trim()).filter(Boolean).map((s) => s.toLowerCase() as any)
       : [TimeSeriesInterval.DAILY];
-    const runId = `${marketDate}-${genHhmmET()}-${phase}`; // yyyy-mm-dd-hhmm-phase
+
+    const isManualTrigger = args.trigger === PartnerTrigger.MANUAL;
+    const phase: PartnerPhase = isManualTrigger
+      ? PartnerPhase.POST
+      : ((args.phase as PartnerPhase) ?? autoPhase);
+    const hhmm = genHhmmET();
+
+    let runId: string;
+    if (isManualTrigger) {
+      // Manual partner-data-ready messages are always sent one interval at a time.
+      // Use uppercased INTERVAL, PHASE, and MANUAL segments in the runId and
+      // place the HHMM segment immediately after the date so the final format is:
+      //   YYYY-MM-DD-HHMM-INTERVAL-PHASE-MANUAL
+      // Example: 2026-02-07-1546-WEEKLY-POST-MANUAL
+      const phaseSegment = String(phase).toUpperCase();
+      const intervalSegment = String(intervals[0] ?? TimeSeriesInterval.DAILY).toUpperCase();
+      const triggerSegment = String(PartnerTrigger.MANUAL).toUpperCase();
+      runId = `${marketDate}-${hhmm}-${intervalSegment}-${phaseSegment}-${triggerSegment}`;
+    } else {
+      runId = `${marketDate}-${hhmm}-${phase}`; // yyyy-mm-dd-hhmm-phase
+    }
+
     payload = {
       version: 'v1',
       runId,
@@ -181,14 +208,17 @@ async function main() {
       time: Date.now(),
       marketDate,
       env: args.env ?? (process.env['NODE_ENV'] || 'dev'),
-      trigger: PartnerTrigger.MANUAL,
+      trigger: args.trigger ?? PartnerTrigger.TEST,
     } as DataReadyPayloadV1;
   } else {
     const fs = await import('node:fs/promises');
     const raw = await fs.readFile(args.bodyPath!, 'utf8');
     payload = JSON.parse(raw);
-    // Force manual trigger for this direct script path
-    (payload as any).trigger = PartnerTrigger.MANUAL;
+    // Optional override: allow caller to force a specific trigger (including TEST)
+    // without requiring the JSON body to be edited.
+    if (args.trigger) {
+      (payload as any).trigger = args.trigger;
+    }
   }
 
   const { ok, errors, value } = validateDataReadyPayload(payload);
@@ -197,7 +227,6 @@ async function main() {
     process.exit(2);
   }
 
-  const callerEmail = (args.email && args.email.trim().length > 0) ? args.email.trim().toLowerCase() : INTERNAL_PUBLISHER_AUDIT_EMAIL;
   const extraAttributes = parseAttributes(args.attributes) || {};
 
   // Compute attributes preview to mirror handler behavior (for console visibility)
@@ -213,6 +242,7 @@ async function main() {
   }
 
   const publishStartedAt = Date.now();
+  const callerEmail = INTERNAL_PUBLISHER_AUDIT_EMAIL;
   const res = await enqueueDataReadyInternal(value, callerEmail, extraAttributes);
   const publishedAtPacific = formatPacific(publishStartedAt);
 

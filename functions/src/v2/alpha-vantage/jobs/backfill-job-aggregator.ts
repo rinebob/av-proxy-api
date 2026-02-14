@@ -42,15 +42,18 @@ export async function onBackfillJobTerminal(
       const now = Timestamp.now();
 
       // Increment appropriate counter
-      if (status === 'SUCCESS') {
+      if (status === TimeSeriesJobTerminalStatus.SUCCESS) {
         tx.update(runRef, {
           successJobs: FieldValue.increment(1),
           updatedAt: now,
         });
-      } else if (status === 'PERMANENT_FAILURE') {
+      } else if (status === TimeSeriesJobTerminalStatus.PERMANENT_FAILURE) {
         tx.update(runRef, {
           permanentFailureJobs: FieldValue.increment(1),
           updatedAt: now,
+          // Track the set of symbols that reached permanent failure for
+          // this backfill run.
+          permanentFailureSymbols: FieldValue.arrayUnion(symbol),
         });
       }
     });
@@ -66,13 +69,28 @@ export async function onBackfillJobTerminal(
     const expected = runData.expectedJobs || 0;
     const success = runData.successJobs || 0;
     const failure = runData.permanentFailureJobs || 0;
-    const currentStatus = runData.status;
+    const currentStatus = runData.status as TimeSeriesRunStatus | undefined;
 
     // Check if run is complete: all expected jobs have reached terminal state
     if (success + failure >= expected && currentStatus !== TimeSeriesRunStatus.COMPLETE) {
+      const completedAt = Timestamp.now();
+      const startedAt = runData.runStartedAt as Timestamp | undefined;
+      let totalDuration: number | undefined;
+
+      if (startedAt && typeof (startedAt as any).toMillis === 'function') {
+        try {
+          const startMs = (startedAt as any).toMillis();
+          const endMs = (completedAt as any).toMillis();
+          totalDuration = typeof startMs === 'number' && typeof endMs === 'number' ? endMs - startMs : undefined;
+        } catch {
+          totalDuration = undefined;
+        }
+      }
+
       await runRef.update({
         status: TimeSeriesRunStatus.COMPLETE,
-        runCompletedAt: Timestamp.now(),
+        runCompletedAt: completedAt,
+        totalDuration,
       });
 
       logger.info('backfill.run_complete', {
