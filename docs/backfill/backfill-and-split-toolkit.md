@@ -15,8 +15,8 @@ Scripts covered (all under `functions/scripts/`):
 Use this doc together with:
 
 - `planning/split-adjustment-design.md` (high-level design for split-adjusted data)
-- `docs/backend-functions-overview.md` (scheduler and storage model)
-- `docs/local-emulator-workflow.md` (how to run emulators and HTTP flows)
+- `docs/operations/backend-functions-overview.md` (scheduler and storage model)
+- `docs/operations/local-emulator-workflow.md` (how to run emulators and HTTP flows)
 
 ---
 
@@ -27,9 +27,9 @@ Use this doc together with:
     - `ALPHAVANTAGE_API_KEY` (for direct AV calls used by some scripts)
     - `GCLOUD_PROJECT` (or equivalent project id for Firestore admin)
   - For emulator workflows:
-    - `FIRESTORE_EMULATOR_HOST`, `FUNCTIONS_EMULATOR=true`, etc. (see `docs/local-emulator-workflow.md`).
+    - `FIRESTORE_EMULATOR_HOST`, `FUNCTIONS_EMULATOR=true`, etc. (see `docs/operations/local-emulator-workflow.md`).
 - **Production AV key**:
-  - In production, the Alpha Vantage API key is provided to Cloud Functions via Google Cloud-managed secrets (not local env files). See the **Secrets and Config** notes in `planning/project-plan.md` / `docs/backend-functions-overview.md` for details.
+  - In production, the Alpha Vantage API key is provided to Cloud Functions via Google Cloud-managed secrets (not local env files). See the **Secrets and Config** notes in `planning/project-plan.md` / `docs/operations/backend-functions-overview.md` for details.
 - **Install + shared build** (from repo root, once per clone or after changes in `shared/`):
   ```bash
   npm install
@@ -416,7 +416,7 @@ Historically, some handlers/scripts used flags like `__checkWriteToggle` or `man
 ### Purpose
 
 - Provide a **non-destructive structural validator** for Alpha Vantage time-series data in Firestore.
-- Check that both **raw** and **split-adjusted** time-series documents are **well-formed**, internally consistent, and compatible with the storage model described in `docs/backend-functions-overview.md`.
+- Check that both **raw** and **split-adjusted** time-series documents are **well-formed**, internally consistent, and compatible with the storage model described in `docs/operations/backend-functions-overview.md`.
 - Designed to run against **either the local emulator or production**, depending on how `firebase-admin` is configured via env vars.
 
 This script complements `verify-data.ts`:

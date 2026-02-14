@@ -4,10 +4,10 @@
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **`time-series-job-pipeline-plan.md`** | Design rationale, architecture decisions, migration plan, and future work. The "why + what". | Internal SA engineers |
-| **`time-series-job-pipeline-deep-dive.md`** | Technical appendix with concrete TypeScript types, code paths, Firestore shapes, and step-by-step algorithms. The "how". | Internal + RS engineering |
-| **`rs-partner-integration.md`** | Consumer-facing contract: Pub/Sub payloads, subscription filters, `includeSymbols`/`excludeSymbols` semantics, HTTPS endpoints, quick start. | RS backend engineers |
-| **`abc-run-pipeline-flowchart.md`** (this doc) | Mermaid flowcharts documenting the A/B/C pipeline visually with filenames and function names. | Internal + RS engineering |
+| **`pipeline/time-series-job-pipeline-plan.md`** | Design rationale, architecture decisions, migration plan, and future work. The "why + what". | Internal SA engineers |
+| **`pipeline/time-series-job-pipeline-deep-dive.md`** | Technical appendix with concrete TypeScript types, code paths, Firestore shapes, and step-by-step algorithms. The "how". | Internal + RS engineering |
+| **`partner/rs-partner-integration.md`** | Consumer-facing contract: Pub/Sub payloads, subscription filters, `includeSymbols`/`excludeSymbols` semantics, HTTPS endpoints, quick start. | RS backend engineers |
+| **`pipeline/abc-run-pipeline-flowchart.md`** (this doc) | Mermaid flowcharts documenting the A/B/C pipeline visually with filenames and function names. | Internal + RS engineering |
 
 ---
 

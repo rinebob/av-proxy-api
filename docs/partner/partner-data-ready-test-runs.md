@@ -21,14 +21,14 @@ This is intended for:
 
 For Pub/Sub + Eventarc wiring details, see:
 
-- `docs/cross-project-pubsub-eventarc.md`
-- `docs/rs-partner-integration.md` (payload & trigger semantics)
+- `docs/partner/cross-project-pubsub-eventarc.md`
+- `docs/partner/rs-partner-integration.md` (payload & trigger semantics)
 
 ---
 
 ## 2) Trigger semantics recap (RS contract)
 
-From `docs/rs-partner-integration.md`:
+From `docs/partner/rs-partner-integration.md`:
 
 - `trigger` is an optional field in the JSON body and a mirrored Pub/Sub attribute.
 - RS uses it as an **advisory hint** for how to treat the message:
@@ -149,7 +149,7 @@ Before running the script in **prod** against the real `partner-data-ready` topi
 - You can authenticate to GCP with an identity that:
   - Has **Pub/Sub publisher** privileges for the `partner-data-ready` topic.
   - Is allowed to initialize Firebase Admin in `alpha-vantage-proxy-api` (for Firestore runs docs, etc.).
-- Cross-project Pub/Sub + Eventarc wiring between AV → RS is already in place (see `docs/cross-project-pubsub-eventarc.md`).
+- Cross-project Pub/Sub + Eventarc wiring between AV → RS is already in place (see `docs/partner/cross-project-pubsub-eventarc.md`).
 - RS has deployed and configured its handler function (e.g. `processDataReadyRunV2`) to listen to the `partner-data-ready` topic from `alpha-vantage-proxy-api`.
 
 **Note:** The script publishes **real messages** on the production topic. The safety mechanism is `trigger: "test"` and RS’s policy to treat those messages as **no-op**.
@@ -359,7 +359,7 @@ These checks ensure the run lifecycle and aggregation logic are behaving correct
 
 - **RS does not see the message**
   - Verify that the script reported `ok: true` and a non-empty `messageId`.
-  - Confirm that the topic and subscription wiring matches `docs/cross-project-pubsub-eventarc.md`.
+  - Confirm that the topic and subscription wiring matches `docs/partner/cross-project-pubsub-eventarc.md`.
   - Check that RS’s Eventarc trigger is pointing at `projects/alpha-vantage-proxy-api/topics/partner-data-ready`.
 
 - **RS receives the message but does not skip it**
@@ -376,6 +376,5 @@ These checks ensure the run lifecycle and aggregation logic are behaving correct
 
 - Script implementation: `functions/scripts/partner-data-ready-direct.ts`
 - HTTP publisher (not used for this test path): `functions/src/v2/partner/data-ready.publish.function.ts`
-- RS integration guide: `docs/rs-partner-integration.md`
-- Cross-project wiring: `docs/cross-project-pubsub-eventarc.md`
-- Partner HTTPS quickstart: `docs/partner-quickstart.md`
+- RS integration guide: `docs/partner/rs-partner-integration.md`
+- Cross-project wiring: `docs/partner/cross-project-pubsub-eventarc.md`

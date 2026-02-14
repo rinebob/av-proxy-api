@@ -155,7 +155,7 @@ Files:
 - `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager.ts` (schedulers + `refreshForEndpoints()`)
 - Handlers under `functions/src/v2/alpha-vantage/handlers/`
 
-> **Planned evolution (2026-01):** Time-series refresh is being migrated from a monolithic scheduler loop to a **job-based pipeline** driven by Cloud Tasks. See `docs/time-series-job-pipeline-plan.md` for the canonical design. This section describes the current behavior; as the migration proceeds, `refreshForEndpoints()` will become orchestration-only (job creation + enqueue) and a new worker function will own per-symbol AV calls and job status updates.
+> **Planned evolution (2026-01):** Time-series refresh is being migrated from a monolithic scheduler loop to a **job-based pipeline** driven by Cloud Tasks. See `docs/pipeline/time-series-job-pipeline-plan.md` for the canonical design. This section describes the current behavior; as the migration proceeds, `refreshForEndpoints()` will become orchestration-only (job creation + enqueue) and a new worker function will own per-symbol AV calls and job status updates.
 
 #### Cadence Overview (Current)
 

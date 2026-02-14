@@ -4,7 +4,7 @@ Audience: External partner engineering/admin teams integrating with Savant partn
 
 Last updated: 2026-02-14
 
-> Start here: Read this discovery guide first to understand the surface area, data shapes, and auth model. When ready to make requests, proceed to `docs/partner-integration.md` for step-by-step integration examples.
+> Start here: Read this discovery guide first to understand the surface area, data shapes, and auth model. When ready to make requests, proceed to `docs/partner/partner-integration.md` for step-by-step integration examples.
 
 ---
 
@@ -12,7 +12,7 @@ Last updated: 2026-02-14
 
 SavantApi.com maintains a centralized, Firestore-backed market data service. Partner applications consume data through secure HTTPS endpoints operated on Firebase/Cloud Run. The current partner-exposed surface focuses on normalized time series data aggregated from Alpha Vantage (AV) and stored in a sharded Firestore schema.
 
-For server-to-server integrations, partners should use Google OIDC (service account identity tokens) with allowlisting. See `docs/partner-integration.md` for end-to-end examples. For discovery and event-driven processing, see `docs/rs-partner-integration.md`.
+For server-to-server integrations, partners should use Google OIDC (service account identity tokens) with allowlisting. See `docs/partner/partner-integration.md` for end-to-end examples. For discovery and event-driven processing, see `docs/partner/rs-partner-integration.md`.
 
 ### Operational Checklist (Quick Start)
 - Ensure Cloud Run requires authentication; remove `allUsers` from invokers
@@ -39,15 +39,15 @@ For server-to-server integrations, partners should use Google OIDC (service acco
 - Allowlist and audience are sourced from Secret Manager:
   - `ALLOWED_SERVICE_ACCOUNT_EMAILS`
   - `EXPECTED_GOOGLE_AUDIENCE`
-- See `docs/partner-integration.md` for exact setup commands and request examples.
+- See `docs/partner/partner-integration.md` for exact setup commands and request examples.
 
-> Preflight: Before requesting access, confirm your real service account email(s) and the exact Cloud Run URL for `partnerTimeSeriesV2`. Partner calls must target the Cloud Run service URL and mint tokens with that URL as the audience. See the "Partner Preflight Checklist" in `docs/partner-integration.md`.
+> Preflight: Before requesting access, confirm your real service account email(s) and the exact Cloud Run URL for `partnerTimeSeriesV2`. Partner calls must target the Cloud Run service URL and mint tokens with that URL as the audience. See the "Partner Preflight Checklist" in `docs/partner/partner-integration.md`.
 
 ---
 
 ## Data Provider & Storage Model (Overview)
 
-> **Note (2026-01):** AV OHLCV time-series for partner reads are now stored under the split-adjusted collection `sa-time-series` as described in `docs/backend-functions-overview.md` and `docs/partner-dataset-announcement.md`. The `time-series` paths referenced below reflect the earlier internal storage model and are kept for historical/internal context only. Partner-facing APIs and response shapes remain the same.
+> **Note (2026-01):** AV OHLCV time-series for partner reads are now stored under the split-adjusted collection `sa-time-series` as described in `docs/operations/backend-functions-overview.md` and `docs/partner/partner-dataset-announcement.md`. The `time-series` paths referenced below reflect the earlier internal storage model and are kept for historical/internal context only. Partner-facing APIs and response shapes remain the same.
 
 - Provider (current primary): Alpha Vantage (AV)
   - We persist adjusted series by default for `DAILY`, `WEEKLY`, and `MONTHLY`.
@@ -101,7 +101,7 @@ Partner endpoints are protected by both IAM (Cloud Run invoker) and application-
 - Set `ALLOWED_SERVICE_ACCOUNT_EMAILS` to the same partner SA emails and deploy a new revision
 - Partner must send OIDC ID token with `aud` = exact service URL and include the `email` claim
 
-For full CLI and Console steps, see “IAM Lockdown and Allowlisting (Required)” in `docs/partner-integration.md`.
+For full CLI and Console steps, see “IAM Lockdown and Allowlisting (Required)” in `docs/partner/partner-integration.md`.
 
 ---
 
@@ -118,7 +118,7 @@ Partners should consume Data‑Ready notifications to know when new data is avai
   - Attributes include `runType` (primary: `ts-post-all-intervals`) and `interval` (`DAILY`, `WEEKLY`, `MONTHLY`)
 - One END message is emitted **per interval per logical run** (A/B/C).
 - Use subscription filters to select only what you need (e.g., `attributes.runType = "ts-post-all-intervals"`).
-- See: `docs/rs-partner-integration.md` for the full schema, payload examples, and subscription filter guidance.
+- See: `docs/partner/rs-partner-integration.md` for the full schema, payload examples, and subscription filter guidance.
 
 Notes:
 - Root system docs for transparency (internal reference):
@@ -271,7 +271,7 @@ A background refresher keeps Firestore current by reloading data from upstream a
 3. Mint a Google OIDC ID token with `aud` equal to the exact function URL and include the `email` claim.
 4. Call the `partnerTimeSeriesV2` endpoint with `Authorization: Bearer <id_token>`.
 
-See `docs/partner-integration.md` for cURL/Node/PowerShell examples.
+See `docs/partner/partner-integration.md` for cURL/Node/PowerShell examples.
 
 ---
 

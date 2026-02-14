@@ -9,10 +9,10 @@ This document is part of a four-document set covering the time-series job pipeli
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **`time-series-job-pipeline-plan.md`** | Design rationale, architecture decisions, migration plan, and future work. The "why + what". | Internal SA engineers |
-| **`time-series-job-pipeline-deep-dive.md`** (this doc) | Technical appendix with concrete TypeScript types, code paths, Firestore shapes, and step-by-step algorithms. The "how". | Internal + RS engineering |
-| **`rs-partner-integration.md`** | Consumer-facing contract: Pub/Sub payloads, subscription filters, `includeSymbols`/`excludeSymbols` semantics, HTTPS endpoints, quick start. | RS backend engineers |
-| **`abc-run-pipeline-flowchart.md`** | Mermaid flowcharts documenting the A/B/C pipeline visually with filenames and function names. | Internal + RS engineering |
+| **`pipeline/time-series-job-pipeline-plan.md`** | Design rationale, architecture decisions, migration plan, and future work. The "why + what". | Internal SA engineers |
+| **`pipeline/time-series-job-pipeline-deep-dive.md`** (this doc) | Technical appendix with concrete TypeScript types, code paths, Firestore shapes, and step-by-step algorithms. The "how". | Internal + RS engineering |
+| **`partner/rs-partner-integration.md`** | Consumer-facing contract: Pub/Sub payloads, subscription filters, `includeSymbols`/`excludeSymbols` semantics, HTTPS endpoints, quick start. | RS backend engineers |
+| **`pipeline/abc-run-pipeline-flowchart.md`** | Mermaid flowcharts documenting the A/B/C pipeline visually with filenames and function names. | Internal + RS engineering |
 
 ---
 
@@ -470,7 +470,7 @@ Trigger semantics:
 - `trigger: "manual"`: ad-hoc run — RS may log or optionally process.
 - `trigger: "test"`: contract/delivery test — RS **skips normal processing** while still accepting and logging the message.
 
-> For the full RS contract (payloads, filters, quick start), see `docs/rs-partner-integration.md`.
+> For the full RS contract (payloads, filters, quick start), see `docs/partner/rs-partner-integration.md`.
 
 ---
 
@@ -743,4 +743,4 @@ All rate limits, retry config, and memory settings are centralized in `job-confi
   - Use the same worker & AV handlers, but run in a separate namespace (`backfill-runs/*`).
   - Are invisible to RS in terms of cadence; RS simply sees corrected history via `partnerTimeSeriesV2` after backfills complete.
 
-> For the full RS contract (payloads, filters, quick start), see `docs/rs-partner-integration.md`.
+> For the full RS contract (payloads, filters, quick start), see `docs/partner/rs-partner-integration.md`.

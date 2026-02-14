@@ -65,7 +65,7 @@ Under each `symbol-data/{symbol}` document, the following subcollections may exi
 
 ## Operational Collections (Time-Series Job Pipeline)
 
-The time-series job pipeline uses three collections. For full details see `docs/time-series-job-pipeline-deep-dive.md`.
+The time-series job pipeline uses three collections. For full details see `docs/pipeline/time-series-job-pipeline-deep-dive.md`.
 
 ### realtime-runs/{runId}
 

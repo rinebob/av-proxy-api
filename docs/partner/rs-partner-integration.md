@@ -10,10 +10,10 @@ This document is part of a four-document set covering the time-series job pipeli
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **`time-series-job-pipeline-plan.md`** | Design rationale, architecture decisions, migration plan, and future work. The "why + what". | Internal SA engineers |
-| **`time-series-job-pipeline-deep-dive.md`** | Technical appendix with concrete TypeScript types, code paths, Firestore shapes, and step-by-step algorithms. The "how". | Internal + RS engineering |
-| **`rs-partner-integration.md`** (this doc) | Consumer-facing contract: Pub/Sub payloads, subscription filters, `includeSymbols`/`excludeSymbols` semantics, HTTPS endpoints, quick start. | RS backend engineers |
-| **`abc-run-pipeline-flowchart.md`** | Mermaid flowcharts documenting the A/B/C pipeline visually with filenames and function names. | Internal + RS engineering |
+| **`pipeline/time-series-job-pipeline-plan.md`** | Design rationale, architecture decisions, migration plan, and future work. The "why + what". | Internal SA engineers |
+| **`pipeline/time-series-job-pipeline-deep-dive.md`** | Technical appendix with concrete TypeScript types, code paths, Firestore shapes, and step-by-step algorithms. The "how". | Internal + RS engineering |
+| **`partner/rs-partner-integration.md`** (this doc) | Consumer-facing contract: Pub/Sub payloads, subscription filters, `includeSymbols`/`excludeSymbols` semantics, HTTPS endpoints, quick start. | RS backend engineers |
+| **`pipeline/abc-run-pipeline-flowchart.md`** | Mermaid flowcharts documenting the A/B/C pipeline visually with filenames and function names. | Internal + RS engineering |
 
 ---
 
@@ -147,7 +147,7 @@ This section gives RS a high-level view of **how** Savant keeps time-series data
   - Runs with permanent failures report `runStatus: "completed_with_errors"`. RS can still treat the day as "done" while optionally inspecting failures.
   - The `includeSymbols` / `excludeSymbols` fields on the PDR message tell RS exactly which symbols to fetch (see Section 3).
 
-> For deeper internals, see `docs/abc-run-pipeline-flowchart.md`. RS does not need that document for normal operations.
+> For deeper internals, see `docs/pipeline/abc-run-pipeline-flowchart.md`. RS does not need that document for normal operations.
 
 ### 2.5.2 Full Backfill (Admin‑Only, One‑Off)
 
@@ -317,9 +317,8 @@ Symbols that become FRESH during a B/C run are recorded in `retrySuccessSymbols`
 - Auth: Google OIDC ID token (SA allowlisted, `aud` set to function URL, include email)
 
 See:
-- API surface: `docs/partner-api-surface.md`
-- Discovery: `docs/partner-discovery.md`
-- Integration (auth/examples): `docs/partner-integration.md`
+- Discovery: `docs/partner/partner-discovery.md`
+- Integration (auth/examples): `docs/partner/partner-integration.md`
 
 ---
 
@@ -404,6 +403,5 @@ Suggested usage for RS:
   - Server‑to‑server only; rotate SA credentials; prefer keyless workload identity where possible
 
 References:
-- `docs/partner-integration.md` (auth details, examples)
-- `docs/partner-api-surface.md` (endpoints overview)
-- `docs/abc-run-pipeline-flowchart.md` (Mermaid flowcharts of the A/B/C pipeline internals)
+- `docs/partner/partner-integration.md` (auth details, examples)
+- `docs/pipeline/abc-run-pipeline-flowchart.md` (Mermaid flowcharts of the A/B/C pipeline internals)

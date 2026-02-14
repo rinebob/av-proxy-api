@@ -2,7 +2,7 @@
 
 This guide explains how Savant partner backends should call the Partner Time Series API endpoint (`partnerTimeSeriesV2`) securely using Google OIDC service account tokens.
 
-> Read order: Start with `docs/partner-discovery.md` for concepts, data shapes, and auth. Then use this integration guide for step-by-step setup and request examples. For details on how time-series data is refreshed and monitored internally (jobs, retries, validation, audits), see `docs/time-series-job-pipeline-plan.md`.
+> Read order: Start with `docs/partner/partner-discovery.md` for concepts, data shapes, and auth. Then use this integration guide for step-by-step setup and request examples. For details on how time-series data is refreshed and monitored internally (jobs, retries, validation, audits), see `docs/pipeline/time-series-job-pipeline-plan.md`.
 
 > Note: This document targets the Partner Time Series endpoint only. As additional partner endpoints are introduced, we will publish separate guides or expand this document with dedicated sections.
 
@@ -273,7 +273,7 @@ gcloud run services update partnerTimeSeriesV2 \
 - Cron schedules are defined in `functions/src/v2/common/function-schedules.ts` and control when refresh jobs run; they do not define TTLs.
 - Partners do not need to trigger refresh; reads come from Firestore.
 
-> **Note (2026-01):** AV OHLCV time-series storage has moved to the split-adjusted `sa-time-series` collection as documented in `docs/backend-functions-overview.md` and `docs/partner-dataset-announcement.md`. Any references in this guide to `symbol-data/{SYMBOL}/time-series/{...}` are historical/internal/legacy/deprecated and do not change the partner API contract or response shapes.
+> **Note (2026-01):** AV OHLCV time-series storage has moved to the split-adjusted `sa-time-series` collection as documented in `docs/operations/backend-functions-overview.md` and `docs/partner/partner-dataset-announcement.md`. Any references in this guide to `symbol-data/{SYMBOL}/time-series/{...}` are historical/internal/legacy/deprecated and do not change the partner API contract or response shapes.
 
 ## 11) Audit & Monitoring
 - View Cloud Run → Logs for `partnerTimeSeriesV2` to audit invocations and denials

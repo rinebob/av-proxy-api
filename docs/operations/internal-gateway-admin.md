@@ -43,7 +43,7 @@ Purpose: Serve the SavantApi.com UI and related internal tools from first‑part
 - Locked down at Cloud Run (remove `allUsers`)
 - Dual‑auth (Google OIDC/Firebase ID) and email allowlisting via `ALLOWED_SERVICE_ACCOUNT_EMAILS`
 
-See: `docs/partner-discovery.md`, `docs/partner-integration.md`.
+See: `docs/partner/partner-discovery.md`, `docs/partner/partner-integration.md`.
 
 ---
 
@@ -102,8 +102,8 @@ See: `docs/partner-discovery.md`, `docs/partner-integration.md`.
 - `functions/src/v2/benzinga/benzinga-gateway.ts`
 - `functions/src/v2/common/functions/listSymbolsV2.ts`
 - `functions/scripts/README.lockdown-invokers.md`
-- `docs/partner-discovery.md`
-- `docs/partner-integration.md`
+- `docs/partner/partner-discovery.md`
+- `docs/partner/partner-integration.md`
 
 ---
 
