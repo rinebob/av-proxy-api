@@ -329,7 +329,6 @@ export const TIME_SERIES_MASTER_SYMBOL_ORDER: string[] = [
   'MGM',
   'MKC',
   'MLM',
-  'MMC',
   'MMM',
   'MNST',
   'MO',
