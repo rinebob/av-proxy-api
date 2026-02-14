@@ -45,6 +45,19 @@ export interface DataReadyPayloadV1 {
   // Back-compat (legacy optional fields used previously internally)
   // These are accepted by validator but not required and not used by RS UI.
   nextFetchAt?: string; // legacy advisory label (ET or UTC string)
+
+  // Optional: for interval-level time-series runs, conveys symbols whose
+  // vendor data was stale or permanently failed for this run. This allows
+  // RS to avoid or specially-handle these symbols when pulling from SA.
+  retrySymbols?: string[];
+
+  // Optional: symbols RS should explicitly include or exclude for this
+  // PDR message. For initial full-universe runs, only excludeSymbols is
+  // populated and RS treats the universe as tracked-symbols \ minus
+  // excludeSymbols. For retry-only runs, only includeSymbols is populated
+  // and RS treats the universe as exactly includeSymbols.
+  includeSymbols?: string[];
+  excludeSymbols?: string[];
 }
 
 export interface ValidationResult<T> {
@@ -169,6 +182,15 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
   if (obj.nextFetchAt != null && typeof obj.nextFetchAt !== 'string') {
     errors.push('nextFetchAt must be a string when provided');
   }
+  if (obj.retrySymbols != null && !Array.isArray(obj.retrySymbols)) {
+    errors.push('retrySymbols must be an array when provided');
+  }
+  if (obj.includeSymbols != null && !Array.isArray(obj.includeSymbols)) {
+    errors.push('includeSymbols must be an array when provided');
+  }
+  if (obj.excludeSymbols != null && !Array.isArray(obj.excludeSymbols)) {
+    errors.push('excludeSymbols must be an array when provided');
+  }
 
   if (errors.length > 0) return { ok: false, errors };
 
@@ -204,6 +226,10 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
     remainingSampleTruncated: obj.remainingSampleTruncated,
     advisory: obj.advisory,
     nextFetchAt: obj.nextFetchAt,
+
+    retrySymbols: obj.retrySymbols,
+    includeSymbols: obj.includeSymbols,
+    excludeSymbols: obj.excludeSymbols,
   };
 
   // Soft check: if marketDate provided, ensure time falls within that UTC day

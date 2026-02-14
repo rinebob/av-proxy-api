@@ -1,5 +1,7 @@
 import type { AlphaVantageEndpoint, TimeSeriesInterval } from '@shared/alpha-vantage';
 import type { TradingPhase } from '@shared/health-metrics';
+import type { RefreshTrigger } from '@shared/firestore';
+import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema';
 
 /**
  * Status values for a single Alpha Vantage time-series refresh job.
@@ -60,6 +62,21 @@ export enum TimeSeriesRunStatus {
 }
 
 /**
+ * Indicates how current the vendor time-series data is for a given job's
+ * target marketDate.
+ *
+ * This is intentionally orthogonal to TimeSeriesJobStatus:
+ * - status describes pipeline health (success vs failure).
+ * - dataFreshness describes whether the latest bar is at or after the
+ *   target period end.
+ */
+export enum TimeSeriesDataFreshness {
+  UNKNOWN = 'UNKNOWN',
+  FRESH = 'FRESH',
+  STALE = 'STALE',
+}
+
+/**
  * Canonical shape for an Alpha Vantage time-series refresh job
  * targeting sa-time-series data.
  */
@@ -87,4 +104,77 @@ export interface TimeSeriesJob {
   // finalized daily bar timestamp; for W/M it may map to the
   // provider's latest period bar.
   finalizedAtMs?: number;
+
+  // Data freshness relative to the target marketDate/period for this job.
+  // This does not indicate pipeline failure; it only captures whether the
+  // latest vendor bar is fresh for the target period.
+  dataFreshness?: TimeSeriesDataFreshness;
+}
+
+/**
+ * Canonical shape for a realtime POST run document stored at
+ * `realtime-runs/{runId}`.
+ */
+export interface RealtimeRun {
+  runId: string;
+  runType: string;
+  marketDate: string;
+  phase: TradingPhase;
+  interval: TimeSeriesInterval;
+  trigger: RefreshTrigger;
+
+  status: TimeSeriesRunStatus;
+
+  // Timestamps capturing the lifecycle of a realtime POST run.
+  // - runCreatedAt: when the run document itself was first written.
+  // - jobsCreationStartedAt: when the first job document for this run was created.
+  // - runStartedAt: when the first AV fetch began for any job in this run.
+  // - jobsCreationCompletedAt: when the last job document for this run was written.
+  // - runFinishedAt: when the last AV fetch completed and the run reached a
+  //   terminal state.
+  runCreatedAt: FirebaseFirestore.Timestamp;
+  jobsCreationStartedAt?: FirebaseFirestore.Timestamp;
+  runStartedAt?: FirebaseFirestore.Timestamp;
+  jobsCreationCompletedAt?: FirebaseFirestore.Timestamp;
+  runFinishedAt?: FirebaseFirestore.Timestamp;
+
+  createdJobs: number;
+  finishedJobs: number;
+  successJobs: number;
+  permanentFailureJobs: number;
+
+  // Count of symbols that were considered for this run but skipped during
+  // job creation because their existing jobs were already in a terminal
+  // state or because no work was needed.
+  skippedSymbolsCount?: number;
+
+  // Total duration in milliseconds from runStartedAt to runFinishedAt, plus a
+  // human-readable formatted representation for quick inspection.
+  totalDuration?: number;
+  totalDurationFormatted?: string;
+
+  // Symbols that reached permanent failure for this run.
+  permanentFailureSymbols?: string[];
+
+  // Symbols whose data was still stale for this run's target marketDate
+  // and interval, based on the dataFreshness check in the worker.
+  staleSymbols?: string[];
+
+  // Symbols that should be retried on subsequent A/B/C passes for this
+  // interval and trading date. This includes both stale symbols and
+  // permanent failures.
+  retrySymbols?: string[];
+
+  // Subset of symbols that belonged to the per-run retry set and
+  // subsequently reached SUCCESS for this run. This is used to derive
+  // includeSymbols for retry-only Partner Data Ready messages so that
+  // partners can ingest just the symbols that became fresh in this pass.
+  retrySuccessSymbols?: string[];
+
+  // Partner data-ready message tracking for this run.
+  partnerDataReady?: {
+    messageSent: boolean;
+    sendTime: FirebaseFirestore.Timestamp;
+    messagePayload?: DataReadyPayloadV1;
+  };
 }
