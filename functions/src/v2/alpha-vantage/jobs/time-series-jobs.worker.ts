@@ -8,7 +8,6 @@ import { TradingPhase } from '@shared/health-metrics';
 
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import {
-  getTimeSeriesJobDocPath,
   getSymbolTimeSeriesYearDocPath,
   getSymbolTimeSeriesAllDocPath,
 } from '../../common/firestore/firestore-paths';
@@ -18,9 +17,10 @@ import {
   TimeSeriesJobTerminalStatus,
   PeriodStatus,
   TimeSeriesJobType,
+  TimeSeriesDataFreshness,
 } from './time-series-jobs.model';
-import { onTimeSeriesJobTerminal } from './time-series-jobs.aggregator';
 import { onBackfillJobTerminal } from './backfill-job-aggregator';
+import { onRealtimeRunJobTerminal } from './realtime-run-aggregator';
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { publishSymbolsReadyBatch } from '../../partner/symbols-ready.publisher';
 import {
@@ -28,6 +28,7 @@ import {
   deleteWeeklyAdjustedForSymbol,
   deleteMonthlyAdjustedForSymbol,
 } from '../firestore/av-backfill-delete-helpers';
+import { MAX_JOB_ATTEMPTS, JOB_EXECUTION_DELAY_MS } from './job-config';
 
 // Dedicated logger for the time-series job worker so pipeline logs are easy to filter
 const logger = betterLogger('tSJ.w');
@@ -58,6 +59,11 @@ export interface ProcessTimeSeriesJobPayload {
   // Run ID for backfill jobs. Required when jobType is 'backfill'.
   // Format: YYYY-MM-DD-ENDPOINT-FULL_BACKFILL (e.g., "2026-01-24-DAILY-FULL_BACKFILL")
   runId?: string;
+
+  // Optional flag indicating that this job is part of a deadline run
+  // (e.g. the C run in the A/B/C POST sequence). Deadline runs are allowed
+  // to treat persistently stale data as a terminal failure after retries.
+  deadlineRun?: boolean;
 }
 
 /**
@@ -69,9 +75,8 @@ export interface ProcessTimeSeriesJobPayload {
  */
 
 export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJobPayload): Promise<void> {
-  // Temporary diagnostic: introduce a fixed delay so that individual
-  // task executions are clearly visible in the Cloud Tasks UI and logs.
-  await new Promise((resolve) => setTimeout(resolve, 1_000));
+  // Fixed delay to spread AV calls and make executions visible
+  await new Promise((resolve) => setTimeout(resolve, JOB_EXECUTION_DELAY_MS));
 
   // SAFETY BELT: While the job pipeline is under active development,
   // gate execution behind an explicit feature flag in non-emulator
@@ -82,7 +87,7 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     return;
   }
 
-  const { marketDate, symbol, endpoint, phase, jobType, runId } = payload;
+  const { marketDate, symbol, endpoint, phase, jobType, runId, deadlineRun } = payload;
 
   const interval: TimeSeriesInterval =
     endpoint === AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED
@@ -115,18 +120,25 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     return;
   }
 
-  // Route to correct Firestore path based on jobType
+  // Route to correct Firestore path based on jobType.
+  // BACKFILL jobs: backfill-runs/{runId}/jobs/{symbol-endpoint-phase}
+  // Realtime jobs: realtime-runs/{runId}/jobs/{symbol-endpoint-phase}
+  const jobId = `${symbol.toUpperCase()}-${endpoint}-${phase}`;
   let jobPath: string;
+
   if (jobType === TimeSeriesJobType.BACKFILL) {
     if (!runId) {
       logger.error('ts.jobs.worker.missing_runId', baseLogPayload);
       throw new Error('runId is required for backfill jobs');
     }
-    const jobId = `${symbol.toUpperCase()}-${endpoint}-${phase}`;
     jobPath = `${FirestoreCollection.BACKFILL_RUNS}/${runId}/${FirestoreCollection.JOBS}/${jobId}`;
   } else {
-    // Default to realtime path
-    jobPath = getTimeSeriesJobDocPath(marketDate, symbol, endpoint, phase);
+    // All realtime jobs must have a runId in the new pipeline
+    if (!runId) {
+      logger.error('ts.jobs.worker.missing_runId', baseLogPayload);
+      throw new Error('runId is required for realtime jobs');
+    }
+    jobPath = `${FirestoreCollection.REALTIME_RUNS}/${runId}/${FirestoreCollection.JOBS}/${jobId}`;
   }
   const jobRef = db.doc(jobPath);
 
@@ -151,7 +163,9 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     logger.timeStart('worker.symbol', baseLogPayload);
   } catch {}
 
-  // Mark IN_PROGRESS and bump attempts transactionally.
+  // Mark IN_PROGRESS and bump attempts transactionally. Keep this
+  // transaction scoped to the job document only to avoid "reads after
+  // writes" issues when touching the parent run document.
   await db.runTransaction(async tx => {
     const snap = await tx.get(jobRef);
     if (!snap.exists) {
@@ -163,18 +177,69 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
       return;
     }
     const attempts = typeof data?.attempts === 'number' ? data.attempts : 0;
-    tx.set(jobRef, {
-      status: TimeSeriesJobStatus.InProgress,
-      attempts: attempts + 1,
-      lastAttemptAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    }, { merge: true });
+
+    tx.set(
+      jobRef,
+      {
+        status: TimeSeriesJobStatus.InProgress,
+        attempts: attempts + 1,
+        lastAttemptAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      },
+      { merge: true },
+    );
   });
+
+  // For realtime runs with a runId, stamp runStartedAt the first time any
+  // job enters IN_PROGRESS so that run-level duration captures actual AV
+  // fetch time. This is done outside the job transaction to keep the
+  // transaction simple and avoid read-after-write constraints.
+  if (runId && jobType !== TimeSeriesJobType.BACKFILL) {
+    const runRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${runId}`);
+    try {
+      const runSnap = await runRef.get();
+      if (runSnap.exists) {
+        const runData = runSnap.data() as any;
+        if (!runData?.runStartedAt) {
+          await runRef.set(
+            {
+              runStartedAt: Timestamp.now(),
+            },
+            { merge: true },
+          );
+        }
+      }
+    } catch {
+      // Best-effort only; do not fail the job if runStartedAt cannot be stamped.
+    }
+  }
 
   const targetTs = new Date(`${marketDate}T00:00:00.000Z`).getTime();
 
   try {
     const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
+
+    // Stamp attempt metadata at the moment we begin the Alpha Vantage fetch so
+    // we can distinguish job creation from real work. firstAttemptedAt records
+    // when the first AV fetch started; lastAttemptAt records the most recent
+    // attempt; attempts is incremented for each worker invocation that reaches
+    // this point.
+    const nowAttempt = Timestamp.now();
+    const snapBefore = await jobRef.get();
+    const dataBefore = snapBefore.data() as any;
+    const attemptsBefore: number =
+      dataBefore && typeof dataBefore.attempts === 'number' ? dataBefore.attempts : 0;
+
+    const attemptUpdates: Record<string, unknown> = {
+      lastAttemptAt: nowAttempt,
+      attempts: attemptsBefore + 1,
+    };
+
+    if (!dataBefore?.firstAttemptedAt) {
+      attemptUpdates.firstAttemptedAt = nowAttempt;
+    }
+
+    await jobRef.set(attemptUpdates, { merge: true });
 
     // Derive the desired output size from the job mode. COMPACT jobs perform
     // a small-window refresh, while FULL_BACKFILL jobs perform a destructive
@@ -228,6 +293,26 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     const isPeriodEnd = hasBar && latestValue >= targetTs;
     const periodStatus = isPeriodEnd ? PeriodStatus.PERIOD_END : PeriodStatus.IN_PROGRESS;
 
+    // Derive a data freshness signal that is orthogonal to job status.
+    // - UNKNOWN: we do not yet have any bar timestamp recorded.
+    // - FRESH: latest bar is at/after the target period end.
+    // - STALE: we have a bar, but it is still before the target period end.
+    let dataFreshness: TimeSeriesDataFreshness;
+    if (!hasBar) {
+      dataFreshness = TimeSeriesDataFreshness.UNKNOWN;
+    } else if (isPeriodEnd) {
+      dataFreshness = TimeSeriesDataFreshness.FRESH;
+    } else {
+      dataFreshness = TimeSeriesDataFreshness.STALE;
+    }
+
+    // For deadline runs, treat persistently stale data as a failure so that
+    // it flows through the existing retry/MAX_ATTEMPTS logic and, if it
+    // remains stale, is ultimately surfaced as a permanent failure.
+    if (deadlineRun && dataFreshness === TimeSeriesDataFreshness.STALE) {
+      throw new Error('STALE_AT_DEADLINE');
+    }
+
     // Handler ran without throwing; treat the job itself as SUCCESS.
     // Period completion is tracked separately via periodStatus.
     await jobRef.set({
@@ -238,7 +323,47 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
       // Clear any previous error; remaining IN_PROGRESS vs PERIOD_END state
       // is captured by periodStatus.
       lastError: FieldValue.delete(),
+      dataFreshness,
     }, { merge: true });
+
+    // For realtime runs with a runId, maintain per-run retry/stale sets:
+    // - If data remains STALE, record the symbol in staleSymbols and
+    //   retrySymbols so future C/A passes can selectively target it.
+    // - If data is FRESH, ensure the symbol is removed from the retry sets
+    //   and recorded in retrySuccessSymbols so that retry PDR messages can
+    //   surface an includeSymbols list of symbols that became fresh in
+    //   this pass.
+    if (runId && jobType !== TimeSeriesJobType.BACKFILL) {
+      const runRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${runId}`);
+      try {
+        const runSnap = await runRef.get();
+        const runData = runSnap.data() as any | undefined;
+        const currentRetry: string[] = Array.isArray(runData?.retrySymbols)
+          ? runData.retrySymbols.map((s: any) => String(s).toUpperCase())
+          : [];
+        const symbolUpper = symbol.toUpperCase();
+        const wasInRetry = currentRetry.includes(symbolUpper);
+
+        if (dataFreshness === TimeSeriesDataFreshness.STALE) {
+          await runRef.update({
+            staleSymbols: FieldValue.arrayUnion(symbolUpper),
+            retrySymbols: FieldValue.arrayUnion(symbolUpper),
+          });
+        } else if (dataFreshness === TimeSeriesDataFreshness.FRESH) {
+          const updates: Record<string, unknown> = {
+            staleSymbols: FieldValue.arrayRemove(symbolUpper),
+            retrySymbols: FieldValue.arrayRemove(symbolUpper),
+          };
+          if (wasInRetry) {
+            updates.retrySuccessSymbols = FieldValue.arrayUnion(symbolUpper);
+          }
+          await runRef.update(updates);
+        }
+      } catch {
+        // Swallow errors here to avoid failing the job purely due to
+        // retry list maintenance issues.
+      }
+    }
 
     // Emit a per-symbol, per-interval partner notification for every SUCCESS job so
     // consumers (e.g. RS) can react as soon as data for that symbol/interval is
@@ -267,15 +392,15 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
 
     // Notify the appropriate aggregator that this job reached a terminal SUCCESS state.
     // Route based on jobType: backfill jobs update backfill-runs/{runId}, realtime jobs
-    // update time-series-jobs/{marketDate}.
+    // update realtime-runs/{runId}.
     if (jobType === TimeSeriesJobType.BACKFILL) {
       await onBackfillJobTerminal({ runId: runId!, symbol, interval, status: TimeSeriesJobTerminalStatus.SUCCESS });
       logger.info('ts.jobs.backfill.success', { ...baseLogPayload, runId });
     } else {
-      await onTimeSeriesJobTerminal({
-        marketDate,
+      // New realtime pipeline: aggregate via realtime-runs/{runId} counters.
+      await onRealtimeRunJobTerminal({
+        runId,
         symbol,
-        interval,
         status: TimeSeriesJobTerminalStatus.SUCCESS,
       });
     }
@@ -313,7 +438,7 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     const attemptsAfter: number =
       dataAfter && typeof dataAfter.attempts === 'number' ? dataAfter.attempts : 0;
 
-    const MAX_ATTEMPTS = 5;
+    const MAX_ATTEMPTS = MAX_JOB_ATTEMPTS;
 
     if (attemptsAfter >= MAX_ATTEMPTS) {
       // After MAX_ATTEMPTS, treat the job as a terminal permanent
@@ -333,10 +458,9 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
         await onBackfillJobTerminal({ runId: runId!, symbol, interval, status: TimeSeriesJobTerminalStatus.PERMANENT_FAILURE });
         logger.info('ts.jobs.backfill.permanent_failure', { ...baseLogPayload, runId });
       } else {
-        await onTimeSeriesJobTerminal({
-          marketDate,
+        await onRealtimeRunJobTerminal({
+          runId,
           symbol,
-          interval,
           status: TimeSeriesJobTerminalStatus.PERMANENT_FAILURE,
         });
       }
