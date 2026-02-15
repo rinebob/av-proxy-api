@@ -1,7 +1,7 @@
 # Partner Testing Scripts
 
 **Created**: February 14, 2026  
-**Last Updated**: February 14, 2026
+**Last Updated**: February 15, 2026
 
 This directory contains scripts for testing partner integrations, publishing data-ready messages, and validating authentication mechanisms. These tools help verify partner endpoint functionality, test data flow, and ensure proper security configurations for external service integrations.
 
@@ -20,10 +20,20 @@ This directory contains scripts for testing partner integrations, publishing dat
 - `--attributes` (CLI): Extra message attributes as k=v,k2=v2
 - `--verbose` (CLI): Enable verbose output
 - `--email` (CLI): Provenance email for audit trail
+- `--live` (CLI): Enable live realtime run simulation mode
+- `--include-symbols` (CLI): Comma-separated symbols to include (live mode)
+- `--exclude-symbols` (CLI): Comma-separated symbols to exclude (live mode)
+- `--duration` (CLI): Duration in seconds for live run simulation
+- `--finalized-count` (CLI): Number of finalized symbols (live mode)
+- `--sequence` (CLI): Realtime run sequence (A|B|C)
 
 **Environment Variables**:
 - `PUBSUB_EMULATOR_HOST` - For local testing with emulator
 - `FIRESTORE_EMULATOR_HOST` - For local testing with emulator
+- `ENV` - Default environment (fallback if --env not provided)
+- `INTERVALS` - Default intervals (fallback if --intervals not provided)
+- `BODY` - Default body path (fallback if --body not provided)
+- `ATTRS`/`ATTRIBUTES` - Default attributes (fallback if --attributes not provided)
 
 **Output**:
 - Publishes message to `partner-data-ready` Pub/Sub topic
@@ -37,6 +47,7 @@ This directory contains scripts for testing partner integrations, publishing dat
 - Debugging Pub/Sub publishing and Firestore writes
 - Simulating partner data flows in development
 - Testing message attributes and metadata handling
+- Live realtime run simulation for testing A/B/C pipeline
 
 **Reasons for Using**:
 - Direct Pub/Sub access bypasses HTTP complexity
@@ -44,6 +55,7 @@ This directory contains scripts for testing partner integrations, publishing dat
 - Autofill mode simplifies payload creation
 - Comprehensive logging aids debugging
 - Essential for partner integration testing
+- Live simulation mode enables realistic testing scenarios
 
 **Documentation**: `docs/partner/partner-data-ready-test-runs.md`
 
@@ -57,6 +69,12 @@ npx ts-node functions/scripts/partner/partner-data-ready-direct.ts --body payloa
 
 # Multiple intervals
 npx ts-node functions/scripts/partner/partner-data-ready-direct.ts --autofill --env staging --intervals daily,weekly --verbose
+
+# Live realtime run simulation
+npx ts-node functions/scripts/partner/partner-data-ready-direct.ts --autofill --env dev --live --sequence A --duration 300 --verbose
+
+# Live run with symbol filtering
+npx ts-node functions/scripts/partner/partner-data-ready-direct.ts --autofill --env dev --live --include-symbols AAPL,MSFT,GOOGL --exclude-symbols TSLA --verbose
 ```
 
 ### partner-data-ready-direct.README.md
