@@ -16,9 +16,9 @@
     - PRE is executed only once per ET date during 14:30–15:30 ET (2:30–3:30pm ET)
 */
 
-import { db } from '../src/firebase-admin-init';
-import { AlphaVantageHandlerFactory } from '../src/v2/alpha-vantage/alpha-vantage-factory';
-import { createLogger } from '../src/v2/utils/utils';
+import { db } from '../../src/firebase-admin-init';
+import { AlphaVantageHandlerFactory } from '../../src/v2/alpha-vantage/alpha-vantage-factory';
+import { createLogger } from '../../src/v2/utils/utils';
 import { FirestoreCollection } from '@shared/firestore';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 

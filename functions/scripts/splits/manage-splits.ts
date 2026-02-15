@@ -1,6 +1,6 @@
 
 import 'dotenv/config';
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 import axios from 'axios';
 import { Timestamp } from 'firebase-admin/firestore';

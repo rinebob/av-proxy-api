@@ -6,11 +6,11 @@ import { setupEmulator } from '../scripts-util';
 setupEmulator();
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
 
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 import { ApiProvider } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesInterval } from '@shared/alpha-vantage';
-import { getSymbolTimeSeriesDocPath, getSymbolTimeSeriesYearDocPath, getSymbolTimeSeriesAllDocPath } from '../src/v2/common/firestore/firestore-paths';
+import { getSymbolTimeSeriesDocPath, getSymbolTimeSeriesYearDocPath, getSymbolTimeSeriesAllDocPath } from '../../src/v2/common/firestore/firestore-paths';
 
 interface Issue {
   type: string;

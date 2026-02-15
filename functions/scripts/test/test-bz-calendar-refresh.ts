@@ -2,7 +2,7 @@ import { setupEmulator } from '../scripts-util';
 setupEmulator();
 
 import '../src/firebase-admin-init';
-import { runBenzingaCalendarRefreshJob } from '../src/v2/benzinga/data-refresher/bz-calendar-refresh-manager';
+import { runBenzingaCalendarRefreshJob } from '../../src/v2/benzinga/data-refresher/bz-calendar-refresh-manager';
 
 // Initialize Firebase Admin with local credentials for emulator/dev
 declare const process: any;

@@ -1,5 +1,5 @@
-import { AvSymbolSearchHandler } from '../src/v2/alpha-vantage/handlers/av-symbol-search.handler';
-import { db } from '../src/firebase-admin-init';
+import { AvSymbolSearchHandler } from '../../src/v2/alpha-vantage/handlers/av-symbol-search.handler';
+import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 import * as dotenv from 'dotenv';
 import * as path from 'path';

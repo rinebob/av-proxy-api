@@ -2,7 +2,7 @@ import { FirestoreCollection } from '@shared/firestore';
 import { TimeSeriesDocument } from '@shared/alpha-vantage';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 
 // Load environment variables from .env.alpha-vantage-proxy-api
 const envPath = path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api');

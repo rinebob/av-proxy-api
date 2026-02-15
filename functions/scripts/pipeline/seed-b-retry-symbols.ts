@@ -1,4 +1,4 @@
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 
 import { FirestoreCollection } from '@shared/firestore';
 

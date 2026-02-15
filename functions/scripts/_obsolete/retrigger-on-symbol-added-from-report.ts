@@ -11,7 +11,7 @@ import { setupEmulator } from '../scripts-util';
 setupEmulator();
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
 
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 
 interface IncompleteSymbolEntry {

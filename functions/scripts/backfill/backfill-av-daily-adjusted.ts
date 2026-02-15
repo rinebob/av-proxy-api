@@ -36,10 +36,10 @@ try {
   }
 } catch { /* ignore */ }
 
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 import axios from 'axios';
 
-import { AlphaVantageHandlerFactory } from '../src/v2/alpha-vantage/alpha-vantage-factory';
+import { AlphaVantageHandlerFactory } from '../../src/v2/alpha-vantage/alpha-vantage-factory';
 import { AlphaVantageEndpoint, OutputSize } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection } from '@shared/firestore';
@@ -47,9 +47,9 @@ import {
   getSymbolTimeSeriesDocPath,
   getSymbolTimeSeriesYearsCollectionPath,
   getSymbolTimeSeriesAllDocPath,
-} from '../src/v2/common/firestore/firestore-paths';
+} from '../../src/v2/common/firestore/firestore-paths';
 
-import { HealthMetricsService } from '../src/v2/health-metrics/health-metrics.service';
+import { HealthMetricsService } from '../../src/v2/health-metrics/health-metrics.service';
 import { RefreshStatus, RefreshTrigger } from '@shared/firestore';
 
 // Basic logger

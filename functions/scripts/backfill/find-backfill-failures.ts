@@ -5,7 +5,7 @@
  *   npm run ts:scripts scripts/find-backfill-failures.ts
  */
 
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 
 const DAILY_RUN_ID = '2026-01-24-SAT-POST-TIME_SERIES_DAILY_ADJUSTED-FULL_BACKFILL';

@@ -22,7 +22,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 
 interface BulkImportItem {
   symbol: string;

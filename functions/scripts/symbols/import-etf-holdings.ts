@@ -49,7 +49,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Timestamp } from 'firebase-admin/firestore';
 
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 
 interface Holding {
   etf: string;

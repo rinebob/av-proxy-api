@@ -14,14 +14,14 @@
 
 /* eslint-disable no-console */
 
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 import {
   AV_REFRESH_MANAGER_SCHEDULE,
   TS_DAILY_PRE_CLOSE_SCHEDULE,
   TS_DAILY_POST_CLOSE_SCHEDULE,
   DAILY_TIME_SERIES_UPDATE_SCHEDULE,
-} from '../src/v2/common/function-schedules';
+} from '../../src/v2/common/function-schedules';
 
 // ------------------------- CLI args -------------------------
 function getArg(name: string, def?: string): string | undefined {

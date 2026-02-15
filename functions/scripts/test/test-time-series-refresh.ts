@@ -6,15 +6,15 @@ setupEmulator();
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
 
 // Firebase Admin (centralized init used by other scripts)
-import { db, admin } from '../src/firebase-admin-init';
+import { db, admin } from '../../src/firebase-admin-init';
 
 // Refresh functions and types
 import { 
   refreshForEndpoints,
-} from '../src/v2/alpha-vantage/data-refresher/av-refresh-manager';
+} from '../../src/v2/alpha-vantage/data-refresher/av-refresh-manager';
 
 // Health metrics
-import { HealthMetricsService } from '../src/v2/health-metrics/health-metrics.service';
+import { HealthMetricsService } from '../../src/v2/health-metrics/health-metrics.service';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { HealthMetricsFilter, RefreshRequestLog, TradingPhase } from '@shared/health-metrics';
 import { Timestamp } from 'firebase-admin/firestore';

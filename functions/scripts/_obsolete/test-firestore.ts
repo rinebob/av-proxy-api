@@ -1,6 +1,6 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineString } from 'firebase-functions/params';
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 
 const region = defineString('REGION', { default: 'us-central1' });
 

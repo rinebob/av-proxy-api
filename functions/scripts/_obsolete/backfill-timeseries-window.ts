@@ -39,7 +39,7 @@ if (process.env.USE_FIRESTORE_EMULATOR === '1') {
 }
 
 import axios from 'axios';
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 
 import {
   AlphaVantageEndpoint,
@@ -50,7 +50,7 @@ import { FirestoreCollection } from '@shared/firestore';
 import {
   getSymbolTimeSeriesYearDocPath,
   getSymbolTimeSeriesAllDocPath,
-} from '../src/v2/common/firestore/firestore-paths';
+} from '../../src/v2/common/firestore/firestore-paths';
 
 import type { CompactBar } from '@shared/alpha-vantage';
 
@@ -318,7 +318,7 @@ async function applyDailyWindow(
     const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
     if (!Number.isFinite(t)) continue;
     // Per-date overwrite semantics == delete+insert for that bar.
-    await (await import('../src/v2/alpha-vantage/firestore/av-firestore-helper')).upsertAvDailyBar({
+    await (await import('../../src/v2/alpha-vantage/firestore/av-firestore-helper')).upsertAvDailyBar({
       symbol,
       date: b.date,
       patch: {

@@ -21,9 +21,9 @@ import 'module-alias/register';
 /* eslint-disable no-console */
 
 import process from 'node:process';
-import { validateDataReadyPayload, type DataReadyPayloadV1 } from '../src/v2/partner/schemas/data-ready.schema';
-import { enqueueDataReadyInternal } from '../src/v2/partner/data-ready.handler';
-import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerTrigger } from '../src/v2/partner/constants';
+import { validateDataReadyPayload, type DataReadyPayloadV1 } from '../../src/v2/partner/schemas/data-ready.schema';
+import { enqueueDataReadyInternal } from '../../src/v2/partner/data-ready.handler';
+import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerTrigger } from '../../src/v2/partner/constants';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
 // Ensure local env file is loaded when executing from repo root or functions dir (optional best-effort)

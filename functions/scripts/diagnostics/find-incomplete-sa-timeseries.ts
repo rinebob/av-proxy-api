@@ -7,11 +7,11 @@ import { setupEmulator } from '../scripts-util';
 setupEmulator();
 dotenv.config({ path: path.resolve(__dirname, '..', '.env.alpha-vantage-proxy-api') });
 
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
-import { getSymbolTimeSeriesDocPath } from '../src/v2/common/firestore/firestore-paths';
+import { getSymbolTimeSeriesDocPath } from '../../src/v2/common/firestore/firestore-paths';
 const ENABLE_DEEP_CHECK = process.env.DEEP_SA_CHECK === '1';
 
 interface SymbolIssues {

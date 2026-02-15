@@ -17,16 +17,16 @@ setupEmulator();
 }
 
 // Firebase Admin (centralized init used by other scripts)
-import { db, admin } from '../src/firebase-admin-init';
+import { db, admin } from '../../src/firebase-admin-init';
 
 // v2 refresh runner (Alpha Vantage)
-import { runRefreshAlphaVantageDataV2 } from '../src/v2/alpha-vantage/data-refresher/av-refresh-manager';
+import { runRefreshAlphaVantageDataV2 } from '../../src/v2/alpha-vantage/data-refresher/av-refresh-manager';
 
 // Shared Firestore enums and helpers
 import { FirestoreCollection } from '@shared/firestore';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
-import { getSymbolTimeSeriesDocPath } from '../src/v2/common/firestore/firestore-paths';
+import { getSymbolTimeSeriesDocPath } from '../../src/v2/common/firestore/firestore-paths';
 
 // Test symbol (can be overridden by CLI arg: npx ts-node scripts/test-refresh-dispatcher.ts MSFT)
 const TEST_SYMBOL = (process.argv[2] || 'AAPL').toUpperCase();

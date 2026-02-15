@@ -1,6 +1,6 @@
-import { db, admin } from '../src/firebase-admin-init';
+import { db, admin } from '../../src/firebase-admin-init';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
-import { AlphaVantageHandlerFactory } from '../src/v2/alpha-vantage/alpha-vantage-factory';
+import { AlphaVantageHandlerFactory } from '../../src/v2/alpha-vantage/alpha-vantage-factory';
 
 console.log('Script started');
 console.log('Initializing Firebase Admin...');

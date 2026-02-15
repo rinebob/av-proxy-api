@@ -1,8 +1,8 @@
 
 import 'dotenv/config';
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
-import { getSymbolTimeSeriesYearDocPath, getSymbolTimeSeriesAllDocPath } from '../src/v2/common/firestore/firestore-paths';
+import { getSymbolTimeSeriesYearDocPath, getSymbolTimeSeriesAllDocPath } from '../../src/v2/common/firestore/firestore-paths';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 

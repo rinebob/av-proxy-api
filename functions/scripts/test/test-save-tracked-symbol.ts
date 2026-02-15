@@ -11,7 +11,7 @@ if (!process.env['NODE_ENV'] || process.env['NODE_ENV'] !== 'production') {
 }
 
 // Now that environment is configured, import the db instance.
-import { db } from '../src/firebase-admin-init';
+import { db } from '../../src/firebase-admin-init';
 import axios from 'axios';
 import { FirestoreCollection } from '@shared/firestore';
 import { TrackedSymbolV2 } from '@shared/alpha-vantage';
