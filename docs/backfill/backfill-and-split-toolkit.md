@@ -11,6 +11,7 @@ Scripts covered (all under `functions/scripts/`):
 - `verify-data.ts`
 - `diagnose-timeseries.ts`
 - `repair-timeseries-metadata.ts`
+ - `ops/cleanup-weekly.ts`
 
 Use this doc together with:
 
@@ -400,6 +401,104 @@ A typical manual repair/backfill flow:
    - For symbols with persistent issues, adjust `splitHistory` (typically via `sync-splits.ts` + any required manual console edits), re-run `backfill-data.ts` just for those symbols, then re-run `verify-data.ts`.
 
 This toolkit plus the scheduler-based refresh flows gives you a robust way to correct and maintain long-term historical data quality without ad hoc one-off scripts.
+
+---
+
+## 7. `ops/cleanup-weekly.ts` – Enforce One Weekly Bar per Calendar Week
+
+### Purpose
+
+- Enforce the **one-bar-per-calendar-week** invariant for split-adjusted weekly series across a symbol universe and set of years.
+- Remove any duplicate weekly bars that fall in the same Monday-based calendar week, keeping only the **latest** bar (by `d`/`t`) for each week.
+
+This script operates directly on the **split-adjusted weekly series** under:
+
+- `symbol-data/{SYMBOL}/sa-time-series/av-weekly-adjusted/years/{YYYY}`
+
+and is intended for:
+
+- One-time cleanups after fixing weekly merge semantics.
+- Future repairs if AV or writers ever introduce extra weekly bars for a week.
+
+### Behavior
+
+- Resolves the **symbol universe** as:
+  - `--symbols=AAPL,MSFT,...` (command-line arg) when provided, or
+  - All `tracked-symbols` when `--symbols` is omitted.
+- Resolves **years** from `--years=YYYY` or `--years=YYYY,YYYY,...` (required).
+- For each `{symbol, year}`:
+  - Loads `symbol-data/{symbol}/sa-time-series/av-weekly-adjusted/years/{year}` if it exists.
+  - Collects all `bars` arrays into a `Map<year, CompactBar[]>`.
+  - Groups all bars across the requested years by **`weekStart(d)`**, where `weekStart` is Monday-based in UTC (same helper as the live merge path).
+  - For each week group:
+    - Picks the **winner** as the bar whose `d` (or `t` when `d` is missing) is the **latest** in that week.
+    - All other bars in that group are treated as duplicates and removed.
+  - Reconstructs per-year bar arrays from all winners:
+    - Filters original bars to winners for that year.
+    - Sorts by `t` ascending.
+    - Recomputes:
+      - `count`
+      - `firstBarTs`
+      - `lastBarTs`
+      - `latest` (latest non-placeholder bar)
+      - `latestUtcIso`
+      - `updatedAt`
+  - Writes the cleaned `bars` and metadata back to the year doc (unless in dry-run mode).
+
+**Dry-run vs live writes** are controlled by the `DRY_RUN` env var:
+
+- `DRY_RUN=1` → logs what would be rewritten, but does **not** write.
+- `DRY_RUN=0` → performs the actual rewrites.
+
+The script logs, per symbol/year:
+
+- `DRY RUN - would rewrite weekly doc (original=<n>, cleaned=<m>)` or
+- `rewrote weekly doc (original=<n>, cleaned=<m>)`.
+
+### Environment Selection (Prod vs Emulator)
+
+- Like other scripts in this toolkit, `ops/cleanup-weekly.ts` uses `scripts-util.setupEmulator()`:
+  - When `USE_EMULATOR_SCRIPTS` is unset or truthy → targets **emulator**.
+  - When `USE_EMULATOR_SCRIPTS="off"` → targets **production**.
+- To be explicit for production:
+
+```powershell
+$env:GCLOUD_PROJECT = "alpha-vantage-proxy-api"
+$env:FIREBASE_CONFIG = '{"projectId":"alpha-vantage-proxy-api"}'
+$env:USE_EMULATOR_SCRIPTS = "off"
+```
+
+### Usage Examples
+
+From `functions/` (PowerShell examples):
+
+```powershell
+# Dry run – single symbol AA, year 2026 only (PROD)
+$env:GCLOUD_PROJECT = "alpha-vantage-proxy-api"
+$env:FIREBASE_CONFIG = '{"projectId":"alpha-vantage-proxy-api"}'
+$env:USE_EMULATOR_SCRIPTS = "off"
+$env:DRY_RUN = "1"
+node lib/scripts/ops/cleanup-weekly.js --symbols=AA --years=2026
+
+# Live cleanup – single symbol AA, year 2026 (PROD)
+$env:DRY_RUN = "0"
+node lib/scripts/ops/cleanup-weekly.js --symbols=AA --years=2026
+
+# Live cleanup – full tracked-symbol universe, year 2026 (PROD)
+$env:DRY_RUN = "0"
+node lib/scripts/ops/cleanup-weekly.js --years=2026
+```
+
+### Safety Notes
+
+- This script **mutates** production split-adjusted weekly data when `DRY_RUN=0` and `USE_EMULATOR_SCRIPTS="off"`.
+- Always:
+  - Run a **dry run** first and inspect logs.
+  - Confirm `GCLOUD_PROJECT` and `FIREBASE_CONFIG` match the intended project.
+  - Consider running on a **single symbol** or small symbol subset (via `--symbols`) before applying to the full universe.
+- The helper is intentionally conservative:
+  - It never deletes an entire doc; it only rewrites `bars` and associated metadata.
+  - For weeks with a single bar, the bar is preserved as-is.
 
 ---
 
