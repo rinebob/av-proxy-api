@@ -966,19 +966,20 @@ export async function upsertAvMonthlyBar(options: {
 }
 
 /**
- * Merge a compact WEEKLY window into year-sharded weekly time-series docs.
+ * Canonical merge path for AV TIME_SERIES_WEEKLY_ADJUSTED compact windows.
  *
  * Semantics:
- * - Treats the compact payload as the source of truth for the most recent weekly bars.
- * - Rebuilds the target year shard (latestYear only) from the compact window rather than per-bar upserts.
- * - Handles year-end rollover: AV keys weekly bars by today's date (not the period-end
- *   Friday), so a week straddling Dec/Jan can leave an in-progress bar dated in late
- *   December in the prior year's shard. When the first run of the new year writes the
- *   completed bar (dated in January), this function detects and removes the orphaned
- *   prior-year bar so that only period-end bars remain in each shard.
- * - Writes split-adjusted (`sa-time-series`) year docs with the
- *   same bar array; split adjustments are handled earlier by the caller when needed.
- * - After writes, bumps the top-level WEEKLY metadata via `bumpTimeSeriesTopLevelMetadata`.
+ * - Sorts the incoming weekly bars by date and considers only the latest AV
+ *   bar from the compact window.
+ * - Loads the year-sharded SA weekly doc for the year of that AV bar.
+ * - If the existing latest bar in that shard falls in the same Monday-based
+ *   calendar week as the AV bar, overwrites it; otherwise appends a new bar.
+ * - When writing the first bar into a new year shard, also checks the last bar
+ *   in the prior-year shard and removes it if it belongs to the same week, so
+ *   that the week is represented exactly once across all shards.
+ *
+ * This enforces a strict one-bar-per-calendar-week invariant for the weekly
+ * adjusted series while trusting AV for the bar contents.
  */
 export async function mergeWeeklyCompactWindowIntoShards(options: {
   symbol: string;
@@ -1008,228 +1009,156 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
     return getYearFromEpochMillis(ts);
   };
 
-  const latestYear = parseDateYear(storageBars[0].date);
-  if (latestYear == null) {
+  const weekStart = (dateStr: string): string => {
+    const d = new Date(`${dateStr}T00:00:00.000Z`);
+    const day = d.getUTCDay(); // 0=Sun,1=Mon,..6=Sat
+    const diff = day === 0 ? -6 : 1 - day; // move back to Monday
+    d.setUTCDate(d.getUTCDate() + diff);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const sameWeek = (d1: string, d2: string): boolean => weekStart(d1) === weekStart(d2);
+
+  // Sort incoming AV weekly bars and take the latest one only.
+  const sorted = [...storageBars].sort((a, b) => {
+    const ta = new Date(`${a.date}T00:00:00.000Z`).getTime();
+    const tb = new Date(`${b.date}T00:00:00.000Z`).getTime();
+    return ta - tb;
+  });
+  const lastAv = sorted[sorted.length - 1];
+  const lastAvDate = lastAv.date;
+  const lastAvYear = parseDateYear(lastAvDate);
+  if (lastAvYear == null) {
     return;
   }
 
-  const candidateYears = new Set<number>([latestYear]);
+  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, lastAvYear, true);
+  const ref = db.doc(yearDocPath);
+  const snap = await ref.get();
+  const existingBars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
 
-  let latestDateForMeta: string | null = null;
+  if (!existingBars.length) {
+    // This is the first bar for this year shard. We may need to drop an in-progress
+    // bar that lives at the end of the prior-year shard but belongs to the same
+    // calendar week as lastAvDate.
+    const priorYear = lastAvYear - 1;
+    if (Number.isFinite(priorYear)) {
+      const priorYearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, priorYear, true);
+      const priorRef = db.doc(priorYearDocPath);
+      const priorSnap = await priorRef.get();
+      if (priorSnap.exists) {
+        const priorBars: CompactBar[] = (priorSnap.get('bars') ?? []) as CompactBar[];
+        if (priorBars.length) {
+          const priorLast = priorBars[priorBars.length - 1];
+          const priorLastDate = typeof priorLast.d === 'string' && priorLast.d.length >= 10
+            ? priorLast.d.slice(0, 10)
+            : (typeof priorLast.t === 'number'
+              ? new Date(priorLast.t).toISOString().slice(0, 10)
+              : null);
 
-  for (const year of candidateYears) {
-    const yearStorageBars = storageBars.filter((b) => parseDateYear(b.date) === year);
-    if (yearStorageBars.length === 0) continue;
+          if (priorLastDate && sameWeek(priorLastDate, lastAvDate)) {
+            // Drop the last bar in the prior-year shard; its week will now be
+            // represented solely by the bar we are about to write in the new
+            // year shard.
+            priorBars.pop();
 
-    log.info(`weekly.merge.start symbol=${symbol} year=${year} incomingBars=${yearStorageBars.length}`, {
-      symbol,
-      year,
-      incomingBars: yearStorageBars.length,
-      dates: yearStorageBars.map(b => b.date),
-    });
+            priorBars.sort((a, b) => a.t - b.t);
 
-    // Adjusted-only: write exclusively to sa-time-series.
-    const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year, true);
-    const ref = db.doc(yearDocPath);
-    const snap = await ref.get();
-    const existingBars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
-    log.info(`weekly.merge.existing symbol=${symbol} year=${year} existingBars=${existingBars.length}`, {
-      symbol,
-      year,
-      existingBars: existingBars.length,
-    });
-
-    // Build map of existing bars keyed by YYYY-MM-DD so we can surgically
-    // replace only a small window of the most recent weekly bars while
-    // preserving all older history.
-    const map = new Map<string, CompactBar>();
-    for (const bar of existingBars) {
-      const dStr = typeof bar.d === 'string' && bar.d.length >= 10
-        ? bar.d.slice(0, 10)
-        : (typeof bar.t === 'number' ? new Date(bar.t).toISOString().slice(0, 10) : '');
-      if (!dStr) continue;
-      map.set(dStr, bar);
-    }
-
-    // Limit writes to a small tip window to avoid rewriting the full compact
-    // history on every run. For WEEKLY we overwrite only the last N bars for
-    // this year shard using AV as the source of truth. AV already guarantees
-    // a single weekly bar per date key, so we key directly by that date
-    // without applying any additional "week bucket" coalescing.
-    const WINDOW_SIZE = 6;
-    const sortedYearStorageBars = [...yearStorageBars].sort((a, b) => {
-      const ta = new Date(`${a.date}T00:00:00.000Z`).getTime();
-      const tb = new Date(`${b.date}T00:00:00.000Z`).getTime();
-      return ta - tb;
-    });
-    const windowBars = sortedYearStorageBars.slice(-WINDOW_SIZE);
-
-    // For each bar in the tip window, upsert by its AV weekly date key (dStr).
-    // We do not attempt to re-bucket by calendar week; AV already emits one
-    // bar per week, and using the provider's date key preserves that contract.
-    for (const b of windowBars) {
-      const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
-      if (!Number.isFinite(t)) {
-        log.warn(`weekly.merge.skip_bar symbol=${symbol} year=${year} date=${b.date} reason=invalid_timestamp`, {
-          symbol,
-          year,
-          date: b.date,
-          reason: 'invalid_timestamp',
-        });
-        continue;
-      }
-
-      const dStr = new Date(t).toISOString().slice(0, 10);
-      const existing = map.get(dStr);
-      const dow = computeDowFromDateString(dStr);
-
-      const merged: CompactBar = {
-        ...(existing ?? {} as CompactBar),
-        t,
-        d: dStr,
-        dow,
-        o: Number(b.open),
-        h: Number(b.high),
-        l: Number(b.low),
-        c: Number(b.close),
-        v: Number(b.volume),
-        ac: b.adjustedClose != null ? Number(b.adjustedClose) : (existing?.ac),
-        dv: b.dividendAmount != null ? Number(b.dividendAmount) : (existing?.dv),
-        sc: b.splitCoefficient != null ? Number(b.splitCoefficient) : (existing?.sc),
-        ic: existing?.ic ?? null,
-        ipc: existing?.ipc ?? null,
-        it: existing?.it ?? null,
-      } as CompactBar;
-
-      log.info(`weekly.merge.add_window_bar symbol=${symbol} year=${year} date=${dStr}`, {
-        symbol,
-        year,
-        date: dStr,
-        o: merged.o,
-        c: merged.c,
-        v: merged.v,
-      });
-      map.set(dStr, merged);
-    }
-
-    log.info(`weekly.merge.complete symbol=${symbol} year=${year} mapSize=${map.size}`, {
-      symbol,
-      year,
-      mapSize: map.size,
-    });
-
-    const mergedBars = Array.from(map.values());
-    if (mergedBars.length === 0) {
-      continue;
-    }
-
-    mergedBars.sort((a, b) => a.t - b.t);
-
-    const latestNonPlaceholder = [...mergedBars].reverse().find((bar) => {
-      const o = Number(bar.o || 0), h = Number(bar.h || 0), l = Number(bar.l || 0), c = Number(bar.c || 0), v = Number(bar.v || 0);
-      return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
-    }) ?? (mergedBars[mergedBars.length - 1] ?? null);
-    const latestUtcIso = latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString() : null;
-    const latestEtDateTime = latestNonPlaceholder?.t != null ? formatEtDateTime(latestNonPlaceholder.t) : null;
-
-    await ref.set({
-      bars: mergedBars,
-      count: mergedBars.length,
-      firstBarTs: mergedBars[0]?.t ?? null,
-      lastBarTs: mergedBars[mergedBars.length - 1]?.t ?? null,
-      latest: latestNonPlaceholder,
-      latestUtcIso,
-      latestEtDateTime,
-      updatedAt: Timestamp.now(),
-    }, { merge: true });
-
-    // Track latest date from the most recent year for top-level metadata bump.
-    if (year === latestYear && mergedBars.length > 0) {
-      const last = mergedBars[mergedBars.length - 1];
-      latestDateForMeta = typeof last.d === 'string' && last.d.length >= 10
-        ? last.d
-        : new Date(last.t).toISOString().slice(0, 10);
-    }
-  }
-
-  // --- Year-end rollover cleanup ---
-  // AV keys weekly bars by today's date, so a week straddling Dec 31 / Jan 1
-  // leaves an in-progress bar (e.g. 2025-12-31) in the prior year's shard.
-  // Once the new year's first run writes the completed bar (e.g. 2026-01-02),
-  // the old bar is orphaned. Detect and remove it here.
-  // Reason: We only check when the earliest incoming bar is in the first 7 days
-  // of January, because that's the only window where a cross-year orphan can exist.
-  const allIncomingDates = storageBars.map(b => b.date).sort();
-  const earliestIncoming = allIncomingDates[0];
-  const earliestMs = new Date(`${earliestIncoming}T00:00:00.000Z`).getTime();
-  const earliestDayOfYear = new Date(earliestMs).getUTCDate();
-  const earliestMonth = new Date(earliestMs).getUTCMonth(); // 0 = January
-
-  if (earliestMonth === 0 && earliestDayOfYear <= 7) {
-    const priorYear = latestYear - 1;
-    const priorYearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, priorYear, true);
-    const priorRef = db.doc(priorYearDocPath);
-    const priorSnap = await priorRef.get();
-
-    if (priorSnap.exists) {
-      const priorBars: CompactBar[] = (priorSnap.get('bars') ?? []) as CompactBar[];
-      if (priorBars.length > 0) {
-        // Find the last bar in the prior year shard.
-        const sorted = [...priorBars].sort((a, b) => a.t - b.t);
-        const lastPriorBar = sorted[sorted.length - 1];
-        const lastPriorDate = typeof lastPriorBar.d === 'string' && lastPriorBar.d.length >= 10
-          ? lastPriorBar.d.slice(0, 10)
-          : new Date(lastPriorBar.t).toISOString().slice(0, 10);
-        const lastPriorMs = new Date(`${lastPriorDate}T00:00:00.000Z`).getTime();
-
-        // If the last bar in the prior year shard is within 6 days before the
-        // earliest incoming bar, they belong to the same calendar week and the
-        // prior-year bar is an orphaned in-progress bar that should be removed.
-        const dayGap = (earliestMs - lastPriorMs) / (1000 * 60 * 60 * 24);
-        if (dayGap > 0 && dayGap <= 6) {
-          log.info(`weekly.merge.rollover_remove symbol=${symbol} priorYear=${priorYear} orphanDate=${lastPriorDate} replacedBy=${earliestIncoming} dayGap=${dayGap}`, {
-            symbol,
-            priorYear,
-            orphanDate: lastPriorDate,
-            replacedBy: earliestIncoming,
-            dayGap,
-          });
-
-          const cleaned = sorted.filter(bar => {
-            const d = typeof bar.d === 'string' && bar.d.length >= 10
-              ? bar.d.slice(0, 10)
-              : new Date(bar.t).toISOString().slice(0, 10);
-            return d !== lastPriorDate;
-          });
-
-          if (cleaned.length !== sorted.length) {
-            cleaned.sort((a, b) => a.t - b.t);
-            const priorLatest = [...cleaned].reverse().find((bar) => {
+            const latestNonPlaceholderPrior = [...priorBars].reverse().find((bar) => {
               const o = Number(bar.o || 0), h = Number(bar.h || 0), l = Number(bar.l || 0), c = Number(bar.c || 0), v = Number(bar.v || 0);
               return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
-            }) ?? (cleaned[cleaned.length - 1] ?? null);
+            }) ?? (priorBars[priorBars.length - 1] ?? null);
+            const latestUtcIsoPrior = latestNonPlaceholderPrior?.t != null ? new Date(latestNonPlaceholderPrior.t).toISOString() : null;
+            const latestEtDateTimePrior = latestNonPlaceholderPrior?.t != null ? formatEtDateTime(latestNonPlaceholderPrior.t) : null;
 
             await priorRef.set({
-              bars: cleaned,
-              count: cleaned.length,
-              firstBarTs: cleaned[0]?.t ?? null,
-              lastBarTs: cleaned[cleaned.length - 1]?.t ?? null,
-              latest: priorLatest,
-              latestUtcIso: priorLatest?.t != null ? new Date(priorLatest.t).toISOString() : null,
-              latestEtDateTime: priorLatest?.t != null ? formatEtDateTime(priorLatest.t) : null,
+              bars: priorBars,
+              count: priorBars.length,
+              firstBarTs: priorBars[0]?.t ?? null,
+              lastBarTs: priorBars[priorBars.length - 1]?.t ?? null,
+              latest: latestNonPlaceholderPrior,
+              latestUtcIso: latestUtcIsoPrior,
+              latestEtDateTime: latestEtDateTimePrior,
               updatedAt: Timestamp.now(),
             }, { merge: true });
-
-            log.info(`weekly.merge.rollover_rewrite symbol=${symbol} priorYear=${priorYear} barsRemaining=${cleaned.length}`, {
-              symbol,
-              priorYear,
-              barsRemaining: cleaned.length,
-            });
           }
         }
       }
     }
+
+    // We expect backfill to have populated history, but guard anyway.
+    const t = new Date(`${lastAvDate}T00:00:00.000Z`).getTime();
+    const newBar: CompactBar = {
+      t,
+      d: lastAvDate,
+      dow: computeDowFromDateString(lastAvDate),
+      o: Number(lastAv.open),
+      h: Number(lastAv.high),
+      l: Number(lastAv.low),
+      c: Number(lastAv.close),
+      v: Number(lastAv.volume),
+      ac: lastAv.adjustedClose != null ? Number(lastAv.adjustedClose) : undefined,
+      dv: lastAv.dividendAmount != null ? Number(lastAv.dividendAmount) : undefined,
+      sc: lastAv.splitCoefficient != null ? Number(lastAv.splitCoefficient) : undefined,
+      ic: null,
+      ipc: null,
+    };
+    existingBars.push(newBar);
+  } else {
+    const lastFs = existingBars[existingBars.length - 1];
+    const lastFsDate = typeof lastFs.d === 'string' && lastFs.d.length >= 10
+      ? lastFs.d.slice(0, 10)
+      : new Date(lastFs.t).toISOString().slice(0, 10);
+
+    const t = new Date(`${lastAvDate}T00:00:00.000Z`).getTime();
+    const newBar: CompactBar = {
+      t,
+      d: lastAvDate,
+      dow: computeDowFromDateString(lastAvDate),
+      o: Number(lastAv.open),
+      h: Number(lastAv.high),
+      l: Number(lastAv.low),
+      c: Number(lastAv.close),
+      v: Number(lastAv.volume),
+      ac: lastAv.adjustedClose != null ? Number(lastAv.adjustedClose) : undefined,
+      dv: lastAv.dividendAmount != null ? Number(lastAv.dividendAmount) : undefined,
+      sc: lastAv.splitCoefficient != null ? Number(lastAv.splitCoefficient) : undefined,
+      ic: null,
+      ipc: null,
+    };
+
+    if (sameWeek(lastFsDate, lastAvDate)) {
+      // Same calendar week: overwrite the latest bar with the new AV bar.
+      existingBars[existingBars.length - 1] = newBar;
+    } else {
+      // New week: append the new AV bar.
+      existingBars.push(newBar);
+    }
   }
+
+  existingBars.sort((a, b) => a.t - b.t);
+
+  const latestNonPlaceholder = [...existingBars].reverse().find((bar) => {
+    const o = Number(bar.o || 0), h = Number(bar.h || 0), l = Number(bar.l || 0), c = Number(bar.c || 0), v = Number(bar.v || 0);
+    return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
+  }) ?? (existingBars[existingBars.length - 1] ?? null);
+  const latestUtcIso = latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString() : null;
+  const latestEtDateTime = latestNonPlaceholder?.t != null ? formatEtDateTime(latestNonPlaceholder.t) : null;
+
+  await ref.set({
+    bars: existingBars,
+    count: existingBars.length,
+    firstBarTs: existingBars[0]?.t ?? null,
+    lastBarTs: existingBars[existingBars.length - 1]?.t ?? null,
+    latest: latestNonPlaceholder,
+    latestUtcIso,
+    latestEtDateTime,
+    updatedAt: Timestamp.now(),
+  }, { merge: true });
+
+  const latestDateForMeta = typeof latestNonPlaceholder?.d === 'string' && latestNonPlaceholder.d.length >= 10
+    ? latestNonPlaceholder.d
+    : (latestNonPlaceholder?.t != null ? new Date(latestNonPlaceholder.t).toISOString().slice(0, 10) : null);
 
   if (latestDateForMeta) {
     await bumpTimeSeriesTopLevelMetadata({

@@ -739,8 +739,18 @@ All rate limits, retry config, and memory settings are centralized in `job-confi
   - Stronger internal guarantees that **every symbol** for the RS universe is either refreshed or explicitly marked as permanent failure for the day.
   - Clear, queryable job state for operators and health dashboards.
   - Per-message `includeSymbols` / `excludeSymbols` so RS knows exactly which symbols to fetch for each A/B/C run.
-- Full backfills:
-  - Use the same worker & AV handlers, but run in a separate namespace (`backfill-runs/*`).
-  - Are invisible to RS in terms of cadence; RS simply sees corrected history via `partnerTimeSeriesV2` after backfills complete.
+- **WEEKLY/MONTHLY POST validation**:
+- For W/M jobs:
+-  - The worker still trusts AV's latest WEEKLY/MONTHLY series for values, but the **storage layer** now enforces an additional invariant for WEEKLY_ADJUSTED:
+     - Weekly SA data is stored under `symbol-data/{symbol}/sa-time-series/av-weekly-adjusted/years/{YYYY}`.
+     - The helper `mergeWeeklyCompactWindowIntoShards` takes the compact AV window, sorts by date, and considers only the **latest** AV weekly bar when merging.
+     - It compares this latest AV bar to the **latest existing bar** in the corresponding year shard.
+       - If both dates fall in the same Monday-based calendar week, the existing bar is **overwritten** with a new bar derived solely from the AV data.
+       - If they are in different weeks, the new AV bar is **appended** as an additional bar.
+     - When writing the first bar into a new year shard, `mergeWeeklyCompactWindowIntoShards` also looks at the **last bar in the prior-year shard**. If that prior-year bar belongs to the same calendar week as the new AV bar, it is removed so that the week is represented **only once** (in the new year shard).
+     - This guarantees that there is **at most one SA weekly bar per calendar week** across all years for a symbol, while still trusting AV for the bar contents.
+-  - Validation ensures that, over time, each symbol accumulates the expected WEEKLY/MONTHLY coverage; missing-period issues are surfaced there.
+-  - **Note**: `upsertAvWeeklyBar` is deprecated and should not be used; `mergeWeeklyCompactWindowIntoShards` is the recommended approach for handling weekly data.
+ backfills complete.
 
 > For the full RS contract (payloads, filters, quick start), see `docs/partner/rs-partner-integration.md`.

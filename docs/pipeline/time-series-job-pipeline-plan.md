@@ -619,11 +619,14 @@ For **DAILY POST** and **WEEKLY/MONTHLY POST**, we run validation passes over al
     - Re-runs validation after remediation; only then marks the date as finalized.
 
 - **WEEKLY/MONTHLY POST validation**:
-  - Confirms each symbol has at least one non-empty WEEKLY/MONTHLY series entry that is **at or after** the expected period for `marketDate`.
-    - We trust AV's bars and do **not** attempt strict period-end date matching for the latest bar.
-    - The key is: the series is present and non-empty; we rely on AV to provide a correct in-progress bar that will eventually become the final period bar.
-  - For symbols missing W/M series when they should exist:
-    - Re-queue only those jobs for another attempt.
+- For WEEKLY_ADJUSTED specifically, the storage helpers now enforce a **strong one-bar-per-week invariant**:
+  - Weekly SA data for a symbol is stored in year-sharded docs under `symbol-data/{symbol}/sa-time-series/av-weekly-adjusted/years/{YYYY}`.
+  - The merge helper `mergeWeeklyCompactWindowIntoShards` processes the compact AV window by taking only the **latest** AV weekly bar and comparing it with the **latest** Firestore bar in the corresponding year shard.
+  - If the existing latest bar is in the **same Monday-based calendar week** as the latest AV bar, it is **overwritten**; otherwise, the AV bar is **appended**.
+  - When writing the **first** bar into a new year shard, the helper also checks the **last bar in the prior-year shard**. If that prior-year bar is in the same calendar week as the new AV bar, it is dropped so that the week is represented **only once** (by the bar in the new year shard).
+  - This guarantees at most **one bar per calendar week** globally for the weekly adjusted series while still trusting AV for the actual weekly values.
+- For symbols missing WEEKLY or MONTHLY series when they should exist:
+  - Re-queue only those jobs for another attempt.
 
 **Handling AV delayed availability:**
 
