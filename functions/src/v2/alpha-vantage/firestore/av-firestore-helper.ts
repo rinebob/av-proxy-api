@@ -25,6 +25,14 @@ import { createLogger } from '../../utils/utils';
 
 const log = createLogger('av.ts'); // Abbrev: aFH sATSD
 
+function formatPtDateTime(ts: Timestamp): string {
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'America/Los_Angeles',
+  }).format(ts.toDate());
+}
+
 /**
  * Saves Alpha Vantage STANDARD (non-time-series) data to Firestore and logs refresh event using RefreshLoggerService.
  * @param data - The data to save
@@ -56,8 +64,29 @@ export async function saveAvData(
     }
     const docPath = firestorePath.replace('{symbol}', symbol);
 
-    // 2. Proceed with Firestore write and refresh event logging
-    await db.doc(docPath).set({ data }, { merge: true });
+    // 2. Prepare common metadata fields for non-time-series AV endpoints
+    const nowTs = Timestamp.now();
+    const nextTs = Timestamp.fromDate(new Date(Date.now() + ttl * 1000));
+
+    const updateData: Record<string, any> = {
+      // Standard payload container
+      data,
+      metadata: {
+        lastUpdated: nowTs,
+        lastUpdatedHr: formatPtDateTime(nowTs),
+        nextUpdate: nextTs,
+        nextUpdateHr: formatPtDateTime(nextTs),
+        // Remove legacy fields that may exist from older schemas
+        nextRefreshAt: FieldValue.delete(),
+        ttlSeconds: ttl,
+        vendor: ApiProvider.ALPHA_VANTAGE,
+        endpoint,
+        symbol,
+      },
+    };
+
+    // 3. Proceed with Firestore write and refresh event logging
+    await db.doc(docPath).set(updateData, { merge: true });
 
     // 4. Log refresh event using RefreshLoggerService
     const refreshLogger = new RefreshLoggerService();

@@ -4,7 +4,7 @@
 // =======================================
 
 import { db } from '../../../firebase-admin-init';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getFunctions } from 'firebase-admin/functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
@@ -321,17 +321,9 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
       let needsRefresh = false;
       eStats.checked++;
 
-      // Check if we need to refresh this symbol
-      if (isTimeSeriesEndpoint(endpoint)) {
-        needsRefresh = true;
-        log.info('refresh.decision', { 
-          endpointId: endpoint, 
-          endpointName, 
-          symbol, 
-          refresh: 'yes', 
-          reason: 'time_series_endpoint_always_refresh' 
-        });
-      } else if (!docSnap.exists) {
+      // Check if we need to refresh this symbol (non-time-series endpoints only).
+      // Time-series endpoints are already skipped earlier in the loop.
+      if (!docSnap.exists) {
         log.info('refresh.decision', { 
           endpointId: endpoint, 
           endpointName, 
@@ -342,28 +334,22 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
         needsRefresh = true;
         staleCount++;
       } else {
-        // For non-time-series endpoints, log the current state but don't refresh by default
+        // For non-time-series endpoints, always refresh on each scheduled run.
         const metadata = docSnap.data()?.metadata;
         const lastUpdated = metadata?.lastUpdated;
         const lastUpdatedDate = lastUpdated?.toDate ? lastUpdated.toDate() : null;
-        
+
         log.info('refresh.decision', { 
           endpointId: endpoint, 
           endpointName, 
           symbol, 
-          refresh: 'no', 
-          reason: 'ttl_refresh_disabled',
+          refresh: 'yes', 
+          reason: 'non_time_series_always_refresh',
           lastUpdated: lastUpdatedDate?.toISOString()
         });
-        
-        needsRefresh = false;
+
+        needsRefresh = true;
         freshCount++;
-        
-        // Only refresh if explicitly forced
-        if (force) {
-          log.info('refresh.forced', { endpointId: endpoint, endpointName, symbol });
-          needsRefresh = true;
-        }
       }
 
       if (!needsRefresh) {
@@ -424,11 +410,29 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
           await healthMetricsService.recordSymbolRefresh(endpoint as any, symbol, RefreshStatus.SUCCESS, durationMs, undefined, { trigger: RefreshTrigger.AV_REFRESH_MANAGER });
         } else {
           // Standard endpoints: write data + metadata and log history
+          const nowDateMs = Date.now();
+          const nextTs = Timestamp.fromDate(new Date(nowDateMs + ttl * 1000));
+
+          const lastUpdatedHr = new Intl.DateTimeFormat('en-US', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: 'America/Los_Angeles',
+          }).format(now.toDate());
+          const nextUpdateHr = new Intl.DateTimeFormat('en-US', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: 'America/Los_Angeles',
+          }).format(nextTs.toDate());
+
           const updateData = {
             data,
             metadata: {
               lastUpdated: now,
-              nextRefreshAt: Timestamp.fromDate(new Date(Date.now() + ttl * 1000)),
+              lastUpdatedHr,
+              nextUpdate: nextTs,
+              nextUpdateHr,
+              // Remove legacy field from older schema so metadata is not confusing
+              nextRefreshAt: FieldValue.delete(),
               ttlSeconds: ttl,
               vendor: ApiProvider.ALPHA_VANTAGE,
               endpoint: endpointName,
