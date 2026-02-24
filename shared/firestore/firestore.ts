@@ -69,6 +69,7 @@ export enum FirestoreCollection {
     BALANCE_SHEET = 'balance-sheet',
     CASH_FLOW = 'cash-flow',
     EARNINGS = 'earnings',
+    EARNINGS_ESTIMATES = 'earnings-estimates',
     LISTING_DELISTING_STATUS = 'listing-delisting-status',
     EARNINGS_CALENDAR = 'earnings-calendar',
     IPO_CALENDAR = 'ipo-calendar',

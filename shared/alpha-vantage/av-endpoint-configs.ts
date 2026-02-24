@@ -78,7 +78,8 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     },
   },
   
-  // Fundamental Data
+  // Fundamental Data 
+  // Company overview
   [AlphaVantageEndpoint.OVERVIEW]: {
     id: AlphaVantageEndpoint.OVERVIEW,
     name: 'Company Overview',
@@ -100,6 +101,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     },
   },
   
+  // earnings history
   [AlphaVantageEndpoint.EARNINGS]: {
     id: AlphaVantageEndpoint.EARNINGS,
     name: 'Earnings',
@@ -108,10 +110,54 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly earnings (EPS) for the company of interest.',
-    ttl: 7 * 24 * 60 * 60, // 1 week
+    ttl: 30 * 24 * 60 * 60, // 30 days
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/av-${FirestoreCollection.EARNINGS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#earnings',
+    parameters: {
+      symbol: {
+        type: 'string',
+        required: true,
+        description: 'The name of the equity of your choice. For example: symbol=IBM',
+      },
+    },
+  },
+
+  // ETF profile & holdings
+  [AlphaVantageEndpoint.ETF_PROFILE]: {
+    id: AlphaVantageEndpoint.ETF_PROFILE,
+    name: 'ETF Profile & Holdings',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.FUNDAMENTAL_DATA,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Key ETF metrics (net assets, expense ratio, turnover) and full ETF holdings/constituents.',
+    ttl: 30 * 24 * 60 * 60, // 30 days
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.ETF_PROFILE_HOLDINGS}/av-${FirestoreCollection.ETF_PROFILE_HOLDINGS}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/',
+    parameters: {
+      symbol: {
+        type: 'string',
+        required: true,
+        description: 'The symbol of the ETF of your choice. For example: symbol=QQQ',
+      },
+    },
+  },
+
+  // Earnings estimates
+  [AlphaVantageEndpoint.EARNINGS_ESTIMATES]: {
+    id: AlphaVantageEndpoint.EARNINGS_ESTIMATES,
+    name: 'Earnings Estimates',
+    provider: ApiProvider.ALPHA_VANTAGE,
+    category: AvEndpointCategory.FUNDAMENTAL_DATA,
+    apiEndpoint: '/query',
+    method: HttpMethod.GET,
+    description: 'Annual and quarterly EPS and revenue estimates, with analyst count and revision history.',
+    ttl: 7 * 24 * 60 * 60, // 7 days
+    symbolUsage: EndpointSymbolUsage.REQUIRED,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS_ESTIMATES}/av-${FirestoreCollection.EARNINGS_ESTIMATES}`,
+    documentationUrl: 'https://www.alphavantage.co/documentation/',
     parameters: {
       symbol: {
         type: 'string',
