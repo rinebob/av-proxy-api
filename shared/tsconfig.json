@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
-    "module": "NodeNext",
+    "module": "commonjs",
     "target": "es2020",
     "declaration": true,
     "outDir": "lib",
     "rootDir": ".",
     "esModuleInterop": true,
     "strict": true,
-    "moduleResolution": "nodenext",
+    "moduleResolution": "node",
     "lib": ["es2020"]
   },
   "include": ["**/*"],

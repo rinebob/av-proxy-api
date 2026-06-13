@@ -116,5 +116,11 @@ $env:SYMBOL_RETRY_BASE_MS="30000"; `
 npx ts-node -r tsconfig-paths/register ./scripts/backfill-av-daily-adjusted.ts
 
 
+Invoke-WebRequest -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantageDataV2Http" -UseBasicParsing | Select-Object -ExpandProperty Content | ConvertFrom-Json
+Invoke-WebRequest -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantageDataV2Http" -UseBasicParsing | Select-Object -ExpandProperty Content | ConvertFrom-Json
+Invoke-WebRequest -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantageDataV2Http" -UseBasicParsing | Select-Object -ExpandProperty Content | ConvertFrom-Json
 
+
+with force
+Invoke-WebRequest -Uri "http://localhost:5001/alpha-vantage-proxy-api/us-central1/refreshAlphaVantageDataV2Http?force=true" -UseBasicParsing | Select-Object -ExpandProperty Content | ConvertFrom-Json
 
