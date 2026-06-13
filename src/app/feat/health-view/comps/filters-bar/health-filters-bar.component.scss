@@ -24,6 +24,7 @@
     align-items: center;
     gap: 1rem; /* 1rem spacing between range buttons */
     margin-bottom: 0; /* now inline with date fields */
+  }
   // Per-component dense form-field using Material density API
   .dense-field {
     // Normalize container height across all fields (selects and date inputs)
