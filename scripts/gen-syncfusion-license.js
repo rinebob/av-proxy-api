@@ -4,7 +4,7 @@ const path = require('path');
 // Try to read .env file if it exists
 try {
   const dotenv = require('dotenv');
-  dotenv.config();
+  dotenv.config({ quiet: true });
 } catch (e) {
   // dotenv might not be available or needed if env vars are set otherwise
 }
