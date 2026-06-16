@@ -139,7 +139,7 @@ async function publishIntradayPdr(options: {
   };
 
   await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, {
-    runType: PartnerRunType.TS_DAILY_PRE,
+    runType: PartnerRunType.INTRADAY_SNAPSHOT,
     clockEt,
     successes: String(successJobs),
     permanentFailures: String(permanentFailureJobs),

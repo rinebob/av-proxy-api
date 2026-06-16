@@ -30,6 +30,7 @@ export enum PartnerPhase {
  * - ts-daily-post
  * - ts-weekly-post
  * - ts-monthly-post
+ * - intraday-snapshot
  */
 export enum PartnerRunType {
   NON_TIME_SERIES = 'non-time-series',
@@ -43,6 +44,12 @@ export enum PartnerRunType {
    * MONTHLY intervals for a given marketDate.
    */
   TS_POST_ALL_INTERVALS = 'ts-post-all-intervals',
+  /**
+   * INTRADAY_SNAPSHOT represents hourly intraday snapshot runs
+   * that provide fresh ip/ipc/io/it/ic data for consumption by
+   * partner systems (e.g., RS intraday data feed).
+   */
+  INTRADAY_SNAPSHOT = 'intraday-snapshot',
 }
 
 /**
