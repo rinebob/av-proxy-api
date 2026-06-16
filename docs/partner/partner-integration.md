@@ -4,7 +4,7 @@ This guide explains how Savant partner backends should call the Partner Time Ser
 
 > Read order: Start with `docs/partner/partner-discovery.md` for concepts, data shapes, and auth. Then use this integration guide for step-by-step setup and request examples. For details on how time-series data is refreshed and monitored internally (jobs, retries, validation, audits), see `docs/pipeline/time-series-job-pipeline-plan.md`.
 
-> Note: This document targets the Partner Time Series endpoint only. As additional partner endpoints are introduced, we will publish separate guides or expand this document with dedicated sections.
+> Note: This document covers the Partner Time Series endpoint (`partnerTimeSeriesV2`) and the Partner Intraday Snapshot endpoint (`partnerIntradaySnapshotV2`). As additional partner endpoints are introduced, we will expand this document with dedicated sections.
 
 ## Operational Checklist (Quick Start)
 - Remove `allUsers` invoker on Cloud Run; require authentication
@@ -211,6 +211,84 @@ Notes:
 - `ch`/`cp` are derived day-over-day change metrics; `ic`/`ipc` are intraday change metrics present on pre-close snapshots.
 - Ascending time order. Missing days (holidays) are naturally absent.
 - `availableYears` mirrors our year-sharded storage for non-intraday intervals.
+
+## 5.5) Partner Intraday Snapshot API (Bulk)
+
+For fetching latest intraday price snapshots across multiple symbols efficiently.
+
+### Request
+```bash
+POST /partnerIntradaySnapshotV2
+Authorization: Bearer <id_token>
+Content-Type: application/json
+
+{
+  "symbols": ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
+}
+```
+
+- `symbols` (required): Array of ticker symbols, max 1000 per request
+
+### Response
+```json
+{
+  "ok": true,
+  "marketDate": "2026-06-15",
+  "count": 5,
+  "snapshots": [
+    {
+      "symbol": "AAPL",
+      "ip": 225.50,
+      "ipc": 1.25,
+      "io": 1757892000000,
+      "it": "10:30",
+      "ic": 2.78
+    }
+  ],
+  "timestamp": "2026-06-15T14:30:00.000Z",
+  "processingTimeMs": 45
+}
+```
+
+### Field reference
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ip` | number | Intraday price (mark price from latest 1-min bar) |
+| `ipc` | number | Intraday percent change vs previous close |
+| `io` | number | Intraday observed at — epoch millis |
+| `it` | string | Intraday time — `HH:mm` ET |
+| `ic` | number | Intraday change — dollars |
+
+### Data freshness
+- Snapshots are captured by our intraday pipeline (hourly during market hours, 7am-12pm PT)
+- Data is read from Firestore, not fetched live from AV per request
+- Expect 0-60 minute staleness depending on last hourly run
+
+### Behavior
+- Missing/uninitialized symbols are omitted (not errors)
+- Returns `count: 0` with `ok: true` if no snapshots found
+- 400 returned only for malformed requests (empty body, invalid JSON, non-array symbols)
+
+### Node.js example
+```ts
+import { GoogleAuth } from 'google-auth-library';
+
+async function fetchIntradaySnapshots(symbols: string[]) {
+  const audience = 'https://partnerintradaysnapshotv2-<hash>-uc.a.run.app';
+  const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+  const client = await auth.getIdTokenClient(audience);
+
+  const resp = await client.request({
+    url: audience,
+    method: 'POST',
+    data: { symbols },
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  return resp.data;
+}
+```
 
 ## 6) Troubleshooting
 - 401/403 errors:

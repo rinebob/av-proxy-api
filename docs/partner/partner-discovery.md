@@ -214,6 +214,80 @@ Authorization: Bearer <id_token>
 
 ---
 
+## Partner Intraday Snapshot API
+
+- HTTPS method: POST
+- URL: Provided during onboarding (e.g., `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerIntradaySnapshotV2`)
+- Purpose: Fetch latest intraday price snapshot (`ip`, `ipc`, `io`, `it`, `ic`) for multiple symbols in a single request
+
+### Request body
+```json
+{
+  "symbols": ["AAPL", "MSFT", "GOOGL"]
+}
+```
+
+- `symbols` (required) — Array of ticker symbols, max 1000 per request
+
+### Response shape
+```json
+{
+  "ok": true,
+  "marketDate": "2026-06-15",
+  "count": 3,
+  "snapshots": [
+    {
+      "symbol": "AAPL",
+      "ip": 225.50,
+      "ipc": 1.25,
+      "io": 1757892000000,
+      "it": "10:30",
+      "ic": 2.78
+    },
+    {
+      "symbol": "MSFT",
+      "ip": 442.10,
+      "ipc": -0.45,
+      "io": 1757891985000,
+      "it": "10:29",
+      "ic": -2.00
+    },
+    {
+      "symbol": "GOOGL",
+      "ip": 178.25,
+      "ipc": 0.85,
+      "io": 1757892012000,
+      "it": "10:30",
+      "ic": 1.50
+    }
+  ],
+  "timestamp": "2026-06-15T14:30:00.000Z",
+  "processingTimeMs": 45
+}
+```
+
+### Field reference
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ip` | number | Intraday price (mark price) — latest 1-min bar close |
+| `ipc` | number | Intraday percent change vs previous close |
+| `io` | number | Intraday observed at — epoch millis when snapshot was taken |
+| `it` | string | Intraday time — `HH:mm` in ET derived from `io` |
+| `ic` | number | Intraday change — `ip - previousClose` |
+
+### Data freshness
+- Snapshots are captured from our existing intraday snapshot pipeline (runs hourly 7am-12pm PT during market hours)
+- Data is read from Firestore, not fetched live from Alpha Vantage on each request
+- Typical latency: snapshots are 0-60 minutes old depending on when last hourly run completed
+
+### Limits
+- Max 1000 symbols per request
+- Returns partial results: missing symbols are omitted from `snapshots` array (not errors)
+- 404 returned only if request is malformed; empty result returns `count: 0` with `ok: true`
+
+---
+
 ## Data Schema (internal reference)
 
 We normalize upstream data into a sharded Firestore schema to support high-volume writes and efficient reads.

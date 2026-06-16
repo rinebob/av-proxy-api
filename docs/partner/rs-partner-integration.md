@@ -312,7 +312,8 @@ Symbols that become FRESH during a B/C run are recorded in `retrySuccessSymbols`
 ## 7) Endpoints & Auth (Pointers)
 
 - HTTPS endpoints:
-  - Time series: `partnerTimeSeriesV2` (GET)
+  - Time series: `partnerTimeSeriesV2` (GET) — historical OHLCV bars
+  - Intraday snapshot: `partnerIntradaySnapshotV2` (POST) — bulk latest price snapshots (`ip`, `ipc`, `io`, `it`, `ic`)
   - Tracked symbols: `partnerListTrackedSymbolsV2` (GET)
 - Auth: Google OIDC ID token (SA allowlisted, `aud` set to function URL, include email)
 
@@ -330,6 +331,50 @@ See:
 4. On receiving a **B/C-run** END message: fetch only the symbols listed in `includeSymbols` (if present). These are symbols that became fresh in this retry pass.
 5. For core correctness, RS can treat the **C-run END messages** as the canonical "universe ready" signals and treat earlier A/B messages as optional early/partial signals.
 6. Ignore messages where `trigger === "manual"` or where the `runId` contains `MANUAL`.
+
+### Intraday Snapshot Quick Start
+
+1. Subscribe to `partner-data-ready` with filter `attributes.runType = "intraday-snapshot"`.
+2. Expect **up to 6 messages per trading day** (hourly 7am-12pm PT), only when market is open.
+3. On each message: call `partnerIntradaySnapshotV2` with your symbol list to get fresh `ip`, `ipc`, `io`, `it`, `ic` data.
+4. Intraday messages are independent of time-series POST messages above.
+
+---
+
+## 9.5) Intraday Snapshot PDR Messages
+
+For intraday price snapshot data (the `partnerIntradaySnapshotV2` endpoint), a separate PDR stream signals when fresh snapshots are available.
+
+- **Topic:** `partner-data-ready` (same topic, different `runType`)
+- **runType attribute:** `intraday-snapshot`
+- **Schedule:** Hourly during market hours (7am-12pm PT), only when market is open
+- **Payload:**
+
+  ```json
+  {
+    "version": "v1",
+    "runId": "2026-06-15-MON-INTRADAY-1000",
+    "marketDate": "2026-06-15",
+    "phase": "intraday",
+    "intervals": ["INTRADAY"],
+    "time": 1757892000000,
+    "status": "end",
+    "runStatus": "completed",
+    "env": "prod",
+    "trigger": "scheduled"
+  }
+  ```
+
+- **Semantics:**
+  - One message per hourly intraday run completion
+  - `runId` format: `YYYY-MM-DD-DOW-INTRADAY-HHMM`
+  - No `includeSymbols`/`excludeSymbols` — the message signals the entire tracked universe has been processed (or attempted)
+  - On receiving this message, call `partnerIntradaySnapshotV2` with the symbols you need
+
+**Subscription filter:**
+```
+attributes.runType = "intraday-snapshot"
+```
 
 ---
 
@@ -364,11 +409,15 @@ Suggested usage for RS:
 
 ## 10) Troubleshooting
 
-- Ensure subscription filter matches exact `runType` (`ts-post-all-intervals`).
-- Expect **multiple END messages per trading day** — up to one per interval per A/B/C sequence. There are no BEGIN messages in the new pipeline.
+- Ensure subscription filter matches exact `runType` (`ts-post-all-intervals` or `intraday-snapshot`).
+- Expect **multiple END messages per trading day**:
+  - Time-series: up to one per interval per A/B/C sequence
+  - Intraday: up to 6 hourly messages (7am-12pm PT) on trading days
+- There are no BEGIN messages in the new pipeline.
 - Use `marketDate` to key per-day logic. Use `runId` to deduplicate.
 - If a B/C run has no retry symbols, it completes immediately with `createdJobs=0` and **no PDR message is emitted**.
-- Check `realtime-runs/{runId}` in Firestore for run-level diagnostics including `partnerDataReady`, `retrySymbols`, `permanentFailureSymbols`, and `nonSuccessJobs`.
+- Intraday runs always emit PDR when complete (even with partial failures) since snapshots are best-effort.
+- Check `realtime-runs/{runId}` and `intraday-runs/{runId}` in Firestore for run-level diagnostics.
 
 ---
 
@@ -382,13 +431,24 @@ Suggested usage for RS:
 - Symbol universe:
   - `partnerListTrackedSymbolsV2` (GET): `?activeOnly=true&limit=500`
 
-- Example (curl):
+- Example (curl) — Time Series:
   ```bash
   HOST="https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net"
   URL_TS="${HOST}/partnerTimeSeriesV2"
   TOKEN_TS="$(gcloud auth print-identity-token --audiences="${URL_TS}" --include-email)"
   curl -s -H "Authorization: Bearer ${TOKEN_TS}" \
     "${URL_TS}?symbol=AAPL&interval=DAILY&range=1y"
+  ```
+
+- Example (curl) — Intraday Snapshot (bulk):
+  ```bash
+  HOST="https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net"
+  URL_IS="${HOST}/partnerIntradaySnapshotV2"
+  TOKEN_IS="$(gcloud auth print-identity-token --audiences="${URL_IS}" --include-email)"
+  curl -s -X POST -H "Authorization: Bearer ${TOKEN_IS}" \
+    -H "Content-Type: application/json" \
+    -d '{"symbols":["AAPL","MSFT","GOOGL"]}' \
+    "${URL_IS}"
   ```
 
 - Idempotency & checkpointing:
