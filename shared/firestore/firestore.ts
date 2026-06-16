@@ -21,6 +21,9 @@ export enum FirestoreCollection {
 
     // Realtime time-series runs (canonical realtime POST pipeline)
     REALTIME_RUNS = 'realtime-runs',
+
+    // Intraday snapshot runs (hourly PRE pipeline)
+    INTRADAY_RUNS = 'intraday-runs',
     
     YEARS = 'years',
 

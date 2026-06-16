@@ -12,4 +12,7 @@ export enum CloudTask {
   // Background worker that performs a full time-series backfill enqueue
   // for all requested intervals. The queue name matches the function id.
   FULL_BACKFILL_RUN = 'processFullBackfillRunTask',
+  // Intraday snapshot worker: processes a single symbol's PRE-phase snapshot.
+  // Queue name matches the exported function id.
+  INTRADAY_SNAPSHOT_JOB = 'processIntradaySnapshotJobTask',
 }

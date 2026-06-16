@@ -71,6 +71,7 @@ const ALLOWED_INTERVALS: TimeSeriesInterval[] = [
   TimeSeriesInterval.DAILY,
   TimeSeriesInterval.WEEKLY,
   TimeSeriesInterval.MONTHLY,
+  TimeSeriesInterval.INTRADAY,
 ];
 
 export function validateDataReadyPayload(input: unknown): ValidationResult<DataReadyPayloadV1> {

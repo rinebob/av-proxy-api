@@ -30,6 +30,16 @@ export const MAX_NON_SUCCESS_JOBS_IN_RUN_DOC = 50;
 export const MAX_RUN_DURATION_MS = 60 * 60 * 1000; // 60 minutes
 
 /**
+ * Maximum run duration for intraday snapshot runs.
+ *
+ * Intraday runs drain faster than POST runs (~13 min at 1.0/sec for 760
+ * symbols), so the reconcile window is kept tight. Do NOT use
+ * MAX_RUN_DURATION_MS for intraday — it would delay PDR notifications
+ * by up to an hour.
+ */
+export const INTRADAY_MAX_RUN_DURATION_MS = 20 * 60 * 1000; // 20 minutes
+
+/**
  * Rate limits for Cloud Tasks queue.
  */
 export const CLOUD_TASKS_RATE_LIMITS = {
