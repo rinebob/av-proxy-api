@@ -70,6 +70,7 @@ Read in this order for partner onboarding:
 | `operations/internal-gateway-admin.md` | Browser-facing gateway admin: Origin allowlist, IAM guidance (keep `allUsers`), health metrics endpoints, change management runbook. |
 | `operations/local-emulator-workflow.md` | Local development: Firebase emulator setup, HTTP triggers, env config, maintenance scripts on emulator. |
 | `operations/backend-functions-overview.md` | Mid-high level overview of all backend Cloud Functions: directory structure, invocation types, scheduled jobs, data flow. |
+| `operations/gcloud-deploy-workflow.md` | How to deploy Cloud Functions via `gcloud` when `firebase deploy` is blocked by network-level `ECONNRESET` errors. Covers `.gcloudignore` fix, build step, per-function deploy commands, and troubleshooting. |
 
 ---
 
