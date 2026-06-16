@@ -78,15 +78,6 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
   // Fixed delay to spread AV calls and make executions visible
   await new Promise((resolve) => setTimeout(resolve, JOB_EXECUTION_DELAY_MS));
 
-  // SAFETY BELT: While the job pipeline is under active development,
-  // gate execution behind an explicit feature flag in non-emulator
-  // environments. This prevents accidental prod activation until
-  // TS_TIME_SERIES_TASKS_ENABLED is deliberately set.
-  const tasksEnabled = String(process.env.TS_TIME_SERIES_TASKS_ENABLED || '').toLowerCase() === 'true';
-  if (!tasksEnabled && process.env.FUNCTIONS_EMULATOR !== 'true') {
-    return;
-  }
-
   const { marketDate, symbol, endpoint, phase, jobType, runId, deadlineRun } = payload;
 
   const interval: TimeSeriesInterval =

@@ -24,8 +24,6 @@ import type { DataReadyPayloadV1 } from '../../partner/schemas/data-ready.schema
 import { INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPhase, PartnerRunType, PartnerRunStatus, PartnerPublishStatus } from '../../partner/constants';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 import { TIME_SERIES_BASELINE_ETFS } from '../data/ts-master-order';
-import { parseAvEtTimestampMs } from '../../alpha-vantage/utils/date-utils';
-import { upsertAvDailyBar } from '../../alpha-vantage/firestore/av-firestore-helper';
 import { TradingPhase } from '@shared/health-metrics';
 import { runDailyValidation } from '../../partner/daily-validation.service';
 import { TimeSeriesJobStatus } from '../jobs/time-series-jobs.model';
@@ -592,82 +590,23 @@ export const refreshAlphaVantageDataV2 = onSchedule(
  * - Bars are stored in CompactBar shape under sharded docs (DAILY/WEEKLY by year; MONTHLY single 'all')
  */
 
-// Intraday 1-min snapshot at 16:15 ET capturing the 16:00:00 ET RTH close
+/**
+ * @deprecated Superseded by the Cloud Tasks-backed intraday snapshot pipeline.
+ *
+ * The hourly `refreshAvDailyTimeSeriesIntradayHourly` scheduler (10am–3pm ET)
+ * enqueues one `processIntradaySnapshotJobTask` per tracked symbol, replacing
+ * this serial loop. This export is intentionally kept as a no-op so that any
+ * existing Cloud Scheduler job continues to exist without error until it is
+ * manually deleted from GCP.
+ */
 export const refreshAvIntradayRthClose1615Pre = onSchedule({
   schedule: TS_INTRADAY_RTH_CLOSE_1615,
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  const tz = 'America/New_York';
-  const now = new Date();
-  const marketDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-  const hhmm = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now).replace(':', '');
-  const runId = `${marketDate}-${hhmm}-${PartnerPhase.PRE}`;
-
-  const symbolsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).get();
-  const symbols = symbolsSnap.docs.map(d => d.id);
-
-  let successes = 0;
-  let failures = 0;
-
-  for (const symbol of symbols) {
-    try {
-      const handler: any = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.TIME_SERIES_INTRADAY);
-      const resp = await handler.fetch({ symbol, interval: '1min' });
-      const raw = resp?.data;
-      const series: Record<string, any> | undefined = raw && (raw['Time Series (1min)'] as any);
-      if (!series || typeof series !== 'object') throw new Error('No intraday series (1min)');
-
-      const entries = Object.entries(series) as Array<[string, any]>;
-      const etBars = entries.map(([ts, v]) => {
-        const msEt = parseAvEtTimestampMs(ts);
-        const dateEt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(msEt));
-        const timeEt = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(msEt));
-        return { ts, msEt, dateEt, timeEt, v };
-      }).filter(b => b.dateEt === marketDate);
-
-      const closeBar = etBars.find(b => b.timeEt === '16:00:00');
-      if (!closeBar) throw new Error('16:00:00 ET bar not found');
-
-      const o = Number(closeBar.v['1. open'] ?? 0);
-      const h = Number(closeBar.v['2. high'] ?? 0);
-      const l = Number(closeBar.v['3. low'] ?? 0);
-      const c = Number(closeBar.v['4. close'] ?? 0);
-      const v = Number(closeBar.v['5. volume'] ?? 0);
-
-      await upsertAvDailyBar({
-        symbol,
-        date: marketDate,
-        patch: { o, h, l, c, v, io: Date.now() },
-        skipParentMetaBump: true,
-      });
-
-      successes++;
-      log.info('pre1615.persist.ok', { symbol, marketDate, o, h, l, c, v });
-    } catch (e: any) {
-      failures++;
-      log.error('pre1615.persist.err', { symbol, marketDate, error: String(e?.message || e) });
-    }
-  }
-
-  const endRunStatus = failures > 0 ? PartnerRunStatus.COMPLETED_WITH_ERRORS : PartnerRunStatus.COMPLETED;
-  await enqueueDataReadyInternal({
-    version: 'v1',
-    runId,
-    phase: PartnerPhase.PRE,
-    intervals: [TimeSeriesInterval.DAILY],
-    time: Date.now(),
-    marketDate,
-    env: (process.env.NODE_ENV || 'dev') as string,
-    status: PartnerPublishStatus.END,
-    runStatus: endRunStatus,
-  }, undefined, {
-    runType: PartnerRunType.TS_DAILY_PRE,
-    successes: String(successes),
-    failures: String(failures),
+  log.info('pre1615.deprecated.noop', {
+    message: 'refreshAvIntradayRthClose1615Pre is deprecated. Intraday snapshots are now handled by refreshAvDailyTimeSeriesIntradayHourly + processIntradaySnapshotJobTask.',
   });
-
-  log.info('pre1615.publish.end', { runId, marketDate, successes, failures });
 });
 
 export async function refreshForEndpoints(
@@ -1095,11 +1034,7 @@ export async function refreshForEndpoints(
                 updatedJob = true;
               });
 
-              // Enqueue Cloud Task only when the explicit feature flag is
-              // enabled. This allows us to turn task-based processing on
-              // per-environment without impacting legacy behavior.
-              const tasksEnabled = String(process.env.TS_TIME_SERIES_TASKS_ENABLED || '').toLowerCase() === 'true';
-              if (shouldEnqueueTask && tasksEnabled) {
+              if (shouldEnqueueTask) {
                 try {
                   const queue = getFunctions().taskQueue(CloudTask.TIME_SERIES_JOB);
                   await queue.enqueue({

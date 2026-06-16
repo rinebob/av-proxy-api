@@ -47,7 +47,6 @@ export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-
 // - refreshAvDailyTimeSeriesPostMorning0630
 export {
   refreshAvDailyTimeSeriesIntradayHourly,
-  refreshAvDailyTimeSeriesPreClose,
   refreshAvDailyTimeSeriesPostClose,
   refreshAvTimeSeriesPostAllIntervals,
   refreshAvWeeklyTimeSeriesPostClose,
@@ -56,8 +55,7 @@ export {
   refreshAvDailyTimeSeriesPostMorning0700,
 } from './v2/alpha-vantage/data-refresher/av-time-series-refresh-manager';
 
-// Intraday RTH-close snapshot remains implemented in av-refresh-manager
-export { refreshAvIntradayRthClose1615Pre } from './v2/alpha-vantage/data-refresher/av-refresh-manager';
+// Intraday RTH-close snapshot superseded by hourly Cloud Tasks pipeline (refreshAvDailyTimeSeriesIntradayHourly)
 
 // New Benzinga Data Refresher
 export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager';
@@ -112,6 +110,8 @@ export { remediateSplitHistory } from './v2/alpha-vantage/tasks/split-remediator
 // the HTTP function remains emulator/dev-only.
 export { processTimeSeriesJobTask } from './v2/alpha-vantage/jobs/time-series-jobs.task';
 export { processTimeSeriesJobDev } from './v2/alpha-vantage/jobs/time-series-jobs.http';
+export { processIntradaySnapshotJobTask } from './v2/alpha-vantage/jobs/intraday-snapshot-jobs.task';
+export { runIntradaySnapshotDev, processIntradaySnapshotJobDev } from './v2/alpha-vantage/jobs/intraday-snapshot-jobs.http';
 
 export { processFullBackfillRunTask } from './v2/alpha-vantage/data-refresher/av-full-backfill.task';
 

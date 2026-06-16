@@ -7,11 +7,12 @@
 #   $ gcloud topic gcloudignore
 #
 .gcloudignore
-# If you would like to upload your .git directory, .gitignore file or files
-# from your .gitignore file, remove the corresponding line
-# below:
 .git
 .gitignore
 
+# Exclude dev dependencies and local env files
 node_modules
-#!include:.gitignore
+local-dev.env.alpha-vantage-proxy-api
+*.local
+
+# NOTE: lib/ is intentionally NOT excluded — compiled output must be uploaded

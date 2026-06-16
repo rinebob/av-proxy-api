@@ -13,7 +13,6 @@ export {
 
 export {
   refreshAvDailyTimeSeriesIntradayHourly,
-  refreshAvDailyTimeSeriesPreClose,
   refreshAvDailyTimeSeriesPostClose,
   refreshAvWeeklyTimeSeriesPostClose,
   refreshAvMonthlyTimeSeriesPostClose,
