@@ -1320,7 +1320,7 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
 /**
  * Daily time series: intraday hourly PRE snapshot (daily only).
  *
- * Runs at the top of each hour from 10am–3pm ET on weekdays, enqueuing one
+ * Runs at 8am, 10am, and 12pm ET on weekdays, enqueuing one
  * Cloud Task per tracked symbol via the INTRADAY_SNAPSHOT_JOB queue.
  * Each task fetches the latest 1-min AV bar and upserts the snapshot fields
  * (ip/io/it/ic/ipc) into the DAILY_ADJUSTED year-shard document for the symbol.

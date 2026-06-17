@@ -35,13 +35,13 @@ export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * 1-5';
 export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * 1-5';
 
 /**
- * Intraday hourly pre-phase time-series run (daily only).
+ * Intraday snapshot time-series run (daily only).
  *
- * Purpose: capture additional intraday snapshots each hour without finalizing bars.
- * Cron: 0 10-15 * * 1-5 (top of each hour 10:00–15:00 ET)
+ * Purpose: capture intraday snapshots at 8am, 10am, and 12pm without finalizing bars.
+ * Cron: 0 8,10,12 * * 1-5 (8:00 AM, 10:00 AM, 12:00 PM ET)
  * Timezone: America/New_York (set at function registration).
  */
-export const TS_DAILY_INTRADAY_HOURLY_SCHEDULE = '0 10-15 * * 1-5';
+export const TS_DAILY_INTRADAY_HOURLY_SCHEDULE = '0 8,10,12 * * 1-5';
 
 // for refreshAlphaVantageDataV2
 // functions/src/alpha-vantage/data-refresher/av-refresh-manager.ts

@@ -38,7 +38,7 @@ The POST job pipeline (`processTimeSeriesJobInternal`) only supports `TIME_SERIE
 | Remove 16:15 RTH close function? | **Yes** | Superseded by the job pipeline. The serial loop approach does not scale. |
 | Remove `refreshAvDailyTimeSeriesPreClose`? | **Yes** | Currently a no-op. Remove to reduce confusion. |
 | Intraday run tracking collection? | **`intraday-runs/{runId}/jobs/{symbol}`** | Mirrors `realtime-runs` layout; gives the same observability surface. |
-| Schedule cadence? | **Hourly, 10am–3pm ET Mon–Fri** | 6 captures/day. Existing cron `0 10-15 * * 1-5` is correct — keep it. |
+| Schedule cadence? | **8am, 10am, 12pm ET Mon–Fri** | 3 captures/day. Reduced from 6 to limit update volume. Cron: `0 8,10,12 * * 1-5`. |
 | Rate limit? | **1.0 dispatch/sec** | Matches POST pipeline. At 760 symbols, drains in ~13 min, well within the hourly window. Can be tuned to 1.5/sec if needed. |
 
 ---
@@ -46,7 +46,7 @@ The POST job pipeline (`processTimeSeriesJobInternal`) only supports `TIME_SERIE
 ## Architecture Overview
 
 ```
-Cloud Scheduler (0 10-15 * * 1-5, ET)
+Cloud Scheduler (0 8,10,12 * * 1-5, ET)
   └─ refreshAvDailyTimeSeriesIntradayHourly (onSchedule)
        └─ runIntradaySnapshotJobsForSymbols()
             ├─ reads tracked-symbols
@@ -146,7 +146,7 @@ lastError:        string | undefined
     - **Fast path:** `finishedJobs === createdJobs` → mark run `COMPLETE`, publish PDR immediately
     - **Reconcile path:** `finishedJobs > 0` AND run age exceeds `INTRADAY_MAX_RUN_DURATION_MS` (20 min) AND run is still not `COMPLETE` → re-scan all job docs in the subcollection, count terminal states directly, force-complete, then publish PDR. This handles lagging Cloud Tasks retries where the `=== createdJobs` equality is never hit. **Do not reuse `MAX_RUN_DURATION_MS` (60 min) — that is the POST pipeline window.**
   - On completion (either path): call `enqueueDataReadyInternal` with `PartnerRunType.TS_DAILY_PRE`
-  - **Fire after every hourly run** — consumers receive up to 6 PRE notifications per trading day (one per hourly tick) and decide how often to act on them. Include `clockEt` in the message payload so consumers can identify which tick completed.
+  - **Fire after every run** — consumers receive up to 3 PRE notifications per trading day (8am, 10am, 12pm ticks) and decide how often to act on them. Include `clockEt` in the message payload so consumers can identify which tick completed.
 - [ ] Add `jobsCreationStartedAt` timestamp to the run doc (set by the scheduler runner) so the reconcile path can compute the age window correctly — same pattern as `realtime-runs`
 
 ---
@@ -205,7 +205,7 @@ lastError:        string | undefined
 
 ### Step 8 – Schedule constants (`function-schedules.ts`)
 - [ ] Remove `TS_DAILY_PRE_CLOSE_SCHEDULE` if no longer referenced
-- [ ] Keep `TS_DAILY_INTRADAY_HOURLY_SCHEDULE` (`0 10-15 * * 1-5`)
+- [ ] Keep `TS_DAILY_INTRADAY_HOURLY_SCHEDULE` (`0 8,10,12 * * 1-5`)
 
 ---
 
