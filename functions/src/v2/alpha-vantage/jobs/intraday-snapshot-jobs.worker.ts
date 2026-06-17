@@ -36,8 +36,8 @@ export interface IntradaySnapshotJobPayload {
   symbol: string;
   /** Run document ID under `intraday-runs/{runId}`. */
   runId: string;
-  /** ET clock label (HHMM) of the hourly tick that triggered this run — for observability. */
-  clockEt: string;
+  /** PT clock label (HHMM) of the tick that triggered this run — for observability. */
+  clockPt: string;
 }
 
 /**
@@ -54,7 +54,7 @@ export interface IntradaySnapshotJobPayload {
 export async function processIntradaySnapshotJobInternal(
   payload: IntradaySnapshotJobPayload,
 ): Promise<void> {
-  const { marketDate, symbol, runId, clockEt } = payload;
+  const { marketDate, symbol, runId, clockPt } = payload;
   const symbolUpper = symbol.toUpperCase();
 
   const baseLog: BetterLogPayload = {
@@ -119,7 +119,7 @@ export async function processIntradaySnapshotJobInternal(
       : 1;
 
   try {
-    logger.info('intraday.worker.start', { ...baseLog, runId, clockEt } as BetterLogPayload);
+    logger.info('intraday.worker.start', { ...baseLog, runId, clockPt } as BetterLogPayload);
 
     // Fetch latest 1-min intraday data for the symbol.
     const handler = AlphaVantageHandlerFactory.createHandler(
@@ -190,13 +190,13 @@ export async function processIntradaySnapshotJobInternal(
       { merge: true },
     );
 
-    logger.info('intraday.worker.success', { ...baseLog, runId, clockEt } as BetterLogPayload);
+    logger.info('intraday.worker.success', { ...baseLog, runId, clockPt } as BetterLogPayload);
 
     await onIntradayRunJobTerminal({
       runId,
       symbol: symbolUpper,
       marketDate,
-      clockEt,
+      clockPt,
       status: TimeSeriesJobTerminalStatus.SUCCESS,
     });
   } catch (e: any) {
@@ -224,7 +224,7 @@ export async function processIntradaySnapshotJobInternal(
         runId,
         symbol: symbolUpper,
         marketDate,
-        clockEt,
+        clockPt,
         status: TimeSeriesJobTerminalStatus.PERMANENT_FAILURE,
       });
       return;

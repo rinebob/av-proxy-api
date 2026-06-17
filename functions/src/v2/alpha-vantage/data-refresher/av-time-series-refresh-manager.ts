@@ -1191,15 +1191,15 @@ export async function runAllTimeSeriesIntervalsPost(options: {
  * the `intraday-runs/{runId}` collection and the INTRADAY_SNAPSHOT_JOB task queue.
  *
  * @param options.marketDate ET trading date (YYYY-MM-DD).
- * @param options.clockEt HHMM ET clock label for the triggering hourly tick.
+ * @param options.clockPt HHMM PT clock label for the triggering tick.
  * @param options.symbols Optional symbol override; reads tracked-symbols if omitted.
  */
 export async function runIntradaySnapshotJobsForSymbols(options: {
   marketDate: string;
-  clockEt: string;
+  clockPt: string;
   symbols?: string[];
 }): Promise<void> {
-  const { marketDate, clockEt, symbols: symbolsOverride } = options;
+  const { marketDate, clockPt, symbols: symbolsOverride } = options;
   const fnString = 'rISJFS';
 
   // Weekend guard: skip entirely on Sat/Sun.
@@ -1212,7 +1212,7 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
     tsJobLogger.info('intraday.scheduler.skip_weekend', {
       function: fnString,
       marketDate,
-      clockEt,
+      clockPt,
     } as BetterLogPayload);
     return;
   }
@@ -1223,7 +1223,7 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
   ];
   const dow: DayOfWeek = DOW_ENUM[dowIdx];
 
-  const runId = `${marketDate}-${dow.toUpperCase()}-INTRADAY-LIVE-${clockEt}`;
+  const runId = `${marketDate}-${dow.toUpperCase()}-LIVE-${clockPt}`;
 
   let symbols: string[];
   if (Array.isArray(symbolsOverride) && symbolsOverride.length > 0) {
@@ -1247,7 +1247,7 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
       status: 'IN_PROGRESS',
       runCreatedAt: nowTs,
       jobsCreationStartedAt: nowTs,
-      clockEt,
+      clockPt,
       createdJobs: 0,
       finishedJobs: 0,
       successJobs: 0,
@@ -1290,7 +1290,7 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
             marketDate,
             symbol: symbolUpper,
             runId,
-            clockEt,
+            clockPt,
           };
           await queue.enqueue(taskPayload);
         } catch (e: any) {
@@ -1333,22 +1333,21 @@ export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
   timeZone: 'America/New_York',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
-  const tz = 'America/New_York';
   const now = new Date();
   const marketDate = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
+    timeZone: 'America/New_York',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(now);
-  const clockEt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
+  const clockPt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
   }).format(now).replace(':', '');
 
-  await runIntradaySnapshotJobsForSymbols({ marketDate, clockEt });
+  await runIntradaySnapshotJobsForSymbols({ marketDate, clockPt });
 });
 
 /**

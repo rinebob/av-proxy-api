@@ -27,8 +27,8 @@ export interface OnIntradayRunJobTerminalArgs {
   symbol: string;
   /** ET trading date (YYYY-MM-DD) for the run — embedded in the PDR payload. */
   marketDate: string;
-  /** ET clock label (HHMM) of the hourly tick — included in the PDR payload so consumers can identify which tick completed. */
-  clockEt: string;
+  /** PT clock label (HHMM) of the tick — included in the PDR payload so consumers can identify which tick completed. */
+  clockPt: string;
   status: TimeSeriesJobTerminalStatus;
 }
 
@@ -97,22 +97,22 @@ async function reconcileIntradayRunJobs(runId: string): Promise<void> {
  * Publishes the partner data-ready END message for an intraday snapshot run.
  *
  * Fires after every completed hourly run so consumers receive up to 6 PRE
- * notifications per trading day. `clockEt` is included in the payload so
+ * notifications per trading day. `clockPt` is included in the payload so
  * consumers can identify which hourly tick triggered the run.
  */
 async function publishIntradayPdr(options: {
   runId: string;
   marketDate: string;
-  clockEt: string;
+  clockPt: string;
   successJobs: number;
   permanentFailureJobs: number;
   trigger: RefreshTrigger | undefined;
   totalDuration: number | undefined;
 }): Promise<void> {
-  const { runId, marketDate, clockEt, successJobs, permanentFailureJobs, trigger, totalDuration } =
+  const { runId, marketDate, clockPt, successJobs, permanentFailureJobs, trigger, totalDuration } =
     options;
   
-  logger.info('intraday.agg.pdr.enter', { runId, marketDate, clockEt, successJobs, permanentFailureJobs, trigger, totalDuration } as any);
+  logger.info('intraday.agg.pdr.enter', { runId, marketDate, clockPt, successJobs, permanentFailureJobs, trigger, totalDuration } as any);
 
   const triggerPartner: PartnerTrigger | undefined =
     trigger === RefreshTrigger.MANUAL
@@ -145,7 +145,7 @@ async function publishIntradayPdr(options: {
   logger.info('intraday.agg.pdr.local_enqueue_start', { runId, payload: { version: payload.version, phase: payload.phase, status: payload.status, runStatus: payload.runStatus } } as any);
   await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, {
     runType: PartnerRunType.INTRADAY_SNAPSHOT,
-    clockEt,
+    clockPt,
     successes: String(successJobs),
     permanentFailures: String(permanentFailureJobs),
   });
@@ -185,12 +185,12 @@ async function publishIntradayPdr(options: {
       phase: payload.phase,
       marketDate,
       runType: PartnerRunType.INTRADAY_SNAPSHOT,
-      clockEt,
+      clockPt,
       successes: String(successJobs),
     };
     logger.info('intraday.agg.pdr.cross_project_publish_attempt', { runId, rsProjectId, rsTopicName, fullTopicPath, payloadSize: JSON.stringify(payload).length } as any);
     const rsMessageId = await rsTopic.publishMessage({ json: payload, attributes: rsAttributes });
-    logger.info('intraday.agg.pdr_cross_project_sent', { runId, clockEt, rsProjectId, rsTopicName, rsMessageId } as any);
+    logger.info('intraday.agg.pdr_cross_project_sent', { runId, clockPt, rsProjectId, rsTopicName, rsMessageId } as any);
   } catch (crossErr: any) {
     const errorStr = String(crossErr?.message ?? crossErr ?? 'unknown');
     const errorCode = crossErr?.code ?? 'N/A';
@@ -237,12 +237,12 @@ async function publishIntradayPdr(options: {
 export async function onIntradayRunJobTerminal(
   args: OnIntradayRunJobTerminalArgs,
 ): Promise<void> {
-  const { runId, symbol, marketDate, clockEt, status } = args;
+  const { runId, symbol, marketDate, clockPt, status } = args;
   const runRef = db.doc(`${FirestoreCollection.INTRADAY_RUNS}/${runId}`);
   
   // ENTRY LOGGING: Full context at function entry
   logger.info('intraday.agg.enter', { 
-    runId, symbol, marketDate, clockEt, status,
+    runId, symbol, marketDate, clockPt, status,
     INTRADAY_MAX_RUN_DURATION_MS,
     time: Date.now()
   } as any);
@@ -335,14 +335,14 @@ export async function onIntradayRunJobTerminal(
     if (created > 0 && finished === created) {
       logger.info('intraday.agg.fast_path_enter', { runId, created, finished } as any);
       const totalDuration = await completeRun();
-      logger.info('intraday.agg.run_complete', { runId, marketDate, clockEt, totalDuration } as any);
+      logger.info('intraday.agg.run_complete', { runId, marketDate, clockPt, totalDuration } as any);
 
       try {
-        logger.info('intraday.agg.pdr_invoke', { runId, marketDate, clockEt, successJobs: runData.successJobs ?? 0, permanentFailureJobs: runData.permanentFailureJobs ?? 0 } as any);
+        logger.info('intraday.agg.pdr_invoke', { runId, marketDate, clockPt, successJobs: runData.successJobs ?? 0, permanentFailureJobs: runData.permanentFailureJobs ?? 0 } as any);
         await publishIntradayPdr({
           runId,
           marketDate,
-          clockEt,
+          clockPt,
           successJobs: runData.successJobs ?? 0,
           permanentFailureJobs: runData.permanentFailureJobs ?? 0,
           trigger: runData.trigger as RefreshTrigger | undefined,
@@ -370,13 +370,13 @@ export async function onIntradayRunJobTerminal(
       if (!reconData) return;
 
       const totalDuration = await completeRun();
-      logger.info('intraday.agg.run_complete_after_reconcile', { runId, marketDate, clockEt } as any);
+      logger.info('intraday.agg.run_complete_after_reconcile', { runId, marketDate, clockPt } as any);
 
       try {
         await publishIntradayPdr({
           runId,
           marketDate,
-          clockEt,
+          clockPt,
           successJobs: reconData.successJobs ?? 0,
           permanentFailureJobs: reconData.permanentFailureJobs ?? 0,
           trigger: reconData.trigger as RefreshTrigger | undefined,
@@ -391,7 +391,7 @@ export async function onIntradayRunJobTerminal(
       runId,
       symbol,
       marketDate,
-      clockEt,
+      clockPt,
       status,
       error: String(e?.message ?? e),
       stack: e?.stack,

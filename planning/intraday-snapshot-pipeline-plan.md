@@ -82,7 +82,7 @@ Cloud Scheduler (0 8,10,12 * * 1-5, ET)
 **Path:** `intraday-runs/{runId}`
 
 ```
-runId:                string       // e.g. "2026-06-15-MON-INTRADAY-LIVE-1000"
+runId:                string       // e.g. "2026-06-15-MON-LIVE-0700" (clock label is PT)
 marketDate:           string       // YYYY-MM-DD ET trading date
 phase:                'pre'
 interval:             'intraday'
@@ -94,7 +94,7 @@ createdJobs:          number
 finishedJobs:         number
 successJobs:          number
 permanentFailureJobs: number
-clockEt:              string       // HHMM — which hourly tick triggered this run
+clockPt:              string       // HHMM PT — which tick triggered this run
 ```
 
 ### Job document
@@ -120,7 +120,7 @@ lastError:        string | undefined
 
 **File:** `functions/src/v2/alpha-vantage/jobs/intraday-snapshot-jobs.worker.ts`
 
-- [ ] Define `IntradaySnapshotJobPayload` interface: `{ marketDate, symbol, runId, clockEt }`
+- [ ] Define `IntradaySnapshotJobPayload` interface: `{ marketDate, symbol, runId, clockPt }`
 - [ ] Implement `processIntradaySnapshotJobInternal(payload)`:
   - Gate on `TS_TIME_SERIES_TASKS_ENABLED` env flag (same safety guard as POST worker)
   - Load job doc from `intraday-runs/{runId}/jobs/{symbol}`; no-op if terminal
@@ -146,7 +146,7 @@ lastError:        string | undefined
     - **Fast path:** `finishedJobs === createdJobs` → mark run `COMPLETE`, publish PDR immediately
     - **Reconcile path:** `finishedJobs > 0` AND run age exceeds `INTRADAY_MAX_RUN_DURATION_MS` (20 min) AND run is still not `COMPLETE` → re-scan all job docs in the subcollection, count terminal states directly, force-complete, then publish PDR. This handles lagging Cloud Tasks retries where the `=== createdJobs` equality is never hit. **Do not reuse `MAX_RUN_DURATION_MS` (60 min) — that is the POST pipeline window.**
   - On completion (either path): call `enqueueDataReadyInternal` with `PartnerRunType.TS_DAILY_PRE`
-  - **Fire after every run** — consumers receive up to 3 PRE notifications per trading day (8am, 10am, 12pm ticks) and decide how often to act on them. Include `clockEt` in the message payload so consumers can identify which tick completed.
+  - **Fire after every run** — consumers receive up to 3 PRE notifications per trading day (8am, 10am, 12pm ticks) and decide how often to act on them. Include `clockPt` in the message payload so consumers can identify which tick completed.
 - [ ] Add `jobsCreationStartedAt` timestamp to the run doc (set by the scheduler runner) so the reconcile path can compute the age window correctly — same pattern as `realtime-runs`
 
 ---
@@ -166,8 +166,8 @@ lastError:        string | undefined
 
 - [ ] Add `runIntradaySnapshotJobsForSymbols(options)` function:
   - Reads `tracked-symbols`
-  - Derives `marketDate`, `dow`, `clockEt` (HHMM ET) from current time
-  - Builds `runId`: `${marketDate}-${dow}-INTRADAY-LIVE-${clockEt}`
+  - Derives `marketDate` (ET trading date), `dow`, `clockPt` (HHMM PT) from current time
+  - Builds `runId`: `${marketDate}-${dow}-LIVE-${clockPt}` (clock label is PT, market date remains ET)
   - Creates `intraday-runs/{runId}` doc with initial counters
   - For each symbol: creates job doc + enqueues to `CloudTask.INTRADAY_SNAPSHOT_JOB`
   - Batches using `TS_SCHEDULER_BATCH_SIZE` (same as POST)
@@ -228,7 +228,7 @@ lastError:        string | undefined
 
 ## Resolved Decisions
 
-1. ✅ **Partner data-ready notification:** Fire `TS_DAILY_PRE` after **every** hourly run. Include `clockEt` in the payload so consumers can filter by tick if needed.
+1. ✅ **Partner data-ready notification:** Fire `TS_DAILY_PRE` after **every** run. Include `clockPt` (PT clock label) in the payload so consumers can filter by tick if needed.
 2. ✅ **RTH close gap (3pm → POST):** The gap between the last 3pm snapshot and the finalized POST DAILY_ADJUSTED bar is acceptable. No separate 4:15pm run needed.
 3. ✅ **Rate limit tuning:** 1.0 dispatch/sec is correct for now. Revisit if symbol universe exceeds ~900.
 4. ✅ **Aggregator completion strategy:** Use the same dual-path pattern as `realtime-run-aggregator.ts` — fast path (`finishedJobs === createdJobs`) plus a reconcile path that re-scans job docs when the run exceeds `INTRADAY_MAX_RUN_DURATION_MS` (20 min) without completing. **20 min, not 60** — at 1.0/sec drain takes ~13 min so 20 min gives adequate buffer without an hour wait.

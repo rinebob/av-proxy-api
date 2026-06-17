@@ -12,7 +12,7 @@ const log = createLogger('av.intraday.http');
  *
  * POST body:
  * - marketDate  {string}   YYYY-MM-DD (required)
- * - clockEt     {string}   HHMM, e.g. "1000" (optional, defaults to current PT hour)
+ * - clockPt     {string}   HHMM, e.g. "1000" (optional, defaults to current PT hour)
  * - symbols     {string[]} Optional symbol subset; omit to use all tracked symbols
  *
  * This calls runIntradaySnapshotJobsForSymbols directly, which creates the
@@ -31,9 +31,9 @@ export const runIntradaySnapshotDev = onRequest(
       }
 
       const body = req.body || {};
-      const { marketDate, clockEt, symbols } = body as {
+      const { marketDate, clockPt, symbols } = body as {
         marketDate?: string;
-        clockEt?: string;
+        clockPt?: string;
         symbols?: string[];
       };
 
@@ -42,10 +42,10 @@ export const runIntradaySnapshotDev = onRequest(
         return;
       }
 
-      // Derive clockEt from current PT time if not provided.
-      const resolvedClockEt =
-        typeof clockEt === 'string' && /^\d{4}$/.test(clockEt)
-          ? clockEt
+      // Derive clockPt from current PT time if not provided.
+      const resolvedClockPt =
+        typeof clockPt === 'string' && /^\d{4}$/.test(clockPt)
+          ? clockPt
           : new Intl.DateTimeFormat('en-US', {
               timeZone: 'America/Los_Angeles',
               hour: '2-digit',
@@ -57,16 +57,16 @@ export const runIntradaySnapshotDev = onRequest(
 
       const symbolsArray = Array.isArray(symbols) && symbols.length > 0 ? symbols : undefined;
 
-      log.info('intraday.dev.start', { marketDate, clockEt: resolvedClockEt, symbolCount: symbolsArray?.length ?? 'all' });
+      log.info('intraday.dev.start', { marketDate, clockPt: resolvedClockPt, symbolCount: symbolsArray?.length ?? 'all' });
 
       await runIntradaySnapshotJobsForSymbols({
         marketDate,
-        clockEt: resolvedClockEt,
+        clockPt: resolvedClockPt,
         ...(symbolsArray ? { symbols: symbolsArray } : {}),
       });
 
-      log.info('intraday.dev.complete', { marketDate, clockEt: resolvedClockEt });
-      res.status(200).json({ ok: true, marketDate, clockEt: resolvedClockEt });
+      log.info('intraday.dev.complete', { marketDate, clockPt: resolvedClockPt });
+      res.status(200).json({ ok: true, marketDate, clockPt: resolvedClockPt });
     } catch (e: any) {
       const errMsg = String(e?.message || e);
       log.error('intraday.dev.error', { error: errMsg });
@@ -82,7 +82,7 @@ export const runIntradaySnapshotDev = onRequest(
  * - marketDate  {string}  YYYY-MM-DD (required)
  * - symbol      {string}  Ticker symbol (required)
  * - runId       {string}  Run ID the job belongs to (required)
- * - clockEt     {string}  HHMM clock label (optional, defaults to "0000")
+ * - clockPt     {string}  HHMM clock label (optional, defaults to "0000")
  *
  * Use this to test the worker in isolation without creating a full run.
  * The job document at intraday-runs/{runId}/jobs/{symbol} must already exist,
@@ -100,11 +100,11 @@ export const processIntradaySnapshotJobDev = onRequest(
       }
 
       const body = req.body || {};
-      const { marketDate, symbol, runId, clockEt } = body as {
+      const { marketDate, symbol, runId, clockPt } = body as {
         marketDate?: string;
         symbol?: string;
         runId?: string;
-        clockEt?: string;
+        clockPt?: string;
       };
 
       if (typeof marketDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(marketDate)) {
@@ -124,7 +124,7 @@ export const processIntradaySnapshotJobDev = onRequest(
         marketDate,
         symbol: symbol.trim().toUpperCase(),
         runId: runId.trim(),
-        clockEt: typeof clockEt === 'string' && clockEt ? clockEt : '0000',
+        clockPt: typeof clockPt === 'string' && clockPt ? clockPt : '0000',
       };
 
       log.info('intraday.job.dev.start', payload);
