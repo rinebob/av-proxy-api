@@ -56,6 +56,16 @@ import { orderTrackedSymbols } from './av-time-series-refresh-manager';
 const TS_JOB_PIPELINE_ENABLED_DAILY_POST =
   String(process.env.TS_JOB_PIPELINE_ENABLED_DAILY_POST || '').toLowerCase() === 'true';
 
+/**
+ * Minimum delay in ms between consecutive AV API calls within a refresh cycle.
+ * AV premium allows ~75 req/min; 900ms gives ~66 req/min with headroom.
+ * Set to 0 to disable throttling (not recommended with large symbol lists).
+ */
+const AV_INTER_REQUEST_DELAY_MS = 900;
+
+/** Simple async sleep helper. */
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
 // Stats collected per endpoint for clearer summaries
 interface EndpointStats {
   endpointId: string;
@@ -184,12 +194,22 @@ function getHistoryPathFor(docPath: string): string {
  * Exported so HTTP wrapper can invoke the same logic as the scheduler.
  */
 export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } = {}): Promise<{ durationMs: number; symbolsUpdatedCount: number; symbolsChecked: number; freshCount: number; staleCount: number; force: boolean }> {
-  // Market-closure guard (ET): weekend/holiday
+  // Market-closure guard (ET): weekend/holiday.
+  // # Reason: Only skip the run if the market is closed AND all remaining endpoints are time-series.
+  // Non-time-series endpoints like OVERVIEW contain static fundamental data that does not
+  // depend on market hours and should refresh regardless of market closure.
   const mc1 = getMarketClosureInfo();
-  if (mc1.closed) {
-    // Log exactly once so operators can confirm the skip
+  const nonTsEndpoints = Array.from(AV_IMPLEMENTED_ENDPOINTS).filter(
+    e => !isTimeSeriesEndpoint(e) &&
+         e !== AlphaVantageEndpoint.GLOBAL_QUOTE &&
+         e !== AlphaVantageEndpoint.HISTORICAL_OPTIONS
+  );
+  if (mc1.closed && nonTsEndpoints.length === 0) {
     log.info('market.closed_skip', { reason: mc1.reason, etDate: mc1.etDate, component: RefreshLogComponent.RunManager });
     return { durationMs: 0, symbolsUpdatedCount: 0, symbolsChecked: 0, freshCount: 0, staleCount: 0, force: !!options.force };
+  }
+  if (mc1.closed) {
+    log.info('market.closed_non_ts_only', { reason: mc1.reason, etDate: mc1.etDate, note: 'proceeding for non-time-series endpoints only' });
   }
   hr('av.refresh', '=========== AV Refresh Cycle START ===========' );
   log.info('refresh.start');
@@ -276,6 +296,8 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
     endpointStatsMap.set(endpoint, eStats);
 
     const endpointAttemptStart = Date.now();
+    // Track how many real API calls have been made for this endpoint (for rate limiting)
+    let endpointFetchCount = 0;
 
     // 3. For each symbol
     for (const symbol of symbols) {
@@ -332,22 +354,40 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
         needsRefresh = true;
         staleCount++;
       } else {
-        // For non-time-series endpoints, always refresh on each scheduled run.
+        // # Reason: Respect the TTL for non-time-series endpoints. Check metadata.nextUpdate
+        // written by saveAvData. If it's in the future the data is still fresh — skip the AV call.
         const metadata = docSnap.data()?.metadata;
+        const nextUpdate = metadata?.nextUpdate;
+        const nextUpdateDate: Date | null = nextUpdate?.toDate ? nextUpdate.toDate() : null;
         const lastUpdated = metadata?.lastUpdated;
-        const lastUpdatedDate = lastUpdated?.toDate ? lastUpdated.toDate() : null;
+        const lastUpdatedDate: Date | null = lastUpdated?.toDate ? lastUpdated.toDate() : null;
+        const isStale = force || !nextUpdateDate || nextUpdateDate <= now.toDate();
 
-        log.info('refresh.decision', { 
-          endpointId: endpoint, 
-          endpointName, 
-          symbol, 
-          refresh: 'yes', 
-          reason: 'non_time_series_always_refresh',
-          lastUpdated: lastUpdatedDate?.toISOString()
-        });
-
-        needsRefresh = true;
-        freshCount++;
+        if (isStale) {
+          log.info('refresh.decision', {
+            endpointId: endpoint,
+            endpointName,
+            symbol,
+            refresh: 'yes',
+            reason: force ? 'forced' : !nextUpdateDate ? 'no_next_update_metadata' : 'ttl_expired',
+            lastUpdated: lastUpdatedDate?.toISOString(),
+            nextUpdate: nextUpdateDate?.toISOString(),
+          });
+          needsRefresh = true;
+          staleCount++;
+        } else {
+          log.info('refresh.decision', {
+            endpointId: endpoint,
+            endpointName,
+            symbol,
+            refresh: 'no',
+            reason: 'ttl_fresh',
+            nextUpdate: nextUpdateDate?.toISOString(),
+          });
+          needsRefresh = false;
+          freshCount++;
+          eStats.skippedFresh++;
+        }
       }
 
       if (!needsRefresh) {
@@ -359,6 +399,12 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
       }
 
       // 4. Call Alpha Vantage API via handler factory
+      // # Reason: Throttle requests to avoid AV rate limits. Skip delay before the first call.
+      if (AV_INTER_REQUEST_DELAY_MS > 0 && endpointFetchCount > 0) {
+        hr('av.refresh', `rate-limit delay ${AV_INTER_REQUEST_DELAY_MS}ms (fetch #${endpointFetchCount + 1})`);
+        await sleep(AV_INTER_REQUEST_DELAY_MS);
+      }
+      endpointFetchCount++;
       const apiStart = Date.now();
       try {
         const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
@@ -561,6 +607,10 @@ export const refreshAlphaVantageDataV2 = onSchedule(
     schedule: AV_REFRESH_MANAGER_SCHEDULE,
     timeZone: 'America/New_York',
     secrets: ['ALPHAVANTAGE_API_KEY'],
+    // # Reason: 760 symbols × 900ms inter-request delay = ~11.4 min worst case.
+    // Default timeout is 60s which would cut the run short. 900s (15 min) gives safe headroom.
+    timeoutSeconds: 900,
+    memory: '256MiB',
   },
   async () => {
     await runRefreshAlphaVantageDataV2();
