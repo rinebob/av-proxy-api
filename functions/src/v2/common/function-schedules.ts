@@ -131,6 +131,18 @@ export const INACTIVE_SYMBOL_CLEANUP_SCHEDULE = '0 0 * * *';
  */
 export const OLD_SYNC_REQUEST_CLEANUP_SCHEDULE = '0 0 * * 0';
 
+// for cleanupOldRunDocs
+// functions/src/v2/common/run-doc-cleanup.ts
+/**
+ * Run document cleanup schedule.
+ *
+ * Purpose: delete realtime-runs and intraday-runs documents (and their jobs
+ * subcollections) older than the configured TTL to prevent unbounded growth.
+ * Cron: 0 2 * * * (2:00 AM ET daily, every day)
+ * Timezone: America/New_York (set at function registration).
+ */
+export const RUN_DOC_CLEANUP_SCHEDULE = '0 2 * * *';
+
 // for partner data-ready heartbeat publisher
 /**
  * Heartbeat publisher schedule for partner-data-ready topic.

@@ -85,6 +85,8 @@ export { onSymbolAdded } from './v2/alpha-vantage/triggers/on-symbol-added.funct
 
 export { listCollections } from './v2/common/functions/list-collections';
 
+export { cleanupOldRunDocs } from './v2/common/run-doc-cleanup';
+
 export { saveTrackedSymbol } from './v2/common/functions/save-tracked-symbol.function';
 
 export { listSymbolsV2 } from './v2/common/functions/listSymbolsV2';

@@ -62,6 +62,32 @@ export const CLOUD_TASKS_RETRY_CONFIG = {
 export const JOB_FUNCTION_MEMORY = '512MiB' as const;
 
 /**
+ * TTL (time-to-live) for run documents and their jobs subcollections.
+ *
+ * After this duration, a nightly cleanup function will delete the run doc
+ * and all child job docs to prevent unbounded Firestore growth.
+ *
+ * Both intraday-runs and realtime-runs use the same 2-day TTL:
+ * - Intraday runs are only useful for same-day observability.
+ * - POST runs rarely need inspection beyond the next trading day.
+ */
+export const RUN_DOC_TTL_MS = 2 * 24 * 60 * 60 * 1000; // 2 days
+
+/**
+ * Maximum number of run documents to delete in a single cleanup invocation.
+ *
+ * Caps work per function execution to stay safely within the 9-min timeout.
+ * At ~760 symbols per run and a 500-op Firestore batch limit, 200 runs is
+ * a safe ceiling (~152,000 potential job docs, processed in batches of 500).
+ */
+export const CLEANUP_MAX_RUNS_PER_INVOCATION = 200;
+
+/**
+ * Firestore batch write limit (hard cap imposed by the SDK).
+ */
+export const FIRESTORE_BATCH_SIZE = 500;
+
+/**
  * Timeout configuration for different job types.
  */
 export const JOB_TIMEOUTS = {
