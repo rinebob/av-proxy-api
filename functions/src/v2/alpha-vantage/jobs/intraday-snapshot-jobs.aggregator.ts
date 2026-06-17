@@ -1,5 +1,7 @@
 import { db } from '../../../firebase-admin-init';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { PubSub } from '@google-cloud/pubsub';
+import { GoogleAuth } from 'google-auth-library';
 
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 import { FirestoreCollection, RefreshTrigger } from '@shared/firestore';
@@ -109,6 +111,8 @@ async function publishIntradayPdr(options: {
 }): Promise<void> {
   const { runId, marketDate, clockEt, successJobs, permanentFailureJobs, trigger, totalDuration } =
     options;
+  
+  logger.info('intraday.agg.pdr.enter', { runId, marketDate, clockEt, successJobs, permanentFailureJobs, trigger, totalDuration } as any);
 
   const triggerPartner: PartnerTrigger | undefined =
     trigger === RefreshTrigger.MANUAL
@@ -138,12 +142,73 @@ async function publishIntradayPdr(options: {
     ...(triggerPartner ? { trigger: triggerPartner } : {}),
   };
 
+  logger.info('intraday.agg.pdr.local_enqueue_start', { runId, payload: { version: payload.version, phase: payload.phase, status: payload.status, runStatus: payload.runStatus } } as any);
   await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, {
     runType: PartnerRunType.INTRADAY_SNAPSHOT,
     clockEt,
     successes: String(successJobs),
     permanentFailures: String(permanentFailureJobs),
   });
+  logger.info('intraday.agg.pdr.local_enqueue_done', { runId } as any);
+
+  // Cross-project publish to RS topic for intraday snapshot handler
+  const rsProjectId = 'rel-str';
+  const rsTopicName = 'partner-data-ready';
+  logger.info('intraday.agg.pdr.cross_project_start', { runId, rsProjectId, rsTopicName } as any);
+  
+  // Log the service account being used
+  try {
+    const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+    const client = await auth.getClient();
+    const credentials = await auth.getCredentials();
+    const projectId = await auth.getProjectId();
+    logger.info('intraday.agg.pdr.auth_info', { 
+      runId, 
+      projectId, 
+      clientEmail: (client as any)?.email || 'unknown',
+      clientId: (client as any)?.id || 'unknown',
+      credentialsClientEmail: credentials?.client_email || 'unknown'
+    } as any);
+  } catch (authErr: any) {
+    logger.warn('intraday.agg.pdr.auth_info_failed', { runId, error: String(authErr?.message) } as any);
+  }
+  
+  try {
+    // CRITICAL FIX: Use default project PubSub client but with full topic path for cross-project
+    const rsPubSub = new PubSub();
+    const fullTopicPath = `projects/${rsProjectId}/topics/${rsTopicName}`;
+    const rsTopic = rsPubSub.topic(fullTopicPath);
+    logger.info('intraday.agg.pdr.pubsub_config', { runId, rsProjectId, fullTopicPath, rsTopicName } as any);
+    const rsAttributes = {
+      runId,
+      version: payload.version,
+      phase: payload.phase,
+      marketDate,
+      runType: PartnerRunType.INTRADAY_SNAPSHOT,
+      clockEt,
+      successes: String(successJobs),
+    };
+    logger.info('intraday.agg.pdr.cross_project_publish_attempt', { runId, rsProjectId, rsTopicName, fullTopicPath, payloadSize: JSON.stringify(payload).length } as any);
+    const rsMessageId = await rsTopic.publishMessage({ json: payload, attributes: rsAttributes });
+    logger.info('intraday.agg.pdr_cross_project_sent', { runId, clockEt, rsProjectId, rsTopicName, rsMessageId } as any);
+  } catch (crossErr: any) {
+    const errorStr = String(crossErr?.message ?? crossErr ?? 'unknown');
+    const errorCode = crossErr?.code ?? 'N/A';
+    const fullError = JSON.stringify(crossErr, Object.getOwnPropertyNames(crossErr));
+    console.error(`[PDR_CROSS_PROJECT_ERROR] runId=${runId} code=${errorCode} error=${errorStr} full=${fullError}`);
+    // Write debug doc to Firestore to capture exact error
+    await db.doc(`debug/pdr-cross-project/${runId}`).set({
+      timestamp: Timestamp.now(),
+      runId,
+      errorMessage: errorStr,
+      errorCode,
+      fullError,
+      rsProjectId,
+      rsTopicName,
+    }).catch(() => {}); // ignore write errors
+    logger.warn('intraday.agg.pdr_cross_project_failed', { runId, errorMessage: errorStr, errorCode, fullErrorPreview: fullError.slice(0,200) } as any);
+  }
+  logger.info('intraday.agg.pdr.exit', { runId } as any);
 
   await db.doc(`${FirestoreCollection.INTRADAY_RUNS}/${runId}`).set(
     {
@@ -174,22 +239,33 @@ export async function onIntradayRunJobTerminal(
 ): Promise<void> {
   const { runId, symbol, marketDate, clockEt, status } = args;
   const runRef = db.doc(`${FirestoreCollection.INTRADAY_RUNS}/${runId}`);
+  
+  // ENTRY LOGGING: Full context at function entry
+  logger.info('intraday.agg.enter', { 
+    runId, symbol, marketDate, clockEt, status,
+    INTRADAY_MAX_RUN_DURATION_MS,
+    time: Date.now()
+  } as any);
 
   try {
     // Increment counters inside a transaction.
+    logger.info('intraday.agg.tx.start', { runId, symbol, status } as any);
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(runRef);
+      logger.info('intraday.agg.tx.run_fetch', { runId, exists: snap.exists } as any);
       if (!snap.exists) {
         logger.warn('intraday.agg.run_not_found', { runId } as any);
         return;
       }
 
       if (status === TimeSeriesJobTerminalStatus.SUCCESS) {
+        logger.info('intraday.agg.tx.increment_success', { runId, symbol } as any);
         tx.update(runRef, {
           successJobs: FieldValue.increment(1),
           finishedJobs: FieldValue.increment(1),
         });
       } else if (status === TimeSeriesJobTerminalStatus.PERMANENT_FAILURE) {
+        logger.info('intraday.agg.tx.increment_failure', { runId, symbol } as any);
         tx.update(runRef, {
           permanentFailureJobs: FieldValue.increment(1),
           finishedJobs: FieldValue.increment(1),
@@ -197,17 +273,32 @@ export async function onIntradayRunJobTerminal(
         });
       }
     });
+    logger.info('intraday.agg.tx.complete', { runId, symbol, status } as any);
 
     // Check completion outside the transaction.
     const runSnap = await runRef.get();
     const runData = runSnap.data() as any | undefined;
+    logger.info('intraday.agg.run_data_fetched', { 
+      runId, 
+      hasData: !!runData,
+      createdJobs: runData?.createdJobs,
+      finishedJobs: runData?.finishedJobs,
+      successJobs: runData?.successJobs,
+      currentStatus: runData?.status,
+      jobsCreationStartedAt: runData?.jobsCreationStartedAt?.toMillis?.() || runData?.jobsCreationStartedAt
+    } as any);
     if (!runData) return;
 
     const created: number = typeof runData.createdJobs === 'number' ? runData.createdJobs : 0;
     const finished: number = typeof runData.finishedJobs === 'number' ? runData.finishedJobs : 0;
     const currentStatus: TimeSeriesRunStatus | undefined = runData.status;
+    
+    logger.info('intraday.agg.counters', { runId, created, finished, currentStatus, willCheckCompletion: currentStatus !== TimeSeriesRunStatus.COMPLETE } as any);
 
-    if (currentStatus === TimeSeriesRunStatus.COMPLETE) return;
+    if (currentStatus === TimeSeriesRunStatus.COMPLETE) {
+      logger.info('intraday.agg.already_complete', { runId } as any);
+      return;
+    }
 
     // Determine the age of this run for the reconcile path.
     const jobsCreationStartedAt = runData.jobsCreationStartedAt as
@@ -218,6 +309,7 @@ export async function onIntradayRunJobTerminal(
       runAgeMs = Date.now() - (jobsCreationStartedAt as any).toMillis();
     }
     const pastReconcileWindow = runAgeMs > INTRADAY_MAX_RUN_DURATION_MS;
+    logger.info('intraday.agg.reconcile_check', { runId, runAgeMs, INTRADAY_MAX_RUN_DURATION_MS, pastReconcileWindow } as any);
 
     // Helper to compute duration and mark the run COMPLETE.
     const completeRun = async (): Promise<number | undefined> => {
@@ -239,11 +331,14 @@ export async function onIntradayRunJobTerminal(
     };
 
     // --- Fast path ---
+    logger.info('intraday.agg.path_check', { runId, created, finished, isFastPath: created > 0 && finished === created, isReconcilePath: created > 0 && finished > 0 && pastReconcileWindow } as any);
     if (created > 0 && finished === created) {
+      logger.info('intraday.agg.fast_path_enter', { runId, created, finished } as any);
       const totalDuration = await completeRun();
-      logger.info('intraday.agg.run_complete', { runId, marketDate, clockEt } as any);
+      logger.info('intraday.agg.run_complete', { runId, marketDate, clockEt, totalDuration } as any);
 
       try {
+        logger.info('intraday.agg.pdr_invoke', { runId, marketDate, clockEt, successJobs: runData.successJobs ?? 0, permanentFailureJobs: runData.permanentFailureJobs ?? 0 } as any);
         await publishIntradayPdr({
           runId,
           marketDate,
@@ -253,9 +348,11 @@ export async function onIntradayRunJobTerminal(
           trigger: runData.trigger as RefreshTrigger | undefined,
           totalDuration,
         });
+        logger.info('intraday.agg.pdr_returned', { runId } as any);
       } catch (pdrErr: any) {
         logger.warn('intraday.agg.pdr_failed', { runId, error: String(pdrErr?.message ?? pdrErr) } as any);
       }
+      logger.info('intraday.agg.fast_path_exit', { runId } as any);
       return;
     }
 
@@ -264,7 +361,7 @@ export async function onIntradayRunJobTerminal(
     // arrive out of order and the counter equality is never hit. After the
     // 20-min window, re-scan all job docs to determine final state.
     if (created > 0 && finished > 0 && pastReconcileWindow) {
-      logger.warn('intraday.agg.reconcile', { runId, created, finished } as any);
+      logger.warn('intraday.agg.reconcile_enter', { runId, created, finished, runAgeMs } as any);
 
       await reconcileIntradayRunJobs(runId);
 
@@ -293,7 +390,12 @@ export async function onIntradayRunJobTerminal(
     logger.error('intraday.agg.error', {
       runId,
       symbol,
+      marketDate,
+      clockEt,
+      status,
       error: String(e?.message ?? e),
+      stack: e?.stack,
+      phase: 'onIntradayRunJobTerminal'
     } as any);
     throw e;
   }

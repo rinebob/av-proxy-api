@@ -12,7 +12,7 @@ const log = createLogger('av.intraday.http');
  *
  * POST body:
  * - marketDate  {string}   YYYY-MM-DD (required)
- * - clockEt     {string}   HHMM, e.g. "1000" (optional, defaults to current ET hour)
+ * - clockEt     {string}   HHMM, e.g. "1000" (optional, defaults to current PT hour)
  * - symbols     {string[]} Optional symbol subset; omit to use all tracked symbols
  *
  * This calls runIntradaySnapshotJobsForSymbols directly, which creates the
@@ -42,12 +42,12 @@ export const runIntradaySnapshotDev = onRequest(
         return;
       }
 
-      // Derive clockEt from current ET time if not provided.
+      // Derive clockEt from current PT time if not provided.
       const resolvedClockEt =
         typeof clockEt === 'string' && /^\d{4}$/.test(clockEt)
           ? clockEt
           : new Intl.DateTimeFormat('en-US', {
-              timeZone: 'America/New_York',
+              timeZone: 'America/Los_Angeles',
               hour: '2-digit',
               minute: '2-digit',
               hourCycle: 'h23',

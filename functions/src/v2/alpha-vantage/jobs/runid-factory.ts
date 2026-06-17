@@ -20,7 +20,7 @@ export interface RealtimeRunParams {
   isManual: boolean;
   sequence: string; // A, B, C, X, etc.
   phase: TradingPhase; // Trading phase (PRE/POST)
-  clockEt: string; // Required ET time (HHMM) - always included in run ID
+  clockEt: string; // Required PT time (HHMM) - always included in run ID
 }
 
 // Interface for backfill run parameters
