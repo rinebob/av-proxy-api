@@ -65,6 +65,8 @@ export function toTrackedSymbolV2(doc: FirebaseFirestore.DocumentData): TrackedS
       _lastUpdated: doc[TRACKED_SYMBOL_V2_FIELDS.LAST_UPDATED] ?? null,
       _isActive: doc[TRACKED_SYMBOL_V2_FIELDS.IS_ACTIVE] ?? false,
       _refreshEnabled: doc[TRACKED_SYMBOL_V2_FIELDS.REFRESH_ENABLED] ?? false,
+      ...(doc[TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO] && { companyInfo: doc[TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO] }),
+      ...(doc[TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO_LAST_UPDATED] && { _companyInfoLastUpdated: doc[TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO_LAST_UPDATED] }),
     };
   }
 

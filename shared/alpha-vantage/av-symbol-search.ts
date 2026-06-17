@@ -1,6 +1,7 @@
 // COPIED FROM functions/src/v2/common/common-av.ts. Do not use directly until migration is complete.
 
 import { TimestampLike } from "../firestore";
+import type { TrackedSymbolCompanyInfo } from './av-company-overview';
 
 // Canonical shared symbol match interface for Alpha Vantage symbol search (normalized keys)
 export interface SvtAvSymbolMatch {
@@ -65,7 +66,13 @@ export interface TrackedSymbolV2 extends AvSymbol {
   // Explicit dev-only flag to specifically enable data refreshing
   // If true, AV data will be regularly refreshed for this symbol
   // Be careful about request limits
-  _refreshEnabled: boolean;  
+  _refreshEnabled: boolean;
+
+  // Stable company identity fields denormalized from COMPANY_OVERVIEW.
+  // Populated by the OVERVIEW refresh job to enable sector/industry sorting
+  // without requiring a join to symbol-data.
+  companyInfo?: TrackedSymbolCompanyInfo;
+  _companyInfoLastUpdated?: TimestampLike | Date;
 }
 
 export interface ListSymbolsV2Response {
@@ -90,6 +97,8 @@ export const TRACKED_SYMBOL_V2_FIELDS = {
   LAST_UPDATED: '_lastUpdated',
   IS_ACTIVE: '_isActive',
   REFRESH_ENABLED: '_refreshEnabled',
+  COMPANY_INFO: 'companyInfo',
+  COMPANY_INFO_LAST_UPDATED: '_companyInfoLastUpdated',
 };
 
 export interface SaveTrackedSymbolResponse {
