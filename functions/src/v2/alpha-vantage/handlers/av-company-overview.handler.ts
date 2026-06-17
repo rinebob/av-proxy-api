@@ -1,112 +1,80 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
-import { ApiResponse } from '@shared/core';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 import { createLogger } from '../../utils/utils';
+import { AvCompanyOverview, TrackedSymbolCompanyInfo, TRACKED_SYMBOL_V2_FIELDS } from '@shared/alpha-vantage';
+import { FirestoreCollection } from '@shared/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
+import { db } from '../../../firebase-admin-init';
+import type { ApiResponse } from '@shared/core';
 
 const log = createLogger('av.handler.company-overview'); // Abbrev: aCO.H
 
-/**
- * Interface for the company overview data structure returned by Alpha Vantage
- * @see https://www.alphavantage.co/documentation/#company-overview
- */
-interface CompanyOverviewData {
-  Symbol: string;
-  AssetType: string;
-  Name: string;
-  Description: string;
-  CIK: string;
-  Exchange: string;
-  Currency: string;
-  Country: string;
-  Sector: string;
-  Industry: string;
-  Address: string;
-  FiscalYearEnd: string;
-  LatestQuarter: string;
-  MarketCapitalization: string;
-  EBITDA: string;
-  PERatio: string;
-  PEGRatio: string;
-  BookValue: string;
-  DividendPerShare: string;
-  DividendYield: string;
-  EPS: string;
-  RevenuePerShareTTM: string;
-  ProfitMargin: string;
-  OperatingMarginTTM: string;
-  ReturnOnAssetsTTM: string;
-  ReturnOnEquityTTM: string;
-  RevenueTTM: string;
-  GrossProfitTTM: string;
-  DilutedEPSTTM: string;
-  QuarterlyEarningsGrowthYOY: string;
-  QuarterlyRevenueGrowthYOY: string;
-  AnalystTargetPrice: string;
-  TrailingPE: string;
-  ForwardPE: string;
-  PriceToSalesRatioTTM: string;
-  PriceToBookRatio: string;
-  EVToRevenue: string;
-  EVToEBITDA: string;
-  Beta: string;
-  '52WeekHigh': string;
-  '52WeekLow': string;
-  '50DayMovingAverage': string;
-  '200DayMovingAverage': string;
-  SharesOutstanding: string;
-  DividendDate: string;
-  ExDividendDate: string;
-}
+/** Fields copied from AvCompanyOverview into the tracked-symbols doc for sorting/filtering. */
+const COMPANY_INFO_FIELDS: ReadonlyArray<keyof TrackedSymbolCompanyInfo> = [
+  'Symbol', 'AssetType', 'Name', 'Description', 'CIK',
+  'Exchange', 'Currency', 'Country', 'Sector', 'Industry',
+  'Address', 'OfficialSite', 'FiscalYearEnd',
+];
 
 /**
- * Handler for the Alpha Vantage Company Overview endpoint
+ * Handler for the Alpha Vantage Company Overview endpoint.
+ * Extends AlphaVantageBaseHandler which handles the full fetch → transform → save pipeline.
+ * After a successful fetch, denormalizes the stable company identity fields into the
+ * tracked-symbols doc so consumers can sort/filter by Sector and Industry without a join.
  * @see https://www.alphavantage.co/documentation/#company-overview
  */
-export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOverviewData> {
+export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<AvCompanyOverview> {
   /**
-   * Fetches company overview data from Alpha Vantage
-   * @param params Request parameters (symbol is required)
-   * @returns Processed company overview data
+   * Fetches company overview data, saves to symbol-data, then writes the stable
+   * TrackedSymbolCompanyInfo subset back to the tracked-symbols doc.
    */
-  public async fetch(params: Record<string, any>): Promise<ApiResponse<CompanyOverviewData>> {
-    console.log('---- aCO.H fetch --- start');
-    const startTime = Date.now();
-    console.log(` aCO.H f [${this.requestId}] start symbol=${params.symbol}`);
-    log.info('fetch.start', { symbol: params.symbol, requestId: this.requestId });
-    
-    try {
-      // Validate required parameters
-      if (!params.symbol) {
-        const error = new Error('Symbol parameter is required');
-        console.error(`! aCO.H f [${this.requestId}] validate error:`, error.message);
-        log.error('validate.error', { requestId: this.requestId, error: error.message });
-        throw error;
+  public override async fetch(params: Record<string, any>): Promise<ApiResponse<AvCompanyOverview>> {
+    const response = await super.fetch(params);
+
+    // Write-back: only proceed if we got non-empty data and have a symbol
+    const symbol: string | undefined = params.symbol;
+    const data = response?.data;
+    if (symbol && data && Object.keys(data).length > 0) {
+      try {
+        const typedData = data as AvCompanyOverview;
+        const companyInfo = COMPANY_INFO_FIELDS.reduce((acc, key) => {
+          const val = typedData[key as keyof AvCompanyOverview];
+          if (val !== undefined) acc[key] = val;
+          return acc;
+        }, {} as Partial<TrackedSymbolCompanyInfo>);
+
+        await db
+          .collection(FirestoreCollection.TRACKED_SYMBOLS)
+          .doc(symbol.toUpperCase())
+          .set(
+            {
+              [TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO]: companyInfo,
+              [TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO_LAST_UPDATED]: Timestamp.now(),
+            },
+            { merge: true }
+          );
+
+        log.info('tracked_symbols.company_info_updated', { symbol, requestId: this.requestId });
+      } catch (writeErr: any) {
+        // # Reason: Don't fail the primary fetch if the write-back fails — the symbol-data doc
+        // was already saved successfully. Log and continue.
+        log.error('tracked_symbols.company_info_update_failed', {
+          symbol,
+          requestId: this.requestId,
+          error: String(writeErr?.message || writeErr),
+        });
       }
-
-      
-      // Call the parent fetch method to make the actual API request
-      const response = await super.fetch({
-        symbol: params.symbol,
-        datatype: 'json'
-      });
-
-      console.log(` aCO.H f [${this.requestId}] ok ${Date.now() - startTime}ms`);
-      log.info('fetch.success', { symbol: params.symbol, requestId: this.requestId, durationMs: Date.now() - startTime, dataPoints: response.data ? Object.keys(response.data).length : 0 });
- 
-      return response;
-    } catch (error) {
-      console.error(`! aCO.H f [${this.requestId}] error:`, error instanceof Error ? error.message : error);
-      log.error('fetch.error', { requestId: this.requestId, symbol: params.symbol, durationMs: Date.now() - startTime, error: String((error as any)?.message || error) });
-      throw error;
     }
+
+    return response;
   }
 
   /**
-   * Transforms the Alpha Vantage API response into a more usable format
+   * Transforms the raw Alpha Vantage API response into a typed AvCompanyOverview object.
    * @param data Raw API response data
    * @returns Transformed company overview data
    */
-  protected transformResponse(data: any): CompanyOverviewData {
+  protected transformResponse(data: any): AvCompanyOverview {
     validateAlphaVantageApiResponse(data);
     console.log(` aCO.H tR [${this.requestId}] start`);
     log.debug('transform.start', { requestId: this.requestId });
@@ -115,8 +83,8 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
 
     try {
       // Map the response fields to our interface
-      const result: Partial<CompanyOverviewData> = {};
-      const fieldMappings: Record<keyof CompanyOverviewData, string | string[]> = {
+      const result: Partial<AvCompanyOverview> = {};
+      const fieldMappings: Record<keyof AvCompanyOverview, string | string[]> = {
         Symbol: 'Symbol',
         AssetType: 'AssetType',
         Name: 'Name',
@@ -162,12 +130,21 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
         '200DayMovingAverage': '200DayMovingAverage',
         SharesOutstanding: 'SharesOutstanding',
         DividendDate: 'DividendDate',
-        ExDividendDate: 'ExDividendDate'
+        ExDividendDate: 'ExDividendDate',
+        OfficialSite: 'OfficialSite',
+        SharesFloat: 'SharesFloat',
+        PercentInsiders: 'PercentInsiders',
+        PercentInstitutions: 'PercentInstitutions',
+        AnalystRatingStrongBuy: 'AnalystRatingStrongBuy',
+        AnalystRatingBuy: 'AnalystRatingBuy',
+        AnalystRatingHold: 'AnalystRatingHold',
+        AnalystRatingSell: 'AnalystRatingSell',
+        AnalystRatingStrongSell: 'AnalystRatingStrongSell',
       };
 
       let mappedFields = 0;
       // Map each field from the API response to our result object
-      (Object.entries(fieldMappings) as [keyof CompanyOverviewData, string | string[]][]).forEach(([key, apiKey]) => {
+      (Object.entries(fieldMappings) as [keyof AvCompanyOverview, string | string[]][]).forEach(([key, apiKey]) => {
         if (Array.isArray(apiKey)) {
           // Handle multiple possible field names (not needed here but kept for future use)
           for (const k of apiKey) {
@@ -188,12 +165,12 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
         // Provider returned no data; return empty result so caller can skip save
         console.warn(` aCO.H tR [${this.requestId}] empty; skip save`);
         log.info('transform.empty', { requestId: this.requestId });
-        return {} as CompanyOverviewData;
+        return {} as AvCompanyOverview;
       }
 
       log.info('transform.success', { requestId: this.requestId, symbol: (result as any).Symbol, mappedFields });
 
-      return result as CompanyOverviewData;
+      return result as AvCompanyOverview;
       
     } catch (error) {
       console.error(`! aCO.H tR [${this.requestId}] error:`, error instanceof Error ? error.message : error);
@@ -202,21 +179,4 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<CompanyOve
     }
   }
   
-  protected prepareRequestParams(params: Record<string, any>): Record<string, any> {
-    
-    // Call the parent's prepareRequestParams first
-    const baseParams = super.prepareRequestParams(params);
-    
-    // Add any additional parameters specific to this endpoint
-    const requestParams = {
-      ...baseParams,
-      datatype: 'json' // Force JSON response
-    };
-
-    // Mask apikey before logging final params
-    const logParams = { ...requestParams } as any;
-    if ('apikey' in logParams) logParams.apikey = '***';
-    log.debug('prepare.params', { requestId: this.requestId /* no secrets */ });
-    return requestParams;
-  }
 }

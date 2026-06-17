@@ -62,6 +62,28 @@ export interface AvCompanyOverview {
 }
 
 /**
+ * Stable subset of AvCompanyOverview fields suitable for denormalizing into
+ * the tracked-symbols collection. Contains only slowly-changing identity and
+ * classification fields — volatile fundamentals (ratios, prices, analyst data)
+ * are intentionally excluded and remain in the symbol-data collection only.
+ */
+export interface TrackedSymbolCompanyInfo {
+  Symbol: string;
+  AssetType: string;
+  Name: string;
+  Description: string;
+  CIK: string;
+  Exchange: string;
+  Currency: string;
+  Country: string;
+  Sector: string;
+  Industry: string;
+  Address: string;
+  OfficialSite: string;
+  FiscalYearEnd: string;
+}
+
+/**
  * Alpha Vantage company overview API response interface.
  */
 export interface AvCompanyOverviewResponse {
