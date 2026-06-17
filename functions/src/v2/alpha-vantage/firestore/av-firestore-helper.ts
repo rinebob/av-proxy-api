@@ -130,15 +130,13 @@ export async function saveAvData(
  * @returns Promise that resolves on success
  */
 /**
- * Internal helper for saving AV time series data.
- * Supports dual-writing to standard 'time-series' and split-adjusted 'sa-time-series'.
+ * Internal helper for saving AV time series data to split-adjusted 'sa-time-series'.
  */
 async function _internalSaveAvTimeSeriesData(
   data: any[],
   symbol: string,
   endpoint: AlphaVantageEndpoint,
   interval: TimeSeriesInterval,
-  isSplitAdjusted: boolean,
   options?: { skipSplitPersistence?: boolean },
 ): Promise<void> {
   console.log(`aFH sATSD start ${endpoint} ${symbol} ${interval}`);
@@ -148,7 +146,7 @@ async function _internalSaveAvTimeSeriesData(
   let histEndDate: Timestamp | null = null;
 
   // 2. Canonical doc path for time series
-  const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE, isSplitAdjusted);
+  const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, ApiProvider.ALPHA_VANTAGE);
   const docRef = db.doc(docPath);
 
   try {
@@ -204,7 +202,7 @@ async function _internalSaveAvTimeSeriesData(
     // DAILY: use provider splitCoefficient (sc) on the daily bars.
     // WEEKLY/MONTHLY: inject sc from symbol-data/{symbol}.splitHistory (AV SPLITS),
     // then run the same backwards-pass once over the AV W/M bars.
-    if (isSplitAdjusted && compactBars.length > 0) {
+    if (compactBars.length > 0) {
       if (interval !== TimeSeriesInterval.DAILY) {
         // For WEEKLY/MONTHLY, ensure we search splits against bars in chronological
         // order so each split maps to the correct period-end bar (not always the
@@ -268,7 +266,7 @@ async function _internalSaveAvTimeSeriesData(
     // Only for adjusted series writes. Captures historical splits for the split-events collection.
     // IMPORTANT: Do NOT update symbolData.splitHistory here; that history is sourced exclusively
     // from the dedicated AV SPLITS sync + real-time detection paths.
-    if (isSplitAdjusted && !options?.skipSplitPersistence) {
+    if (!options?.skipSplitPersistence) {
       const splits = compactBars.filter(b => b.sc !== undefined && b.sc !== 1);
       if (splits.length > 0) {
         console.log(`aFH sATSD backfilling ${splits.length} splits for ${symbol}`);
@@ -317,7 +315,7 @@ async function _internalSaveAvTimeSeriesData(
 
     if (interval === TimeSeriesInterval.MONTHLY) {
       // Single 'all' doc
-      const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, isSplitAdjusted);
+      const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
       const latestNonPlaceholder = [...compactBars].reverse().find(b => {
         const o = Number(b.o || 0), h = Number(b.h || 0), l = Number(b.l || 0), c = Number(b.c || 0), v = Number(b.v || 0);
         return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
@@ -340,7 +338,7 @@ async function _internalSaveAvTimeSeriesData(
     } else {
       // Year-sharded DAILY / WEEKLY
       for (const [year, bars] of barsByYear.entries()) {
-        const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year, isSplitAdjusted);
+        const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year);
         const latestNonPlaceholder = [...bars].reverse().find(b => {
           const o = Number(b.o || 0), h = Number(b.h || 0), l = Number(b.l || 0), c = Number(b.c || 0), v = Number(b.v || 0);
           return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
@@ -445,11 +443,11 @@ async function _internalSaveAvTimeSeriesData(
       refreshedBy: 'time-series-write',
     }, { merge: true });
 
-    console.log(`aFH sATSD ✓ ${endpoint} ${symbol} ${interval} adj=${isSplitAdjusted} wrote=${interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites}`);
-    log.info('timeseries.save.success', { symbol, endpoint, interval, isSplitAdjusted, barsWritten: interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites, durationMs: Date.now() - startTime, latestBarIso });
+    console.log(`aFH sATSD ✓ ${endpoint} ${symbol} ${interval} wrote=${interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites}`);
+    log.info('timeseries.save.success', { symbol, endpoint, interval, barsWritten: interval === TimeSeriesInterval.MONTHLY ? compactBars.length : totalBarWrites, durationMs: Date.now() - startTime, latestBarIso });
   } catch (error) {
     console.error('! aFH sATSD error', (error as any)?.message || error);
-    log.error('timeseries.save.error', { symbol, endpoint, interval, isSplitAdjusted, error: String((error as any)?.message || error) });
+    log.error('timeseries.save.error', { symbol, endpoint, interval, error: String((error as any)?.message || error) });
     throw error;
   }
 }
@@ -463,7 +461,7 @@ export async function saveAvTimeSeriesData(
 ): Promise<void> {
   // Adjusted-only writes: persist exclusively to sa-time-series.
   // Raw time-series is no longer maintained.
-  await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, true, {
+  await _internalSaveAvTimeSeriesData(data, symbol, endpoint, interval, {
     skipSplitPersistence: options?.skipSplitPersistence,
   });
 }
@@ -559,8 +557,7 @@ export async function initializeTimeSeriesIfMissing(
  * @returns Promise that resolves on success
  */
 /**
- * Internal helper for upserting daily bars.
- * Supports dual-writing.
+ * Internal helper for upserting daily bars to split-adjusted collection.
  */
 async function _internalUpsertDailyBar(
   options: {
@@ -574,15 +571,14 @@ async function _internalUpsertDailyBar(
   // Epoch ms when the daily bar first finalized (POST). If provided and fz not yet set, this will be stamped.
     finalizedAtMs?: number;
   },
-  isSplitAdjusted: boolean
 ): Promise<void> {
   const { symbol, date, patch, endpoint = AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, skipParentMetaBump, finalizedAtMs } = options;
   const vendor = ApiProvider.ALPHA_VANTAGE;
   const t = new Date(`${date}T00:00:00.000Z`).getTime();
   const y = getYearFromEpochMillis(t);
-  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y, isSplitAdjusted);
+  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y);
   const yearRef = db.doc(yearDocPath);
-  const metaDocPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor, isSplitAdjusted);
+  const metaDocPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor);
   const metaRef = db.doc(metaDocPath);
 
   let pendingRemediation: SplitRemediationPayload | null = null;
@@ -625,7 +621,7 @@ async function _internalUpsertDailyBar(
 
       // --- Split Remediation Logic ---
       // Only triggered for the split-adjusted collection
-      const isSplitEvent = isSplitAdjusted && patch.sc !== undefined && patch.sc !== 1;
+      const isSplitEvent = patch.sc !== undefined && patch.sc !== 1;
       if (isSplitEvent) {
         const metaData = metaSnap.data()?.metadata || {};
         const lastProcessed = metaData.latestSplitDateProcessed;
@@ -708,7 +704,7 @@ async function _internalUpsertDailyBar(
       bars.push(newBar);
 
       // --- Split Remediation Logic (New Bar) ---
-      const isSplitEvent = isSplitAdjusted && patch.sc !== undefined && patch.sc !== 1;
+      const isSplitEvent = patch.sc !== undefined && patch.sc !== 1;
       if (isSplitEvent) {
         const metaData = metaSnap.data()?.metadata || {};
         const lastProcessed = metaData.latestSplitDateProcessed;
@@ -820,7 +816,7 @@ export async function upsertAvDailyBar(options: {
   finalizedAtMs?: number;
 }): Promise<void> {
   // Adjusted-only: write exclusively to sa-time-series.
-  await _internalUpsertDailyBar(options, true);
+  await _internalUpsertDailyBar(options);
 }
 
 /**
@@ -1061,7 +1057,7 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
     return;
   }
 
-  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, lastAvYear, true);
+  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, lastAvYear);
   const ref = db.doc(yearDocPath);
   const snap = await ref.get();
   const existingBars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
@@ -1072,7 +1068,7 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
     // calendar week as lastAvDate.
     const priorYear = lastAvYear - 1;
     if (Number.isFinite(priorYear)) {
-      const priorYearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, priorYear, true);
+      const priorYearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, priorYear);
       const priorRef = db.doc(priorYearDocPath);
       const priorSnap = await priorRef.get();
       if (priorSnap.exists) {
@@ -1245,8 +1241,8 @@ export async function mergeMonthlyCompactWindowIntoAllDocs(options: {
 
   let latestDateForMeta: string | null = null;
 
-  // Adjusted-only: write exclusively to sa-time-series (isSplitAdjusted = true).
-  const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, true);
+  // Adjusted-only: write exclusively to sa-time-series.
+  const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
   const ref = db.doc(allDocPath);
   const snap = await ref.get();
   const existingBars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
@@ -1374,6 +1370,8 @@ export async function upsertAvDailyIntradaySnapshot(options: {
   const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, vendor, y);
   const yearRef = db.doc(yearDocPath);
 
+  console.log(`[upsertAvDailyIntradaySnapshot] Starting transaction for ${symbol} at path: ${yearDocPath}`);
+
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(yearRef);
     const bars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
@@ -1418,6 +1416,7 @@ export async function upsertAvDailyIntradaySnapshot(options: {
     const latestIoEtDateTime = latestBar?.io != null ? formatEtDateTime(Number(latestBar.io)) : null;
     const version = `${bars[bars.length - 1]?.t ?? ''}-${bars.length}`;
 
+    const finalVersion = version;
     tx.set(yearRef, {
       bars,
       count: bars.length,
@@ -1428,10 +1427,13 @@ export async function upsertAvDailyIntradaySnapshot(options: {
       latestEtDateTime,
       latestIoUtcIso,
       latestIoEtDateTime,
-      version,
+      version: finalVersion,
       updatedAt: Timestamp.now(),
     }, { merge: true });
+    console.log(`[upsertAvDailyIntradaySnapshot] Transaction set for ${symbol}, version: ${finalVersion}`);
   });
+
+  console.log(`[upsertAvDailyIntradaySnapshot] Transaction committed for ${symbol} at path: ${yearDocPath}`);
 }
 
 /**
@@ -1473,7 +1475,7 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
     const ttlSeconds = endpointConfig.ttl;
     // Time-series job pipeline now treats the split-adjusted series as canonical.
     // Use the adjusted series doc as the parent for metadata.
-    const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor, true);
+    const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor);
     const docRef = db.doc(docPath);
     const latestTsFromDate = new Date(`${latestDate}T00:00:00.000Z`).getTime();
 
@@ -1484,7 +1486,7 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
 
     if (interval === TimeSeriesInterval.MONTHLY) {
       // Use the adjusted monthly all-doc as the source of truth for date bounds/years.
-      const allPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, true);
+      const allPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
       const allSnap = await db.doc(allPath).get();
       if (allSnap.exists) {
         const data = allSnap.data() as any;
@@ -1516,8 +1518,8 @@ export async function bumpTimeSeriesTopLevelMetadata(options: {
         const earliestYear = years[0];
         const latestYear = years[years.length - 1];
 
-        const earliestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, earliestYear, true);
-        const latestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, latestYear, true);
+        const earliestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, earliestYear);
+        const latestPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, latestYear);
         const [earliestSnap, latestSnap] = await Promise.all([
           db.doc(earliestPath).get(),
           db.doc(latestPath).get(),

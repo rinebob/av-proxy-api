@@ -63,8 +63,7 @@ async function readIntradaySnapshot(symbol: string, marketDate: string): Promise
     upperSymbol,
     AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
     ApiProvider.ALPHA_VANTAGE,
-    year,
-    true // isSplitAdjusted = true
+    year
   );
 
   try {

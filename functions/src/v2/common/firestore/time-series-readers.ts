@@ -76,13 +76,13 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
   const to = toExplicit ?? toPreset ?? nowMs;
 
   const vendor = ApiProvider.ALPHA_VANTAGE;
-  const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor, isSplitAdjusted);
+  const docPath = getSymbolTimeSeriesDocPath(symbol, endpoint, vendor);
   logger.debug('reader.start', { symbol, interval, endpoint, docPath, params, isSplitAdjusted });
 
   try {
     // Monthly uses single 'all' doc
     if (interval === TimeSeriesInterval.MONTHLY) {
-      const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, isSplitAdjusted);
+      const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
       logger.debug('reader.monthly.doc', { allDocPath });
       const snap = await db.doc(allDocPath).get();
       logger.debug('reader.monthly.doc.exists', { allDocPath, exists: snap.exists });
@@ -167,7 +167,7 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
     logger.debug('reader.yearsToRead', { fromYear, toYear, yearsToRead });
 
     // Fetch all year docs in parallel
-    const yearRefs = yearsToRead.map(y => db.doc(getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y, isSplitAdjusted)));
+    const yearRefs = yearsToRead.map(y => db.doc(getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, y)));
     logger.debug('reader.yearDocs', { yearRefs });
     const yearSnaps = await Promise.all(yearRefs.map(r => r.get()));
 

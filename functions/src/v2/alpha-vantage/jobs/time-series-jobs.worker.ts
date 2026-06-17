@@ -266,13 +266,13 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
 
     if (interval === TimeSeriesInterval.DAILY || interval === TimeSeriesInterval.WEEKLY) {
       const year = new Date(`${marketDate}T00:00:00.000Z`).getUTCFullYear();
-      const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year, true);
+      const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, endpoint, vendor, year);
       const yearRef = db.doc(yearDocPath);
       const yearSnap = await yearRef.get();
       const lastBarTs = yearSnap.get('lastBarTs');
       latestMs = typeof lastBarTs === 'number' ? lastBarTs : null;
     } else {
-      const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor, true);
+      const allDocPath = getSymbolTimeSeriesAllDocPath(symbol, endpoint, vendor);
       const allRef = db.doc(allDocPath);
       const allSnap = await allRef.get();
       const lastBarTs = allSnap.get('lastBarTs');
