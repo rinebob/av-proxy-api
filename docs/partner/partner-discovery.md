@@ -362,6 +362,41 @@ See `docs/partner/partner-integration.md` for cURL/Node/PowerShell examples.
 
 ---
 
+## Partner Company Overview API
+
+- HTTPS method: GET
+- URL: Provided during onboarding (e.g., `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerCompanyOverviewV2`)
+- Purpose: Retrieve normalized Alpha Vantage OVERVIEW data (fundamentals, ratios, analyst ratings) for a single equity symbol. Reads from Firestore; no live AV call per request.
+- Full reference: `docs/partner/partner-company-overview.md`
+
+### Query parameters
+- `symbol` (required) — e.g., `AAPL` (case-insensitive)
+
+### Example request
+```
+GET /partnerCompanyOverviewV2?symbol=AAPL
+Authorization: Bearer <id_token>
+```
+
+### Response shape (abbreviated)
+```json
+{
+  "ok": true,
+  "symbol": "AAPL",
+  "data": { "Symbol": "AAPL", "Name": "Apple Inc", "Sector": "TECHNOLOGY", "PERatio": "32.5", "..." : "..." },
+  "metadata": { "lastUpdated": "2026-06-20T10:30:00.000Z", "nextUpdate": "2026-06-27T10:30:00.000Z", "ttlSeconds": 604800 },
+  "timestamp": "2026-06-23T16:45:00.000Z",
+  "processingTimeMs": 38
+}
+```
+
+### Notes
+- Data TTL: 7 days. Populated by the internal AV refresh manager.
+- Only equity symbols have data. ETFs, indexes, and crypto return `404`.
+- Returns `404` if the symbol is not tracked in the backend.
+
+---
+
 ## Contacts
 
 - Integration support: Contact your Savant representative or open a ticket in the shared tracker.
