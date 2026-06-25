@@ -30,6 +30,7 @@ export class SymbolsDialogComponent {
   
   // Dialog state
   selectedSymbol = signal<TrackedSymbolV2 | undefined>(undefined);
+  symbolAlreadyTracked = signal(false);
  
   constructor() {
     this.store.symbolSelected$.pipe(
@@ -47,6 +48,11 @@ export class SymbolsDialogComponent {
   onSymbolSelected(selectedSymbol: TrackedSymbolV2): void {
     console.log('sD symbolsDialog onSymbolSelected: ', selectedSymbol);
     this.selectedSymbol.set(selectedSymbol);
+    this.symbolAlreadyTracked.set(false);
+  }
+
+  onIsTracked(tracked: boolean): void {
+    this.symbolAlreadyTracked.set(tracked);
   }
 
   onAddSymbol(): void {

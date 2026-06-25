@@ -30,14 +30,16 @@
   .action-bar {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
-    gap: 1.5rem;
+    gap: 1rem;
     
     .action-buttons {
       display: flex;
       gap: 1rem;
+      align-items: center;
+      padding-top: 0.25rem;
       
       button {
         margin-right: 0.5rem;
@@ -59,6 +61,11 @@
       }
     }
 
+    .inline-search {
+      flex: 1;
+      min-width: 320px;
+    }
+
     .spacer {
       flex: 1;
     }
@@ -67,6 +74,35 @@
       color: #666;
       font-style: italic;
     }
+  }
+
+  .symbol-search-card {
+    margin-bottom: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+    .symbol-search-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .symbol-search-field {
+      flex: 1;
+      min-width: 240px;
+    }
+  }
+
+  .active-search-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background-color: #e3f2fd;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    color: #1a237e;
+    font-size: 0.875rem;
   }
 
   .symbol-table-container {

@@ -11,6 +11,8 @@ import {
     TrackedSymbolV2,
 } from '@shared/alpha-vantage';
 
+import { SymbolDetailsV2Response } from '../../data-maintainer-view/common/fe-common-dm-api';
+
 import { processTimestamps } from '../../../shared/utils/date-utils';
 
 import { AlphaVantageFunctions } from '../../../common/fe-common-app';
@@ -510,6 +512,56 @@ export class SymbolManagerService {
           total: 0,
           limit: limit,
           offset: offset
+        });
+      })
+    );
+  }
+
+  /**
+   * Gets a single tracked symbol from Firestore by its symbol string.
+   * @param symbol The symbol to look up (e.g., 'AAPL')
+   * @returns Observable with the tracked symbol details
+   */
+  getSymbolDetailsV2(symbol: string): Observable<SymbolDetailsV2Response> {
+    const trimmedSymbol = symbol?.trim().toUpperCase();
+    if (!trimmedSymbol) {
+      return of({
+        ok: false,
+        exists: false,
+        symbol: '',
+        data: null,
+        error: 'No symbol provided'
+      });
+    }
+
+    const params = new URLSearchParams({ symbol: trimmedSymbol });
+    const url = `${this.apiBases.dm}/${DataMaintainerFunctionName.GET_SYMBOL_DETAILS_V2}?${params.toString()}`;
+
+    console.log('FE sMSvc gSDV2 getSymbolDetailsV2 url:', url);
+
+    return this.http.get<SymbolDetailsV2Response>(url).pipe(
+      map(response => {
+        if (!response) {
+          throw new Error('No response from server');
+        }
+
+        console.log('fe sMSvc gSDV2 getSymbolDetailsV2 response:', response);
+
+        const processedData = response.data ? processTimestamps(response.data) as TrackedSymbolV2 : null;
+
+        return {
+          ...response,
+          data: processedData
+        };
+      }),
+      catchError(error => {
+        console.error('fe sMSvc gSDV2 getSymbolDetailsV2 Error getting symbol details:', error);
+        return of({
+          ok: false,
+          exists: false,
+          symbol: trimmedSymbol,
+          data: null,
+          error: error.message || 'Failed to fetch symbol details'
         });
       })
     );

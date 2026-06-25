@@ -1,18 +1,16 @@
-<mat-dialog-content>
-  <div class="symbol-input-form">
+<div class="symbol-input-form">
     <p class="dialog-description">
       Start typing a company name or symbol. International symbols are supported. Two character minimum.
     </p>
     
-    <form (submit)="$event.preventDefault()" class="full-width">
+    <form (submit)="$event.preventDefault()">
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Company name or symbol</mat-label>
-        <input matInput 
+        <input matInput
                [formControl]="searchControl"
                [matAutocomplete]="auto"
-               placeholder="e.g., Apple or AAPL"
-               autofocus>
-        <mat-autocomplete #auto="matAutocomplete" 
+               placeholder="e.g., Apple or AAPL">
+        <mat-autocomplete #auto="matAutocomplete"
                         [displayWith]="displayFn"
                         (optionSelected)="onSymbolSelected($event)">
           @for (match of searchResults(); track match) {
@@ -22,10 +20,16 @@
                 <span class="column name">{{match.name}}</span>
                 <span class="column type">{{match.type}}</span>
                 <span class="column score">{{match.matchScore | number:'1.2-2'}}</span>
+                @if (trackedMap()[match.symbol] !== undefined) {
+                  <span class="tracked-badge" [class.is-tracked]="trackedMap()[match.symbol]">
+                    <mat-icon>{{ trackedMap()[match.symbol] ? 'check_circle' : 'add_circle_outline' }}</mat-icon>
+                    {{ trackedMap()[match.symbol] ? 'Tracked' : 'Add' }}
+                  </span>
+                }
               </div>
             </mat-option>
           }
-          @if (symbolManagerStore.loading()) {
+          @if (checkingDb() && searchResults().length === 0) {
             <mat-option class="loading-option">
               <div class="loading-spinner">
                 <mat-spinner diameter="24"></mat-spinner>
@@ -34,10 +38,10 @@
             </mat-option>
           }
         </mat-autocomplete>
-        @if (!symbolManagerStore.loading()) {
+        @if (!checkingDb()) {
           <mat-icon matSuffix>search</mat-icon>
         }
-        @if (symbolManagerStore.loading()) {
+        @if (checkingDb()) {
           <mat-spinner matSuffix diameter="20"></mat-spinner>
         }
       </mat-form-field>
@@ -49,5 +53,4 @@
         <span>{{symbolManagerStore.error()}}</span>
       </div>
     }
-  </div>
-</mat-dialog-content>
+</div>

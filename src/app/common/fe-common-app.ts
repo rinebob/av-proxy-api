@@ -22,6 +22,7 @@ const PROD_URLS = {
   [DataMaintainerFunctionName.SYNC_SYMBOLS]: 'https://syncsymbols-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.SAVE_TRACKED_SYMBOL]: 'https://savetrackedsymbol-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.LIST_SYMBOLS_V2]: 'https://listsymbolsv2-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.GET_SYMBOL_DETAILS_V2]: 'https://getsymboldetailsv2-lsluydmucq-uc.a.run.app',
 } as const;
 
 // Development URL base

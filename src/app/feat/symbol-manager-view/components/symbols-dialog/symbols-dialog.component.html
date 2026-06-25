@@ -3,7 +3,8 @@
 <mat-dialog-content>
   <div class="symbols-dialog">
     <app-symbol-input-form
-      (symbolSelected)="onSymbolSelected($event)">
+      (symbolSelected)="onSymbolSelected($event)"
+      (isTracked)="onIsTracked($event)">
     </app-symbol-input-form>
   </div>
 </mat-dialog-content>
@@ -17,8 +18,8 @@
     mat-raised-button 
     color="primary" 
     (click)="onAddSymbol()"
-    [disabled]="!selectedSymbol()">
+    [disabled]="!selectedSymbol() || symbolAlreadyTracked()">
     <mat-icon>add</mat-icon>
-    Add Symbol
+    {{ symbolAlreadyTracked() ? 'Already Tracked' : 'Add Symbol' }}
   </button>
 </mat-dialog-actions>

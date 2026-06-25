@@ -34,21 +34,24 @@
             <div class="action-buttons">
                 <button mat-raised-button color="primary" (click)="store.listSymbolsV2()" [disabled]="store.loading()">
                     <mat-icon>refresh</mat-icon>
-                    Refresh List V2
-                </button>
-                <button mat-raised-button color="accent" (click)="openSymbolsDialog()" [disabled]="store.loading()">
-                    <mat-icon>search</mat-icon>
-                    Search keywords
+                    Refresh
                 </button>
             </div>
+            <app-symbol-input-form class="inline-search"></app-symbol-input-form>
         </div>
 
         <!-- V2 Symbols Table -->
         <mat-card class="symbol-table-container">
 
             <mat-card-content>
-                @if (store.v2Symbols().length > 0) {
-                    <table mat-table [dataSource]="store.v2Symbols()" class="mat-elevation-z8">
+                @if (hasActiveSearch()) {
+                    <div class="active-search-banner">
+                        <span>Showing search result for <strong>{{ store.v2SymbolSearchResult()?.symbol }}</strong></span>
+                        <button mat-button (click)="store.clearSyncResults()">Clear</button>
+                    </div>
+                }
+                @if (displayedSymbols().length > 0) {
+                    <table mat-table [dataSource]="displayedSymbols()" class="mat-elevation-z8">
                         <!-- Symbol -->
                         <ng-container matColumnDef="symbol">
                             <th mat-header-cell *matHeaderCellDef>Symbol</th>
@@ -108,10 +111,14 @@
                         <tr mat-row *matRowDef="let row; columns: displayedV2Columns;"></tr>
                     </table>
                 }
-                @if (store.v2Symbols().length === 0 && !store.loading()) {
+                @if (displayedSymbols().length === 0 && !store.loading()) {
                 <div class="empty-state">
                     <mat-icon>info</mat-icon>
-                    <p>No V2 symbols found. Add a V2 symbol to get started.</p>
+                    @if (hasActiveSearch()) {
+                        <p>No tracked symbol found for "{{ store.v2SymbolSearchResult()?.symbol }}".</p>
+                    } @else {
+                        <p>No V2 symbols found. Add a V2 symbol to get started.</p>
+                    }
                 </div>
                 }
             </mat-card-content>

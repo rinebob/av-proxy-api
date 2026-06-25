@@ -30,6 +30,7 @@ interface SymbolManagerState {
 
     v2SearchResults: TrackedSymbolV2[] | undefined;
     v2Symbols: TrackedSymbolV2[];
+    v2SymbolSearchResult: TrackedSymbolV2 | null;
 }
 
 const initialState: SymbolManagerState = {
@@ -48,6 +49,7 @@ const initialState: SymbolManagerState = {
 
     v2SearchResults: undefined,
     v2Symbols: [],
+    v2SymbolSearchResult: null,
 };
 
 export const SymbolManagerStore = signalStore(
@@ -61,6 +63,7 @@ export const SymbolManagerStore = signalStore(
 
         v2SearchResults$: toObservable(store.v2SearchResults),
         v2Symbols$: toObservable(store.v2Symbols),
+        v2SymbolSearchResult$: toObservable(store.v2SymbolSearchResult),
     })),
     withMethods((store, symbolService = inject(SymbolManagerService), snackBar = inject(MatSnackBar)) => ({
         // Clear sync results and reset related state
@@ -71,6 +74,7 @@ export const SymbolManagerStore = signalStore(
                 loading: false,
 
                 v2SearchResults: undefined,
+                v2SymbolSearchResult: null,
             });
         },
         // Update methods
@@ -397,6 +401,54 @@ export const SymbolManagerStore = signalStore(
                     }
                 }),
             ).subscribe();
+        },
+
+        /**
+         * Search for a single tracked symbol in Firestore by its symbol string.
+         * Updates v2SymbolSearchResult with the record if found, or null if not found.
+         * @param symbol The symbol to search for (e.g., 'AAPL')
+         */
+        searchTrackedSymbolV2(symbol: string): void {
+            const trimmedSymbol = symbol?.trim();
+            if (!trimmedSymbol) {
+                patchState(store, {
+                    v2SymbolSearchResult: null,
+                    error: 'Please enter a symbol to search'
+                });
+                return;
+            }
+
+            console.log('sMSto sTSV2 searchTrackedSymbolV2 called with symbol:', trimmedSymbol);
+            patchState(store, { loading: true, error: null, v2SymbolSearchResult: null });
+
+            symbolService.getSymbolDetailsV2(trimmedSymbol).subscribe({
+                next: (response) => {
+                    if (response.ok && response.exists && response.data) {
+                        patchState(store, {
+                            loading: false,
+                            v2SymbolSearchResult: response.data
+                        });
+                    } else if (response.ok && !response.exists) {
+                        patchState(store, {
+                            loading: false,
+                            error: `${trimmedSymbol} is not in tracked symbols`
+                        });
+                    } else {
+                        patchState(store, {
+                            loading: false,
+                            error: response.error || `Failed to find ${trimmedSymbol}`
+                        });
+                    }
+                },
+                error: (error) => {
+                    console.error('sMSto sTSV2 Error searching tracked symbol:', error);
+                    const errorMessage = error instanceof Error ? error.message : 'Failed to search tracked symbol';
+                    patchState(store, {
+                        loading: false,
+                        error: errorMessage
+                    });
+                }
+            });
         },
 
         /**

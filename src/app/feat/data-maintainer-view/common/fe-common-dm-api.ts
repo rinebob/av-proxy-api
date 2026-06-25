@@ -1,4 +1,4 @@
-import { AvCompanyOverview } from '@shared/alpha-vantage';
+import { AvCompanyOverview, TrackedSymbolV2 } from '@shared/alpha-vantage';
 import { environment } from '../../../../environments/environment';
 import { inject } from '@angular/core';
 import { API_BASES } from '../../../core/api/api.tokens';
@@ -16,6 +16,7 @@ export enum DataMaintainerFunctionName {
   SYNC_SYMBOLS = 'syncSymbols',
   SAVE_TRACKED_SYMBOL = 'saveTrackedSymbol',
   LIST_SYMBOLS_V2 = 'listSymbolsV2',
+  GET_SYMBOL_DETAILS_V2 = 'getSymbolDetailsV2',
 }
 
 // Deprecated: legacy base/url constants. Prefer API_BASES.dm.
@@ -148,6 +149,14 @@ export interface ListSymbolsResponse {
 export interface SymbolDetailsResponse {
   ok: boolean;
   data: TrackedSymbol | null;
+  error?: string;
+}
+
+export interface SymbolDetailsV2Response {
+  ok: boolean;
+  exists: boolean;
+  symbol: string;
+  data: TrackedSymbolV2 | null;
   error?: string;
 }
 
