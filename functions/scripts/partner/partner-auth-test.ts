@@ -20,6 +20,7 @@ interface Args {
   region: string;
   fnList: string;
   fnTs: string;
+  fnOverview: string;
   symbol: string;
   interval: 'daily' | 'weekly' | 'monthly';
   limit: number;
@@ -41,6 +42,7 @@ function parseArgs(): Args {
     region: getEnv('REGION', 'us-central1'),
     fnList: getEnv('FN_LIST', 'partnerListTrackedSymbolsV2'),
     fnTs: getEnv('FN_TS', 'partnerTimeSeriesV2'),
+    fnOverview: getEnv('FN_OVERVIEW', 'partnerCompanyOverviewV2'),
     symbol: getEnv('SYMBOL', 'AAPL'),
     interval: (getEnv('INTERVAL', 'daily') as Args['interval']),
     limit: Number(getEnv('LIMIT', '500')),
@@ -60,6 +62,7 @@ function parseArgs(): Args {
       case '--interval': out.interval = n as Args['interval']; i++; break;
       case '--limit': out.limit = Number(n); i++; break;
       case '--activeOnly': out.activeOnly = n as Args['activeOnly']; i++; break;
+      case '--fn-overview': out.fnOverview = n; i++; break;
       case '--verbose': out.verbose = true; break;
       case '--check-tokeninfo': out.checkTokeninfo = true; break;
       case '-h':
@@ -93,12 +96,13 @@ Options / Env:
   --interval daily|weekly|monthly  Time series interval (default: daily)
   --limit N               Limit tracked symbols (default: 500)
   --activeOnly true|false Filter tracked symbols (default: true)
+  --fn-overview NAME      Override company-overview function name (default: partnerCompanyOverviewV2)
   --verbose               Verbose HTTP output
   --check-tokeninfo       Call tokeninfo for minted tokens (jq-free)
   -h, --help              Show this help
 
 Env overrides:
-  PROJECT, REGION, SA, FN_LIST, FN_TS, HOST, URL_LIST, URL_TS,
+  PROJECT, REGION, SA, FN_LIST, FN_TS, FN_OVERVIEW, HOST, URL_LIST, URL_TS,
   SYMBOL, INTERVAL, LIMIT, ACTIVE_ONLY, VERBOSE, CHECK_TOKENINFO
 `);
   process.exit(code);
@@ -109,11 +113,12 @@ function log(msg: string) {
   console.log(`[${ts}] ${msg}`);
 }
 
-function buildUrls(project: string, region: string, fnList: string, fnTs: string) {
+function buildUrls(project: string, region: string, fnList: string, fnTs: string, fnOverview: string) {
   const host = `https://${region}-${project}.cloudfunctions.net`;
   const urlList = `${host}/${fnList}`;
   const urlTs = `${host}/${fnTs}`;
-  return { host, urlList, urlTs };
+  const urlOverview = `${host}/${fnOverview}`;
+  return { host, urlList, urlTs, urlOverview };
 }
 
 function quoteArg(a: string): string {
@@ -163,13 +168,10 @@ async function mintToken(sa: string, audience: string): Promise<string> {
     '--include-email',
   ];
 
-  // Try direct spawn first (no shell)
-  let result = await spawnCapture(gcloud, args, false);
-
-  // If it fails on Windows (space in path, Git Bash, etc.), fallback to shell with quoting
-  if (result.code !== 0 && process.platform === 'win32') {
-    result = await spawnCapture(gcloud, args, true);
-  }
+  // On Windows, .cmd files require shell:true — direct spawn always raises EINVAL.
+  // On other platforms, try direct spawn first for cleaner arg passing.
+  const useShell = process.platform === 'win32';
+  const result = await spawnCapture(gcloud, args, useShell);
 
   if (result.code !== 0) {
     const hint = `If on Windows, ensure Google Cloud CLI is on PATH or set GCLOUD to the full path (no surrounding quotes).\nExamples:\n  Git Bash:   export GCLOUD=/c/Program\ Files/Google/Cloud\ SDK/google-cloud-sdk/bin/gcloud.cmd\n  PowerShell: $env:GCLOUD=\"C:\\Program Files\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd\"`;
@@ -197,12 +199,13 @@ async function tokenInfo(token: string) {
 
 async function main() {
   const args = parseArgs();
-  const { urlList, urlTs } = buildUrls(args.project, args.region, args.fnList, args.fnTs);
+  const { urlList, urlTs, urlOverview } = buildUrls(args.project, args.region, args.fnList, args.fnTs, args.fnOverview);
 
   log(`Project: ${args.project} | Region: ${args.region}`);
   log(`SA: ${args.sa}`);
   log(`List URL: ${urlList}`);
   log(`TimeSeries URL: ${urlTs}`);
+  log(`Overview URL: ${urlOverview}`);
 
   log(`Minting token for LIST (aud=${urlList})`);
   const tokenList = await mintToken(args.sa, urlList);
@@ -210,11 +213,16 @@ async function main() {
   log(`Minting token for TIME-SERIES (aud=${urlTs})`);
   const tokenTs = await mintToken(args.sa, urlTs);
 
+  log(`Minting token for OVERVIEW (aud=${urlOverview})`);
+  const tokenOverview = await mintToken(args.sa, urlOverview);
+
   if (args.checkTokeninfo) {
     log('tokeninfo for TOKEN_LIST (jq-free)');
     await tokenInfo(tokenList);
     log('tokeninfo for TOKEN_TS (jq-free)');
     await tokenInfo(tokenTs);
+    log('tokeninfo for TOKEN_OVERVIEW (jq-free)');
+    await tokenInfo(tokenOverview);
   }
 
   log(`Calling LIST (activeOnly=${args.activeOnly}, limit=${args.limit})`);
@@ -222,6 +230,9 @@ async function main() {
 
   log(`Calling TIME-SERIES (symbol=${args.symbol}, interval=${args.interval})`);
   await httpGet(`${urlTs}?symbol=${encodeURIComponent(args.symbol)}&interval=${args.interval}`, tokenTs, args.verbose);
+
+  log(`Calling OVERVIEW (symbol=${args.symbol})`);
+  await httpGet(`${urlOverview}?symbol=${encodeURIComponent(args.symbol)}`, tokenOverview, args.verbose);
 
   log('Done.');
 }

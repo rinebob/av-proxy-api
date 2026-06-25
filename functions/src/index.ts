@@ -36,6 +36,7 @@ export { partnerListTrackedSymbolsV2 } from './v2/partner/tracked-symbols-partne
 export { partnerDataReadyPublishV2 } from './v2/partner/data-ready.publish.function';
 export { partnerMarketHolidays } from './v2/partner/market-holidays-partner';
 export { partnerIntradaySnapshotV2 } from './v2/partner/intraday-snapshot-partner';
+export { partnerCompanyOverviewV2 } from './v2/partner/company-overview-partner';
 
 // Note: HTTP dataReadyWebhook has been removed. Publishing is internal-only via enqueueDataReadyInternal.
 
@@ -90,6 +91,8 @@ export { cleanupOldRunDocs } from './v2/common/run-doc-cleanup';
 export { saveTrackedSymbol } from './v2/common/functions/save-tracked-symbol.function';
 
 export { listSymbolsV2 } from './v2/common/functions/listSymbolsV2';
+
+export { getSymbolDetailsV2 } from './v2/common/functions/get-symbol-details';
 
 export { requestBenzingaNews } from './v2/benzinga/data-refresher/bz-news-request-manager';
 

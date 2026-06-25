@@ -2,7 +2,8 @@ import { onRequest } from "firebase-functions/v2/https";
 import { ListSymbolsOptions } from "@shared/alpha-vantage";
 import { serializeTrackedSymbols } from "../common-dm";
 import { symbolManagerService } from "../../alpha-vantage/services/symbol-manager.service";
-import { withCors, ALLOWED_ORIGINS } from "../../utils/cors-middleware";
+import { withCors } from "../../utils/cors-middleware";
+import { authenticateRequest } from "../../utils/utils";
 
 /**
  * HTTP endpoint for listing tracked symbols
@@ -15,16 +16,8 @@ export const listSymbolsV2 = onRequest({ }, withCors(async (req, res) => {
       return;
     }
 
-    // Internal/browser-facing: restrict by Origin allowlist
-    const origin = req.headers.origin as string | undefined;
-    if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
-      res.status(403).json({
-        error: 'Forbidden',
-        message: 'This endpoint is only accessible from approved origins.',
-        allowedOrigins: ALLOWED_ORIGINS,
-      });
-      return;
-    }
+    const user = await authenticateRequest(req, res);
+    if (!user) return;
 
     console.log('=============== START BE listSymbolsV2 ==============================');
 

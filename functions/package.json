@@ -14,7 +14,7 @@
     "logs": "firebase functions:log",
     "ts": "ts-node -r tsconfig-paths/register -P tsconfig.json",
     "ts:scripts": "ts-node -r tsconfig-paths/register -P scripts/tsconfig.json",
-    "gcp-build": "npm run build",
+    "gcp-build": "echo 'Skipping build: lib/ is pre-compiled locally'",
     "test:firestore": "ts-node scripts/test-firestore.ts"
   },
   "engines": {
