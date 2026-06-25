@@ -37,6 +37,8 @@ export class SymbolInputFormComponent implements OnInit {
   
   @Output() symbolSelected = new EventEmitter<TrackedSymbolV2>();
   @Output() isTracked = new EventEmitter<boolean>();
+  /** Emits the raw search string on every keystroke so the parent can filter the table */
+  @Output() searchTermChange = new EventEmitter<string>();
 
   symbolManagerStore = inject(SymbolManagerStore);
   private symbolService = inject(SymbolManagerService);
@@ -53,6 +55,14 @@ export class SymbolInputFormComponent implements OnInit {
   }
 
   private setupAutocomplete(): void {
+    // Reason: emit raw value immediately (before debounce) so parent table filter is responsive
+    this.searchControl.valueChanges.pipe(
+      takeUntilDestroyed(this.destroyRef),
+      startWith('')
+    ).subscribe(value => {
+      this.searchTermChange.emit(typeof value === 'string' ? value : '');
+    });
+
     this.searchControl.valueChanges.pipe(
       takeUntilDestroyed(this.destroyRef),
       startWith(''),
@@ -149,5 +159,6 @@ export class SymbolInputFormComponent implements OnInit {
     this.searchControl.reset();
     this.searchResults.set([]);
     this.trackedMap.set({});
+    this.searchTermChange.emit('');
   }
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, ViewChild, DestroyRef } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, ViewChild, effect, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,8 +11,9 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTabGroup } from '@angular/material/tabs';
 import { MatTableModule } from '@angular/material/table';
 import { MatSortModule, Sort } from '@angular/material/sort';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatPaginatorModule, MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { SymbolManagerStore } from '../../store/symbol-manager.store';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SymbolInputFormComponent } from '../symbols-dialog/symbol-input-form/symbol-input-form.component';
@@ -34,6 +35,7 @@ import { SymbolInputFormComponent } from '../symbols-dialog/symbol-input-form/sy
     MatSortModule,
     MatPaginatorModule,
     MatMenuModule,
+    MatTooltipModule,
     SymbolInputFormComponent,
   ],
   templateUrl: './symbol-manager.component.html',
@@ -45,32 +47,57 @@ export class SymbolManagerComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   @ViewChild(MatTabGroup) tabGroup!: MatTabGroup;
+  @ViewChild(MatPaginator) paginator!: MatPaginator;
 
   // Table configuration
   displayedV2Columns = [
     'symbol', 'name', 'type', 'region', 'timezone', 'currency', 'matchScore',
     '_createdAt', '_lastUpdated', '_isActive', '_refreshEnabled'
   ];
-  pageSize = 10;
-  pageIndex = 0;
+  readonly pageSize = signal(25);
+  readonly pageIndex = signal(0);
   sortField = 'symbol';
   sortDirection: 'asc' | 'desc' = 'asc';
-  
+
   // Tab configuration
   readonly tabNames = ['list'] as const;
 
   // Form controls
   readonly symbolsToAdd = signal('');
+  readonly filterText = signal('');
 
-  // Table data: show single search result when available, otherwise full list
-  readonly displayedSymbols = computed(() => {
+  // Reason: filter against symbol and name fields, case-insensitive
+  private readonly filteredSymbols = computed(() => {
     const searchResult = this.store.v2SymbolSearchResult();
-    return searchResult ? [searchResult] : this.store.v2Symbols();
+    if (searchResult) return [searchResult];
+    const filter = this.filterText().toLowerCase().trim();
+    const all = this.store.v2Symbols();
+    if (!filter) return all;
+    return all.filter(s =>
+      s.symbol?.toLowerCase().includes(filter) ||
+      s.name?.toLowerCase().includes(filter)
+    );
+  });
+
+  readonly totalFiltered = computed(() => this.filteredSymbols().length);
+
+  // Reason: slice filtered list to current page
+  readonly displayedSymbols = computed(() => {
+    const all = this.filteredSymbols();
+    const start = this.pageIndex() * this.pageSize();
+    return all.slice(start, start + this.pageSize());
   });
 
   readonly hasActiveSearch = computed(() => this.store.v2SymbolSearchResult() !== null);
 
-  constructor() {}
+  constructor() {
+    // Reason: reset to page 0 whenever the filter changes so user doesn't land on empty page
+    effect(() => {
+      this.filterText();
+      this.pageIndex.set(0);
+      if (this.paginator) this.paginator.firstPage();
+    });
+  }
 
   ngOnInit(): void {
     // this.store.listSymbols();
@@ -146,8 +173,8 @@ export class SymbolManagerComponent implements OnInit {
   }
 
   onPageChange(event: PageEvent): void {
-    this.pageSize = event.pageSize;
-    this.pageIndex = event.pageIndex;
+    this.pageSize.set(event.pageSize);
+    this.pageIndex.set(event.pageIndex);
   }
   
   onSortChange(sort: Sort): void {

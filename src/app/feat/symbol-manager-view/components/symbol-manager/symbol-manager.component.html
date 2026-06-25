@@ -1,44 +1,30 @@
-<!-- Error Alert -->
-@if (store.error()) {
-<div class="error-message">
-    {{ store.error() }}
-    <button mat-icon-button (click)="store.clearError()">
-        <mat-icon>close</mat-icon>
-    </button>
-</div>
-}
 <section class="symbol-manager">
-    <div class="action-bar">
+    <!-- Single compact header row -->
+    <div class="header-bar">
         <h2>Symbol Manager V2</h2>
-        <span class="spacer"></span>
-        @if (store.v2Symbols().length > 0) {
-            <span class="symbol-count">{{ store.v2Symbols().length }} total</span>
-        }
-        <span class="client-info">
-            Client: {{ store.clientId() }} ({{ store.clientName() }})
-        </span>
-    </div>
 
-    <!-- Error Alert -->
-    @if (store.error()) {
-    <div class="error-message">
-        {{ store.error() }}
-        <button mat-icon-button (click)="store.clearError()">
-            <mat-icon>close</mat-icon>
+        <button mat-icon-button class="refresh-btn" (click)="store.listSymbolsV2()" [disabled]="store.loading()" matTooltip="Refresh">
+            <mat-icon>refresh</mat-icon>
         </button>
-    </div>
-    }
 
-    <div class="symbol-manager-content">
-        <div class="action-bar">
-            <div class="action-buttons">
-                <button mat-raised-button color="primary" (click)="store.listSymbolsV2()" [disabled]="store.loading()">
-                    <mat-icon>refresh</mat-icon>
-                    Refresh
-                </button>
-            </div>
-            <app-symbol-input-form class="inline-search"></app-symbol-input-form>
+        <app-symbol-input-form class="inline-search"
+            (searchTermChange)="filterText.set($event)">
+        </app-symbol-input-form>
+
+        <span class="spacer"></span>
+
+        @if (store.v2Symbols().length > 0) {
+            <span class="symbol-count">{{ totalFiltered() }} / {{ store.v2Symbols().length }} total</span>
+        }
+        <span class="client-info">{{ store.clientName() }}</span>
+    </div>
+
+    @if (store.error()) {
+        <div class="error-message">
+            {{ store.error() }}
+            <button mat-icon-button (click)="store.clearError()"><mat-icon>close</mat-icon></button>
         </div>
+    }
 
         <!-- V2 Symbols Table -->
         <mat-card class="symbol-table-container">
@@ -116,12 +102,21 @@
                     <mat-icon>info</mat-icon>
                     @if (hasActiveSearch()) {
                         <p>No tracked symbol found for "{{ store.v2SymbolSearchResult()?.symbol }}".</p>
+                    } @else if (filterText()) {
+                        <p>No symbols match "{{ filterText() }}".</p>
                     } @else {
                         <p>No V2 symbols found. Add a V2 symbol to get started.</p>
                     }
                 </div>
                 }
+                <mat-paginator
+                    [length]="totalFiltered()"
+                    [pageSize]="pageSize()"
+                    [pageSizeOptions]="[10, 25, 50, 100]"
+                    [pageIndex]="pageIndex()"
+                    (page)="onPageChange($event)"
+                    showFirstLastButtons>
+                </mat-paginator>
             </mat-card-content>
         </mat-card>
-    </div>
 </section>

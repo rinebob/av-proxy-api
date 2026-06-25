@@ -471,7 +471,8 @@ export class SymbolManagerService {
    * @param offset Number of symbols to skip (for pagination, default: 0)
    * @returns Observable with the list of tracked symbols
    */
-  listSymbolsV2(activeOnly: boolean = true, limit: number = 100, offset: number = 0): Observable<ListSymbolsV2Response> {
+  // Reason: limit defaults to 10000 to fetch all symbols in one request; FE handles pagination client-side
+  listSymbolsV2(activeOnly: boolean = true, limit: number = 10000, offset: number = 0): Observable<ListSymbolsV2Response> {
     const params = new URLSearchParams({
       activeOnly: String(activeOnly),
       limit: String(limit),

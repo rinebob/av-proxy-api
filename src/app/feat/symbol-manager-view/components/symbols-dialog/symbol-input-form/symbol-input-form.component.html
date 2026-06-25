@@ -4,7 +4,7 @@
     </p>
     
     <form (submit)="$event.preventDefault()">
-      <mat-form-field appearance="outline" class="full-width">
+      <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
         <mat-label>Company name or symbol</mat-label>
         <input matInput
                [formControl]="searchControl"
