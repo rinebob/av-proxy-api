@@ -38,8 +38,8 @@ export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * 1-5';
  * Intraday snapshot time-series run (daily only).
  *
  * Purpose: capture intraday snapshots at 8am, 10am, and 12pm without finalizing bars.
- * Cron: 0 8,10,12 * * 1-5 (8:00 AM, 10:00 AM, 12:00 PM ET)
- * Timezone: America/New_York (set at function registration).
+ * Cron: 0 8,10,12 * * 1-5 (8:00 AM, 10:00 AM, 12:00 PM PT)
+ * Timezone: America/Los_Angeles (set at function registration).
  */
 export const TS_DAILY_INTRADAY_HOURLY_SCHEDULE = '0 8,10,12 * * 1-5';
 

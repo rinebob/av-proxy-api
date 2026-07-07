@@ -29,6 +29,7 @@ import { CloudTask } from '../../common/constants';
 import type { IntradaySnapshotJobPayload } from '../jobs/intraday-snapshot-jobs.worker';
 import { TimeSeriesJobStatus, TimeSeriesJobMode, TimeSeriesRunStatus } from '../jobs/time-series-jobs.model';
 import { RunIdFactory, type RealtimeRunParams } from '../jobs/runid-factory';
+import { clockPtNow } from '../../common/bar-status/bar-status.service';
 
 const tsJobLogger = betterLogger('aVTSRM');
 
@@ -1320,7 +1321,7 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
 /**
  * Daily time series: intraday hourly PRE snapshot (daily only).
  *
- * Runs at 8am, 10am, and 12pm ET on weekdays, enqueuing one
+ * Runs at 8am, 10am, and 12pm PT on weekdays, enqueuing one
  * Cloud Task per tracked symbol via the INTRADAY_SNAPSHOT_JOB queue.
  * Each task fetches the latest 1-min AV bar and upserts the snapshot fields
  * (ip/io/it/ic/ipc) into the DAILY_ADJUSTED year-shard document for the symbol.
@@ -1330,7 +1331,7 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
  */
 export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
   schedule: TS_DAILY_INTRADAY_HOURLY_SCHEDULE,
-  timeZone: 'America/New_York',
+  timeZone: 'America/Los_Angeles',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
   const now = new Date();
@@ -1340,12 +1341,7 @@ export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
     month: '2-digit',
     day: '2-digit',
   }).format(now);
-  const clockPt = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(now).replace(':', '');
+  const clockPt = clockPtNow();
 
   await runIntradaySnapshotJobsForSymbols({ marketDate, clockPt });
 });

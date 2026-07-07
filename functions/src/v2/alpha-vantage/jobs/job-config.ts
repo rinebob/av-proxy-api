@@ -30,6 +30,14 @@ export const MAX_NON_SUCCESS_JOBS_IN_RUN_DOC = 50;
 export const MAX_RUN_DURATION_MS = 60 * 60 * 1000; // 60 minutes
 
 /**
+ * The clockPt (PT) value of the first intraday snapshot run of each trading day.
+ * clockPt is always derived from America/Los_Angeles to match the scheduler timezone.
+ * Co-located with the schedule `0 8,10,12 * * 1-5 (PT)` — if the schedule changes,
+ * update this constant to match the new first tick.
+ */
+export const INTRADAY_FIRST_TICK = '0800';
+
+/**
  * Maximum run duration for intraday snapshot runs.
  *
  * Intraday runs drain faster than POST runs (~13 min at 1.0/sec for 760

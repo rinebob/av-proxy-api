@@ -3,6 +3,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { createLogger } from '../../utils/utils';
 import { processIntradaySnapshotJobInternal } from './intraday-snapshot-jobs.worker';
 import { runIntradaySnapshotJobsForSymbols } from '../data-refresher/av-time-series-refresh-manager';
+import { clockPtNow } from '../../common/bar-status/bar-status.service';
 
 const log = createLogger('av.intraday.http');
 
@@ -46,14 +47,7 @@ export const runIntradaySnapshotDev = onRequest(
       const resolvedClockPt =
         typeof clockPt === 'string' && /^\d{4}$/.test(clockPt)
           ? clockPt
-          : new Intl.DateTimeFormat('en-US', {
-              timeZone: 'America/Los_Angeles',
-              hour: '2-digit',
-              minute: '2-digit',
-              hourCycle: 'h23',
-            })
-              .format(new Date())
-              .replace(':', '');
+          : clockPtNow();
 
       const symbolsArray = Array.isArray(symbols) && symbols.length > 0 ? symbols : undefined;
 
