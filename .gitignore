@@ -87,6 +87,7 @@ shared/node_modules
 functions/local-dev.env.alpha-vantage-proxy-api
 src/assets/misc/prompts2.txt
 functions/.tsbuildinfo
+shared/lib/
 src/secrets/
 .env
 
