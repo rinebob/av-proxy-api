@@ -47,19 +47,16 @@ Every PDR notification carries **per-interval** `barStatus` attributes named `ba
 > could carry integers, but routing logic at the subscriber is typically attribute-based,
 > so we keep all `barStatus` values in attributes as strings.
 
-**Intraday PRE runs** (`runType = 'intraday-snapshot'`) — only daily bars are updated:
+**Intraday PRE runs** (`runType = 'intraday-snapshot'`) — daily, weekly, and monthly trailing bars are all updated:
 
 | Attribute | Value | Meaning |
 |---|---|---|
 | `barStatusDaily` | `-1` | 8am tick — first update of a new daily bar |
 | `barStatusDaily` | `0` | 10am or 12pm tick — interim update |
-| `barStatusWeekly` | *(absent — see note)* | W/M bars not currently updated during PRE |
-| `barStatusMonthly` | *(absent — see note)* | W/M bars not currently updated during PRE |
-
-> **Coming soon:** W/M intraday snapshot writes are planned (see `wm-intraday-snapshot-plan.md`).
-> Once implemented, every PRE run will also write `ip/io/it` onto the trailing weekly and
-> monthly bars, and `barStatusWeekly` / `barStatusMonthly` will be present on all PRE PDRs
-> (value `0` on most runs; `-1` on the first PRE of a new period).
+| `barStatusWeekly` | `-1` | 8am tick AND `prevTradingDay` is in a different ISO week |
+| `barStatusWeekly` | `0` | all other PRE runs |
+| `barStatusMonthly` | `-1` | 8am tick AND `prevTradingDay` is in a different calendar month |
+| `barStatusMonthly` | `0` | all other PRE runs |
 
 **POST nightly runs** (`runType = 'ts-post-all-intervals'`) — all three intervals updated:
 
@@ -107,8 +104,11 @@ live status written by whichever pipeline run last touched it:
 
 | Scenario | PDR `barStatusDaily` | PDR `barStatusWeekly` | PDR `barStatusMonthly` | Trailing bar `barStatus` |
 |---|---|---|---|---|
-| 8am PRE, daily | `-1` | absent *(coming soon: `-1` if new week)* | absent *(coming soon: `-1` if new month)* | `-1` |
-| 10am/12pm PRE, daily | `0` | absent *(coming soon: `0`)* | absent *(coming soon: `0`)* | `0` |
+| 8am PRE, first day of new week | `-1` | `-1` | `0` | `-1` |
+| 8am PRE, first day of new month | `-1` | `0` | `-1` | `-1` |
+| 8am PRE, first day of new week AND month | `-1` | `-1` | `-1` | `-1` |
+| 8am PRE, normal mid-week mid-month day | `-1` | `0` | `0` | `-1` |
+| 10am/12pm PRE, any day | `0` | `0` | `0` | `0` |
 | POST, daily (any day) | `1` | — | — | `1` |
 | POST, weekly, Friday (`nextTradingDay` = Mon = different week) | `1` | `1` | — | `1` |
 | POST, weekly, Thursday before holiday Friday | `1` | `1` | — | `1` |
@@ -135,6 +135,8 @@ computation, no parameters needed from RS.
 | Writer | File | barStatus logic |
 |---|---|---|
 | `upsertAvDailyIntradaySnapshot` | `av-firestore-helper.ts` | `clockPt === '0800'` → `-1`, else `0` |
+| `upsertAvWeeklyIntradaySnapshot` | `av-firestore-helper.ts` | delegates to `_upsertWmIntradaySnapshotCore`; `clockPt === '0800'` → `-1`, else `0` |
+| `upsertAvMonthlyIntradaySnapshot` | `av-firestore-helper.ts` | delegates to `_upsertWmIntradaySnapshotCore`; `clockPt === '0800'` → `-1`, else `0` |
 | `_internalUpsertDailyBar` (POST daily) | `av-firestore-helper.ts` | always `1` (called with `finalizedAtMs`) |
 | `mergeWeeklyCompactWindowIntoShards` (POST weekly) | `av-firestore-helper.ts` | `nextTradingDay` crosses ISO week → `1`, else `0` |
 | `mergeMonthlyCompactWindowIntoAllDocs` (POST monthly) | `av-firestore-helper.ts` | `nextTradingDay` crosses month → `1`, else `0` |
@@ -143,7 +145,7 @@ computation, no parameters needed from RS.
 
 | Publisher | File | Attributes emitted |
 |---|---|---|
-| Intraday PRE | `intraday-snapshot-jobs.aggregator.ts` | `barStatusDaily` only for now — `barStatusWeekly`/`barStatusMonthly` coming once W/M intraday writes land |
+| Intraday PRE | `intraday-snapshot-jobs.aggregator.ts` | `barStatusDaily`, `barStatusWeekly`, `barStatusMonthly` (all three, every PRE run) |
 | POST nightly | `time-series-run-completion.publisher.ts` | `barStatusDaily=1`, `barStatusWeekly`, `barStatusMonthly` (calendar-computed) |
 
 All values appear in the Pub/Sub message **attributes** (string `"-1"`, `"0"`, or `"1"`).
@@ -192,7 +194,7 @@ this constant to match.
 | `functions/src/v2/alpha-vantage/firestore/av-firestore-helper.ts` | Stamp `barStatus` in all four write paths |
 | `functions/src/v2/alpha-vantage/jobs/intraday-snapshot-jobs.worker.ts` | Pass `clockPt` to `upsertAvDailyIntradaySnapshot` |
 | `functions/src/v2/partner/time-series-run-completion.publisher.ts` | Stamp PDR with `barStatusDaily=1`, `barStatusWeekly`, `barStatusMonthly` (calendar-computed) |
-| `functions/src/v2/alpha-vantage/jobs/intraday-snapshot-jobs.aggregator.ts` | Stamp PRE PDR with `barStatusDaily` only (W/M absent — not touched by PRE) |
+| `functions/src/v2/alpha-vantage/jobs/intraday-snapshot-jobs.aggregator.ts` | Stamp PRE PDR with `barStatusDaily`, `barStatusWeekly`, and `barStatusMonthly` |
 
 **Unchanged:** `partnerTimeSeriesV2` HTTP handler, `time-series-readers.ts` (reader just
 returns stored bars), all backfill scripts, Firestore security rules, RS call signature.
@@ -202,7 +204,7 @@ returns stored bars), all backfill scripts, Firestore security rules, RS call si
 ## RS Integration Checklist
 
 - [ ] Parse `barStatusDaily`, `barStatusWeekly`, `barStatusMonthly` attributes from PDR notification (string → int)
-- [ ] For intraday PRE runs (`runType = 'intraday-snapshot'`): only `barStatusDaily` is present today — `barStatusWeekly`/`barStatusMonthly` will be added when W/M intraday snapshot writes are implemented
+- [ ] For intraday PRE runs (`runType = 'intraday-snapshot'`): all three attributes are present — `barStatusDaily`, `barStatusWeekly`, `barStatusMonthly`
 - [ ] For POST runs (`runType = 'ts-post-all-intervals'`): all three attributes are present
 - [ ] Use `barStatusDaily` to route daily bar logic (`-1` day-start, `0` interim, `1` final)
 - [ ] Use `barStatusWeekly` to know if the weekly bar is final for its period

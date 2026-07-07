@@ -1,6 +1,6 @@
 # W/M Intraday Snapshot – Implementation Plan
 
-> **Status: PLANNED**
+> **Status: IMPLEMENTED**
 >
 > **Scope:** Extend the existing intraday snapshot pipeline to also write `ip/io/it/ic/ipc`
 > fields onto the **trailing weekly and monthly bars** on every PRE run, matching the data

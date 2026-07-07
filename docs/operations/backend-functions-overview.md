@@ -1,4 +1,4 @@
-# Backend Functions Overview
+﻿﻿# Backend Functions Overview
 
 This document provides a mid–high level overview of the backend Cloud Functions implementation for the Alpha Vantage + Benzinga data service. Use it as a guide for code reviews and onboarding.
 
@@ -231,7 +231,7 @@ All intervals (daily/weekly/monthly) share a common **CompactBar** shape written
 - `pc?`: previous close for the bar’s day/period (if computed)
 - `ch?`: absolute change vs previous close
 - `cp?`: percent change vs previous close
-- `ip?`: intraday last price snapshot (PRE phase, daily only)
+- `ip?`: intraday last price snapshot (PRE phase — written to daily, weekly, and monthly trailing bars)
 - `io?`: intraday observed-at timestamp (epoch ms)
 - `it?`: intraday observed-at clock string (HH:mm ET) derived from `io`
 - `ic`: intraday absolute change vs previous close (nullable)
@@ -275,11 +275,10 @@ Weekly and monthly parent docs follow the same pattern, with `interval` and `end
 
 The Data‑Ready Pub/Sub message indicates “what is safe to consume now.” Use the `runType` attribute to distinguish runs (see above). Guarantees per run:
 
-- PRE (Daily) — `runType=ts_daily_pre`
-  - For each tracked symbol’s daily series, the parent doc `symbol-data/{SYMBOL}/time-series/av-daily-adjusted` exists.
-  - The latest bar entry in the appropriate year shard may include intraday snapshot fields (`ip`, `io`, `it`, `ic`, `ipc`).
-  - The bar is NOT finalized; OHLC may still be the previous bar until POST. No parent freshness bump.
-  - Intended for early/pre-close RS computation that can tolerate intraday snapshots.
+- PRE (Daily/Weekly/Monthly) — `runType=ts_daily_pre`
+  - For each tracked symbol, the trailing bar in the **daily, weekly, and monthly** shards all receive intraday snapshot fields (`ip`, `io`, `it`, `ic`, `ipc`).
+  - Bars are NOT finalized; OHLC reflects the prior period until POST. No parent freshness bump on any interval.
+  - Intended for early/pre-close RS computation that can tolerate intraday snapshots on all three intervals.
 
 - POST (Daily) — `runType=ts_daily_post`
   - Finalized daily bar (OHLC, `ac`, `dv`, `sc`, derived deltas like `pc`, `ch`, `cp`) is written to the shard for each tracked symbol.
