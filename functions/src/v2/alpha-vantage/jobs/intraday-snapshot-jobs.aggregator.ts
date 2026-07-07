@@ -19,7 +19,7 @@ import {
 } from '../../partner/constants';
 import { TimeSeriesJobTerminalStatus, TimeSeriesRunStatus } from './time-series-jobs.model';
 import { INTRADAY_MAX_RUN_DURATION_MS, MAX_NON_SUCCESS_JOBS_IN_RUN_DOC } from './job-config';
-import { computeRunBarStatus } from '../../common/bar-status/bar-status.service';
+import { computeRunBarStatus, prevTradingDay, isoWeek, monthOf } from '../../common/bar-status/bar-status.service';
 
 const logger = betterLogger('iS.Agg');
 
@@ -145,12 +145,20 @@ async function publishIntradayPdr(options: {
 
   logger.info('intraday.agg.pdr.local_enqueue_start', { runId, payload: { version: payload.version, phase: payload.phase, status: payload.status, runStatus: payload.runStatus } } as any);
   const runBarStatus = computeRunBarStatus('pre', clockPt);
+  // Compute barStatusWeekly and barStatusMonthly using prevTradingDay period-boundary logic.
+  // # Reason: W/M bars get -1 on the first PRE of a new period, determined by whether the
+  // previous trading day falls in a different ISO week / calendar month than today.
+  const prev = prevTradingDay(marketDate);
+  const runBarStatusWeekly: -1 | 0 = (runBarStatus === -1 && isoWeek(prev) !== isoWeek(marketDate)) ? -1 : 0;
+  const runBarStatusMonthly: -1 | 0 = (runBarStatus === -1 && monthOf(prev) !== monthOf(marketDate)) ? -1 : 0;
   await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, {
     runType: PartnerRunType.INTRADAY_SNAPSHOT,
     clockPt,
     successes: String(successJobs),
     permanentFailures: String(permanentFailureJobs),
     barStatusDaily: String(runBarStatus),
+    barStatusWeekly: String(runBarStatusWeekly),
+    barStatusMonthly: String(runBarStatusMonthly),
   });
   logger.info('intraday.agg.pdr.local_enqueue_done', { runId } as any);
 
@@ -191,6 +199,8 @@ async function publishIntradayPdr(options: {
       clockPt,
       successes: String(successJobs),
       barStatusDaily: String(runBarStatus),
+      barStatusWeekly: String(runBarStatusWeekly),
+      barStatusMonthly: String(runBarStatusMonthly),
     };
     logger.info('intraday.agg.pdr.cross_project_publish_attempt', { runId, rsProjectId, rsTopicName, fullTopicPath, payloadSize: JSON.stringify(payload).length } as any);
     const rsMessageId = await rsTopic.publishMessage({ json: payload, attributes: rsAttributes });

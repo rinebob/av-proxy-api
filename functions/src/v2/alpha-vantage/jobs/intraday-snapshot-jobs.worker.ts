@@ -7,7 +7,7 @@ import { FirestoreCollection } from '@shared/firestore';
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { parseAvEtTimestampMs } from '../utils/date-utils';
-import { upsertAvDailyIntradaySnapshot } from '../firestore/av-firestore-helper';
+import { upsertAvDailyIntradaySnapshot, upsertAvWeeklyIntradaySnapshot, upsertAvMonthlyIntradaySnapshot } from '../firestore/av-firestore-helper';
 import { TimeSeriesJobStatus, TimeSeriesJobTerminalStatus } from './time-series-jobs.model';
 import { MAX_JOB_ATTEMPTS, JOB_EXECUTION_DELAY_MS } from './job-config';
 import { onIntradayRunJobTerminal } from './intraday-snapshot-jobs.aggregator';
@@ -45,7 +45,8 @@ export interface IntradaySnapshotJobPayload {
  *
  * Fetches the latest 1-min bar for the given symbol, extracts the most recent
  * bar matching today's ET trading date, and upserts the intraday snapshot fields
- * (`ip / io / it / ic / ipc`) into the DAILY_ADJUSTED year-shard document.
+ * (`ip / io / it / ic / ipc`) into the DAILY_ADJUSTED, WEEKLY_ADJUSTED, and
+ * MONTHLY_ADJUSTED Firestore documents for the trailing bars of each period.
  *
  * Job state is tracked at `intraday-runs/{runId}/jobs/{symbol}`.
  *
@@ -178,6 +179,24 @@ export async function processIntradaySnapshotJobInternal(
       ip,
       io: latest.msEt,
       dow,
+      clockPt,
+    });
+
+    // Persist the same intraday snapshot onto the trailing WEEKLY bar.
+    await upsertAvWeeklyIntradaySnapshot({
+      symbol: symbolUpper,
+      marketDate,
+      ip,
+      io: latest.msEt,
+      clockPt,
+    });
+
+    // Persist the same intraday snapshot onto the trailing MONTHLY bar.
+    await upsertAvMonthlyIntradaySnapshot({
+      symbol: symbolUpper,
+      marketDate,
+      ip,
+      io: latest.msEt,
       clockPt,
     });
 
