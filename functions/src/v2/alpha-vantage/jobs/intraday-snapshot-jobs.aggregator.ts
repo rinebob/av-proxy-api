@@ -19,6 +19,7 @@ import {
 } from '../../partner/constants';
 import { TimeSeriesJobTerminalStatus, TimeSeriesRunStatus } from './time-series-jobs.model';
 import { INTRADAY_MAX_RUN_DURATION_MS, MAX_NON_SUCCESS_JOBS_IN_RUN_DOC } from './job-config';
+import { computeRunBarStatus } from '../../common/bar-status/bar-status.service';
 
 const logger = betterLogger('iS.Agg');
 
@@ -143,11 +144,13 @@ async function publishIntradayPdr(options: {
   };
 
   logger.info('intraday.agg.pdr.local_enqueue_start', { runId, payload: { version: payload.version, phase: payload.phase, status: payload.status, runStatus: payload.runStatus } } as any);
+  const runBarStatus = computeRunBarStatus('pre', clockPt);
   await enqueueDataReadyInternal(payload, INTERNAL_PUBLISHER_AUDIT_EMAIL, {
     runType: PartnerRunType.INTRADAY_SNAPSHOT,
     clockPt,
     successes: String(successJobs),
     permanentFailures: String(permanentFailureJobs),
+    barStatusDaily: String(runBarStatus),
   });
   logger.info('intraday.agg.pdr.local_enqueue_done', { runId } as any);
 
@@ -187,6 +190,7 @@ async function publishIntradayPdr(options: {
       runType: PartnerRunType.INTRADAY_SNAPSHOT,
       clockPt,
       successes: String(successJobs),
+      barStatusDaily: String(runBarStatus),
     };
     logger.info('intraday.agg.pdr.cross_project_publish_attempt', { runId, rsProjectId, rsTopicName, fullTopicPath, payloadSize: JSON.stringify(payload).length } as any);
     const rsMessageId = await rsTopic.publishMessage({ json: payload, attributes: rsAttributes });

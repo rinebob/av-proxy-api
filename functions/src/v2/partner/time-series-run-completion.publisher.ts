@@ -5,6 +5,7 @@ import { FirestoreCollection } from '@shared/firestore';
 import { PartnerPublishStatus, PartnerRunType } from './constants';
 import { enqueueDataReadyInternal } from './data-ready.handler';
 import { betterLogger } from '../utils/utils';
+import { computeRunBarStatus, nextTradingDay, isoWeek, monthOf } from '../common/bar-status/bar-status.service';
 
 interface JobsDateDocLike {
   marketDate: string;
@@ -146,10 +147,38 @@ export async function publishTimeSeriesRunCompletedFromJobs(marketDate: string, 
     pendingCount: 0,
   } as any;
 
+  const todayEt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+
+  // Compute per-interval barStatus. POST daily is always 1 (finalized nightly).
+  // W/M: nextTradingDay crossing the period boundary → 1 (final), else 0 (mid-period POST).
+  // PRE (rare here): all intervals get the same run-level value from computeRunBarStatus.
+  let barStatusDaily: -1 | 0 | 1;
+  let barStatusWeekly: -1 | 0 | 1;
+  let barStatusMonthly: -1 | 0 | 1;
+
+  if (phase === 'post') {
+    barStatusDaily = 1;
+    const nextDay = nextTradingDay(marketDate);
+    barStatusWeekly = isoWeek(nextDay) !== isoWeek(marketDate) ? 1 : 0;
+    barStatusMonthly = monthOf(nextDay) !== monthOf(marketDate) ? 1 : 0;
+  } else {
+    const runBarStatus = computeRunBarStatus(phase, '');
+    barStatusDaily = runBarStatus;
+    barStatusWeekly = runBarStatus;
+    barStatusMonthly = runBarStatus;
+  }
+
   const extraAttributes: Record<string, string> = {
     runType,
     successes: String(doc.successJobs ?? 0),
     failures: String(doc.permanentFailureJobs ?? 0),
+    barStatusDaily: String(barStatusDaily),
+    barStatusWeekly: String(barStatusWeekly),
+    barStatusMonthly: String(barStatusMonthly),
+    marketDate: todayEt,
   };
 
   const hasTiming = !!doc.runStartedAt && !!doc.runCompletedAt;

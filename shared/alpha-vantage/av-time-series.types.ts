@@ -87,4 +87,15 @@ export interface CompactBar {
   // Intraday delta metrics (computed at pre-close snapshot time)
   ic?: number | null; // intradayChange = ip - previousClose (null when no prior bar)
   ipc?: number | null; // intradayPercentChange = (ic / previousClose) * 100 (null when no prior bar)
+
+  /**
+   * Bar status flag — written at write time by pipeline workers and stored in Firestore.
+   * Mirrors the TradeStation barStatus convention:
+   *   -1 = first update of a new bar period (period-open boundary)
+   *    0 = interim/in-progress update
+   *    1 = final period-closing bar
+   * Historical bars always have barStatus 1.
+   * Only the trailing (current-period) bar carries -1 or 0.
+   */
+  barStatus?: -1 | 0 | 1;
 }

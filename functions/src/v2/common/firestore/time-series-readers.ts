@@ -196,7 +196,6 @@ export async function getPartnerTimeSeries(params: TimeSeriesReadParams): Promis
     if (bars.length && (bars[0].ch == null || bars[0].cp == null)) {
       bars = enrichWithChange(bars);
     }
-
     // Only truncate when an explicit limit is provided
     let truncated = false;
     if (typeof params.limit === 'number' && params.limit > 0 && bars.length > params.limit) {

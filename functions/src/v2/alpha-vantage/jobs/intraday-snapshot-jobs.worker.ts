@@ -178,6 +178,7 @@ export async function processIntradaySnapshotJobInternal(
       ip,
       io: latest.msEt,
       dow,
+      clockPt,
     });
 
     // Mark job SUCCESS.

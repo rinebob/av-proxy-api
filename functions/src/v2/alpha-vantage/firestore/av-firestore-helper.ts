@@ -22,6 +22,8 @@ import {
   getYearFromEpochMillis,
 } from '../../common/firestore/firestore-paths';
 import { createLogger } from '../../utils/utils';
+import { nextTradingDay, isoWeek, monthOf } from '../../common/bar-status/bar-status.service';
+import { INTRADAY_FIRST_TICK } from '../jobs/job-config';
 
 const log = createLogger('av.ts'); // Abbrev: aFH sATSD
 
@@ -671,6 +673,8 @@ async function _internalUpsertDailyBar(
         const nonPlaceholder = (oo !== 0) || (hh !== 0) || (ll !== 0) || (cc !== 0);
         if (nonPlaceholder) (merged as any).fz = Number(finalizedAtMs);
       }
+      // POST daily bar is always final
+      if (finalizedAtMs != null) merged.barStatus = 1;
       bars[idx] = merged;
     } else {
       const newBar: CompactBar = {
@@ -695,6 +699,7 @@ async function _internalUpsertDailyBar(
           : undefined,
         ic: patch.ic != null ? Number(patch.ic) : null,
         ipc: patch.ipc != null ? Number(patch.ipc) : null,
+        barStatus: finalizedAtMs != null ? 1 : undefined,
       };
       if (finalizedAtMs != null) {
         const oo = Number(newBar.o || 0), hh = Number(newBar.h || 0), ll = Number(newBar.l || 0), cc = Number(newBar.c || 0);
@@ -1163,6 +1168,67 @@ export async function mergeWeeklyCompactWindowIntoShards(options: {
 
   existingBars.sort((a, b) => a.t - b.t);
 
+  // --- APPLY SPLIT ADJUSTMENTS (compact weekly cadence) ---
+  // Inject sc from splitHistory onto the bar(s) in the compact window, then
+  // run adjustHistoryForBackfill so hybrid split-week bars are corrected.
+  // Existing bars already carry correct adjusted values from the last backfill.
+  // Reason: AV TIME_SERIES_WEEKLY_ADJUSTED does not provide sc; without injection
+  // the backwards-pass has nothing to trigger on and leaves raw OHLC intact.
+  try {
+    const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+    const symbolSnap = await symbolDocRef.get();
+    const rawHistory = (symbolSnap.data()?.splitHistory ?? []) as Array<{ date: string; factor: number }>;
+
+    if (Array.isArray(rawHistory) && rawHistory.length > 0) {
+      const history = rawHistory
+        .filter(e => typeof e?.date === 'string' && typeof e?.factor === 'number')
+        .slice()
+        .sort((a, b) => a.date.localeCompare(b.date)); // oldest -> newest
+
+      for (const entry of history) {
+        const splitDate = entry.date;
+        const factor = entry.factor;
+        if (!splitDate || !factor || factor === 1) continue;
+
+        // Find the first bar in this year shard whose period-end date is on/after the split date.
+        const idx = existingBars.findIndex(b => {
+          const d = (b as any).d as string | undefined;
+          return typeof d === 'string' && d >= splitDate;
+        });
+        if (idx >= 0 && existingBars[idx].sc == null) {
+          existingBars[idx] = { ...existingBars[idx], sc: factor };
+          console.log('aFH mWCWIS injecting_sc_from_splitHistory', {
+            symbol, endpoint, splitDate, factor,
+            barDate: (existingBars[idx] as any).d,
+          });
+        }
+      }
+    }
+
+    const adjusted = adjustHistoryForBackfill(existingBars);
+    existingBars.length = 0;
+    existingBars.push(...adjusted);
+  } catch (e) {
+    console.warn('aFH mWCWIS splitHistory_injection_error', {
+      symbol, endpoint, error: String((e as any)?.message || e),
+    });
+  }
+  // ------------------------------------------------
+
+  // Stamp barStatus on the trailing weekly bar after all adjustments are final.
+  // POST weekly only: nextTradingDay crossing ISO week boundary → 1 (final), else 0.
+  if (existingBars.length) {
+    const trailing = existingBars[existingBars.length - 1];
+    const trailingDate = typeof trailing.d === 'string' ? trailing.d : new Date(trailing.t).toISOString().slice(0, 10);
+    const todayEt = todayEtDate();
+    if (trailingDate < todayEt) {
+      existingBars[existingBars.length - 1] = { ...trailing, barStatus: 1 };
+    } else {
+      const nextDay = nextTradingDay(trailingDate);
+      existingBars[existingBars.length - 1] = { ...trailing, barStatus: isoWeek(nextDay) !== isoWeek(trailingDate) ? 1 : 0 };
+    }
+  }
+
   const latestNonPlaceholder = [...existingBars].reverse().find((bar) => {
     const o = Number(bar.o || 0), h = Number(bar.h || 0), l = Number(bar.l || 0), c = Number(bar.c || 0), v = Number(bar.v || 0);
     return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
@@ -1310,6 +1376,67 @@ export async function mergeMonthlyCompactWindowIntoAllDocs(options: {
 
   mergedBars.sort((a, b) => a.t - b.t);
 
+  // --- APPLY SPLIT ADJUSTMENTS (compact monthly cadence) ---
+  // Inject sc from splitHistory onto the bar(s) in the compact window, then
+  // run adjustHistoryForBackfill so hybrid split-month bars are corrected.
+  // Existing bars already carry correct adjusted values from the last backfill.
+  // Reason: AV TIME_SERIES_MONTHLY_ADJUSTED does not provide sc; without injection
+  // the backwards-pass has nothing to trigger on and leaves raw OHLC intact.
+  try {
+    const symbolDocRef = db.doc(`${FirestoreCollection.SYMBOL_DATA}/${symbol}`);
+    const symbolSnap = await symbolDocRef.get();
+    const rawHistory = (symbolSnap.data()?.splitHistory ?? []) as Array<{ date: string; factor: number }>;
+
+    if (Array.isArray(rawHistory) && rawHistory.length > 0) {
+      const history = rawHistory
+        .filter(e => typeof e?.date === 'string' && typeof e?.factor === 'number')
+        .slice()
+        .sort((a, b) => a.date.localeCompare(b.date)); // oldest -> newest
+
+      for (const entry of history) {
+        const splitDate = entry.date;
+        const factor = entry.factor;
+        if (!splitDate || !factor || factor === 1) continue;
+
+        // Find the first bar in the all-doc whose period-end date is on/after the split date.
+        const idx = mergedBars.findIndex(b => {
+          const d = (b as any).d as string | undefined;
+          return typeof d === 'string' && d >= splitDate;
+        });
+        if (idx >= 0 && mergedBars[idx].sc == null) {
+          mergedBars[idx] = { ...mergedBars[idx], sc: factor };
+          console.log('aFH mMCWIAD injecting_sc_from_splitHistory', {
+            symbol, endpoint, splitDate, factor,
+            barDate: (mergedBars[idx] as any).d,
+          });
+        }
+      }
+    }
+
+    const adjusted = adjustHistoryForBackfill(mergedBars);
+    mergedBars.length = 0;
+    mergedBars.push(...adjusted);
+  } catch (e) {
+    console.warn('aFH mMCWIAD splitHistory_injection_error', {
+      symbol, endpoint, error: String((e as any)?.message || e),
+    });
+  }
+  // ------------------------------------------------
+
+  // Stamp barStatus on the trailing monthly bar after all adjustments are final.
+  // POST monthly only: nextTradingDay crossing a month boundary → 1 (final), else 0.
+  if (mergedBars.length) {
+    const trailing = mergedBars[mergedBars.length - 1];
+    const trailingDate = typeof trailing.d === 'string' ? trailing.d : new Date(trailing.t).toISOString().slice(0, 10);
+    const todayEt = todayEtDate();
+    if (trailingDate < todayEt) {
+      mergedBars[mergedBars.length - 1] = { ...trailing, barStatus: 1 };
+    } else {
+      const nextDay = nextTradingDay(trailingDate);
+      mergedBars[mergedBars.length - 1] = { ...trailing, barStatus: monthOf(nextDay) !== monthOf(trailingDate) ? 1 : 0 };
+    }
+  }
+
   const latestNonPlaceholder = [...mergedBars].reverse().find((bar) => {
     const o = Number(bar.o || 0), h = Number(bar.h || 0), l = Number(bar.l || 0), c = Number(bar.c || 0), v = Number(bar.v || 0);
     return o !== 0 || h !== 0 || l !== 0 || c !== 0 || v !== 0;
@@ -1362,8 +1489,11 @@ export async function upsertAvDailyIntradaySnapshot(options: {
   ip: number;   // latest intraday price
   io: number;   // epoch ms of the latest intraday bar timestamp
   dow: DayOfWeek; // required human-readable day-of-week (ET)
+  /** PT clock label (HHMM) of the intraday tick, e.g. '0800'. Used to compute barStatus. */
+  clockPt?: string;
 }): Promise<void> {
-  const { symbol, date, ip, io, dow } = options;
+  const { symbol, date, ip, io, dow, clockPt } = options;
+  const barStatus: -1 | 0 = clockPt === INTRADAY_FIRST_TICK ? -1 : 0;
   const vendor = ApiProvider.ALPHA_VANTAGE;
   const t = new Date(`${date}T00:00:00.000Z`).getTime();
   const y = getYearFromEpochMillis(t);
@@ -1378,12 +1508,15 @@ export async function upsertAvDailyIntradaySnapshot(options: {
 
     // locate or create the day bar, updating only intraday fields
     let idx = bars.findIndex((b) => b.t === t);
+
+    // Hoist shared intraday field computations — used by both insert and update paths
+    const itStr = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io));
+    const prevCandidate = bars.reduce<CompactBar | null>((p, b) => (b.t < t && (!p || b.t > p.t)) ? b : p, null as any);
+    const prevClose = prevCandidate && (typeof (prevCandidate as any).ac === 'number' ? (prevCandidate as any).ac : (prevCandidate as any).c);
+    const icVal = Number.isFinite(Number(prevClose)) ? Number((Number(ip) - Number(prevClose)).toFixed(2)) : 0;
+    const ipcVal = Number.isFinite(Number(prevClose)) && Number(prevClose) !== 0 ? Number((((Number(ip) - Number(prevClose)) / Number(prevClose)) * 100).toFixed(2)) : 0;
+
     if (idx < 0) {
-      const itStr = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io));
-      const prevCandidate = bars.reduce<CompactBar | null>((p, b) => (b.t < t && (!p || b.t > p.t)) ? b : p, null as any);
-      const prevClose = prevCandidate && (typeof (prevCandidate as any).ac === 'number' ? (prevCandidate as any).ac : (prevCandidate as any).c);
-      const icVal = Number.isFinite(Number(prevClose)) ? Number((Number(ip) - Number(prevClose)).toFixed(2)) : 0;
-      const ipcVal = Number.isFinite(Number(prevClose)) && Number(prevClose) !== 0 ? Number((((Number(ip) - Number(prevClose)) / Number(prevClose)) * 100).toFixed(2)) : 0;
       const newBar: CompactBar = {
         t,
         d: new Date(t).toISOString().slice(0, 10),
@@ -1394,17 +1527,13 @@ export async function upsertAvDailyIntradaySnapshot(options: {
         it: itStr,
         ic: icVal,
         ipc: ipcVal,
+        barStatus,
       };
       bars.push(newBar);
       idx = bars.length - 1;
     } else {
       const existing = bars[idx];
-      const itStr = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io));
-      const prevCandidate = bars.reduce<CompactBar | null>((p, b) => (b.t < t && (!p || b.t > p.t)) ? b : p, null as any);
-      const prevClose = prevCandidate && (typeof (prevCandidate as any).ac === 'number' ? (prevCandidate as any).ac : (prevCandidate as any).c);
-      const icVal = Number.isFinite(Number(prevClose)) ? Number((Number(ip) - Number(prevClose)).toFixed(2)) : 0;
-      const ipcVal = Number.isFinite(Number(prevClose)) && Number(prevClose) !== 0 ? Number((((Number(ip) - Number(prevClose)) / Number(prevClose)) * 100).toFixed(2)) : 0;
-      bars[idx] = { ...existing, ip: Number(ip), io: Number(io), it: itStr, ic: icVal, ipc: ipcVal } as CompactBar;
+      bars[idx] = { ...existing, ip: Number(ip), io: Number(io), it: itStr, ic: icVal, ipc: ipcVal, barStatus } as CompactBar;
     }
 
     bars.sort((a, b) => a.t - b.t);
@@ -1666,6 +1795,14 @@ function computeDowFromDateString(d: string): DayOfWeek {
     case 6: return DayOfWeek.Sat;
     default: return DayOfWeek.Mon;
   }
+}
+
+/** Returns today's ET trading date as YYYY-MM-DD. */
+function todayEtDate(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
 }
 
 /**
