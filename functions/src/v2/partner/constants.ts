@@ -13,6 +13,9 @@ export const PARTNER_DATA_READY_TOPIC = 'partner-data-ready';
 /** Pub/Sub topic for symbol-level readiness notifications. */
 export const PARTNER_SYMBOLS_READY_TOPIC = 'partner-symbols-ready';
 
+/** Pub/Sub topic for tracked-symbol onboarding lifecycle events. */
+export const PARTNER_SYMBOL_ADDED_TOPIC = 'partner-symbol-added';
+
 /**
  * PartnerPhase: canonical enum for pre/post trading phases.
  * Prefer using this enum over raw string literals.
