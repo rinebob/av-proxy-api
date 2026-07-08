@@ -39,6 +39,7 @@ Read in this order for partner onboarding:
 | 5 | `partner/partner-market-holidays.md` | `partnerMarketHolidays` endpoint: request/response schema, 2025/2026 holiday data, RS usage patterns. |
 | 6 | `partner/partner-data-ready-test-runs.md` | How to publish test/manual PDR messages from AV using the direct publisher script. Trigger semantics, recipes, troubleshooting. |
 | 7 | `partner/cross-project-pubsub-eventarc.md` | Infrastructure reference: cross-project Pub/Sub + Eventarc trigger setup between AV and RS projects. |
+| 8 | `partner/pubsub-broadcast-developer-guide.md` | Comprehensive guide for building Pub/Sub broadcast infrastructure: auth, IAM, channels, sender/receiver implementation, deployment, and operations. |
 
 ---
 
