@@ -53,8 +53,7 @@ async function testInEmulator(symbol: string) {
       matchScore: '1.0',
       _createdAt: new Date(),
       _lastUpdated: new Date(),
-      _isActive: true,
-      _refreshEnabled: true
+      _isActive: true
     };
 
     const response = await axios.post(url, 

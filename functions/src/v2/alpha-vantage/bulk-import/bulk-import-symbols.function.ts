@@ -255,7 +255,6 @@ export const bulkImportSymbolsV2 = onCall(
             _createdAt: now,
             _lastUpdated: now,
             _isActive: true,
-            _refreshEnabled: false,
           },
           { merge: true },
         );

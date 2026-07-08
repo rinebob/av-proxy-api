@@ -63,11 +63,6 @@ export interface TrackedSymbolV2 extends AvSymbol {
   // This is used to determine if a symbol should be included in the list of symbols to refresh
   _isActive: boolean;
 
-  // Explicit dev-only flag to specifically enable data refreshing
-  // If true, AV data will be regularly refreshed for this symbol
-  // Be careful about request limits
-  _refreshEnabled: boolean;
-
   // Stable company identity fields denormalized from COMPANY_OVERVIEW.
   // Populated by the OVERVIEW refresh job to enable sector/industry sorting
   // without requiring a join to symbol-data.
@@ -96,7 +91,6 @@ export const TRACKED_SYMBOL_V2_FIELDS = {
   CREATED_AT: '_createdAt',
   LAST_UPDATED: '_lastUpdated',
   IS_ACTIVE: '_isActive',
-  REFRESH_ENABLED: '_refreshEnabled',
   COMPANY_INFO: 'companyInfo',
   COMPANY_INFO_LAST_UPDATED: '_companyInfoLastUpdated',
 };

@@ -104,7 +104,6 @@ async function addSymbolToTracked(symbol: string, region: string, currency: stri
     currency,
     matchScore: matchScore.toString(),
     isActive: true,
-    refreshEnabled: true,
     lastUpdated: now,
     createdAt: now,
     // Optional test metadata

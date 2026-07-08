@@ -63,9 +63,7 @@ export const saveTrackedSymbol = onCall<Omit<TrackedSymbolV2, '_createdAt' | '_l
         ...symbolData,
         _createdAt: now,
         _lastUpdated: now,
-        _isActive: true,
-        // TODO: Set to true to enable initiate refresh for new symbols when AV premium account is activated
-        _refreshEnabled: false
+        _isActive: true
       };
 
       // Save to Firestore
