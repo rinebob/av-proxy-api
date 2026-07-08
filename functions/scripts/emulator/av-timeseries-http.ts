@@ -1,7 +1,7 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { db } from '../../src/firebase-admin-init';
 import { AlphaVantageHandlerFactory } from '../../src/v2/alpha-vantage/alpha-vantage-factory';
-import { initializeTimeSeriesIfMissing } from '../../src/v2/alpha-vantage/firestore/av-firestore-helper';
+import { initializeTimeSeriesIfMissing } from '../../src/v2/alpha-vantage/firestore/av-time-series.writer';
 import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
 import { AlphaVantageEndpoint, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
