@@ -1,5 +1,5 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
-import { saveAvData } from '../firestore/av-firestore-helper';
+import { saveAvData } from '../firestore/av-standard-data.writer';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { ApiResponse } from '@shared/core';
 

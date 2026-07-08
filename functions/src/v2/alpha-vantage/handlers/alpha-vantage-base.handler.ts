@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { ApiProvider, ApiResponse, ApiError, DATA_PROVIDERS, EndpointConfig } from '@shared/core';
-import { saveAvData } from '../firestore/av-firestore-helper';
+import { saveAvData } from '../firestore/av-standard-data.writer';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { AvEndpointCategory } from '@shared/alpha-vantage';
 import { createLogger, hr } from '../../utils/utils';

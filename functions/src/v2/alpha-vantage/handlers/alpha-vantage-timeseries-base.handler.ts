@@ -1,11 +1,9 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
-import {
-  saveAvTimeSeriesData,
-  upsertAvDailyBar,
-  upsertAvDailyIntradaySnapshot,
-  mergeWeeklyCompactWindowIntoShards,
-  mergeMonthlyCompactWindowIntoAllDocs,
-} from '../firestore/av-firestore-helper';
+import { saveAvTimeSeriesData } from '../firestore/av-time-series.writer';
+import { upsertAvDailyBar } from '../firestore/av-daily-bar.writer';
+import { upsertAvDailyIntradaySnapshot } from '../firestore/av-intraday-snapshot.writer';
+import { mergeWeeklyCompactWindowIntoShards } from '../firestore/av-weekly-bar.writer';
+import { mergeMonthlyCompactWindowIntoAllDocs } from '../firestore/av-monthly-bar.writer';
 import { ApiResponse } from '@shared/core';
 import { AlphaVantageEndpoint, TimeSeriesEndpointConfig, TimeSeriesInterval, AV_TIME_SERIES_ENDPOINT_CONFIGS } from '@shared/alpha-vantage';
 import type { CompactBar } from '@shared/alpha-vantage';

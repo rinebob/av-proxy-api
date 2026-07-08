@@ -318,7 +318,7 @@ async function applyDailyWindow(
     const t = new Date(`${b.date}T00:00:00.000Z`).getTime();
     if (!Number.isFinite(t)) continue;
     // Per-date overwrite semantics == delete+insert for that bar.
-    await (await import('../../src/v2/alpha-vantage/firestore/av-firestore-helper')).upsertAvDailyBar({
+    await (await import('../../src/v2/alpha-vantage/firestore/av-daily-bar.writer')).upsertAvDailyBar({
       symbol,
       date: b.date,
       patch: {

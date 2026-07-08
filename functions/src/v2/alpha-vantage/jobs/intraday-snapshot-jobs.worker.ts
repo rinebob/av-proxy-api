@@ -7,7 +7,7 @@ import { FirestoreCollection } from '@shared/firestore';
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { parseAvEtTimestampMs } from '../utils/date-utils';
-import { upsertAvDailyIntradaySnapshot, upsertAvWeeklyIntradaySnapshot, upsertAvMonthlyIntradaySnapshot } from '../firestore/av-firestore-helper';
+import { upsertAvDailyIntradaySnapshot, upsertAvWeeklyIntradaySnapshot, upsertAvMonthlyIntradaySnapshot } from '../firestore/av-intraday-snapshot.writer';
 import { TimeSeriesJobStatus, TimeSeriesJobTerminalStatus } from './time-series-jobs.model';
 import { MAX_JOB_ATTEMPTS, JOB_EXECUTION_DELAY_MS } from './job-config';
 import { onIntradayRunJobTerminal } from './intraday-snapshot-jobs.aggregator';
