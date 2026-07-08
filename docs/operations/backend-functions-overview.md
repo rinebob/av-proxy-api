@@ -1,4 +1,4 @@
-﻿﻿# Backend Functions Overview
+﻿# Backend Functions Overview
 
 This document provides a mid–high level overview of the backend Cloud Functions implementation for the Alpha Vantage + Benzinga data service. Use it as a guide for code reviews and onboarding.
 
@@ -259,9 +259,9 @@ Weekly and monthly parent docs follow the same pattern, with `interval` and `end
   - Rounding: 2 decimals for both `ch` and `cp`
   - Missing/zero baseline: omit `ch`/`cp` (first available bar or gaps)
 - Where computed in code
-  - Writer (full series): `functions/src/v2/alpha-vantage/firestore/av-firestore-helper.ts`
+  - Writer (full series): `functions/src/v2/alpha-vantage/firestore/av-time-series.writer.ts`
     - `computeChCpForBarsAscending(bars)` used by `saveAvTimeSeriesData()`
-  - Writer (single day): same file
+  - Writer (single day): `functions/src/v2/alpha-vantage/firestore/av-daily-bar.writer.ts`
     - `computeChCpForTargetIndex(bars, index)` used by `upsertAvDailyBar()`
 - Backfill
   - Script: `functions/scripts/backfill-timeseries-chcp.ts`

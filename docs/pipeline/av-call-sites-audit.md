@@ -206,8 +206,7 @@ const response = await bulkQuoteHandler.fetch({ symbols: batch.join(','), ... })
 ---
 
 ### 🟡 11. Firestore Helper Init (Backfill Utility)
-**File:** `functions/src/v2/alpha-vantage/firestore/av-firestore-helper.ts`  
-**Line:** 493  
+**File:** `functions/src/v2/alpha-vantage/firestore/av-time-series.writer.ts`  
 **Protection:** ❌ NONE  
 **Context:** Utility function for initializing time-series data  
 **Risk Level:** 🟡 MEDIUM (utility, not scheduled)
@@ -262,7 +261,7 @@ const intradayApiResp: any = await intradayHandler.fetch({ symbol, interval: '1m
 ### 🟢 MEDIUM PRIORITY (Do Next Sprint)
 
 4. **Add JSDoc warnings to utility functions**
-   - Document rate limiting requirements in `av-firestore-helper.ts`
+   - Document rate limiting requirements in the firestore writer files (`av-time-series.writer.ts`, `av-standard-data.writer.ts`, etc.)
    - Add examples showing proper throttling
 
 5. **Configure Cloud Tasks queue limits**

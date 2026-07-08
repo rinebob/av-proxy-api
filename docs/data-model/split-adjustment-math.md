@@ -111,7 +111,7 @@ With correct ordering, running `replay-split-history` multiple times produces th
 
 ### Daily Backfill (Canonical)
 
-Daily bars are adjusted using `adjustHistoryForBackfill()` in `split-math.ts` (called from `_internalSaveAvTimeSeriesData` in `av-firestore-helper.ts`):
+Daily bars are adjusted using `adjustHistoryForBackfill()` in `split-math.ts` (called from `_internalSaveAvTimeSeriesData` in `av-time-series.writer.ts`):
 
 ```typescript
 export function adjustHistoryForBackfill(rawBars: CompactBar[]): CompactBar[] {
