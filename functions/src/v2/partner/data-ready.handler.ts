@@ -4,39 +4,7 @@ import { db } from '../../firebase-admin-init';
 import { validateDataReadyPayload, type DataReadyPayloadV1 } from './schemas/data-ready.schema';
 import { PARTNER_DATA_READY_TOPIC, INTERNAL_PUBLISHER_AUDIT_EMAIL, PartnerPublishStatus } from './constants';
 import { betterLogger } from '../utils/utils';
-
-/**
- * Internal Pub/Sub publisher for partner data-ready notifications.
- * Publishes to topic `partner-data-ready` in the current GCP project.
- */
-async function publishToPubSub(payload: DataReadyPayloadV1, attributes: Record<string, string>) {
-  // Lazy import to avoid bringing dependency into cold path if not used during tests.
-  const { PubSub } = await import('@google-cloud/pubsub');
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
-  const pubsub = projectId ? new PubSub({ projectId }) : new PubSub();
-  const topicName = PARTNER_DATA_READY_TOPIC;
-  const topic = pubsub.topic(topicName);
-
-  try {
-    return await topic.publishMessage({ json: payload, attributes });
-  } catch (err: any) {
-    // In the emulator, auto-create the topic if it's missing (NOT_FOUND: code 5), then retry once.
-    const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true' || !!process.env.PUBSUB_EMULATOR_HOST;
-    if (isEmulator && (err?.code === 5 || (typeof err?.message === 'string' && err.message.includes('NOT_FOUND')))) {
-      try {
-        await pubsub.createTopic(topicName);
-      } catch (createErr: any) {
-        // ALREADY_EXISTS: code 6 — safe to ignore in race conditions
-        if (createErr?.code !== 6) {
-          throw err;
-        }
-      }
-      // Retry once after ensuring topic exists
-      return await topic.publishMessage({ json: payload, attributes });
-    }
-    throw err;
-  }
-}
+import { publishMessageToTopic } from './pubsub-message.publisher';
 
 /**
  * enqueueDataReadyInternal
@@ -182,7 +150,11 @@ export async function enqueueDataReadyInternal(
   }
 
   // Publish to Pub/Sub
-  const messageId = await publishToPubSub(validPayload, attributes);
+  const messageId = await publishMessageToTopic({
+    topicName: PARTNER_DATA_READY_TOPIC,
+    payload: validPayload,
+    attributes,
+  });
 
   await runRef.set({
     runMeta: { messageId },

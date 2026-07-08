@@ -1,5 +1,6 @@
 import { PARTNER_SYMBOLS_READY_TOPIC } from './constants';
 import { betterLogger, type BetterLogPayload } from '../utils/utils';
+import { publishMessageToTopic } from './pubsub-message.publisher';
 
 export interface SymbolsReadyPayloadV1 {
   version: 'v1';
@@ -29,13 +30,6 @@ export async function publishSymbolsReadyBatch(
     return undefined;
   }
 
-  // Lazy import to avoid bringing dependency into cold path if not used during tests.
-  const { PubSub } = await import('@google-cloud/pubsub');
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
-  const pubsub = projectId ? new PubSub({ projectId }) : new PubSub();
-  const topicName = PARTNER_SYMBOLS_READY_TOPIC;
-  const topic = pubsub.topic(topicName);
-
   const jsonPayload: SymbolsReadyPayloadV1 = {
     ...payload,
     version: 'v1',
@@ -49,34 +43,24 @@ export async function publishSymbolsReadyBatch(
     ...(attributes || {}),
   };
 
+  const messageId = await publishMessageToTopic({
+    topicName: PARTNER_SYMBOLS_READY_TOPIC,
+    payload: jsonPayload,
+    attributes: attrs,
+  });
+
   try {
-    const messageId = await topic.publishMessage({ json: jsonPayload, attributes: attrs });
-    try {
-      const baseLogPayload: BetterLogPayload = {
-        function: 'pSRB',
-        symbol:
-          jsonPayload.symbols.length === 1
-            ? jsonPayload.symbols[0]
-            : jsonPayload.symbols.join(','),
-        marketDate: jsonPayload.marketDate,
-        interval: jsonPayload.interval || 'n/a',
-        endpoint: 'SYMBOLS_READY',
-      };
-      logger.info('symbols.ready.publish', baseLogPayload);
-    } catch {}
-    return messageId;
-  } catch (err: any) {
-    const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true' || !!process.env.PUBSUB_EMULATOR_HOST;
-    if (isEmulator && (err?.code === 5 || (typeof err?.message === 'string' && err.message.includes('NOT_FOUND')))) {
-      try {
-        await pubsub.createTopic(topicName);
-      } catch (createErr: any) {
-        if (createErr?.code !== 6) {
-          throw err;
-        }
-      }
-      return await topic.publishMessage({ json: jsonPayload, attributes: attrs });
-    }
-    throw err;
-  }
+    const baseLogPayload: BetterLogPayload = {
+      function: 'pSRB',
+      symbol:
+        jsonPayload.symbols.length === 1
+          ? jsonPayload.symbols[0]
+          : jsonPayload.symbols.join(','),
+      marketDate: jsonPayload.marketDate,
+      interval: jsonPayload.interval || 'n/a',
+    };
+    logger.info('symbols.ready.publish', baseLogPayload);
+  } catch {}
+
+  return messageId;
 }
