@@ -73,7 +73,6 @@ export const onSymbolAdded = onDocumentCreated(
         const weeklyStartedAt = Date.now();
         await weeklyHandler.fetch({
           symbol,
-          outputsize: OutputSize.FULL,
           datatype: 'json',
         });
 
@@ -111,7 +110,6 @@ export const onSymbolAdded = onDocumentCreated(
         const monthlyStartedAt = Date.now();
         await monthlyHandler.fetch({
           symbol,
-          outputsize: OutputSize.FULL,
           datatype: 'json',
         });
 
