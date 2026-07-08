@@ -56,7 +56,7 @@ For each `BulkImportItem`:
      - `candidate.matchScore === 1.0`.
    - If **exactly one** such candidate exists (**AUTO_ACCEPTED**):
      - Build the `tracked-symbols/{symbol}` document primarily from the AV candidate (symbol, name, type, region, marketOpen, marketClose, timezone, currency, matchScore).
-     - Overlay `exchange` and `etfs` from the bulk-import input plus metadata flags (`_createdAt`, `_lastUpdated`, `_isActive`, `_refreshEnabled`).
+     - Overlay `exchange` and `etfs` from the bulk-import input plus metadata flags (`_createdAt`, `_lastUpdated`, `_isActive`).
    - If there are AV candidates but no strict match (**QUEUED_PENDING_NO_STRICT_MATCH**):
      - Create a `symbol-import-queue` entry for manual review with:
        - Original request (`symbol`, `name`, optional `exchange`, `etfs`),

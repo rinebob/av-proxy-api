@@ -52,7 +52,7 @@ export class SymbolManagerComponent implements OnInit {
   // Table configuration
   displayedV2Columns = [
     'symbol', 'name', 'type', 'region', 'timezone', 'currency', 'matchScore',
-    '_createdAt', '_lastUpdated', '_isActive', '_refreshEnabled'
+    '_createdAt', '_lastUpdated', '_isActive'
   ];
   readonly pageSize = signal(25);
   readonly pageIndex = signal(0);
