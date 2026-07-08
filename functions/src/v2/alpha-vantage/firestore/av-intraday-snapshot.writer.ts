@@ -114,8 +114,9 @@ export async function upsertAvDailyIntradaySnapshot(options: {
  * Accepts a pre-resolved doc ref and a bar-finder function so the weekly and monthly
  * public wrappers only differ in how they locate the doc and identify the target bar.
  *
- * - Patches ip/io/it/ic/ipc/barStatus only; does not touch OHLCV.
- * - Creates a zero-OHLCV placeholder if no matching bar is found.
+ * - Updates o/h/l/c/ac on each tick: h ratchets up, l ratchets down, c/ac always set to ip.
+ * - o is only seeded from ip when the existing bar has o===0 (new-period placeholder).
+ * - Creates a placeholder bar seeded from ip (all OHLCV = ip) if no matching bar is found.
  * - Uses a Firestore transaction for safe concurrent writes.
  * - Does not bump parent metadata (avoids churn during trading hours).
  *
@@ -168,20 +169,39 @@ async function _upsertWmIntradaySnapshotCore(
       ? Number((((Number(ip) - Number(prevClose)) / Number(prevClose)) * 100).toFixed(2))
       : 0;
 
+    const ipNum = Number(ip);
+
     if (idx >= 0) {
       const existing = bars[idx];
-      bars[idx] = { ...existing, ip: Number(ip), io: Number(io), it: itStr, ic: icVal, ipc: ipcVal, barStatus } as CompactBar;
+      // # Reason: Ratchet h/l so the bar reflects the period's intraday range across hourly ticks.
+      // c/ac always move to the latest price. o is only seeded when the existing bar is a
+      // zero-OHLCV placeholder (new period — first intraday tick before POST has written AV data).
+      bars[idx] = {
+        ...existing,
+        o: existing.o || ipNum,
+        h: existing.h ? Math.max(existing.h, ipNum) : ipNum,
+        l: existing.l ? Math.min(existing.l, ipNum) : ipNum,
+        c: ipNum,
+        ac: ipNum,
+        ip: ipNum,
+        io,
+        it: itStr,
+        ic: icVal,
+        ipc: ipcVal,
+        barStatus,
+      } as CompactBar;
     } else {
       // Create a placeholder bar so charting consumers see a trailing bar immediately.
       // # Reason: If the first PRE of a new period runs before POST has written the AV bar,
-      // we create a zero-OHLCV placeholder that will be overwritten by the next POST.
+      // we create a placeholder seeded from ip so o/h/l/c/ac are meaningful from tick one.
+      // POST will overwrite with AV's finalized values.
       bars.push({
         t: placeholderT,
         d: marketDate,
         dow: computeDowFromDateString(marketDate),
-        o: 0, h: 0, l: 0, c: 0, v: 0, ac: 0, dv: 0, sc: 1,
-        ip: Number(ip),
-        io: Number(io),
+        o: ipNum, h: ipNum, l: ipNum, c: ipNum, v: 0, ac: ipNum, dv: 0, sc: 1,
+        ip: ipNum,
+        io,
         it: itStr,
         ic: icVal,
         ipc: ipcVal,
@@ -211,7 +231,7 @@ async function _upsertWmIntradaySnapshotCore(
 /**
  * Upsert intraday snapshot fields for the trailing WEEKLY bar, creating a placeholder bar if needed.
  * - Matches the bar whose ISO week contains `marketDate`.
- * - Only sets intraday fields (ip/io/it/ic/ipc) and barStatus; does not touch OHLCV.
+ * - Updates o/h/l/c/ac: h ratchets up, l ratchets down, c/ac always set to ip, o preserved unless zero.
  * - Does not bump parent metadata to avoid churn during trading hours.
  * @param options.symbol Stock symbol
  * @param options.marketDate ET trading date (YYYY-MM-DD) — identifies which week's bar to patch
@@ -249,7 +269,7 @@ export async function upsertAvWeeklyIntradaySnapshot(options: {
  * Upsert intraday snapshot fields for the trailing MONTHLY bar, creating a placeholder bar if needed.
  * - Monthly bars live in a single `all` doc (not year-sharded).
  * - Matches the bar whose YYYY-MM matches `marketDate.slice(0, 7)`.
- * - Only sets intraday fields (ip/io/it/ic/ipc) and barStatus; does not touch OHLCV.
+ * - Updates o/h/l/c/ac: h ratchets up, l ratchets down, c/ac always set to ip, o preserved unless zero.
  * - Does not bump parent metadata to avoid churn during trading hours.
  * @param options.symbol Stock symbol
  * @param options.marketDate ET trading date (YYYY-MM-DD) — identifies which month's bar to patch
