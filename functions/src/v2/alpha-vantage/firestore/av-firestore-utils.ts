@@ -28,6 +28,18 @@ export function barDateStr(b: CompactBar): string | null {
 }
 
 /**
+ * Shared ET time formatter for intraday snapshot strings (HH:mm, 24-hour clock).
+ * Exported so daily and W/M writers reuse the same instance instead of creating
+ * a new Intl.DateTimeFormat on every transaction.
+ */
+export const INTRADAY_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+/**
  * Compute DayOfWeek label from a trading date string (YYYY-MM-DD) using UTC midnight.
  * @param d ISO date string (YYYY-MM-DD)
  * @returns DayOfWeek label (Sun..Sat)
@@ -78,6 +90,42 @@ export function formatEtDateTime(tsMs: number): string {
 export function round2(n: number): number { return Math.round(n * 100) / 100; }
 
 /**
+ * Find the bar with the largest `t` strictly less than `targetT`.
+ * This is the canonical predecessor lookup used by intraday writers when they
+ * need the previous period's close to compute change metrics.
+ * @param bars Array of bars (order does not matter)
+ * @param targetT Target epoch ms
+ * @returns The immediate predecessor bar, or null if none exists
+ */
+export function findImmediatePredecessorBar(bars: Array<CompactBar>, targetT: number): CompactBar | null {
+  return bars.reduce<CompactBar | null>(
+    (p, b) => (b.t < targetT && (!p || b.t > p.t) ? b : p),
+    null,
+  );
+}
+
+/**
+ * Compute change metrics from a previous close and a current close.
+ * - `change` = currentClose - prevClose, rounded to 2dp
+ * - `changePercent` = (change / prevClose) * 100, rounded to 2dp (undefined if prevClose is 0)
+ * @param prevClose Previous period close (may be null/undefined)
+ * @param currentClose Current close
+ * @returns Object with change and changePercent (undefined when prevClose is not finite)
+ */
+export function computeChangeMetrics(
+  prevClose: number | null | undefined,
+  currentClose: number,
+): { change: number | undefined; changePercent: number | undefined } {
+  const prev = Number(prevClose);
+  if (!Number.isFinite(prev)) {
+    return { change: undefined, changePercent: undefined };
+  }
+  const change = Number((currentClose - prev).toFixed(2));
+  const changePercent = prev !== 0 ? Number(((currentClose - prev) / prev * 100).toFixed(2)) : undefined;
+  return { change, changePercent };
+}
+
+/**
  * Compute EOD change metrics for a sorted array of bars in-place.
  * - ch = currClose - prevClose
  * - cp = (ch / prevClose) * 100
@@ -126,4 +174,36 @@ export function computeChCpForTargetIndex(bars: Array<CompactBar>, index: number
     delete (curr as any).ch;
     delete (curr as any).cp;
   }
+}
+
+/**
+ * Build the top-level metadata object that is stored alongside the `bars` array
+ * in a time-series year-shard or all-doc. Assumes `bars` is already sorted by `t`.
+ *
+ * This is a pure function so the same computation can be shared by all writers
+ * without copying the same logic into each module.
+ */
+export function buildLatestMetadataFromBars(bars: Array<CompactBar>): {
+  count: number;
+  firstBarTs: number | null;
+  lastBarTs: number | null;
+  latest: CompactBar | null;
+  latestUtcIso: string | null;
+  latestEtDateTime: string | null;
+  latestIoUtcIso: string | null;
+  latestIoEtDateTime: string | null;
+  version: string;
+} {
+  const latestBar = bars[bars.length - 1] ?? null;
+  return {
+    count: bars.length,
+    firstBarTs: bars[0]?.t ?? null,
+    lastBarTs: bars[bars.length - 1]?.t ?? null,
+    latest: latestBar,
+    latestUtcIso: latestBar?.t != null ? new Date(latestBar.t).toISOString() : null,
+    latestEtDateTime: latestBar?.t != null ? formatEtDateTime(latestBar.t) : null,
+    latestIoUtcIso: latestBar?.io != null ? new Date(Number(latestBar.io)).toISOString() : null,
+    latestIoEtDateTime: latestBar?.io != null ? formatEtDateTime(Number(latestBar.io)) : null,
+    version: `${bars[bars.length - 1]?.t ?? ''}-${bars.length}`,
+  };
 }

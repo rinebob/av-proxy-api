@@ -4,7 +4,6 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import type { CompactBar } from '@shared/alpha-vantage';
-import { DayOfWeek } from '@shared/alpha-vantage';
 
 import {
   getSymbolTimeSeriesYearDocPath,
@@ -13,100 +12,17 @@ import {
 } from '../../common/firestore/firestore-paths';
 import { isoWeek } from '../../common/bar-status/bar-status.service';
 import { INTRADAY_FIRST_TICK } from '../jobs/job-config';
-import { barDateStr, computeDowFromDateString, formatEtDateTime } from './av-firestore-utils';
+import { betterLogger } from '../../utils/utils';
+import {
+  barDateStr,
+  buildLatestMetadataFromBars,
+  computeChangeMetrics,
+  computeDowFromDateString,
+  findImmediatePredecessorBar,
+  INTRADAY_TIME_FORMATTER,
+} from './av-firestore-utils';
 
-/**
- * Upsert intraday snapshot fields for the given DAILY trading date, creating the day bar if needed.
- * - Only sets intraday fields (ip/io/it) and optional delta (ic/ipc); does not compute EOD ch/cp here.
- * - Does not bump parent metadata to avoid churn during trading hours.
- * @param options.symbol Stock symbol
- * @param options.date ISO date for the trading day (ET-derived)
- * @param options.ip Latest intraday price
- * @param options.io Epoch ms of latest intraday bar timestamp
- * @param options.dow Required DayOfWeek label (ET)
- * @returns Promise that resolves on success
- */
-export async function upsertAvDailyIntradaySnapshot(options: {
-  symbol: string;
-  date: string; // YYYY-MM-DD (ET-derived trading date)
-  ip: number;   // latest intraday price
-  io: number;   // epoch ms of the latest intraday bar timestamp
-  dow: DayOfWeek; // required human-readable day-of-week (ET)
-  /** PT clock label (HHMM) of the intraday tick, e.g. '0800'. Used to compute barStatus. */
-  clockPt?: string;
-}): Promise<void> {
-  const { symbol, date, ip, io, dow, clockPt } = options;
-  const barStatus: -1 | 0 = clockPt === INTRADAY_FIRST_TICK ? -1 : 0;
-  const vendor = ApiProvider.ALPHA_VANTAGE;
-  const t = new Date(`${date}T00:00:00.000Z`).getTime();
-  const y = getYearFromEpochMillis(t);
-  const yearDocPath = getSymbolTimeSeriesYearDocPath(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, vendor, y);
-  const yearRef = db.doc(yearDocPath);
-
-  console.log(`[upsertAvDailyIntradaySnapshot] Starting transaction for ${symbol} at path: ${yearDocPath}`);
-
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(yearRef);
-    const bars: CompactBar[] = snap.exists ? ((snap.get('bars') ?? []) as CompactBar[]) : [];
-
-    // locate or create the day bar, updating only intraday fields
-    let idx = bars.findIndex((b) => b.t === t);
-
-    // Hoist shared intraday field computations — used by both insert and update paths
-    const itStr = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }).format(new Date(io));
-    const prevCandidate = bars.reduce<CompactBar | null>((p, b) => (b.t < t && (!p || b.t > p.t)) ? b : p, null as any);
-    const prevClose = prevCandidate && (typeof (prevCandidate as any).ac === 'number' ? (prevCandidate as any).ac : (prevCandidate as any).c);
-    const icVal = Number.isFinite(Number(prevClose)) ? Number((Number(ip) - Number(prevClose)).toFixed(2)) : 0;
-    const ipcVal = Number.isFinite(Number(prevClose)) && Number(prevClose) !== 0 ? Number((((Number(ip) - Number(prevClose)) / Number(prevClose)) * 100).toFixed(2)) : 0;
-
-    if (idx < 0) {
-      const newBar: CompactBar = {
-        t,
-        d: new Date(t).toISOString().slice(0, 10),
-        dow,
-        o: 0, h: 0, l: 0, c: 0, v: 0, ac: 0, dv: 0, sc: 1,
-        ip: Number(ip),
-        io: Number(io),
-        it: itStr,
-        ic: icVal,
-        ipc: ipcVal,
-        barStatus,
-      };
-      bars.push(newBar);
-      idx = bars.length - 1;
-    } else {
-      const existing = bars[idx];
-      bars[idx] = { ...existing, ip: Number(ip), io: Number(io), it: itStr, ic: icVal, ipc: ipcVal, barStatus } as CompactBar;
-    }
-
-    bars.sort((a, b) => a.t - b.t);
-
-    const latestBar = bars[bars.length - 1] ?? null;
-    const latestUtcIso = latestBar?.t != null ? new Date(latestBar.t).toISOString() : null;
-    const latestEtDateTime = latestBar?.t != null ? formatEtDateTime(latestBar.t) : null;
-    const latestIoUtcIso = latestBar?.io != null ? new Date(Number(latestBar.io)).toISOString() : null;
-    const latestIoEtDateTime = latestBar?.io != null ? formatEtDateTime(Number(latestBar.io)) : null;
-    const version = `${bars[bars.length - 1]?.t ?? ''}-${bars.length}`;
-
-    const finalVersion = version;
-    tx.set(yearRef, {
-      bars,
-      count: bars.length,
-      firstBarTs: bars[0]?.t ?? null,
-      lastBarTs: bars[bars.length - 1]?.t ?? null,
-      latest: latestBar,
-      latestUtcIso,
-      latestEtDateTime,
-      latestIoUtcIso,
-      latestIoEtDateTime,
-      version: finalVersion,
-      updatedAt: Timestamp.now(),
-    }, { merge: true });
-    console.log(`[upsertAvDailyIntradaySnapshot] Transaction set for ${symbol}, version: ${finalVersion}`);
-  });
-
-  console.log(`[upsertAvDailyIntradaySnapshot] Transaction committed for ${symbol} at path: ${yearDocPath}`);
-}
+const logger = betterLogger('av-intraday-snapshot.writer');
 
 /**
  * Shared core logic for upserting W/M intraday snapshot fields into a Firestore doc.
@@ -118,7 +34,7 @@ export async function upsertAvDailyIntradaySnapshot(options: {
  * - o is only seeded from ip when the existing bar has o===0 (new-period placeholder).
  * - Creates a placeholder bar seeded from ip (all OHLCV = ip) if no matching bar is found.
  * - Uses a Firestore transaction for safe concurrent writes.
- * - Does not bump parent metadata (avoids churn during trading hours).
+ * - Bumps top-level doc metadata via the shared helper.
  *
  * @param docRef     Firestore DocumentReference for the shard or all-doc.
  * @param findBar    Returns the index of the target bar within `bars`, or -1 if absent.
@@ -126,7 +42,7 @@ export async function upsertAvDailyIntradaySnapshot(options: {
  * @param ip         Latest intraday price.
  * @param io         Epoch ms of the latest intraday bar timestamp.
  * @param barStatus  Pre-computed barStatus for this tick (-1 | 0).
- * @param label      Short label for console logs (e.g. "weekly week=28", "monthly month=2026-07").
+ * @param label      Short label for observability logs (e.g. "weekly week=28", "monthly month=2026-07").
  */
 async function _upsertWmIntradaySnapshotCore(
   docRef: FirebaseFirestore.DocumentReference,
@@ -137,12 +53,10 @@ async function _upsertWmIntradaySnapshotCore(
   barStatus: -1 | 0,
   label: string,
 ): Promise<void> {
-  const itStr = new Intl.DateTimeFormat('en-US', {
-    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York',
-  }).format(new Date(io));
+  const itStr = INTRADAY_TIME_FORMATTER.format(new Date(io));
   const placeholderT = new Date(`${marketDate}T00:00:00.000Z`).getTime();
 
-  console.log(`[upsertWmIntradaySnapshotCore] Starting ${label}`);
+  logger.info('wm.intraday.snapshot.start', { message: label });
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(docRef);
@@ -150,26 +64,19 @@ async function _upsertWmIntradaySnapshotCore(
 
     const idx = findBar(bars);
 
-    // Find the bar with the highest t strictly less than the target bar's t.
-    // # Reason: Using reduce (same pattern as upsertAvDailyIntradaySnapshot) is safe
-    // regardless of whether bars are pre-sorted, unlike a slice-based predecessor lookup.
+    // The predecessor is the bar with the highest t strictly less than the
+    // target period's t, i.e. the close of the *prior* W/M period bar. We use
+    // that close (preferring adjusted close) to compute the period-over-period
+    // change metrics, not yesterday's daily close.
     const targetT = idx >= 0 ? bars[idx].t : placeholderT;
-    const prevCandidate = bars.reduce<CompactBar | null>(
-      (p, b) => (b.t < targetT && (!p || b.t > p.t)) ? b : p,
-      null,
-    );
+    const prevCandidate = findImmediatePredecessorBar(bars, targetT);
 
     const prevClose = prevCandidate != null
-      ? (typeof (prevCandidate as any).ac === 'number' ? (prevCandidate as any).ac : (prevCandidate as any).c)
+      ? (typeof prevCandidate.ac === 'number' ? prevCandidate.ac : prevCandidate.c)
       : null;
-    const icVal = Number.isFinite(Number(prevClose))
-      ? Number((Number(ip) - Number(prevClose)).toFixed(2))
-      : 0;
-    const ipcVal = Number.isFinite(Number(prevClose)) && Number(prevClose) !== 0
-      ? Number((((Number(ip) - Number(prevClose)) / Number(prevClose)) * 100).toFixed(2))
-      : 0;
-
-    const ipNum = Number(ip);
+    const { change, changePercent } = computeChangeMetrics(prevClose, ip);
+    const icVal = change ?? 0;
+    const ipcVal = changePercent ?? 0;
 
     if (idx >= 0) {
       const existing = bars[idx];
@@ -178,18 +85,18 @@ async function _upsertWmIntradaySnapshotCore(
       // zero-OHLCV placeholder (new period — first intraday tick before POST has written AV data).
       bars[idx] = {
         ...existing,
-        o: existing.o || ipNum,
-        h: existing.h ? Math.max(existing.h, ipNum) : ipNum,
-        l: existing.l ? Math.min(existing.l, ipNum) : ipNum,
-        c: ipNum,
-        ac: ipNum,
-        ip: ipNum,
+        o: existing.o || ip,
+        h: existing.h ? Math.max(existing.h, ip) : ip,
+        l: existing.l ? Math.min(existing.l, ip) : ip,
+        c: ip,
+        ac: ip,
+        ip,
         io,
         it: itStr,
         ic: icVal,
         ipc: ipcVal,
         barStatus,
-      } as CompactBar;
+      };
     } else {
       // Create a placeholder bar so charting consumers see a trailing bar immediately.
       // # Reason: If the first PRE of a new period runs before POST has written the AV bar,
@@ -199,8 +106,8 @@ async function _upsertWmIntradaySnapshotCore(
         t: placeholderT,
         d: marketDate,
         dow: computeDowFromDateString(marketDate),
-        o: ipNum, h: ipNum, l: ipNum, c: ipNum, v: 0, ac: ipNum, dv: 0, sc: 1,
-        ip: ipNum,
+        o: ip, h: ip, l: ip, c: ip, v: 0, ac: ip, dv: 0, sc: 1,
+        ip,
         io,
         it: itStr,
         ic: icVal,
@@ -211,21 +118,14 @@ async function _upsertWmIntradaySnapshotCore(
 
     bars.sort((a, b) => a.t - b.t);
 
-    const latestBar = bars[bars.length - 1] ?? null;
     tx.set(docRef, {
       bars,
-      count: bars.length,
-      firstBarTs: bars[0]?.t ?? null,
-      lastBarTs: latestBar?.t ?? null,
-      latest: latestBar,
-      latestUtcIso: latestBar?.t != null ? new Date(latestBar.t).toISOString() : null,
-      latestEtDateTime: latestBar?.t != null ? formatEtDateTime(latestBar.t) : null,
-      version: `${latestBar?.t ?? ''}-${bars.length}`,
+      ...buildLatestMetadataFromBars(bars),
       updatedAt: Timestamp.now(),
     }, { merge: true });
   });
 
-  console.log(`[upsertWmIntradaySnapshotCore] Committed ${label}`);
+  logger.info('wm.intraday.snapshot.committed', { message: label });
 }
 
 /**
