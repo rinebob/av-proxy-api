@@ -1,6 +1,8 @@
 // Export all firestore helpers
+export * from './av-firestore-utils';
 export * from './av-metadata.writer';
 export * from './av-intraday-snapshot.writer';
+export * from './av-daily-intraday.writer';
 export * from './av-daily-bar.writer';
 export * from './av-weekly-bar.writer';
 export * from './av-monthly-bar.writer';

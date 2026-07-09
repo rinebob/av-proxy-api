@@ -1,30 +1,19 @@
 import { db } from '../../../firebase-admin-init';
 import { Timestamp } from 'firebase-admin/firestore';
 
-import { AlphaVantageEndpoint, DayOfWeek } from '@shared/alpha-vantage';
 import { FirestoreCollection } from '@shared/firestore';
 
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
-import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
-import { parseAvEtTimestampMs } from '../utils/date-utils';
-import { upsertAvDailyIntradaySnapshot, upsertAvWeeklyIntradaySnapshot, upsertAvMonthlyIntradaySnapshot } from '../firestore/av-intraday-snapshot.writer';
+import { fetchAndStoreDailyIntradayBar } from '../services/av-intraday-daily.service';
+import {
+  upsertAvWeeklyIntradaySnapshot,
+  upsertAvMonthlyIntradaySnapshot,
+} from '../firestore';
 import { TimeSeriesJobStatus, TimeSeriesJobTerminalStatus } from './time-series-jobs.model';
 import { MAX_JOB_ATTEMPTS, JOB_EXECUTION_DELAY_MS } from './job-config';
 import { onIntradayRunJobTerminal } from './intraday-snapshot-jobs.aggregator';
 
 const logger = betterLogger('iS.Wrk');
-
-const TZ = 'America/New_York';
-
-const DOW_ENUM: DayOfWeek[] = [
-  DayOfWeek.Sun,
-  DayOfWeek.Mon,
-  DayOfWeek.Tue,
-  DayOfWeek.Wed,
-  DayOfWeek.Thu,
-  DayOfWeek.Fri,
-  DayOfWeek.Sat,
-];
 
 /**
  * Payload for a single intraday snapshot job dispatched via Cloud Tasks.
@@ -43,10 +32,12 @@ export interface IntradaySnapshotJobPayload {
 /**
  * Core worker for a single intraday snapshot job.
  *
- * Fetches the latest 1-min bar for the given symbol, extracts the most recent
- * bar matching today's ET trading date, and upserts the intraday snapshot fields
- * (`ip / io / it / ic / ipc`) into the DAILY_ADJUSTED, WEEKLY_ADJUSTED, and
- * MONTHLY_ADJUSTED Firestore documents for the trailing bars of each period.
+ * Fetches the latest 15-min RTH bars for the given symbol, aggregates them into
+ * a single OHLCV bar from 09:30 ET onward, and writes `o/h/l/c/v` into the
+ * DAILY_ADJUSTED year-shard. For WEEKLY_ADJUSTED and MONTHLY_ADJUSTED the
+ * existing ratcheting intraday overlay logic is preserved: `c`/`ac` are updated
+ * to the latest close, `h`/`l` are bumped if the current trading day moved the
+ * period range, and `o` is left unchanged except on a period-start placeholder.
  *
  * Job state is tracked at `intraday-runs/{runId}/jobs/{symbol}`.
  *
@@ -63,7 +54,7 @@ export async function processIntradaySnapshotJobInternal(
     symbol: symbolUpper,
     marketDate,
     interval: 'intraday',
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_INTRADAY,
+    endpoint: 'TIME_SERIES_INTRADAY',
   };
 
   const jobPath = `${FirestoreCollection.INTRADAY_RUNS}/${runId}/${FirestoreCollection.JOBS}/${symbolUpper}`;
@@ -122,83 +113,34 @@ export async function processIntradaySnapshotJobInternal(
   try {
     logger.info('intraday.worker.start', { ...baseLog, runId, clockPt } as BetterLogPayload);
 
-    // Fetch latest 1-min intraday data for the symbol.
-    const handler = AlphaVantageHandlerFactory.createHandler(
-      AlphaVantageEndpoint.TIME_SERIES_INTRADAY,
-    );
-    const resp = await handler.fetch({ symbol: symbolUpper, interval: '1min' });
-    const raw = resp?.data;
-
-    const series: Record<string, any> | undefined = raw?.['Time Series (1min)'];
-    if (!series || typeof series !== 'object') {
-      throw new Error('No intraday series (1min) in AV response');
-    }
-
-    // Map entries to ET-local date strings and sort descending so the most
-    // recent bar is first. Filter to only today's ET date before scanning.
-    const entries = Object.entries(series) as Array<[string, any]>;
-    const todayBars = entries
-      .map(([ts, v]) => {
-        const msEt = parseAvEtTimestampMs(ts);
-        if (!Number.isFinite(msEt)) return null;
-        const dateEt = new Intl.DateTimeFormat('en-CA', {
-          timeZone: TZ,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        }).format(new Date(msEt));
-        return { msEt, dateEt, v };
-      })
-      .filter((b): b is NonNullable<typeof b> => b !== null && b.dateEt === marketDate);
-
-    if (todayBars.length === 0) {
+    // Fetch, aggregate, and store the daily intraday bar in one canonical path.
+    const bar = await fetchAndStoreDailyIntradayBar({
+      symbol: symbolUpper,
+      marketDate,
+      clockPt,
+    });
+    if (!bar) {
       throw new Error(`No intraday bars found for marketDate=${marketDate} symbol=${symbolUpper}`);
     }
 
-    // Sort descending — pick the most recent bar.
-    todayBars.sort((a, b) => b.msEt - a.msEt);
-    const latest = todayBars[0];
-
-    const ip = Number(latest.v['4. close'] ?? latest.v['close']);
-    if (!Number.isFinite(ip) || ip <= 0) {
-      throw new Error(
-        `Invalid close price from latest intraday bar for ${symbolUpper}: ${ip}`,
-      );
-    }
-
-    // Derive day-of-week in ET for the bar.
-    const dowIdx = new Date(
-      new Date(latest.msEt).toLocaleString('en-US', { timeZone: TZ }),
-    ).getDay();
-    const dow: DayOfWeek = DOW_ENUM[dowIdx];
-
-    // Persist the intraday snapshot into the DAILY_ADJUSTED year-shard.
-    await upsertAvDailyIntradaySnapshot({
-      symbol: symbolUpper,
-      date: marketDate,
-      ip,
-      io: latest.msEt,
-      dow,
-      clockPt,
-    });
-
-    // Persist the same intraday snapshot onto the trailing WEEKLY bar.
-    await upsertAvWeeklyIntradaySnapshot({
-      symbol: symbolUpper,
-      marketDate,
-      ip,
-      io: latest.msEt,
-      clockPt,
-    });
-
-    // Persist the same intraday snapshot onto the trailing MONTHLY bar.
-    await upsertAvMonthlyIntradaySnapshot({
-      symbol: symbolUpper,
-      marketDate,
-      ip,
-      io: latest.msEt,
-      clockPt,
-    });
+    // Preserve W/M ratcheting intraday overlay: close follows the latest bar, h/l
+    // ratchet, and o is only touched on a period-start placeholder.
+    await Promise.all([
+      upsertAvWeeklyIntradaySnapshot({
+        symbol: symbolUpper,
+        marketDate,
+        ip: bar.c,
+        io: bar.io,
+        clockPt,
+      }),
+      upsertAvMonthlyIntradaySnapshot({
+        symbol: symbolUpper,
+        marketDate,
+        ip: bar.c,
+        io: bar.io,
+        clockPt,
+      }),
+    ]);
 
     // Mark job SUCCESS.
     await jobRef.set(
