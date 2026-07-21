@@ -4,12 +4,17 @@ import { AlphaVantageEndpoint } from './av-endpoints';
 
 type Timestamp = TimestampLike;
 
+export enum AvOptionType {
+  CALL = 'call',
+  PUT = 'put',
+}
+
 export interface AvOptionContract {
   contractID?: string;
   symbol?: string;
   expiration?: string;
   strike?: string;
-  type?: 'call' | 'put';
+  type?: AvOptionType;
   last?: string;
   mark?: string;
   bid?: string;

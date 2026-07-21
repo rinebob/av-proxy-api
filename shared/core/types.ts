@@ -5,6 +5,7 @@ export enum HttpMethod {
     POST = 'POST',
     PUT = 'PUT',
     DELETE = 'DELETE',
+    OPTIONS = 'OPTIONS',
 }
 
 export enum EndpointSymbolUsage {

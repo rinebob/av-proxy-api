@@ -1,7 +1,22 @@
-import { AvOptionContract, SvtExpirationAnalysis, SvtOptionsAnalysis, SvtStrikeAnalysis } from "@shared/alpha-vantage";
+import {
+  AvOptionContract,
+  AvOptionType,
+  SvtExpirationAnalysis,
+  SvtOptionsAnalysis,
+  SvtStrikeAnalysis,
+} from "@shared/alpha-vantage";
 
 interface ExpirationSummary {
   [expiration: string]: number;
+}
+
+function parseOptionMetric(value: string | undefined): number | null {
+  if (value === undefined || !value.trim()) {
+    return null;
+  }
+
+  const metric = Number(value);
+  return Number.isFinite(metric) ? metric : null;
 }
 
 function formatTimeUntilExpiration(expirationDate: string, expirations: ExpirationSummary): string {
@@ -61,20 +76,16 @@ export function analyzeOptions(optionsData: AvOptionContract[]): SvtOptionsAnaly
   const expirations: Record<string, Omit<SvtExpirationAnalysis, 'expiration' | 'timeUntilExpiration'>> = {};
   const strikes: Record<string, Omit<SvtStrikeAnalysis, 'strike' | 'totalVolume' | 'totalOpenInterest'>> = {};
   
-  // Filter out contracts with missing required fields
-  const validContracts = optionsData.filter(contract => 
-    contract.expiration && 
-    contract.volume !== undefined && 
-    contract.open_interest !== undefined &&
-    contract.type &&
-    contract.strike
+  const typedContracts = optionsData.filter(contract =>
+    contract.type === AvOptionType.CALL || contract.type === AvOptionType.PUT,
   );
+  const groupedContracts = typedContracts.filter(contract => contract.expiration && contract.strike);
 
-  validContracts.forEach((contract) => {
+  groupedContracts.forEach((contract) => {
     const { expiration, volume, open_interest, type, strike } = contract;
-    const volumeNum = parseInt(volume || '0', 10) || 0;
-    const oiNum = parseInt(open_interest || '0', 10) || 0;
-    const isCall = type === 'call';
+    const volumeNum = parseOptionMetric(volume) ?? 0;
+    const oiNum = parseOptionMetric(open_interest) ?? 0;
+    const isCall = type === AvOptionType.CALL;
 
     // Initialize expiration if not exists
     if (!expirations[expiration!]) {
@@ -117,25 +128,22 @@ export function analyzeOptions(optionsData: AvOptionContract[]): SvtOptionsAnaly
     }
   });
 
-  // Calculate totals
-  const totalCallContracts = Object.values(expirations).reduce((sum, exp) => 
-    sum + (exp.callVolume > 0 ? 1 : 0), 0
+  const totalCallContracts = typedContracts.filter(contract => contract.type === AvOptionType.CALL).length;
+  const totalPutContracts = typedContracts.filter(contract => contract.type === AvOptionType.PUT).length;
+  const totalVolume = optionsData.reduce(
+    (sum, contract) => sum + (parseOptionMetric(contract.volume) ?? 0),
+    0,
   );
-  
-  const totalPutContracts = Object.values(expirations).reduce((sum, exp) => 
-    sum + (exp.putVolume > 0 ? 1 : 0), 0
+  const totalOpenInterest = optionsData.reduce(
+    (sum, contract) => sum + (parseOptionMetric(contract.open_interest) ?? 0),
+    0,
   );
-  
-  const totalVolume = Object.values(expirations).reduce((sum, exp) => 
-    sum + exp.callVolume + exp.putVolume, 0
-  );
-  
-  const totalOpenInterest = Object.values(expirations).reduce((sum, exp) => 
-    sum + exp.callOpenInterest + exp.putOpenInterest, 0
-  );
-  
-  const totalContracts = validContracts.length;
-  const uniqueStrikesCount = Object.keys(strikes).length;
+  const totalContracts = optionsData.length;
+  const contractsWithVolume = optionsData.filter(contract => parseOptionMetric(contract.volume) !== null);
+  const contractsWithOpenInterest = optionsData.filter(contract => parseOptionMetric(contract.open_interest) !== null);
+  const uniqueStrikesCount = new Set(
+    optionsData.flatMap(contract => contract.strike === undefined ? [] : [contract.strike]),
+  ).size;
   
   // Create a simple count object for formatTimeUntilExpiration
   const expirationCounts: ExpirationSummary = {};
@@ -173,8 +181,12 @@ export function analyzeOptions(optionsData: AvOptionContract[]): SvtOptionsAnaly
       callContracts: totalCallContracts,
       putContracts: totalPutContracts,
       uniqueStrikes: uniqueStrikesCount,
-      avgVolumePerContract: totalContracts > 0 ? parseFloat((totalVolume / totalContracts).toFixed(2)) : 0,
-      avgOpenInterest: totalContracts > 0 ? parseFloat((totalOpenInterest / totalContracts).toFixed(2)) : 0
+      avgVolumePerContract: contractsWithVolume.length > 0
+        ? parseFloat((totalVolume / contractsWithVolume.length).toFixed(2))
+        : 0,
+      avgOpenInterest: contractsWithOpenInterest.length > 0
+        ? parseFloat((totalOpenInterest / contractsWithOpenInterest.length).toFixed(2))
+        : 0
     },
     expirations: expirationDetails,
     strikes: strikeDetails

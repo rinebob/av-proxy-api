@@ -1,18 +1,31 @@
-/**
- * Throws a descriptive error if the Alpha Vantage API response contains an error, information, or note.
- * Call this at the start of every transformResponse.
- */
-export function validateAlphaVantageApiResponse(data: any): void {
-  if (data["Information"]) {
-    // "Information" is usually a rate limit or general info error
-    throw new Error(`[AlphaVantage Information] ${data["Information"]}`);
+export enum AlphaVantageProviderResponseErrorKind {
+  INFORMATION = 'INFORMATION',
+  NOTE = 'NOTE',
+  ERROR_MESSAGE = 'ERROR_MESSAGE',
+}
+
+export class AlphaVantageProviderResponseError extends Error {
+  public constructor(
+    public readonly kind: AlphaVantageProviderResponseErrorKind,
+    public readonly providerMessage: string,
+  ) {
+    super(providerMessage);
+    this.name = 'AlphaVantageProviderResponseError';
   }
-  if (data["Note"]) {
-    // "Note" is usually a rate limit warning or similar
-    throw new Error(`[AlphaVantage Note] ${data["Note"]}`);
+}
+
+export function validateAlphaVantageApiResponse(data: object): void {
+  const response = data as Record<string, unknown>;
+
+  if (typeof response.Information === 'string' && response.Information) {
+    throw new AlphaVantageProviderResponseError(AlphaVantageProviderResponseErrorKind.INFORMATION, response.Information);
   }
-  if (data["Error Message"]) {
-    // "Error Message" is a hard error from the API
-    throw new Error(`[AlphaVantage Error Message] ${data["Error Message"]}`);
+
+  if (typeof response.Note === 'string' && response.Note) {
+    throw new AlphaVantageProviderResponseError(AlphaVantageProviderResponseErrorKind.NOTE, response.Note);
+  }
+
+  if (typeof response['Error Message'] === 'string' && response['Error Message']) {
+    throw new AlphaVantageProviderResponseError(AlphaVantageProviderResponseErrorKind.ERROR_MESSAGE, response['Error Message']);
   }
 }

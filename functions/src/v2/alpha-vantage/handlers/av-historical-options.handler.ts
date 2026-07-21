@@ -3,12 +3,16 @@ import type { ApiResponse } from '@shared/core';
 import type { AvHistoricalOptionsResponse, AvOptionContract } from '@shared/alpha-vantage';
 
 // Value imports
+import { API_CONSTANTS } from '@shared/core';
 import { FirestoreCollection } from '@shared/firestore';
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
-import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
-import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
+import { AlphaVantageEndpoint, AvOptionType } from '@shared/alpha-vantage';
+import {
+  analyzeOptions,
+  toAlphaVantageUpstreamError,
+  validateAlphaVantageApiResponse,
+} from '../utils';
 import { saveAvHistoricalOptions } from '../firestore/av-options-firestore-helper';
-import { analyzeOptions } from '../utils/av-analyze-options';
 
 /**
  * Handler for the Alpha Vantage Historical Options endpoint
@@ -45,7 +49,7 @@ export class AvHistoricalOptionsHandler extends AlphaVantageBaseHandler<AvHistor
       const requestParams = this.prepareRequestParams({
         symbol,
         date,
-        datatype: 'json'
+        datatype: API_CONSTANTS.ALPHA_VANTAGE.RESPONSE_TYPE
       });
 
       console.log(`aHO.H f [${this.requestId}] [HISTORICAL-OPTIONS] Fetching historical options data`);
@@ -93,6 +97,22 @@ export class AvHistoricalOptionsHandler extends AlphaVantageBaseHandler<AvHistor
         processingTimeMs: Date.now() - startTime
       });
       throw error;
+    }
+  }
+
+  public async fetchWithoutPersistence(params: {
+    symbol: string;
+    date?: string;
+  }): Promise<AvHistoricalOptionsResponse> {
+    try {
+      const rawData = await this.fetchSimple({
+        symbol: params.symbol,
+        date: params.date,
+        datatype: API_CONSTANTS.ALPHA_VANTAGE.RESPONSE_TYPE,
+      });
+      return this.transformResponse(rawData);
+    } catch (error) {
+      throw toAlphaVantageUpstreamError(error);
     }
   }
 
@@ -144,11 +164,13 @@ export class AvHistoricalOptionsHandler extends AlphaVantageBaseHandler<AvHistor
     }
 
     const normalized: AvOptionContract = {
-      contractID: contract.contractID || '',
-      symbol: contract.symbol || '',
-      expiration: contract.expiration || '',
+      contractID: typeof contract.contractID === 'string' ? contract.contractID : undefined,
+      symbol: typeof contract.symbol === 'string' ? contract.symbol : undefined,
+      expiration: typeof contract.expiration === 'string' ? contract.expiration : undefined,
       strike: this.normalizeNumber(contract.strike),
-      type: contract.type === 'call' || contract.type === 'put' ? contract.type : 'call',
+      type: contract.type === AvOptionType.CALL || contract.type === AvOptionType.PUT
+        ? contract.type
+        : undefined,
       last: this.normalizeNumber(contract.last),
       mark: this.normalizeNumber(contract.mark),
       bid: this.normalizeNumber(contract.bid),
@@ -157,7 +179,7 @@ export class AvHistoricalOptionsHandler extends AlphaVantageBaseHandler<AvHistor
       ask_size: this.normalizeNumber(contract.ask_size),
       volume: this.normalizeNumber(contract.volume),
       open_interest: this.normalizeNumber(contract.open_interest),
-      date: contract.date || new Date().toISOString().split('T')[0],
+      date: typeof contract.date === 'string' ? contract.date : undefined,
       implied_volatility: this.normalizeNumber(contract.implied_volatility),
       delta: this.normalizeNumber(contract.delta),
       gamma: this.normalizeNumber(contract.gamma),
@@ -172,10 +194,17 @@ export class AvHistoricalOptionsHandler extends AlphaVantageBaseHandler<AvHistor
   /**
    * Normalizes numeric values to string representation
    */
-  private normalizeNumber(value: any): string {
-    if (value === null || value === undefined) return '0';
-    const num = parseFloat(value);
-    return isNaN(num) ? '0' : num.toString();
+  private normalizeNumber(value: unknown): string | undefined {
+    if (value === null || value === undefined) {
+      return undefined;
+    }
+
+    if (typeof value === 'string' && !value.trim()) {
+      return undefined;
+    }
+
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? String(value) : undefined;
   }
   
   /**
@@ -201,7 +230,7 @@ export class AvHistoricalOptionsHandler extends AlphaVantageBaseHandler<AvHistor
     // Add any additional parameters specific to this endpoint
     const requestParams = {
       ...baseParams,
-      datatype: 'json' // Force JSON response
+      datatype: API_CONSTANTS.ALPHA_VANTAGE.RESPONSE_TYPE // Force JSON response
     };
 
     console.log(`aHO.H pRP [${this.requestId}] [HISTORICAL-OPTIONS] Final request params:`, requestParams);
