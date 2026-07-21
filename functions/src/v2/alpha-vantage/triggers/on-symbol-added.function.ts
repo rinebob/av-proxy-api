@@ -1,25 +1,26 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { getFunctions } from 'firebase-admin/functions';
 import { db, FieldValue } from '../../../firebase-admin-init';
 
 import {
   AlphaVantageEndpoint,
   OutputSize,
-  TimeSeriesInterval,
+  TRACKED_SYMBOL_V2_FIELDS,
+  TrackedSymbolOnboardingStatus,
 } from '@shared/alpha-vantage';
 import { FirestoreCollection, RefreshTrigger, RefreshStatus } from '@shared/firestore';
 import { ApiProvider } from '@shared/core';
 
+import { CloudTask } from '../../common/constants';
 import { AlphaVantageHandlerFactory } from '../alpha-vantage-factory';
 import { HealthMetricsService } from '../../health-metrics/health-metrics.service';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
 import { publishSymbolAddedBatch } from '../../partner/symbol-added.publisher';
-import type { SymbolAddedPayloadV1 } from '../../partner/schemas/symbol-added.schema';
-
-const AVAILABLE_INTERVALS = [
-  TimeSeriesInterval.DAILY,
-  TimeSeriesInterval.WEEKLY,
-  TimeSeriesInterval.MONTHLY,
-];
+import {
+  AVAILABLE_INTERVALS,
+  type SymbolAddedPayloadV1,
+} from '../../partner/schemas/symbol-added.schema';
+import { isEquitySymbol } from '../utils';
 
 interface EnsureIntervalOptions {
   /** When provided, passes `outputsize` to the AV handler. */
@@ -89,9 +90,51 @@ async function ensureIntervalData(
 }
 
 /**
+ * Fetch Company Overview for a single symbol.
+ *
+ * - Returns true only if the AV response contains data.
+ * - Records a health metric for the attempt.
+ */
+async function ensureCompanyOverview(
+  symbol: string,
+  hms: HealthMetricsService,
+): Promise<boolean> {
+  const startedAt = Date.now();
+  try {
+    console.log(`oSA.f oSA: Starting OVERVIEW fetch for symbol: ${symbol}`);
+    const handler = AlphaVantageHandlerFactory.createHandler(AlphaVantageEndpoint.OVERVIEW);
+    const response = await handler.fetch({ symbol, datatype: 'json' });
+    const hasData = response?.data && Object.keys(response.data).length > 0;
+
+    await hms.recordSymbolRefresh(
+      AlphaVantageEndpoint.OVERVIEW,
+      symbol,
+      hasData ? RefreshStatus.SUCCESS : RefreshStatus.FAILURE,
+      Date.now() - startedAt,
+      hasData ? undefined : 'Empty company overview response',
+      { trigger: RefreshTrigger.SYMBOL_ADDED }
+    );
+
+    if (!hasData) {
+      console.warn(`oSA.f oSA: OVERVIEW returned no data for ${symbol}`);
+      return false;
+    }
+
+    console.log(`oSA.f oSA: Completed OVERVIEW fetch for symbol: ${symbol} in ${Date.now() - startedAt}ms`);
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`oSA.f oSA: Error fetching OVERVIEW for ${symbol}: ${errorMessage}`);
+    return false;
+  }
+}
+
+/**
  * Cloud Function that triggers when a new symbol is added to the tracked-symbols collection.
  * Fetches DAILY, WEEKLY, and MONTHLY adjusted history independently, then publishes a
  * `partner-symbol-added` message when all intervals are available in Firestore.
+ * For equity symbols, Company Overview must also succeed before the notification is sent;
+ * on failure a Cloud Task is enqueued to retry the overview fetch.
  */
 export const onSymbolAdded = onDocumentCreated(
   {
@@ -118,10 +161,13 @@ export const onSymbolAdded = onDocumentCreated(
     const hms = new HealthMetricsService();
     const startedAt = Date.now();
 
+    const symbolType = symbolData?.[TRACKED_SYMBOL_V2_FIELDS.TYPE] as string | undefined;
+    const requiresOverview = isEquitySymbol(symbolType);
+
     // Fetch each interval independently in parallel. A failure in one interval
-    // does not block the others, but the onboarding message is only sent when all
-    // three intervals are available.
-    const [dailyOk, weeklyOk, monthlyOk] = await Promise.all([
+    // does not block the others. For equities, Company Overview is also fetched
+    // in parallel; non-equity symbols skip it.
+    const [dailyOk, weeklyOk, monthlyOk, overviewOk] = await Promise.all([
       ensureIntervalData(symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, hms, {
         outputsize: OutputSize.FULL,
       }),
@@ -131,11 +177,13 @@ export const onSymbolAdded = onDocumentCreated(
       ensureIntervalData(symbol, AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED, hms, {
         skipIfParentExists: true,
       }),
+      requiresOverview ? ensureCompanyOverview(symbol, hms) : Promise.resolve(true),
     ]);
 
-    const allOk = dailyOk && weeklyOk && monthlyOk;
+    const timeSeriesOk = dailyOk && weeklyOk && monthlyOk;
+    const trackedRef = db.collection(FirestoreCollection.TRACKED_SYMBOLS).doc(symbol);
 
-    if (allOk) {
+    if (timeSeriesOk) {
       // Ensure a minimal symbol-data/{symbol} document exists with the new
       // metadata fields. Time-series bars themselves are persisted by the
       // Alpha Vantage handlers above.
@@ -148,26 +196,90 @@ export const onSymbolAdded = onDocumentCreated(
         { merge: true },
       );
 
-      // Notify partner consumers that this symbol is ready for full-history fetch.
-      const payload: SymbolAddedPayloadV1 = {
-        version: 'v1',
-        symbols: [symbol],
-        addedAtUTC: new Date().toISOString(),
-        status: 'ready',
-        availableIntervals: AVAILABLE_INTERVALS,
-      };
+      if (requiresOverview && overviewOk) {
+        // Equity with successful overview: fully ready.
+        await trackedRef.set(
+          {
+            [TRACKED_SYMBOL_V2_FIELDS.ONBOARDING_STATUS]: TrackedSymbolOnboardingStatus.READY,
+            [TRACKED_SYMBOL_V2_FIELDS.READY_AT]: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
 
-      try {
-        await publishSymbolAddedBatch(payload, { symbol });
-      } catch (pubErr: any) {
-        const errorMessage = pubErr instanceof Error ? pubErr.message : String(pubErr);
-        console.error(`oSA.f oSA: Failed to publish symbol-added message for ${symbol}: ${errorMessage}`);
-        // Do not fail the whole function because the Pub/Sub publish failed;
-        // the symbol data is already persisted. Logs will surface the issue.
+        const payload: SymbolAddedPayloadV1 = {
+          version: 'v1',
+          symbols: [symbol],
+          addedAtUTC: new Date().toISOString(),
+          status: 'ready',
+          availableIntervals: AVAILABLE_INTERVALS,
+          companyInfoAvailable: true,
+        };
+
+        try {
+          await publishSymbolAddedBatch(payload, { symbol });
+        } catch (pubErr: any) {
+          const errorMessage = pubErr instanceof Error ? pubErr.message : String(pubErr);
+          console.error(`oSA.f oSA: Failed to publish symbol-added message for ${symbol}: ${errorMessage}`);
+          // Do not fail the whole function because the Pub/Sub publish failed;
+          // the symbol data is already persisted. Logs will surface the issue.
+        }
+
+        console.log(`oSA.f oSA: Successfully initialized D/W/M adjusted time series and Company Overview for symbol: ${symbol}`);
+      } else if (requiresOverview && !overviewOk) {
+        // Equity with failed overview: time-series is ready but fundamentals
+        // are not. Enqueue a Cloud Task to retry the overview fetch; the task
+        // will publish the notification once it succeeds.
+        await trackedRef.set(
+          {
+            [TRACKED_SYMBOL_V2_FIELDS.ONBOARDING_STATUS]: TrackedSymbolOnboardingStatus.PRICE_DATA_READY,
+          },
+          { merge: true },
+        );
+
+        try {
+          const queue = getFunctions().taskQueue(CloudTask.FETCH_COMPANY_OVERVIEW_ONBOARDING);
+          await queue.enqueue({ symbol, attempt: 1 });
+          console.log(`oSA.f oSA: Enqueued Company Overview retry for ${symbol}`);
+        } catch (enqueueErr: any) {
+          const errorMessage = enqueueErr instanceof Error ? enqueueErr.message : String(enqueueErr);
+          console.error(`oSA.f oSA: Failed to enqueue Company Overview retry for ${symbol}: ${errorMessage}`);
+        }
+      } else {
+        // Non-equity symbol: time-series is enough to be ready.
+        await trackedRef.set(
+          {
+            [TRACKED_SYMBOL_V2_FIELDS.ONBOARDING_STATUS]: TrackedSymbolOnboardingStatus.READY,
+            [TRACKED_SYMBOL_V2_FIELDS.READY_AT]: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+
+        const payload: SymbolAddedPayloadV1 = {
+          version: 'v1',
+          symbols: [symbol],
+          addedAtUTC: new Date().toISOString(),
+          status: 'ready',
+          availableIntervals: AVAILABLE_INTERVALS,
+          companyInfoAvailable: false,
+        };
+
+        try {
+          await publishSymbolAddedBatch(payload, { symbol });
+        } catch (pubErr: any) {
+          const errorMessage = pubErr instanceof Error ? pubErr.message : String(pubErr);
+          console.error(`oSA.f oSA: Failed to publish symbol-added message for ${symbol}: ${errorMessage}`);
+        }
+
+        console.log(`oSA.f oSA: Successfully initialized D/W/M adjusted time series for non-equity symbol: ${symbol}`);
       }
-
-      console.log(`oSA.f oSA: Successfully initialized D/W/M adjusted time series for symbol: ${symbol}`);
     } else {
+      await trackedRef.set(
+        {
+          [TRACKED_SYMBOL_V2_FIELDS.ONBOARDING_STATUS]: TrackedSymbolOnboardingStatus.PENDING,
+        },
+        { merge: true },
+      );
+
       console.error(
         `oSA.f oSA: Symbol onboarding incomplete for ${symbol}. ` +
         `daily=${dailyOk} weekly=${weeklyOk} monthly=${monthlyOk}`
@@ -175,6 +287,7 @@ export const onSymbolAdded = onDocumentCreated(
     }
 
     const durationMs = Date.now() - startedAt;
-    console.log(`============= END SYMBOL ADD FOR: ${symbol} (${durationMs}ms, allOk=${allOk}) =============`);
+    const readyState = timeSeriesOk ? (requiresOverview ? (overviewOk ? 'ready' : 'price_data_ready') : 'ready') : 'pending';
+    console.log(`============= END SYMBOL ADD FOR: ${symbol} (${durationMs}ms, state=${readyState}) =============`);
   }
 );

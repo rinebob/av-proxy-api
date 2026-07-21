@@ -15,4 +15,7 @@ export enum CloudTask {
   // Intraday snapshot worker: processes a single symbol's PRE-phase snapshot.
   // Queue name matches the exported function id.
   INTRADAY_SNAPSHOT_JOB = 'processIntradaySnapshotJobTask',
+  // Background worker that retries fetching Company Overview for a newly added
+  // equity symbol after D/W/M time-series are ready. Queue name matches function id.
+  FETCH_COMPANY_OVERVIEW_ONBOARDING = 'processCompanyOverviewOnboardingTask',
 }

@@ -77,6 +77,17 @@ export interface ListSymbolsV2Response {
     offset: number;
 }
 
+/**
+ * Lifecycle states for a newly tracked symbol while initial data is fetched.
+ * The 'ready' state signals to consumers that all required data is present.
+ */
+export enum TrackedSymbolOnboardingStatus {
+  PENDING = 'pending',
+  PRICE_DATA_READY = 'price_data_ready',
+  READY = 'ready',
+  ONBOARDING_FAILED = 'onboarding_failed',
+}
+
 // Centralized Firestore field names for tracked symbols
 export const TRACKED_SYMBOL_V2_FIELDS = {
   SYMBOL: 'symbol',
@@ -93,6 +104,10 @@ export const TRACKED_SYMBOL_V2_FIELDS = {
   IS_ACTIVE: '_isActive',
   COMPANY_INFO: 'companyInfo',
   COMPANY_INFO_LAST_UPDATED: '_companyInfoLastUpdated',
+  ONBOARDING_STATUS: '_onboardingStatus',
+  READY_AT: '_readyAt',
+  ONBOARDING_FAILED_AT: '_onboardingFailedAt',
+  ONBOARDING_FAILURE_REASON: '_onboardingFailureReason',
 };
 
 export interface SaveTrackedSymbolResponse {

@@ -1,6 +1,15 @@
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
 /**
+ * Standard intervals available immediately after a symbol is onboarded.
+ */
+export const AVAILABLE_INTERVALS = [
+  TimeSeriesInterval.DAILY,
+  TimeSeriesInterval.WEEKLY,
+  TimeSeriesInterval.MONTHLY,
+];
+
+/**
  * Payload for the `partner-symbol-added` Pub/Sub channel.
  */
 export interface SymbolAddedPayloadV1 {
@@ -9,6 +18,11 @@ export interface SymbolAddedPayloadV1 {
   addedAtUTC: string;
   status: 'ready';
   availableIntervals: TimeSeriesInterval[];
+  /**
+   * True when Company Overview fundamentals have been fetched and denormalized
+   * into the tracked-symbols document. False or omitted for non-equity symbols.
+   */
+  companyInfoAvailable?: boolean;
 }
 
 /**
@@ -47,6 +61,10 @@ export function validateSymbolAddedPayload(payload: unknown): SymbolAddedPayload
     !p.availableIntervals.every((interval) => validIntervals.includes(interval as TimeSeriesInterval))
   ) {
     throw new Error(`SymbolAddedPayloadV1.availableIntervals must be a non-empty array of ${validIntervals.join(', ')}`);
+  }
+
+  if (p.companyInfoAvailable !== undefined && typeof p.companyInfoAvailable !== 'boolean') {
+    throw new Error('SymbolAddedPayloadV1.companyInfoAvailable must be a boolean when provided');
   }
 
   return p as SymbolAddedPayloadV1;

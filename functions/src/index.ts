@@ -111,6 +111,9 @@ export { onDailyAdjustedFinalizedPublish } from './v2/partner/finalization.publi
 // Split History Remediation Task
 export { remediateSplitHistory } from './v2/alpha-vantage/tasks/split-remediator.task';
 
+// Company Overview onboarding retry task
+export { processCompanyOverviewOnboardingTask } from './v2/alpha-vantage/tasks/company-overview-onboarding.task';
+
 // Cloud Task worker and DEV/EMULATOR HTTP entry point for AV
 // time-series jobs. The task wrapper is the production target;
 // the HTTP function remains emulator/dev-only.
