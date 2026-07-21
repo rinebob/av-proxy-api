@@ -1,6 +1,6 @@
 # PRD: Partner Historical Options On-Demand Proxy
 
-**Status:** Proposed  
+**Status:** Deployed; Savant production smoke test passed; RS acceptance pending
 **Owner:** Savant API  
 **Audience:** Savant API engineering, RS engineering, partner administrators  
 **Last updated:** 2026-07-20
@@ -15,7 +15,7 @@ The initial release is an authenticated **on-demand proxy**. It fetches data fro
 
 ## 2. Problem
 
-The existing historical-options handler can fetch and analyze data internally, but the scheduled refresher intentionally skips it because a full chain can exceed Firestore's 1 MiB document limit. The current single-document write model is therefore unsafe for production use. No partner endpoint currently exposes historical options.
+The existing historical-options handler can fetch and analyze data internally, but the scheduled refresher intentionally skips it because a full chain can exceed Firestore's 1 MiB document limit. The current single-document write model is therefore unsafe for production use. The implemented partner endpoint provides on-demand access without persisting raw chains.
 
 RS needs access before a durable options-data storage design is available.
 
@@ -25,7 +25,7 @@ RS needs access before a durable options-data storage design is available.
 - Keep the Alpha Vantage API key server-side.
 - Require `symbol`; support optional historical `date` in `YYYY-MM-DD` format.
 - Return normalized contracts and aggregate analysis in a stable response envelope.
-- Prevent a partner from exhausting Alpha Vantage quota or Cloud Function capacity.
+- Apply configured Cloud Function capacity limits and reserve Alpha Vantage throttling for a future shared provider-level mechanism.
 - Avoid Firestore writes for raw chains in the initial release.
 - Provide an additive migration path to Google Cloud Storage caching without changing the public request or response contract.
 
@@ -43,7 +43,7 @@ RS needs access before a durable options-data storage design is available.
 |---|---|
 | Function | `partnerHistoricalOptionsV2` |
 | Method | `GET` |
-| Caller | Allowlisted server-side partner service account or approved Firebase identity |
+| Caller | Allowlisted server-side partner service account |
 | Parameters | `symbol` required; `date` optional |
 | Source | Live Alpha Vantage `HISTORICAL_OPTIONS` request |
 | Persistence | None for raw payloads |
@@ -54,8 +54,8 @@ RS needs access before a durable options-data storage design is available.
 
 - `symbol` is trimmed, uppercased, and must be non-empty.
 - `date`, if supplied, must exactly match `YYYY-MM-DD` and represent a valid calendar date.
-- Unknown parameters are ignored or rejected consistently; the implementation decision must be documented before release.
-- Requests use `GET` only. `OPTIONS` is retained solely for framework/CORS handling.
+- Unknown parameters are ignored.
+- Requests use `GET` only; browser CORS is not enabled for this endpoint.
 
 ### Success response
 
@@ -64,7 +64,7 @@ RS needs access before a durable options-data storage design is available.
   "ok": true,
   "symbol": "AAPL",
   "date": "2026-07-17",
-  "source": "alpha_vantage",
+  "source": "alpha-vantage",
   "endpoint": "HISTORICAL_OPTIONS",
   "data": {
     "endpoint": "Historical Options",
@@ -110,32 +110,32 @@ RS needs access before a durable options-data storage design is available.
 }
 ```
 
-Contract numeric fields remain strings where supplied by Alpha Vantage. Consumers must parse values defensively.
+Contract numeric fields remain strings where supplied by Alpha Vantage. Consumers must parse values defensively. `analysis.summary.totalContracts` equals the number of returned normalized contracts. Directional and grouped analysis fields include only contracts with the fields required for that calculation.
 
 ## 6. Security and Abuse Controls
 
-- Use the existing partner dual-auth middleware and the `ALLOWED_SERVICE_ACCOUNT_EMAILS` / `EXPECTED_GOOGLE_AUDIENCE` secrets.
+- Use the existing partner dual-auth middleware and the `ALLOWED_SERVICE_ACCOUNT_EMAILS` / `EXPECTED_GOOGLE_AUDIENCE` secrets. The endpoint fails closed when `EXPECTED_GOOGLE_AUDIENCE` is empty; the token audience must be in this shared allowlist and accepted by the Cloud Functions/Run target.
 - Lock down Cloud Run IAM: remove `allUsers`; grant `roles/run.invoker` only to authorized partner service accounts.
 - Do not add the endpoint to the internal browser-facing Alpha Vantage gateway.
 - Do not log access tokens, API keys, complete response bodies, or unbounded query strings.
-- Use an explicit per-partner request quota and concurrency limit before production release.
-- Return `429` with `Retry-After` when the service rejects a request due to its quota or concurrency guard.
+- Enforce configured function capacity limits and a maximum serialized response size.
+- Design any Alpha Vantage request throttling as a shared global provider concern rather than endpoint-specific Firestore accounting.
 
 ## 7. Error Contract
 
 | HTTP status | Code | Meaning |
 |---|---|---|
 | 400 | `BAD_REQUEST` | Missing or invalid `symbol` or `date` |
-| 401 | `UNAUTHORIZED` | Missing or invalid authentication |
-| 403 | `FORBIDDEN` | Caller is not allowlisted or lacks invoker permission |
+| 401 / 403 | Authentication middleware envelope | Missing, invalid, or unauthorized authentication; see the envelope contract below. |
+| 403 | `FORBIDDEN` | A valid Firebase identity was presented instead of the required service-account identity. |
 | 405 | `METHOD_NOT_ALLOWED` | Method is not `GET` |
 | 413 | `RESPONSE_TOO_LARGE` | Upstream chain cannot be safely returned |
-| 429 | `RATE_LIMITED` | Partner or service guard denied the request |
+| 429 | `RATE_LIMITED` | Alpha Vantage rejected the request because its provider limit was reached |
 | 502 | `UPSTREAM_ERROR` | Alpha Vantage returned an invalid or failed response |
 | 504 | `UPSTREAM_TIMEOUT` | Alpha Vantage did not respond within the configured deadline |
 | 500 | `INTERNAL_ERROR` | Unexpected service failure |
 
-All errors return `{ "ok": false, "error": string, "code": string, "timestamp": string }`. Do not relay upstream API keys or unfiltered provider errors.
+Endpoint-generated errors return `{ "ok": false, "error": string, "code": string, "timestamp": string }`. Authentication middleware failures return its existing `{ "error": string, "message": string }` envelope without `code` or `timestamp`. Do not relay upstream API keys or unfiltered provider errors.
 
 ## 8. Architecture
 
@@ -144,25 +144,24 @@ flowchart LR
   RS[RS backend] -->|OIDC ID token| P[partnerHistoricalOptionsV2]
   P --> A[Dual-auth + IAM]
   A --> V[Validate symbol/date]
-  V --> G[Per-partner quota and concurrency guard]
-  G --> AV[Alpha Vantage HISTORICAL_OPTIONS]
+  V --> AV[Alpha Vantage HISTORICAL_OPTIONS]
   AV --> N[Normalize contracts and calculate analysis]
   N --> RS
 ```
 
-The endpoint must call the existing historical-options fetch/transform logic without invoking its Firestore persistence path. The implementation should place partner HTTP concerns, request validation, response serialization, quota behavior, and AV retrieval in separate single-purpose modules.
+The endpoint must call the existing historical-options fetch/transform logic without invoking its Firestore persistence path. The implementation keeps partner HTTP concerns, request validation, response serialization, and AV retrieval in separate single-purpose modules.
 
 ## 9. Reliability and Observability
 
 Emit structured logs for request ID, authenticated principal identifier, normalized symbol, requested date, HTTP status, upstream duration, contract count, response byte count, and failure category. Never log the complete chain.
 
-Add endpoint-specific metrics for request count, success/failure counts, latency, upstream latency, rate-limit denials, invalid requests, response-size rejections, and vendor failures.
+Create deployment-managed log-based metrics from these structured events for request count, success/failure counts, latency, upstream latency, provider rate-limit responses, invalid requests, response-size rejections, and vendor failures.
 
 ## 10. Rollout Plan
 
 1. Confirm Alpha Vantage account terms permit the intended partner redistribution/use.
-2. Implement the endpoint and automated tests for valid, invalid, unauthenticated, vendor-failure, and quota-denial cases.
-3. Deploy with IAM restricted and a conservative quota/concurrency configuration.
+2. Implement the endpoint and automated tests for valid, invalid, unauthenticated, vendor-failure, and response-size rejection cases.
+3. Deploy with IAM restricted and the configured function capacity limits.
 4. Allowlist RS in a non-production environment and validate a known symbol/date.
 5. Monitor request volume, vendor errors, response size, and latency.
 6. Enable production access for RS after acceptance.

@@ -1,6 +1,6 @@
 # Partner Historical Options — Discovery Document
 
-**Status:** Proposed; not yet deployed  
+**Status:** Deployed; Savant production smoke test passed; RS acceptance pending
 **Audience:** Partner engineering and administrative teams  
 **Last updated:** 2026-07-20
 
@@ -19,19 +19,19 @@ The first release is intentionally different from the time-series and company-ov
 | Internal AV historical-options handler | Implemented |
 | Scheduled data refresh | Disabled for this endpoint |
 | Raw-chain Firestore persistence | Not production-safe for large chains |
-| `partnerHistoricalOptionsV2` | Proposed; not yet deployed |
+| `partnerHistoricalOptionsV2` | Deployed; Savant production smoke test passed; RS acceptance pending |
 | GCS cache | Not implemented |
 
-Do not integrate against the endpoint until Savant provides the deployed URL and confirms your service account has been granted access.
+Savant has validated the endpoint with the approved RS service account. RS should now run its own acceptance request before enabling production traffic.
 
-## Intended Endpoint
+## Deployed Endpoint
 
 | Property | Value |
 |---|---|
 | Function name | `partnerHistoricalOptionsV2` |
 | HTTP method | `GET` |
-| Request URL | Provided during onboarding |
-| Authentication | Google OIDC ID token from an allowlisted service account; Firebase ID token may be approved for internal callers |
+| Request URL | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerHistoricalOptionsV2` |
+| Authentication | Google OIDC ID token from an allowlisted service account |
 | Upstream data source | Alpha Vantage `HISTORICAL_OPTIONS` |
 | Request scope | One symbol and one optional historical date |
 | Data delivery | Synchronous JSON response |
@@ -39,12 +39,12 @@ Do not integrate against the endpoint until Savant provides the deployed URL and
 
 ## Authentication Model
 
-The endpoint will use the same dual-auth model as existing partner endpoints.
+The endpoint uses the same dual-auth model as existing partner endpoints.
 
 - Cloud Run IAM requires the caller to have `roles/run.invoker` on the deployed function.
 - Application authorization requires the service account email in `ALLOWED_SERVICE_ACCOUNT_EMAILS`.
 - The caller sends `Authorization: Bearer <Google OIDC ID token>`.
-- The ID token must include an email claim and must be minted with the exact deployed endpoint URL as its `aud` value.
+- The ID token must include an email claim and normally uses the deployed endpoint URL as its audience so Cloud Functions/Run accepts the request. That audience must also be in the shared `EXPECTED_GOOGLE_AUDIENCE` allowlist; use another configured audience only after it has been validated for the deployed target. The endpoint rejects requests until the shared audience configuration is present.
 - Never place service account credentials or token-minting capability in browser code.
 
 ## Request Parameters
@@ -53,6 +53,8 @@ The endpoint will use the same dual-auth model as existing partner endpoints.
 |---|---:|---|---|
 | `symbol` | Yes | Ticker symbol | Equity symbol, case-insensitive. The service normalizes it to uppercase. |
 | `date` | No | `YYYY-MM-DD` | Historical trading date requested from Alpha Vantage. When omitted, Alpha Vantage determines the returned session. |
+
+Unknown query parameters are ignored.
 
 Example intended request:
 
@@ -69,6 +71,8 @@ The response will contain:
 - Alpha Vantage historical-options contracts in `data.data`.
 - Derived aggregate analysis for the returned contracts, including call/put counts, volume, open interest, expiration summaries, and strike summaries.
 - Service-generated `timestamp` and `processingTimeMs` fields.
+
+`analysis.summary.totalContracts` equals the number of returned normalized contracts. Directional and grouped analysis fields include only contracts with the fields required for that calculation.
 
 Contract market-data values are represented as strings because that is the upstream representation. Values can be missing or non-numeric. Consumers must treat every contract field as optional and parse numbers safely.
 
@@ -87,25 +91,25 @@ A future release may use Google Cloud Storage (GCS) for a bounded server-side ca
 
 ## Limits and Expected Behavior
 
-The service will enforce limits to protect Alpha Vantage quota and service stability.
+The service applies its configured function capacity limits and Alpha Vantage's provider limits.
 
 - One symbol/date request per HTTP call.
-- Per-partner request quotas and concurrency limits apply.
 - Large responses may be rejected with `413 RESPONSE_TOO_LARGE` rather than streamed or truncated without notice.
-- Requests can receive `429 RATE_LIMITED`; consumers must honor `Retry-After` when present and use exponential backoff with jitter.
+- Requests can receive `429 RATE_LIMITED` when Alpha Vantage rejects a request; consumers should use bounded exponential backoff with jitter.
 - Upstream vendor failures can return `502 UPSTREAM_ERROR` or `504 UPSTREAM_TIMEOUT`.
 - A date supported by request validation can still have no vendor data.
 
-Exact quota values, maximum response size, and timeout will be communicated during onboarding because they may be adjusted based on vendor entitlement and observed payload sizes.
+Maximum response size and timeout will be communicated during onboarding because they may be adjusted based on vendor entitlement and observed payload sizes.
 
 ## Error Handling
 
 | Status | Code | Consumer action |
 |---:|---|---|
 | 400 | `BAD_REQUEST` | Correct request parameters; do not retry unchanged. |
-| 401 / 403 | `UNAUTHORIZED` / `FORBIDDEN` | Verify OIDC token, audience, IAM invoker role, and allowlisting. |
+| 401 / 403 | Authentication middleware envelope | Verify OIDC token, audience, IAM invoker role, and allowlisting. The response contains `error` and `message`, not an endpoint `code`. |
+| 403 | `FORBIDDEN` | A valid Firebase identity was presented instead of the required service-account identity. |
 | 413 | `RESPONSE_TOO_LARGE` | Reduce request scope if a future filter is available; otherwise contact Savant. |
-| 429 | `RATE_LIMITED` | Retry after the specified delay using backoff and jitter. |
+| 429 | `RATE_LIMITED` | Retry with bounded exponential backoff and jitter. |
 | 502 / 504 | `UPSTREAM_ERROR` / `UPSTREAM_TIMEOUT` | Retry transiently with bounded exponential backoff. |
 | 500 | `INTERNAL_ERROR` | Retry once or twice; report persistent failures with request timestamp and symbol/date. |
 
@@ -123,7 +127,7 @@ Savant will provide:
 
 1. The deployed endpoint URL.
 2. IAM invoker access and application allowlisting.
-3. Environment-specific quota and operational limits.
+3. Environment-specific operational limits.
 4. A test symbol/date and acceptance-test window.
 
 ## Related Documents

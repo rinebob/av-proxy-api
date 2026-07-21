@@ -31,6 +31,14 @@ This document tracks the completion status of tasks outlined in the `project-pla
 
 - [x] **Task 4.1: Firebase App Hosting Configuration**
 - [ ] **Task 4.2: End-to-End Testing**
+- [ ] **Task 4.3: Deploy Partner Historical Options Endpoint**
+  - [x] Deploy `partnerHistoricalOptionsV2`.
+  - [x] Configure `ALPHAVANTAGE_API_KEY` and `ALLOWED_SERVICE_ACCOUNT_EMAILS` secrets.
+  - [x] Confirm RS mints OIDC tokens for the deployed endpoint URL, or another audience validated for that target, and that this value is in the shared comma-separated `EXPECTED_GOOGLE_AUDIENCE` allowlist.
+  - [x] Restrict Cloud Run invoker IAM to the approved partner service account; do not permit public invocation.
+  - [x] Validate one approved symbol/date request in production with the allowlisted service account; no non-production environment is configured.
+  - [ ] Create deployment-managed log-based metrics for endpoint request volume, failures, latency, upstream latency, provider rate limits, invalid requests, and response-size rejections.
+  - [ ] Roll out production access gradually while monitoring `429`, `413`, `502`, and `504` responses.
 
 ---
 
@@ -117,6 +125,7 @@ This document tracks the completion status of tasks outlined in the `project-pla
 - As of 2026-07-09: Refined intraday OHLCV implementation after thermo-nuclear review. Migrated daily intraday OHLCV and legacy `i*` writes into one atomic transaction (`firestore/av-intraday-ohlcv.writer.ts` → `upsertAvDailyIntradayBar`). Extracted shared `buildLatestMetadataFromBars` helper in `firestore/av-firestore-utils.ts`. Removed the duplicate daily `i*` snapshot writer. Extracted canonical `fetchAndStoreDailyIntradayBar` service in `services/av-intraday-daily.service.ts` and adopted it in both the intraday snapshot worker and the base handler DAILY PRE path. Worker now runs weekly/monthly snapshots in parallel. Simplified aggregator type guard, moved `Intl.DateTimeFormat` instances out of the aggregation loop, and narrowed the `TIME_SERIES_INTRADAY` interval enum to `1min` and `15min`. Moved unit tests to `functions/tests/v2/alpha-vantage/utils/av-intraday-aggregate.test.ts` and excluded `tests/` from `tsconfig.json`. Functions build passes; all 9 aggregator tests pass.
 - As of 2026-07-09: Second thermo-nuclear review cleanup. Renamed writer to `firestore/av-daily-intraday.writer.ts`. Removed `{ bar }` wrapper from `fetchAndStoreDailyIntradayBar`; function now returns `IntradayRthBarAggregate | null`. Moved `dow` computation into the daily writer so the service no longer crosses into firestore utils. Extracted `findImmediatePredecessorBar` and `computeChangeMetrics` helpers in `firestore/av-firestore-utils.ts` and reused them in both the daily writer and the W/M intraday snapshot core. Confirmed W/M change metrics use the *prior period* bar close, not yesterday's daily close. Replaced hand-rolled W/M metadata with `buildLatestMetadataFromBars`. Moved daily writer `Intl.DateTimeFormat` to module scope and replaced W/M `console.log` calls with structured logger. Simplified `getNumeric` in the aggregator. Functions build passes; all 9 aggregator tests pass.
 - As of 2026-07-09: Third review pass. Re-exported `av-firestore-utils` from the `firestore` barrel and converted the base handler to import all writers/helpers from `../firestore`. Replaced the base handler's bespoke ET date/dow computation with `todayEtDate()` and `computeDowFromDateString()`. Extracted a single shared `INTRADAY_TIME_FORMATTER` and used it in both the daily and W/M writers. Removed redundant `Number(ip)` and unnecessary `as any`/`as CompactBar` casts from the W/M core. Functions build passes; all 9 aggregator tests pass.
+- As of 2026-07-20: Implemented and reviewed `partnerHistoricalOptionsV2`, an authenticated on-demand Alpha Vantage `HISTORICAL_OPTIONS` partner endpoint. It validates `symbol` and optional `date`, uses a provider-neutral no-persistence fetch path, returns normalized contracts plus corrected analysis, and enforces a maximum serialized response size. A second review removed browser CORS/Firebase identity access, stopped inferred contract fields, made aggregate averages exclude unavailable values, and preserved typed provider diagnostics. Deployment, IAM allowlisting, any GCS cache, and any shared Alpha Vantage throttle remain pending.
 
 ---
 
@@ -136,7 +145,9 @@ This document tracks the completion status of tasks outlined in the `project-pla
 ### Backend Enhancements
 
 - [ ] **Task 7.1: Implement backend caching**
-- [ ] **Task 7.2: Implement backend rate limiting**
+- [ ] **Task 7.2: Implement shared Alpha Vantage provider throttling**
+  - [ ] Coordinate account-wide Alpha Vantage call volume across partner endpoints, scheduled refreshes, and other direct provider consumers.
+  - [ ] Preserve the historical-options endpoint's public request and response contract while enforcing the shared provider limit.
 - [ ] **Task 7.3: Implement data transformation/filtering**
 - [ ] **Task 7.4: Migrate options chains storage (HISTORICAL_OPTIONS) to sharded Firestore or GCS; implement shard-aware readers; re-enable endpoint in refresher**
 - [ ] **Task 7.5: Introduce endpoint/interval short code suffix in `runId`**
