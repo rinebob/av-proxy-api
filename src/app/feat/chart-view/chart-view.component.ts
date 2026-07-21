@@ -77,7 +77,9 @@ export class ChartViewComponent implements OnInit {
     labelFormat: '${value}',
     rangePadding: 'None',
     labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' },
-    titleStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' }
+    titleStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' },
+    crosshairTooltip: { enable: true },
+    enableAutoIntervalOnZooming: true
   };
   
   // Secondary Y-axis (Right side)
@@ -90,7 +92,8 @@ export class ChartViewComponent implements OnInit {
     labelFormat: '${value}',
     rangePadding: 'None',
     labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' },
-    titleStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' }
+    titleStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' },
+    enableAutoIntervalOnZooming: true
   }];
 
   public zoomSettings: ZoomSettingsModel = {
@@ -116,6 +119,13 @@ export class ChartViewComponent implements OnInit {
     enable: true,
     shared: true,
     format: '${series.name}: ${point.high} - ${point.low}'
+  };
+
+  public crosshairSettings: Object = {
+    enable: true,
+    lineType: 'Both',
+    snapToData: true,
+    line: { color: '#757575', width: 1 }
   };
 
   ngOnInit(): void {
@@ -148,8 +158,8 @@ export class ChartViewComponent implements OnInit {
         this.chart.primaryXAxis.zoomFactor = 1;
         this.chart.primaryXAxis.zoomPosition = 0;
         this.store.setZoomSettings(1, 0);
-        this.rescaleYAxis(1, 0);
         this.chart.dataBind();
+        this.rescaleYAxis();
     }
   }
 
@@ -216,7 +226,8 @@ export class ChartViewComponent implements OnInit {
              if (this.chart && this.chart.primaryXAxis) {
                  this.chart.primaryXAxis.zoomFactor = savedFactor;
                  this.chart.primaryXAxis.zoomPosition = savedPosition;
-                 this.rescaleYAxis(savedFactor, savedPosition);
+                 this.chart.dataBind();
+                 this.rescaleYAxis();
              }
          });
          return;
@@ -239,38 +250,29 @@ export class ChartViewComponent implements OnInit {
     }
     
     setTimeout(() => {
-        if (this.chart && this.chart.primaryXAxis && data.length > initialPoints) {
-            const zoomFactor = initialPoints / data.length;
-            const zoomPosition = (data.length - initialPoints) / data.length;
+        if (this.chart && this.chart.primaryXAxis) {
+            if (data.length > initialPoints) {
+                const zoomFactor = initialPoints / data.length;
+                const zoomPosition = (data.length - initialPoints) / data.length;
 
-            this.chart.primaryXAxis.zoomFactor = zoomFactor;
-            this.chart.primaryXAxis.zoomPosition = zoomPosition;
-            
-            // Store these defaults so they persist if user switches immediately
-            this.store.setZoomSettings(zoomFactor, zoomPosition);
+                this.chart.primaryXAxis.zoomFactor = zoomFactor;
+                this.chart.primaryXAxis.zoomPosition = zoomPosition;
 
-            // 4. Initial Y-axis autoscale based on the new zoom
-            this.rescaleYAxis(zoomFactor, zoomPosition);
-        } else {
-            // Fallback if no zoom needed
-            this.store.setZoomSettings(1, 0);
-            this.rescaleYAxis(1, 0);
+                // Store these defaults so they persist if user switches immediately
+                this.store.setZoomSettings(zoomFactor, zoomPosition);
+            } else {
+                // Fallback if no zoom needed
+                this.store.setZoomSettings(1, 0);
+            }
+            this.chart.dataBind();
+            this.rescaleYAxis();
         }
     });
   }
 
   onScrollEnd(event: IScrollEventArgs): void {
-      this.handleScroll();
       this.updateZoomState();
-  }
-
-  private handleScroll(): void {
-      if (this.chart && this.chart.primaryXAxis) {
-          this.rescaleYAxis(
-              this.chart.primaryXAxis.zoomFactor || 1, 
-              this.chart.primaryXAxis.zoomPosition || 0
-          );
-      }
+      this.rescaleYAxis();
   }
 
   private updateZoomState(): void {
@@ -284,8 +286,8 @@ export class ChartViewComponent implements OnInit {
 
   onZoomComplete(args: IZoomCompleteEventArgs): void {
     if (args.axis.name === 'primaryXAxis') {
-      this.rescaleYAxis(args.currentZoomFactor, args.currentZoomPosition);
       this.store.setZoomSettings(args.currentZoomFactor, args.currentZoomPosition);
+      this.rescaleYAxis();
     }
   }
 
@@ -304,96 +306,68 @@ export class ChartViewComponent implements OnInit {
   }
 
   /**
-   * Rescales the Y-axis based on the visible data range.
-   * @param zoomFactor Current zoom factor (0 to 1)
-   * @param zoomPosition Current zoom position (0 to 1)
+   * Rescales the Y-axis based on the chart's actual visible X-range so it fits
+   * the candles currently on screen rather than the full history.
    */
-  private rescaleYAxis(zoomFactor: number, zoomPosition: number): void {
-      const currentData = this.store.chartData();
-      if (!currentData || currentData.length === 0) return;
+  private rescaleYAxis(): void {
+    if (!this.chart || !this.chart.primaryXAxis) return;
 
-      // Calculate visible range indices based on zoom factor and position
-      const totalPoints = currentData.length;
-      const startIndex = Math.floor(zoomPosition * totalPoints);
-      const endIndex = Math.ceil((zoomPosition + zoomFactor) * totalPoints);
-      
-      const visibleData = currentData.slice(Math.max(0, startIndex), Math.min(totalPoints, endIndex));
-      
-      if (visibleData.length > 0) {
-          this.updateYAxisRange(visibleData);
-      }
+    const xAxis = this.chart.primaryXAxis as any;
+    const visibleRange = xAxis.visibleRange;
+    if (!visibleRange || visibleRange.min == null || visibleRange.max == null) return;
+
+    const minTime = typeof visibleRange.min === 'number'
+      ? visibleRange.min
+      : new Date(visibleRange.min).getTime();
+    const maxTime = typeof visibleRange.max === 'number'
+      ? visibleRange.max
+      : new Date(visibleRange.max).getTime();
+
+    const visibleData = this.store.chartData().filter((d: any) => {
+      const t = d.t instanceof Date ? d.t.getTime() : new Date(d.t).getTime();
+      return t >= minTime && t <= maxTime;
+    });
+
+    if (visibleData.length > 0) {
+      this.updateYAxisRange(visibleData);
+    }
   }
 
   private updateYAxisRange(visibleData: any[]): void {
-    const lows = visibleData.map((d: any) => d.l);
-    const highs = visibleData.map((d: any) => d.h);
-    
-    const validLows = lows.filter((l: number) => l != null && !isNaN(l));
-    const validHighs = highs.filter((h: number) => h != null && !isNaN(h));
+    const validLows = visibleData.map((d: any) => d.l).filter((l: number) => l != null && !isNaN(l));
+    const validHighs = visibleData.map((d: any) => d.h).filter((h: number) => h != null && !isNaN(h));
 
     if (validLows.length === 0 || validHighs.length === 0) return;
 
-    const min = Math.min(...validLows);
-    const max = Math.max(...validHighs);
-    
-    // Calculate nice range
-    const { niceMin, niceMax, interval } = this.calculateNiceRange(min, max);
+    let min = Math.min(...validLows);
+    let max = Math.max(...validHighs);
+    const range = max - min;
+    const padding = range === 0 ? 1 : range * 0.02;
+    min -= padding;
+    max += padding;
 
-    this.chart.primaryYAxis.minimum = niceMin;
-    this.chart.primaryYAxis.maximum = niceMax;
-    this.chart.primaryYAxis.interval = interval;
-    
-    // Update Secondary Axis Instance
-    const secondaryAxis = this.chart.axes.find(a => a.name === 'SecondaryYAxis');
+    const yAxis = { ...this.primaryYAxis, minimum: min, maximum: max };
+    delete (yAxis as any).interval;
+
+    this.chart.primaryYAxis = yAxis;
+
+    const secondaryAxis = this.chart.axes.find(a => (a as any).name === 'SecondaryYAxis');
     if (secondaryAxis) {
-        secondaryAxis.minimum = niceMin;
-        secondaryAxis.maximum = niceMax;
-        secondaryAxis.interval = interval;
+      secondaryAxis.minimum = min;
+      secondaryAxis.maximum = max;
+      delete (secondaryAxis as any).interval;
     }
 
-    // Update Bound Properties to prevent reversion during Change Detection
-    this.primaryYAxis = {
-        ...this.primaryYAxis,
-        minimum: niceMin,
-        maximum: niceMax,
-        interval: interval
-    };
-
+    this.primaryYAxis = yAxis;
     this.axes = this.axes.map(a => {
-        if ((a as any).name === 'SecondaryYAxis') {
-            return { ...a, minimum: niceMin, maximum: niceMax, interval: interval };
-        }
-        return a;
+      if ((a as any).name === 'SecondaryYAxis') {
+        const axis = { ...a, minimum: min, maximum: max };
+        delete (axis as any).interval;
+        return axis;
+      }
+      return a;
     });
 
     this.chart.dataBind();
-  }
-
-  /**
-   * Calculates a "nice" range for the axis with round number intervals.
-   */
-  private calculateNiceRange(min: number, max: number): { niceMin: number, niceMax: number, interval: number } {
-      const range = max - min;
-      if (range === 0) return { niceMin: min - 1, niceMax: max + 1, interval: 1 };
-
-      // Target ~5-10 ticks
-      const targetTicks = 8;
-      const rawInterval = range / targetTicks;
-      
-      const magnitude = Math.pow(10, Math.floor(Math.log10(rawInterval)));
-      const normalizedInterval = rawInterval / magnitude;
-      
-      let niceFraction;
-      if (normalizedInterval < 1.5) niceFraction = 1;
-      else if (normalizedInterval < 3) niceFraction = 2; // prefer 2 over 2.5 for cleaner integers if possible
-      else if (normalizedInterval < 7) niceFraction = 5;
-      else niceFraction = 10;
-      
-      const interval = niceFraction * magnitude;
-      
-      const niceMin = Math.floor(min / interval) * interval;
-      const niceMax = Math.ceil(max / interval) * interval;
-      
-      return { niceMin, niceMax, interval };
   }
 }
