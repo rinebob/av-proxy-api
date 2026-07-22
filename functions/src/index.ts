@@ -131,3 +131,5 @@ export { triggerFullBackfillJobs } from './v2/alpha-vantage/data-refresher/av-fu
 export { processHistoricalOptionsCorpusSeedTask } from './v2/historical-options-corpus/handlers/corpus-seed.task';
 
 export { triggerHistoricalOptionsPilot } from './v2/historical-options-corpus/handlers/trigger-historical-options-pilot.http';
+export { triggerHistoricalOptionsTimeSeriesBuild } from './v2/historical-options-corpus/handlers/trigger-historical-options-time-series-build.http';
+export { refreshHistoricalOptionsCorpusNightly } from './v2/historical-options-corpus/jobs/historical-options-nightly.scheduler';

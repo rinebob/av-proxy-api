@@ -87,6 +87,16 @@ export const TS_INTRADAY_RTH_CLOSE_1615 = '15 16 * * 1-5';
  */
 export const TS_POST_CLOSE_SCHEDULE = '40 16 * * 1-5';
 
+/**
+ * Nightly historical-options corpus maintenance.
+ *
+ * Purpose: enqueue QQQ and TQQQ completed-trading-day corpus items after the
+ * existing 6:00 PM Pacific Alpha Vantage run.
+ * Cron: 0 19 * * 1-5 (7:00 PM Pacific, weekdays)
+ * Timezone: America/Los_Angeles (set at function registration).
+ */
+export const HISTORICAL_OPTIONS_NIGHTLY_SCHEDULE = '0 19 * * 1-5';
+
 // for refreshBenzingaCalendarDataV2
 // functions/src/benzinga/data-refresher/bz-calendar-refresh-manager.ts
 /**

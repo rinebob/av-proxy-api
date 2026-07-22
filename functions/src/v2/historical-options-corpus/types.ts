@@ -95,3 +95,6 @@ export const OPTIONS_CORPUS_RUNS_COLLECTION = 'options_corpus_runs';
 
 /** Subcollection for per-item seed outcomes. */
 export const OPTIONS_CORPUS_ITEMS_SUBCOLLECTION = 'items';
+
+/** Canonical GCS object prefix for per-contract time series JSONL files. */
+export const TIME_SERIES_PREFIX = 'time-series/v1';

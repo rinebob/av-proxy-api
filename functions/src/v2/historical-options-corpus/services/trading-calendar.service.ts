@@ -137,11 +137,7 @@ function buildHolidaySet(startYear: number, endYear: number): Set<string> {
 }
 
 export class TradingCalendarService {
-  private readonly holidaySet: Set<string>;
-
-  constructor() {
-    this.holidaySet = buildHolidaySet(2019, 2026);
-  }
+  private readonly holidaySets = new Map<number, Set<string>>();
 
   /**
    * Returns true when the provided ISO date is a US equity trading day.
@@ -150,7 +146,16 @@ export class TradingCalendarService {
   isTradingDay(isoDate: string): boolean {
     const parts = toDateParts(isoDate);
     if (isEtWeekend(parts)) return false;
-    return !this.holidaySet.has(isoDate);
+    return !this.getHolidaySet(parts.year).has(isoDate);
+  }
+
+  private getHolidaySet(year: number): Set<string> {
+    const existing = this.holidaySets.get(year);
+    if (existing) return existing;
+
+    const holidays = buildHolidaySet(year, year);
+    this.holidaySets.set(year, holidays);
+    return holidays;
   }
 
   /**
