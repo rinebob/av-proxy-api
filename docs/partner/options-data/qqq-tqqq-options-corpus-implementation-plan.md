@@ -2,7 +2,7 @@
 
 **Status:** Implemented (pending final approval gates)  
 **Scope:** Private GCS corpus for `QQQ` and `TQQQ` historical options from 2019 onward  
-**Last updated:** 2026-07-21
+**Last updated:** 2026-07-22
 
 ---
 
@@ -30,6 +30,7 @@ The assignment is complete when:
 4. Development/strategy code can retrieve and normalize a stored object through a private internal interface without calling Alpha Vantage.
 5. No raw option chain is written to Firestore, exposed through a direct GCS URL, or silently substituted for a live provider response in the existing partner endpoint.
 6. Provider-call volume, retry behavior, stored-byte growth, coverage, and failures are observable.
+7. A scheduled incremental job seeds both symbols for each completed trading day after market close without duplicating existing valid objects.
 
 ## 3. Preconditions and Explicit Decisions
 
@@ -262,6 +263,25 @@ Implement and deploy one slice at a time. Each slice must compile and pass focus
 - The final report records actual provider calls, retries, total bytes, storage cost estimate, and unresolved items.
 - Operations accepts the corpus as usable for dev/initial strategies.
 
+### Slice 7 — Nightly incremental maintenance
+
+**Work**
+
+1. Add a dedicated scheduled function that runs at `7:00 PM` Pacific, Monday through Friday, using the `America/Los_Angeles` timezone.
+2. Preserve the existing `6:00 PM` Pacific Alpha Vantage run as the preceding workload; the options-corpus schedule must not run before it.
+3. Resolve the current Pacific date and exit without creating a run or task when the US options market is closed.
+4. Create a non-pilot, one-trading-day run for `QQQ` and `TQQQ`, then enqueue only items that are not already recorded as successful or represented by a valid GCS object.
+5. Reuse the existing Cloud Tasks seed worker, configured provider throttle, storage contract, and retry behavior.
+6. Emit the daily run ID, target date, queued count, skipped-existing count, and terminal failure count to the existing operational logs.
+
+**Done when**
+
+- The job uses `0 19 * * 1-5` with the `America/Los_Angeles` timezone.
+- A trading-day execution enqueues at most one missing task per symbol.
+- Weekend and market-holiday executions enqueue no tasks and create no empty run document.
+- Re-running the same scheduled date does not issue an additional Alpha Vantage request for a successful or valid stored item.
+- Focused Jest tests cover trading-day, weekend/holiday, and previously-completed-item behavior.
+
 ## 8. Rate, Cost, and Duration Plan
 
 ### 8.1 Seed volume
@@ -308,6 +328,7 @@ For planning, 50 requests/minute is a reasonable upper initial bound only if the
 | Throttle | Shared-budget denial, queue pacing, retry delay, and protected production workload reservation. |
 | GCS read path | Existing object, missing object, invalid/corrupt object, typed absence, checksum verification, and proof that no provider request occurs. |
 | Pilot acceptance | Both symbols, 20 dates each, manifest/report correctness, actual byte measurements, and zero raw Firestore writes. |
+| Nightly incremental job | 7:00 PM Pacific schedule, trading-day enqueue for both symbols, weekend/holiday no-op, existing-success no-op, and task dispatch failure. |
 
 Use Jest tests in the mirrored `functions/tests` structure. Run the affected focused tests and both TypeScript compilation projects after each slice.
 
@@ -320,7 +341,8 @@ Create structured events and log-based metrics for:
 - provider calls, provider `429`s, timeouts, and other upstream failures;
 - throttle waits and denied-budget attempts;
 - GCS writes, reads, validation failures, checksum failures, and storage bytes;
-- coverage percentage, retry count, age of last successful corpus update, and unresolved item count.
+- coverage percentage, retry count, age of last successful corpus update, and unresolved item count;
+- scheduled nightly run target date, queue count, skipped-existing count, and terminal-failure count.
 
 Create an operator runbook covering:
 
@@ -356,6 +378,7 @@ Create an operator runbook covering:
 - [ ] Full seed manifest accounts for every expected `QQQ` and `TQQQ` date.
 - [ ] `GcsCorpusAdapter.readItem` returns validated stored data without an Alpha Vantage call.
 - [ ] Final quality/cost/coverage report is reviewed and accepted.
+- [ ] Nightly incremental job runs at 7:00 PM Pacific on trading days and safely skips closed-market days.
 - [ ] No raw chain is in Firestore and no direct GCS consumer access exists.
 
 ## 14. Deferred Decisions

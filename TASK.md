@@ -7,6 +7,7 @@
 
 ## Active
 
+- [ ] **2026-07-22: Add nightly historical-options corpus maintenance** — Schedule an idempotent `QQQ`/`TQQQ` incremental corpus run at 7:00 PM Pacific on trading days, after the 6:00 PM Pacific Alpha Vantage workload.
 - [ ] **2026-07-21: Run corrected first-20 historical-options corpus pilot** — Deploy the ascending-date planner, then seed and verify the first 20 2019 trading dates for `QQQ` and `TQQQ` at 60 requests/minute.
 - [x] **2026-07-21: Write PRD for historical options per-contract time series** — Define GCS-based storage, `partnerHistoricalOptionsContractV2` retrieval endpoint, two-phase ingestion pipeline, and daily incremental worker for `QQQ`/`TQQQ` from 2019 onward; captured in `docs/partner/options-data/historical-options-time-series-prd.md`.
 - [ ] **2026-07-21: Review Cloud Functions architecture candidates** — Decide whether to approve a remediation plan for the identified Cloud Functions deepening opportunities; no implementation is authorized by the review.

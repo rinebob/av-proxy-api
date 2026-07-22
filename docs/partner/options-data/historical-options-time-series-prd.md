@@ -206,7 +206,7 @@ flowchart LR
   RS[RS backend] -->|OIDC ID token| API[partnerHistoricalOptionsContractV2]
   API --> A[Dual auth + IAM]
   A --> V[Validate symbol, contractID, dates]
-  V --> G[Read time-series/v1/{SYMBOL}/{contractID}.jsonl]
+  V --> G[Read per-contract JSONL from GCS]
   G --> F[Filter by date range if requested]
   F --> RS
 ```
