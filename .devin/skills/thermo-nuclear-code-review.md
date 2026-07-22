@@ -68,6 +68,19 @@ Apply the baseline prompt above, plus these explicit review rules:
    - If related updates can leave state half-applied, push for a more atomic structure.
    - Do not over-index on micro-optimizations, but do flag avoidable orchestration complexity that makes the implementation more brittle.
 
+## Whole-Change Protocol — Mandatory Before Findings
+
+A thermo-nuclear review is a review of a complete implementation, not a sequence of local file inspections. Follow this protocol in order:
+
+1. **Inventory the final change set.** Run `git status`, inspect staged and unstaged diffs, and list untracked files. The review scope includes every changed file, not only the files named in the request.
+2. **Trace the full feature path.** Map entrypoints/exports, request inputs, authorization, shared types and constants, state or persistence, provider/network boundaries, error mapping, response serialization, configuration/secrets, tests, documentation, and deployment assumptions.
+3. **Read whole files and transitive consumers.** Read every changed file in full. For each changed public symbol or central abstraction, read its direct callers, implementers, consumers, and all documentation references. Do not approve from grep snippets, tests, or a partial diff.
+4. **Create a contract matrix.** Compare runtime behavior, shared types/enums, tests, public documentation, and deployment configuration for: inputs, authentication/authorization, error envelopes, response schema, data semantics, side effects, observability, and limits. Every mismatch is a finding even when tests pass.
+5. **Review the final state, not patch history.** If remediation is requested, define one consolidated plan and apply it across all consumers. Then restart this protocol against the complete final diff. Never review only the latest patch.
+6. **Use a completion gate.** Do not report approval or completion until the final diff, contract matrix, targeted stale-literal/path searches, relevant build/type checks/tests, and `git diff --check` all pass. State deployment-only prerequisites separately.
+
+If the protocol discovers a new blocker, return to the consolidated remediation plan. Do not claim completion and then continue with another finding-by-finding fix cycle.
+
 ## Primary Review Questions
 
 For every meaningful change, ask:

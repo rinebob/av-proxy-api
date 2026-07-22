@@ -180,6 +180,28 @@ If the answer to question 2 or 3 is **yes**, create a new file instead.
 
 # AI Behavior Rules
 
+## Scope Discipline — No Speculative Architecture
+
+* Implement only changes required by the user's explicit request, an agreed task acceptance criterion, or an established existing project pattern.
+* Never invent or introduce a new subsystem, infrastructure dependency, persistence path, rate limiter, cache, queue, security policy, abstraction layer, configuration scheme, or workflow solely because it seems generally advisable.
+* Before proposing or implementing any change beyond the requested scope, identify existing project precedent. If none exists, stop and ask the user for explicit approval with a concise explanation of the problem, alternatives, operational cost, and why the change is necessary now.
+* A code review identifies findings; it must not automatically authorize implementation. Do not implement review recommendations unless the user explicitly asks for each change or explicitly approves an agreed remediation plan.
+* Prefer the smallest direct change that satisfies the request. Do not create supporting files, tests, documentation, configuration, or follow-up refactors for speculative work.
+* Treat user time, token budget, money, and cognitive load as constrained resources. Avoid repeated review/remediation loops, broad audits, and exploratory changes unless the user explicitly requests them.
+
+## Whole-Change Review and Remediation Gate — Mandatory
+
+* Never review, remediate, or declare a feature complete one finding at a time. Treat the complete changed surface as one system.
+* Before a review or remediation, inventory **all** changed and untracked files with `git status`, staged and unstaged diffs, and the complete transitive request/data path. Include source, shared contracts, exports, configuration, tests, documentation, and deployment assumptions.
+* Read each changed file in full. For central abstractions, also read all direct callers, implementers, consumers, and contract/documentation references. Do not infer behavior from snippets or from tests alone.
+* Build one written contract matrix before editing: input validation, authorization, persistence, provider calls, error envelopes, response schema, shared enums/constants, observability, tests, and documentation. Resolve contradictions in the matrix before making changes.
+* After finding issues, produce one consolidated remediation plan. Do not start patching while still discovering the feature surface, and do not call an intermediate patch a completed fix.
+* Every remediation must update all affected consumers in the same change: runtime source, shared types/enums, tests, documentation, exports/configuration, and deployment prerequisites.
+* Run targeted searches for old literals, stale contract values, alternate code paths, and duplicate implementations after edits. A passing test suite is necessary but never proof that source behavior, contracts, and documentation agree.
+* The final review must be a new diff-first review of the **entire final state**, not a review of only the latest patch. Re-open every modified file and re-check the complete contract matrix.
+* Do not claim completion unless all of the following are true: the final diff has been fully reviewed; every matrix item agrees across source, tests, and documentation; relevant builds/type checks/tests pass; `git diff --check` passes; and all remaining deployment work is explicitly separated from code-complete work.
+* If a new blocker is found during the final review, return to consolidated remediation. Do not announce completion and then begin another round of whack-a-mole fixes.
+
 * Never assume missing context. Ask questions if uncertain.
 * Never hallucinate libraries or functions – only use known, verified Angular/Typescript and related packages.
 * Never use React or refer to React.
