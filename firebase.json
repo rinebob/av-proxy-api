@@ -8,6 +8,10 @@
     {
       "bucket": "av-hist-options-corpus-bucket",
       "rules": "storage.rules"
+    },
+    {
+      "bucket": "av-options-time-series-bucket",
+      "rules": "storage.rules"
     }
   ],
   "functions": {
