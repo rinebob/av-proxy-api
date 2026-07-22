@@ -45,10 +45,15 @@ describe('HistoricalOptionsPilotService', () => {
   it('plans a bounded dry-run pilot and reports missing coverage', async () => {
     const { service, enqueueTask } = createPilotService();
 
-    const report = await service.run();
+    const report = await service.run({ referenceDate: '2019-01-30' });
 
     expect(report.symbols).toEqual([...DEFAULT_PILOT_SYMBOLS]);
     expect(report.totalItems).toBe(DEFAULT_PILOT_MAX_TRADING_DATES * DEFAULT_PILOT_SYMBOLS.length);
+    expect(report.manifest[0]).toMatchObject({ symbol: 'QQQ', date: '2019-01-02' });
+    expect(report.manifest[DEFAULT_PILOT_MAX_TRADING_DATES - 1]).toMatchObject({
+      symbol: 'QQQ',
+      date: '2019-01-30',
+    });
     expect(report.dryRun).toBe(true);
     expect(report.executed).toBe(false);
     expect(report.missingItems).toBe(report.totalItems);

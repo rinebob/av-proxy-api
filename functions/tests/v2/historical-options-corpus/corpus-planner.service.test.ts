@@ -4,19 +4,27 @@ import { TradingCalendarService } from '../../../src/v2/historical-options-corpu
 describe('planCorpusRun', () => {
   const calendar = new TradingCalendarService();
 
-  it('plans the most recent N trading dates per symbol', async () => {
+  it('plans the earliest N trading dates per symbol in ascending order', async () => {
     const plan = await planCorpusRun({
       symbols: ['QQQ', 'TQQQ'],
-      startDate: '2026-01-01',
-      endDate: '2026-01-31',
+      startDate: '2019-01-01',
+      endDate: '2019-01-31',
       maxTradingDatesPerSymbol: 3,
       calendar,
     });
 
     expect(plan.symbols).toEqual(['QQQ', 'TQQQ']);
     expect(plan.totalItems).toBe(6);
-    expect(plan.items.filter((i) => i.symbol === 'QQQ')).toHaveLength(3);
-    expect(plan.items.filter((i) => i.symbol === 'TQQQ')).toHaveLength(3);
+    expect(plan.items.filter((i) => i.symbol === 'QQQ')).toEqual([
+      { symbol: 'QQQ', date: '2019-01-02' },
+      { symbol: 'QQQ', date: '2019-01-03' },
+      { symbol: 'QQQ', date: '2019-01-04' },
+    ]);
+    expect(plan.items.filter((i) => i.symbol === 'TQQQ')).toEqual([
+      { symbol: 'TQQQ', date: '2019-01-02' },
+      { symbol: 'TQQQ', date: '2019-01-03' },
+      { symbol: 'TQQQ', date: '2019-01-04' },
+    ]);
   });
 
   it('skips dates already present in the provided existing set', async () => {

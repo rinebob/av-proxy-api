@@ -66,7 +66,7 @@ export async function planCorpusRun(
     }
   }
 
-  const tradingDates = calendar.getTradingDates(startDate, endDate, { descending: true });
+  const tradingDates = calendar.getTradingDates(startDate, endDate);
   const datesPerSymbol = maxTradingDatesPerSymbol
     ? tradingDates.slice(0, maxTradingDatesPerSymbol)
     : tradingDates;

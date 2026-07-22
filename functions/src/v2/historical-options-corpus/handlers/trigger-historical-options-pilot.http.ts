@@ -1,3 +1,4 @@
+import { defineSecret } from 'firebase-functions/params';
 import { onRequest } from 'firebase-functions/v2/https';
 import type { Request, Response } from 'express';
 
@@ -12,6 +13,7 @@ import {
 } from '../services/pilot.service';
 
 const logger = createLogger('historical-options-pilot-trigger');
+const historicalOptionsPilotAdminSecret = defineSecret('HISTORICAL_OPTIONS_PILOT_ADMIN_SECRET');
 
 interface TriggerHistoricalOptionsPilotBody {
   symbols?: string[] | string;
@@ -44,7 +46,7 @@ function isValidIsoDate(value: unknown): value is string {
 }
 
 function isAdmin(req: Request, res: Response): boolean {
-  const expectedSecret = String(process.env.HISTORICAL_OPTIONS_PILOT_ADMIN_SECRET || '').trim();
+  const expectedSecret = String(historicalOptionsPilotAdminSecret.value() || '').trim();
   const providedSecret = String(req.headers['x-admin-secret'] || '').trim();
 
   if (!expectedSecret || !providedSecret || expectedSecret !== providedSecret) {
@@ -73,6 +75,7 @@ export const triggerHistoricalOptionsPilot = onRequest(
   {
     timeoutSeconds: 120,
     memory: '512MiB',
+    secrets: [historicalOptionsPilotAdminSecret],
   },
   withCors(async (req: Request, res: Response) => {
     try {

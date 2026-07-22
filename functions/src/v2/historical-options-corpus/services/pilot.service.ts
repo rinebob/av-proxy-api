@@ -61,8 +61,8 @@ export interface PilotDependencies {
 /**
  * Bounded pilot runner for the QQQ/TQQQ historical options corpus.
  *
- * By default it operates in dry-run mode: it plans a manifest of the most
- * recent N trading dates per symbol, checks GCS for existing coverage, and
+ * By default it operates in dry-run mode: it plans a manifest of the earliest
+ * N trading dates per symbol, checks GCS for existing coverage, and
  * produces a cost report without calling Alpha Vantage. When `execute` is true
  * it dispatches one Cloud Task per missing item.
  */
