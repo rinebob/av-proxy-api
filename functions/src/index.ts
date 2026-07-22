@@ -126,3 +126,8 @@ export { runIntradaySnapshotDev, processIntradaySnapshotJobDev } from './v2/alph
 export { processFullBackfillRunTask } from './v2/alpha-vantage/data-refresher/av-full-backfill.task';
 
 export { triggerFullBackfillJobs } from './v2/alpha-vantage/data-refresher/av-full-backfill.http';
+
+// Historical options corpus seed worker (exported for deployment after pilot approval)
+export { processHistoricalOptionsCorpusSeedTask } from './v2/historical-options-corpus/handlers/corpus-seed.task';
+
+export { triggerHistoricalOptionsPilot } from './v2/historical-options-corpus/handlers/trigger-historical-options-pilot.http';

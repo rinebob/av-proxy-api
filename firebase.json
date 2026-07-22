@@ -4,6 +4,12 @@
     "indexes": "firestore.indexes.json",
     "database": "(default)"
   },
+  "storage": [
+    {
+      "bucket": "av-hist-options-corpus-bucket",
+      "rules": "storage.rules"
+    }
+  ],
   "functions": {
     "source": "functions",
     "codebase": "default",

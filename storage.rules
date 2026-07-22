@@ -1,0 +1,12 @@
+rules_version = '2';
+service firebase.storage {
+  // Applies to all buckets referenced in firebase.json storage targets.
+  match /b/{bucket}/o {
+    // The historical-options corpus is not exposed directly to browsers or RS.
+    // Cloud Functions and internal consumers access GCS through IAM/service accounts,
+    // which Firebase Storage Security Rules do not restrict.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
