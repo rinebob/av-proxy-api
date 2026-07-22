@@ -1,18 +1,11 @@
 import { aggregateIntradayRthBar, extractIntradaySeries, IntradayRthBarAggregate } from '../../../../src/v2/alpha-vantage/utils/av-intraday-aggregate.utils';
 
-let passCount = 0;
-let failCount = 0;
-
-function assertEqual<T>(actual: T, expected: T, message: string): void {
-  if (actual !== expected) {
-    throw new Error(`${message}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
-  }
+function assertEqual<T>(actual: T, expected: T, _message: string): void {
+  expect(actual).toBe(expected);
 }
 
-function assertClose(actual: number, expected: number, epsilon = 0.0001, message?: string): void {
-  if (Math.abs(actual - expected) > epsilon) {
-    throw new Error(`${message ?? 'close mismatch'}: expected ${expected}, got ${actual}`);
-  }
+function assertClose(actual: number, expected: number, epsilon = 0.0001, _message?: string): void {
+  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(epsilon);
 }
 
 function assertBar(
@@ -65,18 +58,7 @@ function buildAvResponseWithRawKeys(
   };
 }
 
-function runCase(name: string, fn: () => void): void {
-  try {
-    fn();
-    passCount++;
-    console.log(`PASS ${name}`);
-  } catch (e) {
-    failCount++;
-    console.error(`FAIL ${name}: ${(e as Error).message}`);
-  }
-}
-
-runCase('aggregates 15-minute RTH bars from 09:30 ET', () => {
+it('aggregates 15-minute RTH bars from 09:30 ET', () => {
   const marketDate = '2025-11-10';
   const raw = buildAvResponse('15min', [
     ['2025-11-10 09:45:00', 100.0, 102.0, 99.5, 101.0, 1000],
@@ -89,13 +71,13 @@ runCase('aggregates 15-minute RTH bars from 09:30 ET', () => {
   assertEqual(bar.it, '10:15', 'latest ET time');
 });
 
-runCase('returns null for an empty series', () => {
+it('returns null for an empty series', () => {
   const raw = buildAvResponse('15min', []);
   const bar = aggregateIntradayRthBar(raw, '2025-11-10');
   assertEqual(bar, null as any, 'empty series');
 });
 
-runCase('ignores bars from a different ET date', () => {
+it('ignores bars from a different ET date', () => {
   const raw = buildAvResponse('15min', [
     ['2025-11-09 10:00:00', 100, 101, 99, 100.5, 1000],
     ['2025-11-10 09:45:00', 110, 111, 109, 110.5, 2000],
@@ -105,7 +87,7 @@ runCase('ignores bars from a different ET date', () => {
   assertBar(bar, { o: 110, h: 111, l: 109, c: 110.5, v: 2000 }, 'different-date filter');
 });
 
-runCase('ignores bars before the 09:30 ET anchor', () => {
+it('ignores bars before the 09:30 ET anchor', () => {
   const raw = buildAvResponse('15min', [
     ['2025-11-10 09:15:00', 90, 95, 89, 94, 1000],
     ['2025-11-10 09:30:00', 100, 101, 99, 100.5, 2000],
@@ -115,7 +97,7 @@ runCase('ignores bars before the 09:30 ET anchor', () => {
   assertBar(bar, { o: 100, h: 101, l: 99, c: 100.5, v: 2000 }, 'pre-anchor filter');
 });
 
-runCase('supports raw numeric keys without AV prefixes', () => {
+it('supports raw numeric keys without AV prefixes', () => {
   const raw = buildAvResponseWithRawKeys('15min', [
     ['2025-11-10 09:45:00', 50, 55, 48, 52, 3000],
   ]);
@@ -124,7 +106,7 @@ runCase('supports raw numeric keys without AV prefixes', () => {
   assertBar(bar, { o: 50, h: 55, l: 48, c: 52, v: 3000 }, 'raw keys');
 });
 
-runCase('skips bars with missing OHLCV fields', () => {
+it('skips bars with missing OHLCV fields', () => {
   const raw = buildAvResponse('15min', [
     ['2025-11-10 09:45:00', 100, 101, 99, 100.5, 1000],
   ]);
@@ -134,13 +116,13 @@ runCase('skips bars with missing OHLCV fields', () => {
   assertEqual(bar, null as any, 'incomplete bar');
 });
 
-runCase('extracts series from metadata interval key', () => {
+it('extracts series from metadata interval key', () => {
   const raw = buildAvResponse('5min', [['2025-11-10 09:30:00', 100, 101, 99, 100, 1000]]);
   const series = extractIntradaySeries(raw);
   assertEqual(Object.keys(series ?? {}).length, 1, 'series extraction');
 });
 
-runCase('falls back to a generic time-series key when metadata is absent', () => {
+it('falls back to a generic time-series key when metadata is absent', () => {
   const raw = {
     'Time Series (15min)': {
       '2025-11-10 09:45:00': { '1. open': '10', '2. high': '11', '3. low': '9', '4. close': '10.5', '5. volume': '100' },
@@ -153,7 +135,7 @@ runCase('falls back to a generic time-series key when metadata is absent', () =>
   assertBar(bar, { o: 10, h: 11, l: 9, c: 10.5, v: 100 }, 'fallback aggregation');
 });
 
-runCase('custom anchor time filters to the specified open', () => {
+it('custom anchor time filters to the specified open', () => {
   const raw = buildAvResponse('15min', [
     ['2025-11-10 10:00:00', 100, 101, 99, 100.5, 1000],
   ]);
@@ -161,6 +143,3 @@ runCase('custom anchor time filters to the specified open', () => {
   if (!bar) throw new Error('expected bar');
   assertBar(bar, { o: 100, h: 101, l: 99, c: 100.5, v: 1000 }, 'custom anchor');
 });
-
-console.log(`\nResults: ${passCount} passed, ${failCount} failed`);
-process.exit(failCount > 0 ? 1 : 0);

@@ -17,17 +17,8 @@ import {
 } from '../../../src/v2/partner/historical-options-partner';
 import { HistoricalOptionsErrorCode } from '../../../src/v2/partner/historical-options-request.utils';
 
-const tests: Array<{ name: string; execute: () => Promise<void> }> = [];
-let failures = 0;
-
-function test(name: string, execute: () => Promise<void>): void {
-  tests.push({ name, execute });
-}
-
-function assertEqual<T>(actual: T, expected: T, message: string): void {
-  if (actual !== expected) {
-    throw new Error(`${message}: expected ${String(expected)}, got ${String(actual)}`);
-  }
+function assertEqual<T>(actual: T, expected: T, _message: string): void {
+  expect(actual).toBe(expected);
 }
 
 interface ResponseState {
@@ -78,8 +69,7 @@ function createDependencies(
 ): HistoricalOptionsPartnerDependencies {
   return {
     authenticateRequest: async () => ({ serviceAccountEmail: 'rs@example.com' }),
-    fetchOptions: async () => testData,
-    analyzeOptionsData: () => testAnalysis,
+    fetchOptions: async () => ({ response: testData, analysis: testAnalysis }),
     hasExpectedGoogleAudience: () => true,
     now: () => testNow,
     ...overrides,
@@ -90,7 +80,7 @@ function createRequest(method: HttpMethod, query: Record<string, unknown> = {}):
   return { method, query } as Request;
 }
 
-test('rejects POST requests with the documented error envelope', async () => {
+it('rejects POST requests with the documented error envelope', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(
     createRequest(HttpMethod.POST),
@@ -104,7 +94,7 @@ test('rejects POST requests with the documented error envelope', async () => {
   assertEqual(body.timestamp, testNow.toISOString(), 'timestamp');
 });
 
-test('rejects OPTIONS requests with the documented error envelope', async () => {
+it('rejects OPTIONS requests with the documented error envelope', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(
     createRequest(HttpMethod.OPTIONS),
@@ -117,7 +107,7 @@ test('rejects OPTIONS requests with the documented error envelope', async () => 
   assertEqual(body.timestamp, testNow.toISOString(), 'timestamp');
 });
 
-test('fails closed when the expected OIDC audience is not configured', async () => {
+it('fails closed when the expected OIDC audience is not configured', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(
     createRequest(HttpMethod.GET),
@@ -132,7 +122,7 @@ test('fails closed when the expected OIDC audience is not configured', async () 
   );
 });
 
-test('stops when authentication rejects the request', async () => {
+it('stops when authentication rejects the request', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(
     createRequest(HttpMethod.GET),
@@ -142,7 +132,7 @@ test('stops when authentication rejects the request', async () => {
   assertEqual(responseState.statusCode, undefined, 'status');
 });
 
-test('rejects a Firebase-authenticated caller', async () => {
+it('rejects a Firebase-authenticated caller', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(
     createRequest(HttpMethod.GET),
@@ -157,13 +147,13 @@ test('rejects a Firebase-authenticated caller', async () => {
   );
 });
 
-test('rejects invalid request parameters after authentication', async () => {
+it('rejects invalid request parameters after authentication', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(createRequest(HttpMethod.GET), responseState.response, createDependencies());
   assertEqual(responseState.statusCode, 400, 'status');
 });
 
-test('maps typed provider failures', async () => {
+it('maps typed provider failures', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(
     createRequest(HttpMethod.GET, { symbol: 'AAPL' }),
@@ -182,7 +172,7 @@ test('maps typed provider failures', async () => {
   );
 });
 
-test('returns the no-persistence provider response and analysis', async () => {
+it('returns the no-persistence provider response and analysis', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(
     createRequest(HttpMethod.GET, { symbol: 'AAPL' }),
@@ -193,18 +183,23 @@ test('returns the no-persistence provider response and analysis', async () => {
   const body = responseState.body as {
     data?: AvHistoricalOptionsResponse;
     source?: ApiProvider;
+    analysis?: typeof testAnalysis;
   };
   assertEqual(body.data, testData, 'data');
   assertEqual(body.source, ApiProvider.ALPHA_VANTAGE, 'source');
+  assertEqual(body.analysis, testAnalysis, 'analysis');
 });
 
-test('rejects oversized serialized responses', async () => {
+it('rejects oversized serialized responses', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(
     createRequest(HttpMethod.GET, { symbol: 'AAPL' }),
     responseState.response,
     createDependencies({
-      fetchOptions: async () => ({ ...testData, message: 'x'.repeat(10 * 1024 * 1024) }),
+      fetchOptions: async () => ({
+        response: { ...testData, message: 'x'.repeat(10 * 1024 * 1024) },
+        analysis: testAnalysis,
+      }),
     }),
   );
   assertEqual(responseState.statusCode, 413, 'status');
@@ -214,19 +209,3 @@ test('rejects oversized serialized responses', async () => {
     'code',
   );
 });
-
-async function runTests(): Promise<void> {
-  for (const { name, execute } of tests) {
-    try {
-      await execute();
-      console.log(`PASS ${name}`);
-    } catch (error) {
-      failures += 1;
-      console.error(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  process.exitCode = failures === 0 ? 0 : 1;
-}
-
-void runTests();

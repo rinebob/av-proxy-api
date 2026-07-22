@@ -9,22 +9,8 @@ import {
   toAlphaVantageUpstreamError,
 } from '../../../../src/v2/alpha-vantage/utils';
 
-let failures = 0;
-
-function test(name: string, execute: () => void): void {
-  try {
-    execute();
-    console.log(`PASS ${name}`);
-  } catch (error) {
-    failures += 1;
-    console.error(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-function assertEqual<T>(actual: T, expected: T, message: string): void {
-  if (actual !== expected) {
-    throw new Error(`${message}: expected ${String(expected)}, got ${String(actual)}`);
-  }
+function assertEqual<T>(actual: T, expected: T, _message: string): void {
+  expect(actual).toBe(expected);
 }
 
 const contracts: AvOptionContract[] = [
@@ -33,14 +19,14 @@ const contracts: AvOptionContract[] = [
   { expiration: '2026-08-21', strike: '100', type: AvOptionType.PUT, volume: '5', open_interest: '50' },
 ];
 
-test('counts individual call and put contracts sharing an expiration', () => {
+it('counts individual call and put contracts sharing an expiration', () => {
   const analysis = analyzeOptions(contracts);
   assertEqual(analysis.summary.totalContracts, 3, 'total contracts');
   assertEqual(analysis.summary.callContracts, 2, 'call contracts');
   assertEqual(analysis.summary.putContracts, 1, 'put contracts');
 });
 
-test('aggregates only available numeric values without excluding contracts', () => {
+it('aggregates only available numeric values without excluding contracts', () => {
   const analysis = analyzeOptions(contracts);
   assertEqual(analysis.summary.totalVolume, 15, 'total volume');
   assertEqual(analysis.summary.totalOpenInterest, 150, 'total open interest');
@@ -48,7 +34,7 @@ test('aggregates only available numeric values without excluding contracts', () 
   assertEqual(analysis.summary.avgOpenInterest, 75, 'average open interest');
 });
 
-test('counts every returned contract while limiting directional and grouped breakdowns to eligible contracts', () => {
+it('counts every returned contract while limiting directional and grouped breakdowns to eligible contracts', () => {
   const analysis = analyzeOptions([
     { expiration: '2026-08-21', strike: '100', type: AvOptionType.CALL, volume: '10', open_interest: '100' },
     { expiration: '2026-08-21', strike: '105', volume: '20', open_interest: '200' },
@@ -63,7 +49,7 @@ test('counts every returned contract while limiting directional and grouped brea
   assertEqual(analysis.expirations[0]?.contractCount, 1, 'grouped contracts');
 });
 
-test('excludes whitespace-only metrics from aggregate averages', () => {
+it('excludes whitespace-only metrics from aggregate averages', () => {
   const analysis = analyzeOptions([
     { expiration: '2026-08-21', strike: '100', type: AvOptionType.CALL, volume: ' ', open_interest: '' },
     { expiration: '2026-08-21', strike: '105', type: AvOptionType.PUT, volume: '10', open_interest: '20' },
@@ -74,15 +60,13 @@ test('excludes whitespace-only metrics from aggregate averages', () => {
   assertEqual(analysis.summary.avgOpenInterest, 20, 'average open interest');
 });
 
-test('classifies a provider note as a typed rate-limit error', () => {
+it('classifies a provider note as a typed rate-limit error', () => {
   const error = toAlphaVantageUpstreamError(new AlphaVantageProviderResponseError(AlphaVantageProviderResponseErrorKind.NOTE, 'rate limit reached'));
   assertEqual(error.category, 'RATE_LIMITED', 'error category');
   assertEqual(error.message, 'rate limit reached', 'provider diagnostic');
 });
 
-test('classifies a provider error message as an upstream failure', () => {
+it('classifies a provider error message as an upstream failure', () => {
   const error = toAlphaVantageUpstreamError(new AlphaVantageProviderResponseError(AlphaVantageProviderResponseErrorKind.ERROR_MESSAGE, 'invalid symbol'));
   assertEqual(error.category, 'UPSTREAM_ERROR', 'error category');
 });
-
-process.exitCode = failures === 0 ? 0 : 1;

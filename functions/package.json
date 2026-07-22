@@ -15,7 +15,10 @@
     "ts": "ts-node -r tsconfig-paths/register -P tsconfig.json",
     "ts:scripts": "ts-node -r tsconfig-paths/register -P scripts/tsconfig.json",
     "gcp-build": "echo 'Skipping build: lib/ is pre-compiled locally'",
-    "test:firestore": "ts-node scripts/test-firestore.ts"
+    "test:firestore": "ts-node scripts/test-firestore.ts",
+    "test": "npm run copy-shared && jest",
+    "test:ci": "npm run copy-shared && jest --ci",
+    "test:compile": "npm run copy-shared && tsc --noEmit -p tests/tsconfig.json"
   },
   "engines": {
     "node": "20"
@@ -23,6 +26,7 @@
   "main": "lib/src/index.js",
   "dependencies": {
     "@google-cloud/pubsub": "^5.2.0",
+    "@google-cloud/storage": "^7.16.0",
     "@types/node": "22.18.1",
     "axios": "^1.9.0",
     "dotenv": "^16.5.0",
@@ -31,6 +35,7 @@
   },
   "devDependencies": {
     "@types/dotenv": "^6.1.1",
+    "@types/jest": "^29.5.0",
     "@types/lodash": "^4.17.17",
     "@types/ms": "^2.1.0",
     "@types/request": "^2.48.12",
@@ -38,6 +43,8 @@
     "concurrently": "^9.1.2",
     "cpx": "^1.5.0",
     "firebase-functions-test": "^3.1.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.0",
     "ts-node": "^10.9.2",
     "tsc-alias": "^1.8.17",
     "tsconfig-paths": "^4.2.0",
