@@ -3,7 +3,7 @@
 **Status:** Deployed; Savant production smoke test passed; RS acceptance pending
 **Owner:** Savant API  
 **Audience:** Savant API engineering, RS engineering, partner administrators  
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-21
 
 ---
 
@@ -67,7 +67,7 @@ RS needs access before a durable options-data storage design is available.
   "source": "alpha-vantage",
   "endpoint": "HISTORICAL_OPTIONS",
   "data": {
-    "endpoint": "Historical Options",
+    "endpoint": "HISTORICAL_OPTIONS",
     "message": "success",
     "data": [
       {
@@ -228,3 +228,72 @@ Firestore is optional for this phase. If used, it stores only small queryable me
 4. Verify the endpoint returns the same normalized response contract for cache hits and cache misses.
 5. Measure cache-hit ratio, GCS read/write latency, object sizes, upstream AV call reduction, and storage growth.
 6. Roll out behind a configuration flag and retain the ability to bypass or disable the cache without exposing direct bucket access.
+
+### Proposed initial storage target: QQQ and TQQQ development corpus
+
+**Status:** Proposed target; no storage implementation is authorized by this PRD update.
+
+Create a bounded, owned GCS corpus for `QQQ` and `TQQQ` only, containing one Alpha Vantage `HISTORICAL_OPTIONS` response for each US options trading date from `2019-01-01` through the completed trading day at the time of the seed run.
+
+This is a development and initial-strategy dataset only. It is not a request to copy another organization's database, expose a direct bucket to RS, serve the complete market universe, or change the deployed `partnerHistoricalOptionsV2` contract. Savant would retrieve the provider responses through its licensed Alpha Vantage account and store its own validated objects.
+
+#### Scope and sizing assumption
+
+| Item | Proposed initial value |
+|---|---|
+| Symbols | `QQQ`, `TQQQ` only |
+| Historical start | First available trading date on or after `2019-01-01` |
+| End | Completed trading day when the seed run executes; an explicit manifest records the exact coverage |
+| Unit of retrieval | One provider request for one `{ symbol, date }` pair |
+| Expected object count | Approximately 3,700–3,900 objects: roughly 1,850–1,950 trading dates per symbol through mid-2026 |
+| Storage format | Validated provider response plus the metadata envelope defined above; gzip compression is preferred if the reader transparently decompresses it |
+| Object location | `historical-options/v1/{SYMBOL}/{YYYY-MM-DD}.json.gz` |
+| Initial consumer | Internal Savant development and initial strategy research only |
+| Partner contract | Unchanged; no direct GCS access and no cache behavior exposed until separately approved |
+
+The seed manifest must identify every attempted `{ symbol, date }` pair as `stored`, `not_available`, or `failed`, include the GCS generation/checksum/byte count for stored objects, and record the provider plan, schema version, and seed execution time. This prevents a partial run from appearing to be complete.
+
+#### Mechanics
+
+1. Build the expected US trading-date list once, excluding weekends and recognized market holidays; do not create placeholder data for dates where the provider has no usable response.
+2. Use a resumable, idempotent backfill job that reads the manifest before each request and never replaces a valid object until a newly fetched response passes validation.
+3. Route all provider calls through a shared Alpha Vantage throttle. The seed must use a deliberately lower rate than the contracted limit and must pause/retry on `429`, timeout, and transient upstream failures.
+4. Write each validated response atomically to the GCS key and persist the resulting generation, checksum, compressed and uncompressed byte sizes, request date, and fetch timestamp in the manifest.
+5. Produce a final coverage report by symbol: expected dates, stored dates, provider-unavailable dates, failures, object-size distribution, total stored bytes, and provider calls consumed.
+6. Keep the corpus private. Cloud Functions and approved Savant operators receive object permissions; strategy tooling reads through an internal adapter, not public or signed URLs.
+
+Firestore is not required for this initial corpus. A small GCS manifest is sufficient until a queryable operational index is proven necessary.
+
+#### Cost estimate and primary constraints
+
+The values below are planning ranges, not a vendor quote. Validate the current Google Cloud and Alpha Vantage terms before approving implementation.
+
+| Cost area | Planning estimate | Why it matters |
+|---|---|---|
+| GCS storage | If the compressed average object is 1–5 MiB, 3,800 objects use roughly 4–19 GiB. Regional Standard storage is therefore likely well below $1/month at typical US regional rates. | Storage is not the material cost for this bounded corpus. |
+| GCS writes and internal reads | About 3,800 initial writes; Class A/Class B operation charges are negligible at this volume. | Same-region reads from the Function/strategy workload avoid inter-region design surprises. |
+| Network egress | Near-zero for internal same-region processing; potentially material only if large chains are repeatedly delivered outside GCP. | Consumers must not receive direct bucket access; response-size and egress controls remain necessary. |
+| Alpha Vantage usage | Approximately 3,700–3,900 historical-options calls plus retries. | This is the principal variable cost and schedule constraint. The contracted plan must allow the endpoint, sufficient request rate, retention, and intended internal/partner use. |
+| Engineering effort | Roughly 1–2 engineer-days for bucket/IAM/manifest design and a proof-of-concept; roughly 1–2 weeks for a production-ready resumable backfill, shared throttling, validation, tests, monitoring, and operational runbook. | The bulk of the work is correctness, vendor-safe pacing, recovery, and data-quality evidence—not writing GCS objects. |
+
+At 50 provider calls per minute, 3,800 calls have a theoretical lower bound of about 76 minutes before retries, provider variability, validation, and write time. The job should be designed to run in bounded resumable batches rather than as one long HTTP invocation.
+
+#### Approval gates
+
+Do not implement or seed this corpus until all of the following are approved:
+
+1. Alpha Vantage confirms the active plan covers `HISTORICAL_OPTIONS`, the anticipated backfill volume, retention, and the intended internal development/initial-strategy use. Confirm whether any RS or other partner redistribution is allowed separately.
+2. The target GCP project, region, private bucket name, retention/lifecycle policy, and named operational principals are approved.
+3. A shared provider-throttling mechanism or an equally explicit account-wide quota-control plan exists. The seed must not compete unpredictably with partner endpoints, scheduled refreshes, or other provider consumers.
+4. The retrieval/persistence separation work is approved so the seed consumes a pure retrieval result and cannot activate the legacy Firestore raw-chain writer.
+5. An owner accepts the manifest, retry policy, data-quality report, cost alert threshold, and deletion/retention policy.
+
+#### Acceptance criteria for a later implementation
+
+- `QQQ` and `TQQQ` coverage is reproducible from the manifest, with every expected date accounted for.
+- No raw option chain is written to Firestore.
+- Re-running the seed does not re-fetch or overwrite a validated immutable historical object unless an explicit repair mode is used.
+- Provider throttling, retry/backoff, and partial-failure resumption are tested.
+- Stored objects pass schema and checksum validation before use by development or strategy tooling.
+- GCS object access is private and audited; no consumer receives a direct bucket URL.
+- The current partner HTTP request and response contract remains unchanged until a separately approved cache-read phase.

@@ -48,6 +48,17 @@
 - Added regression coverage for incomplete returned contracts so aggregate summary totals cannot silently shrink.
 - Distinguished shared authentication middleware responses from the endpoint-generated `FORBIDDEN` response for a Firebase identity, and aligned the PRD, discovery document, RS guide, and endpoint test.
 
+## Eighth-Pass Review Fixes (2026-07-21)
+
+- Replaced `pilot.service.ts` `yesterday()` with a robust `America/New_York` calendar calculation using `Intl.DateTimeFormat`.
+- Added an optional `now` clock dependency to `PilotDependencies` for deterministic date testing.
+- Made `HistoricalOptionsRetrievalService.transformResponse()` default `endpoint` to `HISTORICAL_OPTIONS` and `message` to `success` when Alpha Vantage omits them.
+- Rerouted the partner handler to create `HistoricalOptionsRetrievalService` directly and reuse the returned `analysis`, removing `AvHistoricalOptionsHandler` and `fetchWithoutPersistence()` from the partner path.
+- Simplified `AvHistoricalOptionsHandler` to a thin `fetch()` adapter delegating to the retrieval service; removed console debug banners and `fetchWithoutPersistence()`.
+- Removed dead code: `av-api-key.utils.ts` (imports now use `utils/utils.ts`), `GcsCorpusAdapter.exists()`, `strategy-reader.service.ts` and its test, and the `CorpusRunDoc.manifest` field.
+- Added tests for ET `yesterday`, pilot execution without `retrieval`, DST/year-boundary calendar, `runId` generation, `GcsCorpusAdapter.getMetadata`, retrieval default `endpoint`/`message`, and partner response `analysis`.
+- Verified `npm run test:compile`, `npm test`, and `git diff --check` all pass.
+
 ## Remaining Deployment Prerequisites
 
 - Configure `ALPHAVANTAGE_API_KEY`, `ALLOWED_SERVICE_ACCOUNT_EMAILS`, and `EXPECTED_GOOGLE_AUDIENCE`.

@@ -22,9 +22,9 @@ The endpoint is an authenticated, server-to-server proxy for Alpha Vantage `HIST
 - **Partner request handler** — enforces method, audience configuration, authentication, request validation, error handling, response size, and lifecycle logging.
 - **Shared partner authentication** — verifies a Google OIDC ID token or Firebase ID token. This endpoint then requires the successful identity to be an allowlisted service account.
 - **Request parser** — normalizes `symbol`, validates an optional `date`, and maps typed upstream failures to the endpoint's public error contract.
-- **Alpha Vantage handler factory** — constructs the historical-options handler from the shared Alpha Vantage endpoint configuration.
-- **No-persistence fetch path** — calls Alpha Vantage, validates and normalizes the response, and deliberately skips the handler's standard Firestore-writing path.
-- **Options analysis** — calculates summary, expiration, and strike aggregates from the normalized contracts.
+- **Historical-options retrieval service** — makes the Alpha Vantage call, validates and normalizes the response, and computes the options analysis. It performs no storage I/O.
+- **Alpha Vantage handler factory** — still used by the browser gateway; the partner endpoint no longer constructs a handler.
+- **Options analysis** — computed by the retrieval service and reused by the partner handler.
 - **Shared contracts** — define the normalized option contract, response data shape, enum values, and derived analysis structures.
 
 ### 2. A successful request
@@ -44,11 +44,11 @@ The request then follows this sequence:
 5. For Google OIDC, it verifies the token, requires the token audience to match one of the configured audiences, and requires the email claim to be in `ALLOWED_SERVICE_ACCOUNT_EMAILS`.
 6. The shared middleware can also recognize a Firebase ID token. This endpoint rejects that successful Firebase identity with `403 FORBIDDEN`, because this endpoint is service-account-only.
 7. The request parser trims and uppercases `symbol`, validates its allowed characters and length, and validates the calendar date when `date` is present.
-8. The handler creates an Alpha Vantage historical-options handler through the shared factory.
-9. The no-persistence fetch path makes the upstream request with `symbol`, optional `date`, and the shared JSON response-format constant.
+8. The handler creates `HistoricalOptionsRetrievalService` with a no-op throttle (the partner path is not subject to the shared seed throttle).
+9. `HistoricalOptionsRetrievalService.fetch()` makes the upstream request with `symbol`, optional `date`, and the shared JSON response-format constant.
 10. The provider response is checked for Alpha Vantage `Information`, `Note`, and `Error Message` failures. A valid data payload must contain a `data` array.
 11. Each provider contract is normalized. Missing, blank, invalid, or non-finite numeric fields become absent; the endpoint does not invent zero values or a default call/put type.
-12. The endpoint calculates analysis over the normalized array.
+12. The retrieval service calculates analysis over the normalized array and returns `{ response, analysis }`.
 13. It builds the public response envelope, serializes it, and rejects it with `413 RESPONSE_TOO_LARGE` if it exceeds 10 MiB.
 14. Otherwise, it returns `200` with the normalized Alpha Vantage payload and analysis.
 
@@ -127,12 +127,11 @@ This keeps the top-level total faithful to the provider response while avoiding 
 
 ### 7. Persistence boundary
 
-`AvHistoricalOptionsHandler` contains two distinct paths:
+`partnerHistoricalOptionsV2` no longer reaches `AvHistoricalOptionsHandler`. It calls `HistoricalOptionsRetrievalService.fetch()`, which returns `{ response, analysis }` and performs no storage I/O.
 
-- `fetch()` is the existing general handler path. It analyzes data and asynchronously writes it through `saveAvHistoricalOptions`.
-- `fetchWithoutPersistence()` is the partner path. It fetches, validates, normalizes, and returns data only.
+`AvHistoricalOptionsHandler` now exists only as a thin adapter for the browser gateway. Its `fetch()` method delegates to `HistoricalOptionsRetrievalService.fetch()` and wraps the result in the base handler's response envelope. The legacy `fetchWithoutPersistence()` method has been removed.
 
-`partnerHistoricalOptionsV2` calls only `fetchWithoutPersistence()`. No raw historical options chain is written to Firestore by this endpoint.
+No raw historical options chain is written to Firestore by the partner endpoint.
 
 ### 8. Logs and operational behavior
 
@@ -177,21 +176,22 @@ The endpoint does not yet enforce a shared account-wide Alpha Vantage throttle. 
 - `mapHistoricalOptionsProviderError` maps `AlphaVantageUpstreamErrorCategory` values to HTTP status, public code, and safe response message.
 - The handler builds direct endpoint failures with `{ ok: false, error, code, timestamp }`.
 
-### Alpha Vantage construction and no-persistence call
+### Historical-options retrieval call
 
-- `AlphaVantageHandlerFactory.createHandler` in `functions/src/v2/alpha-vantage/alpha-vantage-factory.ts` selects `AvHistoricalOptionsHandler` for `AlphaVantageEndpoint.HISTORICAL_OPTIONS`.
-- `AvHistoricalOptionsHandler.fetchWithoutPersistence` in `functions/src/v2/alpha-vantage/handlers/av-historical-options.handler.ts` calls `fetchSimple`, transforms the result, and converts failures to `AlphaVantageUpstreamError`.
-- The base handler and endpoint configuration provide the normal Alpha Vantage request mechanics and API-key use. The partner endpoint itself never receives or returns the key.
+- `HistoricalOptionsRetrievalService` in `functions/src/v2/historical-options-corpus/services/historical-options-retrieval.service.ts` is instantiated directly by `historicalOptionsPartnerHandler`.
+- `fetch()` builds the provider request, applies the configured `AvThrottle`, validates the response, normalizes contracts, computes analysis, and converts failures to `AlphaVantageUpstreamError`.
+- `AvHistoricalOptionsHandler` in `functions/src/v2/alpha-vantage/handlers/av-historical-options.handler.ts` now delegates to the same service and is used only by the browser gateway.
+- API-key resolution is centralized in `functions/src/v2/utils/utils.ts`; the partner endpoint itself never receives or returns the key.
 
 ### Provider response validation and typed failures
 
 - `validateAlphaVantageApiResponse` in `functions/src/v2/alpha-vantage/utils/av-response-utils.ts` detects Alpha Vantage `Information`, `Note`, and `Error Message` response forms and throws `AlphaVantageProviderResponseError`.
 - `toAlphaVantageUpstreamError` in `functions/src/v2/alpha-vantage/utils/av-upstream-error.utils.ts` converts provider-response errors and Axios transport errors into `RATE_LIMITED`, `TIMEOUT`, or `UPSTREAM_ERROR` categories.
-- `fetchWithoutPersistence` catches raw failures and applies `toAlphaVantageUpstreamError` before returning control to the partner handler.
+- `HistoricalOptionsRetrievalService.fetch()` catches raw failures and applies `toAlphaVantageUpstreamError` before returning control to the partner handler.
 
 ### Contract normalization
 
-- `AvHistoricalOptionsHandler.transformResponse` validates the presence of the provider `data` array and maps each item through `normalizeAvOptionContract`.
+- `HistoricalOptionsRetrievalService.transformResponse()` validates the presence of the provider `data` array and maps each item through `normalizeAvOptionContract`.
 - `normalizeAvOptionContract` preserves only valid string identity fields, recognized `AvOptionType` values, and usable numeric values.
 - `normalizeNumber` rejects missing, blank, invalid, and non-finite values rather than substituting zero.
 - `AvOptionContract`, `AvHistoricalOptionsResponse`, `SvtOptionsAnalysis`, and related analysis interfaces are in `shared/alpha-vantage/av-historical-options.ts`.
@@ -199,11 +199,12 @@ The endpoint does not yet enforce a shared account-wide Alpha Vantage throttle. 
 
 ### Analysis
 
-- `analyzeOptions` in `functions/src/v2/alpha-vantage/utils/av-analyze-options.ts` creates the returned `analysis` object.
+- `HistoricalOptionsRetrievalService.fetch()` calls `analyzeOptions` in `functions/src/v2/alpha-vantage/utils/av-analyze-options.ts` and returns the `analysis` object as part of `{ response, analysis }`.
 - `parseOptionMetric` recognizes usable string metrics.
 - `typedContracts` is used for call/put counts.
 - `groupedContracts` is used for expiration and strike breakdowns.
 - Summary totals and metric averages use the full normalized contract array where their required metric is present.
+- The partner handler places the same `analysis` object directly in the public response envelope without recomputing it.
 
 ### Response serialization and logs
 
@@ -251,7 +252,7 @@ A successful response has this shape:
   "source": "alpha-vantage",
   "endpoint": "HISTORICAL_OPTIONS",
   "data": {
-    "endpoint": "Historical Options",
+    "endpoint": "HISTORICAL_OPTIONS",
     "message": "success",
     "data": []
   },
@@ -308,9 +309,9 @@ Endpoint-generated errors use:
 | Function export | `functions/src/index.ts` |
 | HTTP lifecycle | `functions/src/v2/partner/historical-options-partner.ts` |
 | Request validation and public errors | `functions/src/v2/partner/historical-options-request.utils.ts` |
-| Shared partner authentication | `functions/src/v2/utils/utils.ts` |
-| Handler selection | `functions/src/v2/alpha-vantage/alpha-vantage-factory.ts` |
-| Alpha Vantage historical-options implementation | `functions/src/v2/alpha-vantage/handlers/av-historical-options.handler.ts` |
+| Shared partner authentication and API-key resolution | `functions/src/v2/utils/utils.ts` |
+| Historical-options retrieval seam | `functions/src/v2/historical-options-corpus/services/historical-options-retrieval.service.ts` |
+| Browser gateway handler adapter | `functions/src/v2/alpha-vantage/handlers/av-historical-options.handler.ts` |
 | Provider response validation | `functions/src/v2/alpha-vantage/utils/av-response-utils.ts` |
 | Typed upstream-error conversion | `functions/src/v2/alpha-vantage/utils/av-upstream-error.utils.ts` |
 | Options analysis | `functions/src/v2/alpha-vantage/utils/av-analyze-options.ts` |
