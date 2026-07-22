@@ -3,19 +3,9 @@ import { ApiProvider, ApiResponse, ApiError, DATA_PROVIDERS, EndpointConfig } fr
 import { saveAvData } from '../firestore/av-standard-data.writer';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { AvEndpointCategory } from '@shared/alpha-vantage';
-import { createLogger, hr } from '../../utils/utils';
+import { createLogger, getAlphaVantageApiKey, hr } from '../../utils/utils';
 
 const log = createLogger('av.handler.base'); // Abbrev: aVB.H (JSON)
-
-function getAlphaVantageApiKey(): string {
-  if (process.env.FUNCTIONS_EMULATOR === 'true' && process.env.LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY) {
-    return process.env.LOCAL_EMULATOR_ALPHAVANTAGE_API_KEY;
-  }
-  if (process.env.ALPHAVANTAGE_API_KEY) {
-    return process.env.ALPHAVANTAGE_API_KEY;
-  }
-  throw new Error('Alpha Vantage API key not configured');
-}
 
 export abstract class AlphaVantageBaseHandler<T = any> {
   protected readonly config: EndpointConfig;

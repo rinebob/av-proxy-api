@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { randomUUID } from 'node:crypto';
@@ -6,16 +7,14 @@ import type { Request, Response } from 'express';
 import {
   AlphaVantageEndpoint,
   type AvHistoricalOptionsResponse,
+  type SvtOptionsAnalysis,
 } from '@shared/alpha-vantage';
-import { ApiProvider, HttpMethod } from '@shared/core';
+import { ApiProvider, DATA_PROVIDERS, HttpMethod } from '@shared/core';
 
-import { AlphaVantageHandlerFactory } from '../alpha-vantage/alpha-vantage-factory';
-import { AvHistoricalOptionsHandler } from '../alpha-vantage/handlers/av-historical-options.handler';
-import {
-  AlphaVantageUpstreamError,
-  analyzeOptions,
-} from '../alpha-vantage/utils';
-import { authenticateRequestEither, createLogger } from '../utils/utils';
+import { AlphaVantageUpstreamError } from '../alpha-vantage/utils';
+import { HistoricalOptionsRetrievalService } from '../historical-options-corpus/services/historical-options-retrieval.service';
+import { NoOpAvThrottle } from '../historical-options-corpus/services/av-throttle.service';
+import { authenticateRequestEither, createLogger, getAlphaVantageApiKey } from '../utils/utils';
 import {
   HistoricalOptionsErrorCode,
   mapHistoricalOptionsProviderError,
@@ -45,22 +44,29 @@ const functionOptions: HttpsOptions = {
 
 export interface HistoricalOptionsPartnerDependencies {
   authenticateRequest: typeof authenticateRequestEither;
-  fetchOptions: (params: { symbol: string; date?: string }) => Promise<AvHistoricalOptionsResponse>;
-  analyzeOptionsData: typeof analyzeOptions;
+  fetchOptions: (
+    params: { symbol: string; date?: string },
+  ) => Promise<{ response: AvHistoricalOptionsResponse; analysis: SvtOptionsAnalysis }>;
   hasExpectedGoogleAudience: () => boolean;
   now: () => Date;
 }
 
 const historicalOptionsPartnerDependencies: HistoricalOptionsPartnerDependencies = {
   authenticateRequest: authenticateRequestEither,
-  fetchOptions: async params => {
-    const optionsHandler = AlphaVantageHandlerFactory.createHandler<AvHistoricalOptionsHandler>(
-      AlphaVantageEndpoint.HISTORICAL_OPTIONS,
-    );
-    return optionsHandler.fetchWithoutPersistence(params);
+  fetchOptions: async (params) => {
+    const provider = DATA_PROVIDERS[ApiProvider.ALPHA_VANTAGE];
+    const retrieval = new HistoricalOptionsRetrievalService({
+      axiosInstance: axios.create({
+        baseURL: provider.baseUrl,
+        timeout: provider.defaultTimeoutMs,
+      }),
+      throttle: new NoOpAvThrottle(),
+      apiKey: getAlphaVantageApiKey(),
+      baseUrl: provider.baseUrl,
+    });
+    return retrieval.fetch(params);
   },
-  analyzeOptionsData: analyzeOptions,
-  hasExpectedGoogleAudience: () => expectedGoogleAudience.value().split(',').some(value => Boolean(value.trim())),
+  hasExpectedGoogleAudience: () => expectedGoogleAudience.value().split(',').some((value) => Boolean(value.trim())),
   now: () => new Date(),
 };
 
@@ -142,10 +148,10 @@ export async function historicalOptionsPartnerHandler(
       requester: authResult.serviceAccountEmail,
     });
 
-    let data: AvHistoricalOptionsResponse;
+    let result: { response: AvHistoricalOptionsResponse; analysis: SvtOptionsAnalysis };
     const upstreamStartedAt = dependencies.now().getTime();
     try {
-      data = await dependencies.fetchOptions({ symbol, date });
+      result = await dependencies.fetchOptions({ symbol, date });
     } catch (error) {
       if (!(error instanceof AlphaVantageUpstreamError)) {
         throw error;
@@ -175,10 +181,10 @@ export async function historicalOptionsPartnerHandler(
       date: date ?? null,
       source: ApiProvider.ALPHA_VANTAGE,
       endpoint: AlphaVantageEndpoint.HISTORICAL_OPTIONS,
-      data,
-      analysis: dependencies.analyzeOptionsData(data.data),
+      data: result.response,
+      analysis: result.analysis,
       timestamp: dependencies.now().toISOString(),
-      processingTimeMs: dependencies.now().getTime() - startedAt
+      processingTimeMs: dependencies.now().getTime() - startedAt,
     };
 
     const responseBytes = Buffer.byteLength(JSON.stringify(response), 'utf8');
@@ -204,7 +210,7 @@ export async function historicalOptionsPartnerHandler(
       requestId,
       symbol,
       date: date ?? 'provider-default',
-      contracts: data.data.length,
+      contracts: result.response.data.length,
       responseBytes,
       status: 200,
       upstreamTimeMs: dependencies.now().getTime() - upstreamStartedAt,

@@ -8,4 +8,4 @@ export * from './av-weekly-bar.writer';
 export * from './av-monthly-bar.writer';
 export * from './av-standard-data.writer';
 export * from './av-time-series.writer';
-export * from './av-options-firestore-helper';
+// Legacy raw-chain options writer intentionally omitted; do not re-export.

@@ -607,10 +607,24 @@ export function getAlphaVantageApiKey(): string {
       logger.info('Using local emulator API key from process.env.');
       return localKey;
     }
+    // Reason: support local test runs that only set the production env var name.
+    const prodKey = process.env.ALPHAVANTAGE_API_KEY;
+    if (prodKey) {
+      return prodKey;
+    }
     throw new Error("Local emulator API key not set in environment.");
   }
-  // In deployed environment, use the secret
-  const apiKey = alphaVantageApiKeyParam.value();
+
+  // In deployed environment, use the secret; fall back to the env var for tests.
+  let apiKey: string | undefined;
+  try {
+    apiKey = alphaVantageApiKeyParam.value();
+  } catch {
+    apiKey = undefined;
+  }
+  if (!apiKey) {
+    apiKey = process.env.ALPHAVANTAGE_API_KEY;
+  }
   if (!apiKey) {
     logger.error("FATAL: ALPHAVANTAGE_API_KEY secret not found or loaded.");
     throw new Error("Server configuration error: Missing Alpha Vantage API key.");
