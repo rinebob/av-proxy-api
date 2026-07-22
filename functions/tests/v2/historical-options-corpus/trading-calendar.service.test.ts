@@ -29,6 +29,10 @@ describe('TradingCalendarService', () => {
     expect(calendar.isTradingDay('2026-04-03')).toBe(false);
   });
 
+  it('recognizes New Years Day after the initial corpus range', () => {
+    expect(calendar.isTradingDay('2027-01-01')).toBe(false);
+  });
+
   it('enumerates trading dates in ascending order', () => {
     const dates = calendar.getTradingDates('2026-01-01', '2026-01-08');
     expect(dates).toEqual(['2026-01-02', '2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08']);
