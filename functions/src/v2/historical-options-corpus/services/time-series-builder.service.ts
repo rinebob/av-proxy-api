@@ -175,6 +175,14 @@ export class TimeSeriesBuilderService {
       }
     }
 
+    // Reason: If the last trading date(s) are NOT_FOUND or CORRUPT, the `continue`
+    // skips the `isLastDate` flush check inside the loop, leaving accumulated records
+    // trapped in memory. This safety net ensures any residual chunk is always flushed.
+    if (chunk.size > 0) {
+      await this.flushChunk(upperSymbol, chunk, report);
+      chunk = new Map();
+    }
+
     this.deps.logger('builder.symbol.done', { symbol: upperSymbol, report });
 
     return report;
