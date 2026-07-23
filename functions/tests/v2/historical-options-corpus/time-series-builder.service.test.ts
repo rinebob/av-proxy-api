@@ -176,4 +176,59 @@ describe('TimeSeriesBuilderService', () => {
     expect(report.errors.length).toBe(1);
     expect(report.errors[0].contractID).toBe('QQQ260116C00490000');
   });
+
+  it('filters to a single contractID and emits structured logs', async () => {
+    const { deps } = createMockDeps();
+    deps.sourceGcs.readItem = jest.fn()
+      .mockResolvedValueOnce({ status: 'FOUND', response: makeResponse([contractA, contractB]) })
+      .mockResolvedValueOnce({
+        status: 'FOUND',
+        response: makeResponse([
+          { ...contractA, date: '2026-01-03', last: '1.1' },
+          { ...contractB, date: '2026-01-03', last: '2.1' },
+        ]),
+      });
+
+    const service = new TimeSeriesBuilderService(deps);
+    const report = await service.buildSymbol('QQQ', '2026-01-02', '2026-01-03', contractA.contractID);
+
+    expect(report.foundDates).toBe(2);
+    expect(report.processedContracts).toBe(1);
+    expect(report.failedContracts).toBe(0);
+
+    const writeCalls = (deps.targetGcs.writeLines as jest.Mock).mock.calls as [string, string, string[], Record<string, string>?][];
+    const aCall = writeCalls.find((call) => call[1] === contractA.contractID);
+    const bCall = writeCalls.find((call) => call[1] === contractB.contractID);
+    expect(aCall).toBeDefined();
+    expect(bCall).toBeUndefined();
+
+    expect(deps.logger).toHaveBeenCalledWith(
+      'builder.symbol.start',
+      expect.objectContaining({ symbol: 'QQQ', startDate: '2026-01-02', endDate: '2026-01-03' }),
+    );
+    expect(deps.logger).toHaveBeenCalledWith(
+      'builder.date.found',
+      expect.objectContaining({ symbol: 'QQQ', contracts: 2 }),
+    );
+    expect(deps.logger).toHaveBeenCalledWith(
+      'builder.symbol.done',
+      expect.objectContaining({ symbol: 'QQQ', report: expect.any(Object) }),
+    );
+  });
+
+  it('returns zero contracts for a non-matching contractID', async () => {
+    const { deps } = createMockDeps();
+    deps.sourceGcs.readItem = jest.fn().mockResolvedValue({
+      status: 'FOUND',
+      response: makeResponse([contractA]),
+    });
+
+    const service = new TimeSeriesBuilderService(deps);
+    const report = await service.buildSymbol('QQQ', '2026-01-02', '2026-01-02', 'NOPE');
+
+    expect(report.foundDates).toBe(1);
+    expect(report.processedContracts).toBe(0);
+    expect(report.failedContracts).toBe(0);
+    expect((deps.targetGcs.writeLines as jest.Mock).mock.calls.length).toBe(0);
+  });
 });
