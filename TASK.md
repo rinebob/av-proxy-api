@@ -8,7 +8,7 @@
 
 ## Active
 
-- [ ] **2026-07-23: Run 2026 QQQ per-contract time-series backfill** — Q1 (Jan–Mar, 61/61 days, 25,746 contracts) complete; remainder (Apr–current date) running.
+- [x] **2026-07-23: Run 2026 QQQ per-contract time-series backfill** — Q1 (Jan–Mar, 61/61 days, 25,746 contracts) and Q2–Q4 (Apr–Jul 23, 76/78 days, 39,650 contracts) complete. Fixed safety-net flush bug in `TimeSeriesBuilderService` where unflushed chunks were silently dropped when the last trading date(s) had no corpus data. Zero errors, zero corrupt dates, 2 missing dates (future/unavailable).
 - [ ] **2026-07-22: Add nightly historical-options corpus maintenance** — Schedule an idempotent `QQQ`/`TQQQ` incremental corpus run at 7:00 PM Pacific on trading days, after the 6:00 PM Pacific Alpha Vantage workload.
 - [ ] **2026-07-21: Run corrected first-20 historical-options corpus pilot** — Deploy the ascending-date planner, then seed and verify the first 20 2019 trading dates for `QQQ` and `TQQQ` at 60 requests/minute.
 - [x] **2026-07-21: Write PRD for historical options per-contract time series** — Define GCS-based storage, `partnerHistoricalOptionsContractV2` retrieval endpoint, two-phase ingestion pipeline, and daily incremental worker for `QQQ`/`TQQQ` from 2019 onward; captured in `docs/partner/options-data/historical-options-time-series-prd.md`.

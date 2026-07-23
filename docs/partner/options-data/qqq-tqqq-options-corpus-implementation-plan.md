@@ -379,8 +379,8 @@ The QQQ/TQQQ historical options corpus implementation has progressed through the
   - `TimeSeriesBuilderService` deployed behind `triggerHistoricalOptionsTimeSeriesBuild`.
   - Builder reads the raw corpus, accumulates per-contract observations, and writes merged `time-series/v1/QQQ/{CONTRACT_ID}.jsonl` objects to `av-options-time-series-bucket`.
   - Builder supports an optional `contractID` filter and an `execute` plan mode.
-  - Full-year QQQ backfills completed for 2019, 2020, 2021, 2022, 2023, and 2024 with zero missing or corrupt dates.
-  - 2025 QQQ backfill is in progress after raising `timeoutSeconds` to 1200s, lowering `DEFAULT_WRITE_CONCURRENCY` to 20, and adding a GCS `EPIPE`/`ECONNRESET`/`ETIMEDOUT`/`ECONNREFUSED` retry in `GcsTimeSeriesAdapter`.
+  - Full-year QQQ backfills completed for 2019, 2020, 2021, 2022, 2023, 2024, and 2025 with zero missing or corrupt dates.
+  - 2026 QQQ backfill complete: Q1 (Jan–Mar, 61/61 days, 25,746 contracts) and Q2–Q4 (Apr–Jul 23, 76/78 days, 39,650 contracts). Fixed safety-net flush bug in `TimeSeriesBuilderService` where unflushed chunks were silently dropped when the last trading date(s) had no corpus data (`continue` skipped the `isLastDate` flush check). Safety-net flush added after the for loop to catch any residual chunk.
 - **TQQQ**
   - Not yet backfilled; Phase 1a/1b for `TQQQ` remains pending.
 - **Operational fixes**
@@ -389,6 +389,7 @@ The QQQ/TQQQ historical options corpus implementation has progressed through the
   - `timeoutSeconds` on `triggerHistoricalOptionsTimeSeriesBuild` raised from 540s to 1200s.
   - `DEFAULT_WRITE_CONCURRENCY` in `TimeSeriesBuilderService` reduced from 100 to 20.
   - `GcsTimeSeriesAdapter.writeLines` now retries up to 3 times with exponential backoff for `EPIPE`, `ECONNRESET`, `ETIMEDOUT`, and `ECONNREFUSED` errors.
+  - Safety-net flush added to `TimeSeriesBuilderService.buildSymbol` after the for loop to catch unflushed chunks when the last trading date(s) have no corpus data (fixes silent data loss in Q2–Q4 2026 backfill).
 
 ## 14. Final Acceptance Checklist
 

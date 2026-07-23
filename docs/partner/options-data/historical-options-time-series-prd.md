@@ -1,6 +1,6 @@
 # PRD: Historical Options Per-Contract Time Series
 
-**Status:** Implemented; in production for `QQQ`; 2019–2024 backfill complete; 2025 backfill in progress; `TQQQ` pending  
+**Status:** Implemented; in production for `QQQ`; 2019–2024 backfill complete; 2025 backfill complete; 2026 backfill complete (Q1: 25,746 contracts, Q2–Q4: 39,650 contracts); safety-net flush bug fixed; `TQQQ` pending  
 **Owner:** Savant API  
 **Audience:** Savant API engineering, RS engineering, partner administrators, operations  
 **Last updated:** 2026-07-23

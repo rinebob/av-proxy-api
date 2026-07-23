@@ -298,3 +298,14 @@ Checked against the project-wide coding guidelines. The time-series code satisfi
 ### 8.5 Verdict
 
 The Section 7 cleanup opportunities are fully resolved and tests continue to pass. The new thermo/regular findings are low-to-medium polish items (non-null assertions, redundant `date` assignment, hard-coded concurrency, minor intent-clarity improvements). **There are no new critical or high findings.** The code remains approved for the one-time backfill; address the Section 8.3/8.4 nits before Phase 2 if desired.
+
+---
+
+## 9. Post-Backfill Bug Fix Review — 2026-07-23
+
+**Date:** 2026-07-23  
+**Scope:** Diagnose and fix `processedContracts=0` in Q2–Q4 2026 QQQ backfill despite `foundDates=76` and large contract counts per date.  
+**Root cause:** In `TimeSeriesBuilderService.buildSymbol`, when the last trading date(s) in the range had no corpus data (`NOT_FOUND`), the `continue` statement skipped the `isLastDate` flush check at line 171. With `chunkDays=90` and only 76 found dates, the `datesInChunk >= 90` threshold was never met either, leaving all accumulated contract records trapped in memory. The `builder.symbol.done` report showed `processedContracts=0` with zero errors — a silent data loss.  
+**Fix:** Added a safety-net flush after the for loop (`time-series-builder.service.ts:178-184`) that flushes any residual chunk with `chunk.size > 0`. This is a 3-line addition with no risk of redundant flushes (the guard prevents it).  
+**Verification:** Re-ran Q2–Q4 2026 backfill after deploy. Logs showed `builder.flush.start` (39,650 contracts) → `builder.flush.done` → `builder.symbol.done` with `processedContracts=39650`, `errors=[]`, `failedContracts=0`.  
+**Verdict:** Bug fix is correct, minimal, and verified in production. No new findings.
