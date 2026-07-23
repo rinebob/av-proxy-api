@@ -6,7 +6,7 @@ import { createLogger } from '../../utils/utils';
 import { withCors } from '../../utils/cors-middleware';
 import { createTimeSeriesBuilderService } from '../services/time-series-builder.service';
 import { TradingCalendarService } from '../services/trading-calendar.service';
-import { getYesterdayEt } from '../../common/utils/date-time.utils';
+import { getYesterdayEt, isValidIsoDate } from '../../common/utils/date-time.utils';
 
 const logger = createLogger('historical-options-time-series-build-trigger');
 const timeSeriesBuildAdminSecret = defineSecret('HISTORICAL_OPTIONS_TIME_SERIES_ADMIN_SECRET');
@@ -16,11 +16,9 @@ interface TriggerTimeSeriesBuildBody {
   startDate?: string;
   endDate?: string;
   execute?: boolean;
+  contractID?: string;
 }
 
-function isValidIsoDate(value: unknown): value is string {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
 
 function isAdmin(req: Request): boolean {
   const expectedSecret = String(timeSeriesBuildAdminSecret.value() || '').trim();
@@ -58,13 +56,15 @@ function buildPlan(
  * - endDate: 'YYYY-MM-DD'; defaults to yesterday in America/New_York
  * - execute: boolean; defaults to false. When true, runs the builder and
  *   returns a report. When false, returns a plan without touching GCS.
+ * - contractID: optional; e.g. 'QQQ240719C00450000'. When provided,
+ *   only that contract is built.
  *
  * Requires the `HISTORICAL_OPTIONS_TIME_SERIES_ADMIN_SECRET` env var and an
  * `x-admin-secret` header. This guard can be replaced with IAM/auth proxy later.
  */
 export const triggerHistoricalOptionsTimeSeriesBuild = onRequest(
   {
-    timeoutSeconds: 540,
+    timeoutSeconds: 1200,
     memory: '4GiB',
     secrets: [timeSeriesBuildAdminSecret],
   },
@@ -82,9 +82,10 @@ export const triggerHistoricalOptionsTimeSeriesBuild = onRequest(
 
       const body = (req.body || {}) as TriggerTimeSeriesBuildBody;
       const symbol = typeof body.symbol === 'string' ? body.symbol.trim().toUpperCase() : '';
-      const startDate = isValidIsoDate(body.startDate) ? body.startDate : '2019-01-01';
-      const endDate = isValidIsoDate(body.endDate) ? body.endDate : getYesterdayEt();
+      const startDate = isValidIsoDate(body.startDate || '') ? body.startDate || '' : '2019-01-01';
+      const endDate = isValidIsoDate(body.endDate || '') ? body.endDate || '' : getYesterdayEt();
       const execute = typeof body.execute === 'boolean' ? body.execute : false;
+      const contractID = typeof body.contractID === 'string' ? body.contractID.trim() || undefined : undefined;
 
       if (!symbol) {
         res.status(400).json({ ok: false, error: 'Missing required symbol' });
@@ -107,7 +108,7 @@ export const triggerHistoricalOptionsTimeSeriesBuild = onRequest(
       }
 
       const service = createTimeSeriesBuilderService();
-      const report = await service.buildSymbol(symbol, startDate, endDate);
+      const report = await service.buildSymbol(symbol, startDate, endDate, contractID);
 
       logger.info('trigger_time_series_build.success', {
         symbol: report.symbol,

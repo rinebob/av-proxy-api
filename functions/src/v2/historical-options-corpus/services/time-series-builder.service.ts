@@ -49,7 +49,7 @@ interface ContractAccumulator {
 }
 
 const DEFAULT_CHUNK_DAYS = 90;
-const DEFAULT_WRITE_CONCURRENCY = 100;
+const DEFAULT_WRITE_CONCURRENCY = 20;
 const DEFAULT_READ_CONCURRENCY = 5;
 
 /**
@@ -69,9 +69,18 @@ export class TimeSeriesBuilderService {
     this.writeConcurrency = deps.writeConcurrency ?? DEFAULT_WRITE_CONCURRENCY;
   }
 
-  async buildSymbol(symbol: string, startDate: string, endDate: string): Promise<TimeSeriesBuildReport> {
+  async buildSymbol(symbol: string, startDate: string, endDate: string, contractID?: string): Promise<TimeSeriesBuildReport> {
     const upperSymbol = symbol.toUpperCase();
+    const targetContractID = contractID?.trim().toUpperCase() || undefined;
     const tradingDates = this.deps.calendar.getTradingDates(startDate, endDate);
+
+    this.deps.logger('builder.symbol.start', {
+      symbol: upperSymbol,
+      startDate,
+      endDate,
+      totalTradingDays: tradingDates.length,
+      chunkDays: this.chunkDays,
+    });
 
     const report: TimeSeriesBuildReport = {
       symbol: upperSymbol,
@@ -122,8 +131,18 @@ export class TimeSeriesBuilderService {
       }
 
       report.foundDates += 1;
+      this.deps.logger('builder.date.found', {
+        symbol: upperSymbol,
+        date,
+        contracts: readResult.response.data.length,
+      });
       for (const contract of readResult.response.data) {
         if (!contract.contractID || !contract.date) {
+          continue;
+        }
+
+        const currentContractID = contract.contractID.toUpperCase();
+        if (targetContractID && currentContractID !== targetContractID) {
           continue;
         }
 
@@ -132,18 +151,17 @@ export class TimeSeriesBuilderService {
           continue;
         }
 
-        const contractID = contract.contractID.toUpperCase();
-        let accumulator = chunk.get(contractID);
+        let accumulator = chunk.get(currentContractID);
         if (!accumulator) {
           accumulator = {
-            contractID,
+            contractID: currentContractID,
             symbol: upperSymbol,
             expiration: contract.expiration ?? '',
             type: contract.type ?? '',
             strike: contract.strike ?? '',
             records: [],
           };
-          chunk.set(contractID, accumulator);
+          chunk.set(currentContractID, accumulator);
         }
         accumulator.records.push(record);
       }
@@ -156,6 +174,8 @@ export class TimeSeriesBuilderService {
         datesInChunk = 0;
       }
     }
+
+    this.deps.logger('builder.symbol.done', { symbol: upperSymbol, report });
 
     return report;
   }
