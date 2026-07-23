@@ -1,8 +1,8 @@
 # QQQ/TQQQ Historical Options Corpus — Implementation Plan
 
-**Status:** Implemented (pending final approval gates)  
+**Status:** Phase 1a raw corpus and Phase 1b per-contract time series implemented for `QQQ`; 2019–2024 complete; 2025 backfill in progress; `TQQQ` pending final approval gates  
 **Scope:** Private GCS corpus for `QQQ` and `TQQQ` historical options from 2019 onward  
-**Last updated:** 2026-07-22
+**Last updated:** 2026-07-23
 
 ---
 
@@ -367,7 +367,30 @@ Create an operator runbook covering:
 | Legacy Firestore writer is activated accidentally | Complete retrieval/persistence separation before seed implementation; test no raw Firestore writes. |
 | Scope grows into a market-wide archive | Enforce allowlisted symbols and fixed date range in the first release; require a new PRD approval for expansion. |
 
-## 13. Final Acceptance Checklist
+## 13. Backfill and Time-Series Progress (2026-07-23)
+
+The QQQ/TQQQ historical options corpus implementation has progressed through the following milestones:
+
+- **Raw corpus (Phase 1a)**
+  - `QQQ` raw daily snapshots seeded for every expected US options trading date from 2019-01-01 through 2024-12-31.
+  - Objects stored at `historical-options/v1/QQQ/{YYYY-MM-DD}.json.gz` in `av-hist-options-corpus-bucket`.
+  - Seed worker and `GcsCorpusAdapter` validate, gzip, and checksum each object; manifest status tracked in Firestore `options_corpus_runs`.
+- **Per-contract time series (Phase 1b)**
+  - `TimeSeriesBuilderService` deployed behind `triggerHistoricalOptionsTimeSeriesBuild`.
+  - Builder reads the raw corpus, accumulates per-contract observations, and writes merged `time-series/v1/QQQ/{CONTRACT_ID}.jsonl` objects to `av-options-time-series-bucket`.
+  - Builder supports an optional `contractID` filter and an `execute` plan mode.
+  - Full-year QQQ backfills completed for 2019, 2020, 2021, 2022, 2023, and 2024 with zero missing or corrupt dates.
+  - 2025 QQQ backfill is in progress after raising `timeoutSeconds` to 1200s, lowering `DEFAULT_WRITE_CONCURRENCY` to 20, and adding a GCS `EPIPE`/`ECONNRESET`/`ETIMEDOUT`/`ECONNREFUSED` retry in `GcsTimeSeriesAdapter`.
+- **TQQQ**
+  - Not yet backfilled; Phase 1a/1b for `TQQQ` remains pending.
+- **Operational fixes**
+  - `OPTIONS_CORPUS_BUCKET` and `OPTIONS_TIME_SERIES_BUCKET` environment variables configured on deployed functions.
+  - Initial environment variable mangling corrected via `gcloud run services update`.
+  - `timeoutSeconds` on `triggerHistoricalOptionsTimeSeriesBuild` raised from 540s to 1200s.
+  - `DEFAULT_WRITE_CONCURRENCY` in `TimeSeriesBuilderService` reduced from 100 to 20.
+  - `GcsTimeSeriesAdapter.writeLines` now retries up to 3 times with exponential backoff for `EPIPE`, `ECONNRESET`, `ETIMEDOUT`, and `ECONNREFUSED` errors.
+
+## 14. Final Acceptance Checklist
 
 - [ ] All preconditions and licensing/governance decisions are approved.
 - [ ] Retrieval is pure and cannot invoke the legacy raw-chain Firestore writer.
@@ -381,7 +404,7 @@ Create an operator runbook covering:
 - [ ] Nightly incremental job runs at 7:00 PM Pacific on trading days and safely skips closed-market days.
 - [ ] No raw chain is in Firestore and no direct GCS consumer access exists.
 
-## 14. Deferred Decisions
+## 15. Deferred Decisions
 
 The following are intentionally outside this assignment:
 

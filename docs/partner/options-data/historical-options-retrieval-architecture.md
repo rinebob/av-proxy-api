@@ -1,8 +1,8 @@
 # Historical Options Retrieval Architecture
 
-**Status:** Phase 1 implemented; Phase 2 (legacy writer quarantine) and Phase 3 (GCS persistence adapter) remain pending approval
+**Status:** Phase 1 implemented; Phase 2 (legacy writer quarantine) remains pending approval; a separate GCS-based per-contract time-series persistence adapter (`TimeSeriesBuilderService` / `GcsTimeSeriesAdapter`) is implemented for `QQQ`/`TQQQ` under `docs/partner/options-data/historical-options-time-series-prd.md`
 **Scope:** `HISTORICAL_OPTIONS` retrieval, normalization, analysis, and optional persistence
-**Last updated:** 2026-07-21
+**Last updated:** 2026-07-23
 
 ---
 
@@ -159,6 +159,8 @@ The proposed persistence interface must:
 - Documentation continues to state that raw-chain Firestore persistence is unsupported for production.
 
 ### Phase 3 — Add a future persistence adapter only after storage approval
+
+> **Note (2026-07-23):** A GCS-based per-contract time-series persistence adapter (`GcsTimeSeriesAdapter` and `TimeSeriesBuilderService`) has been implemented and deployed under a separate PRD. It is not a raw-chain cache; it materializes life-of-contract time series from already-retrieved daily snapshots and writes them to `av-options-time-series-bucket`. This Phase 3 refers to a raw-chain cache/archive for full daily snapshots, which remains a future decision.
 
 1. Decide whether the product needs a cache, archive, or both.
 2. Use a GCS-oriented object-storage adapter for raw-chain payloads, following the cache-key, TTL, checksum, retention, and IAM requirements in `historical-options-prd.md`.

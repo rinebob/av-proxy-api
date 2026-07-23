@@ -3,6 +3,7 @@
 > **Related Planning Documents:**
 > - [Backfill vs Realtime Architecture](./backfill-vs-realtime-architecture.md) - Original design proposal
 > - [Backfill/Realtime Code Audit](./backfill-realtime-code-audit.md) - Pre-implementation code audit and findings
+> - [QQQ/TQQQ Options Corpus Implementation Plan](../partner/options-data/qqq-tqqq-options-corpus-implementation-plan.md) — QQQ/TQQQ historical options corpus and per-contract time series
 
 ## Overview
 The backfill system fetches full historical time-series data for all symbols across multiple intervals (daily, weekly, monthly) and writes it to Firestore. Jobs are tracked separately from realtime jobs to avoid interference.
@@ -401,4 +402,4 @@ severity>=ERROR
 ---
 
 *Document created: 2026-01-24*  
-*Last updated: 2026-01-24*
+*Last updated: 2026-07-23*

@@ -1,9 +1,9 @@
 # PRD: Historical Options Per-Contract Time Series
 
-**Status:** Draft / Pending approval  
+**Status:** Implemented; in production for `QQQ`; 2019–2024 backfill complete; 2025 backfill in progress; `TQQQ` pending  
 **Owner:** Savant API  
 **Audience:** Savant API engineering, RS engineering, partner administrators, operations  
-**Last updated:** 2026-07-21
+**Last updated:** 2026-07-23
 
 ---
 
@@ -335,6 +335,18 @@ These ledgers enable safe resume, prevent duplicate appends, and provide operato
 - **GCS operations:** Daily incremental update requires approximately one read and one write per contract per symbol. At ~5,000 contracts per symbol, this is ~10,000 operations per day for both symbols. Operation costs are negligible.
 - **Backfill builder:** One-time heavier GCS read/write volume; still dominated by object operations, which are cheap at this scale.
 - **Firestore:** Only ledger documents per `(symbol, date)`; no payload reads or writes.
+
+## 11.5. Implementation Progress (2026-07-23)
+
+The per-contract time-series pipeline is implemented and in production for `QQQ`:
+
+- `av-options-time-series-bucket` created and linked; `OPTIONS_TIME_SERIES_BUCKET` environment variable configured.
+- `TimeSeriesBuilderService` deployed behind `triggerHistoricalOptionsTimeSeriesBuild`.
+- `GcsTimeSeriesAdapter` writes compact aliased JSONL objects and now retries transient network errors (`EPIPE`, `ECONNRESET`, `ETIMEDOUT`, `ECONNREFUSED`) up to 3 times with exponential backoff.
+- `partnerHistoricalOptionsContractV2` deployed; returns the expanded `TimeSeriesApiObservation` envelope from GCS.
+- Full-year QQQ backfills completed for 2019, 2020, 2021, 2022, 2023, and 2024.
+- 2025 QQQ backfill is in progress after raising the builder timeout from 540s to 1200s and lowering write concurrency from 100 to 20.
+- `TQQQ` time-series backfill has not started.
 
 ## 12. Rollout / Implementation Slices
 

@@ -1,8 +1,8 @@
 # Partner Historical Options — Discovery Document
 
-**Status:** Deployed; Savant production smoke test passed; RS acceptance pending
+**Status:** Deployed; Savant production smoke test passed for raw chain; `partnerHistoricalOptionsContractV2` deployed and serving QQQ per-contract time series; 2019–2024 QQQ complete; 2025 backfill in progress; TQQQ pending
 **Audience:** Partner engineering and administrative teams  
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-23
 
 ---
 
@@ -20,7 +20,8 @@ The first release is intentionally different from the time-series and company-ov
 | Scheduled data refresh | Disabled for this endpoint |
 | Raw-chain Firestore persistence | Not production-safe for large chains |
 | `partnerHistoricalOptionsV2` | Deployed; Savant production smoke test passed; RS acceptance pending |
-| GCS cache | Not implemented |
+| `partnerHistoricalOptionsContractV2` (per-contract time series) | Deployed |
+| Per-contract GCS time-series corpus | Implemented; 2019–2024 QQQ complete, 2025 QQQ in progress; TQQQ not yet backfilled |
 
 Savant has validated the endpoint with the approved RS service account. RS should now run its own acceptance request before enabling production traffic.
 
@@ -133,5 +134,7 @@ Savant will provide:
 ## Related Documents
 
 - `historical-options-prd.md` — delivery scope, non-goals, security controls, and rollout plan.
-- `rs-historical-options-usage.md` — RS-specific authentication and request patterns.
+- `rs-historical-options-usage.md` — RS-specific authentication and request patterns for the raw-chain endpoint.
+- `historical-options-contract-v2-discovery.md` — contract time-series endpoint availability, auth model, limits, and onboarding.
+- `historical-options-contract-v2-usage.md` — RS-specific contract time-series request examples and retry policy.
 - `../partner-integration.md` — shared partner authentication and operational guidance.

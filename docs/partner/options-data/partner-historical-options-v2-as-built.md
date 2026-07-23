@@ -353,7 +353,7 @@ The following are intentionally not part of the current endpoint:
 
 - Browser use or a browser-facing CORS integration
 - Firestore persistence for raw options chains
-- GCS caching or archival
+- GCS per-contract time-series corpus is implemented separately via `partnerHistoricalOptionsContractV2` (see `historical-options-contract-v2-discovery.md`); raw-chain GCS caching or archival remains not implemented
 - Provider-result filtering beyond upstream normalization
 - Pub/Sub readiness events
 - Endpoint-local request accounting or rate limiting
@@ -366,6 +366,7 @@ A shared provider throttle remains a future task because it must coordinate Alph
 - `historical-options-prd.md` is the product and technical contract.
 - `historical-options-discovery.md` is the partner onboarding/discovery view.
 - `rs-historical-options-usage.md` is the RS consumer integration guide.
+- `historical-options-contract-v2-discovery.md` and `historical-options-contract-v2-usage.md` — per-contract time series endpoint and RS usage.
 - `historical-options-code-review.md` records prior review findings and remediations.
 
 This as-built guide explains how those contracts map onto the current source tree.

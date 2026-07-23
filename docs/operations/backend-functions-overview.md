@@ -44,6 +44,8 @@ This document provides a mid–high level overview of the backend Cloud Function
 
 - HTTPS (internal/partner):
   - `alphaVantageApiV2`, `benzingaApiV2`, `partnerTimeSeriesV2`
+  - Options corpus: `triggerHistoricalOptionsPilot`, `triggerHistoricalOptionsTimeSeriesBuild`, `processHistoricalOptionsCorpusSeedTask`, `refreshHistoricalOptionsCorpusNightly`
+  - Partner options: `partnerHistoricalOptionsV2`, `partnerHistoricalOptionsContractV2`
   - Health: `getHealthSummary`, `getRequestLogs`, `getSymbolStatus`, `getSymbolMetrics`, `getHealthMetrics`
 - Scheduled (Cloud Scheduler):
   - AV refresh manager and time-series cadences
@@ -398,6 +400,33 @@ File: `functions/src/v2/alpha-vantage/triggers/on-symbol-added.function.ts`
   - Triggers initial fetch of time-series data so that daily/weekly/monthly parent docs exist and shards are created
   - Ensure canonical time-series parent docs exist so scheduled writers can proceed without path checks
 - Result: After symbol creation, scheduled refreshers can process the symbol seamlessly according to TTL and cadence
+
+---
+
+## Historical Options Corpus and Time Series
+
+Admin-triggered and scheduled functions for the `QQQ`/`TQQQ` historical options corpus.
+
+**Files:**
+- `functions/src/v2/historical-options-corpus/handlers/trigger-historical-options-pilot.http.ts` — `triggerHistoricalOptionsPilot` (admin pilot seed trigger)
+- `functions/src/v2/historical-options-corpus/handlers/trigger-historical-options-time-series-build.http.ts` — `triggerHistoricalOptionsTimeSeriesBuild` (admin per-contract time-series builder)
+- `functions/src/v2/historical-options-corpus/handlers/corpus-seed.task.ts` — `processHistoricalOptionsCorpusSeedTask` (one-symbol/date raw corpus seed worker)
+- `functions/src/v2/historical-options-corpus/jobs/historical-options-nightly.scheduler.ts` — `refreshHistoricalOptionsCorpusNightly` (scheduled incremental raw-corpus refresh)
+- `functions/src/v2/partner/historical-options-partner.ts` — `partnerHistoricalOptionsV2` (raw-chain partner proxy)
+- `functions/src/v2/partner/historical-options-contract-partner.ts` — `partnerHistoricalOptionsContractV2` (per-contract time-series partner endpoint)
+- `functions/src/v2/historical-options-corpus/services/time-series-builder.service.ts` — `TimeSeriesBuilderService` (builds per-contract JSONL)
+- `functions/src/v2/historical-options-corpus/services/gcs-time-series-adapter.service.ts` — `GcsTimeSeriesAdapter` (reads/writes `time-series/v1/{SYMBOL}/{CONTRACT_ID}.jsonl`)
+- `functions/src/v2/historical-options-corpus/services/gcs-corpus-adapter.service.ts` — `GcsCorpusAdapter` (reads/writes `historical-options/v1/{SYMBOL}/{YYYY-MM-DD}.json.gz`)
+
+**Storage:**
+- Raw corpus: `av-hist-options-corpus-bucket` at `historical-options/v1/{SYMBOL}/{YYYY-MM-DD}.json.gz`
+- Per-contract time series: `av-options-time-series-bucket` at `time-series/v1/{SYMBOL}/{CONTRACT_ID}.jsonl`
+
+**Operational notes:**
+- The builder is idempotent; re-running the same date range merges new observations and deduplicates by date.
+- `triggerHistoricalOptionsTimeSeriesBuild` is configured with `timeoutSeconds: 1200`, `memory: 4GiB`, and a per-contract write concurrency of 20.
+- `GcsTimeSeriesAdapter.writeLines` retries `EPIPE`, `ECONNRESET`, `ETIMEDOUT`, and `ECONNREFUSED` errors up to 3 times with exponential backoff.
+- `partnerHistoricalOptionsContractV2` is allowlisted to `QQQ` and `TQQQ`; as of 2026-07-23, `QQQ` 2019–2024 are fully backfilled and 2025 is in progress, while `TQQQ` is pending.
 
 ---
 
