@@ -38,6 +38,7 @@ export { partnerMarketHolidays } from './v2/partner/market-holidays-partner';
 export { partnerIntradaySnapshotV2 } from './v2/partner/intraday-snapshot-partner';
 export { partnerCompanyOverviewV2 } from './v2/partner/company-overview-partner';
 export { partnerHistoricalOptionsV2 } from './v2/partner/historical-options-partner';
+export { partnerHistoricalOptionsContractV2 } from './v2/partner/historical-options-contract-partner';
 
 // Note: HTTP dataReadyWebhook has been removed. Publishing is internal-only via enqueueDataReadyInternal.
 

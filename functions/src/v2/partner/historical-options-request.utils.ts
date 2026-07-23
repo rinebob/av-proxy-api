@@ -15,6 +15,7 @@ export enum HistoricalOptionsErrorCode {
   RESPONSE_TOO_LARGE = 'RESPONSE_TOO_LARGE',
   UPSTREAM_ERROR = 'UPSTREAM_ERROR',
   UPSTREAM_TIMEOUT = 'UPSTREAM_TIMEOUT',
+  NOT_FOUND = 'NOT_FOUND',
 }
 
 export interface HistoricalOptionsRequest {
