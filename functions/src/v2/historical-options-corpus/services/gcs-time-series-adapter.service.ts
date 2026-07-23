@@ -1,6 +1,11 @@
 import type { Bucket, SaveOptions } from '@google-cloud/storage';
 
+import { getTimeSeriesObjectPath } from './gcs-time-series-path.utils';
 import { TIME_SERIES_PREFIX } from '../types';
+
+const WRITE_RETRIES = 3;
+const WRITE_RETRY_BASE_MS = 250;
+const RETRYABLE_NETWORK_CODES = ['EPIPE', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'];
 
 export interface GcsTimeSeriesWriteResult {
   gcsPath: string;
@@ -36,7 +41,7 @@ export class GcsTimeSeriesAdapter {
   ) {}
 
   getObjectPath(symbol: string, contractID: string): string {
-    return `${this.prefix}/${symbol.toUpperCase()}/${contractID.toUpperCase()}.jsonl`;
+    return getTimeSeriesObjectPath(symbol, contractID, this.prefix);
   }
 
   private getFile(symbol: string, contractID: string) {
@@ -102,13 +107,28 @@ export class GcsTimeSeriesAdapter {
       metadata,
     };
 
-    try {
-      await file.save(content, saveOptions);
-    } catch (error: any) {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= WRITE_RETRIES; attempt++) {
+      try {
+        await file.save(content, saveOptions);
+        lastError = undefined;
+        break;
+      } catch (error: any) {
+        lastError = error;
+        const message = String(error?.message ?? error);
+        const isRetryable = RETRYABLE_NETWORK_CODES.some((code) => message.includes(code));
+        if (!isRetryable || attempt === WRITE_RETRIES) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, WRITE_RETRY_BASE_MS * 2 ** (attempt - 1)));
+      }
+    }
+
+    if (lastError) {
       throw new GcsTimeSeriesWriteError(
-        `Write failed for ${path}: ${String(error?.message ?? error)}`,
+        `Write failed for ${path}: ${String((lastError as any)?.message ?? lastError)}`,
         'WRITE_FAILED',
-        error,
+        lastError,
       );
     }
 
