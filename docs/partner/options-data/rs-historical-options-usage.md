@@ -4,6 +4,8 @@
 **Audience:** Relative Strength (RS) backend engineers  
 **Last updated:** 2026-07-20
 
+> For the per-contract time-series endpoint, see `historical-options-contract-v2-usage.md`.
+
 ---
 
 ## 1. Purpose

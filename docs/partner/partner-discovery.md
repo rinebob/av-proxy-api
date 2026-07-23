@@ -397,6 +397,29 @@ Authorization: Bearer <id_token>
 
 ---
 
+## Partner Historical Options APIs
+
+Savant exposes two related historical options surfaces for partners.
+
+### Raw-chain endpoint
+
+- Function: `partnerHistoricalOptionsV2`
+- Method: `GET`
+- URL: `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerHistoricalOptionsV2`
+- Purpose: Returns a full historical options chain for one symbol and optional date, fetched live from Alpha Vantage.
+- Discovery guide: `docs/partner/options-data/historical-options-discovery.md`
+- Usage guide: `docs/partner/options-data/rs-historical-options-usage.md`
+
+### Per-contract time-series endpoint
+
+- Function: `partnerHistoricalOptionsContractV2`
+- Method: `GET`
+- URL: `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerHistoricalOptionsContractV2`
+- Purpose: Returns a pre-materialized time series for a single option contract, read from GCS.
+- Allowlist: `QQQ` and `TQQQ` only.
+- Discovery guide: `docs/partner/options-data/historical-options-contract-v2-discovery.md`
+- Usage guide: `docs/partner/options-data/historical-options-contract-v2-usage.md`
+
 ## Contacts
 
 - Integration support: Contact your Savant representative or open a ticket in the shared tracker.
