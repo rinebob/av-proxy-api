@@ -420,6 +420,50 @@ Savant exposes two related historical options surfaces for partners.
 - Discovery guide: `docs/partner/options-data/historical-options-contract-v2-discovery.md`
 - Usage guide: `docs/partner/options-data/historical-options-contract-v2-usage.md`
 
+### Contract discovery endpoint (upcoming)
+
+- Function: `partnerListContractsV2` (planned)
+- Method: `GET`
+- Purpose: Returns a list of option contract IDs that exist in our GCS storage for a given symbol, filtered by expiration, strike, and/or type. This solves the discovery problem — partners currently need to know a contract ID to call `partnerHistoricalOptionsContractV2`, but have no way to discover which contract IDs are available.
+- Auth: Same service account OIDC + audience model as other partner endpoints.
+- Allowlist: `QQQ` and `TQQQ` only (same as `partnerHistoricalOptionsContractV2`).
+- Backed by: A Firestore index (`options-file-index/{SYMBOL}/ts-expirations` and `ts-strikes`) maintained by the time-series builder on every file write. See ADR 0002.
+
+**Expected request parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `symbol`  | Yes      | Underlying symbol (e.g., `QQQ`) |
+| `expiration` | No   | Expiration date in `YYYY-MM-DD` format. If omitted, returns contracts across all expirations. |
+| `strike`  | No       | Strike price (e.g., `450`). If omitted, returns contracts across all strikes. |
+| `type`    | No       | `C` for calls, `P` for puts. If omitted, returns both. |
+
+At least one of `expiration` or `strike` must be provided (in addition to `symbol`).
+
+**Expected response:**
+
+```json
+{
+  "ok": true,
+  "symbol": "QQQ",
+  "contracts": [
+    {
+      "contractId": "QQQ260619C00450000",
+      "expiration": "2026-06-19",
+      "strike": 450,
+      "type": "C"
+    }
+  ],
+  "count": 1
+}
+```
+
+**Usage flow:**
+1. Call `partnerListContractsV2` with `{ symbol, expiration?, strike?, type? }` to discover available contract IDs
+2. Call `partnerHistoricalOptionsContractV2` with a discovered `contractId` to fetch the full time series
+
+**Status:** Not yet implemented. See `docs/operations/storage-file-viewer-design.md` Phase 3.
+
 ## Contacts
 
 - Integration support: Contact your Savant representative or open a ticket in the shared tracker.
