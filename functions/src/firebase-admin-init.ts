@@ -9,7 +9,10 @@ if (!process.env.GOOGLE_AUTH_SILENCE_WARNINGS) {
 // Initialize Firebase Admin SDK if not already initialized
 if (!admin.apps.length) {
   // Prefer default initialization so runtime provides correct project/credentials
-  admin.initializeApp();
+  // When running locally with ADC, set FIREBASE_SERVICE_ACCOUNT_ID env var
+  // to enable token signing (needed by getFunctions().taskQueue().enqueue())
+  const serviceAccountId = process.env.FIREBASE_SERVICE_ACCOUNT_ID || undefined;
+  admin.initializeApp(serviceAccountId ? { serviceAccountId } : undefined);
 
   // Optional: connect to Firestore emulator only if explicitly set via env
   const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;

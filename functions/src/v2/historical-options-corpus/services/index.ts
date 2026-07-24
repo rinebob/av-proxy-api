@@ -6,6 +6,8 @@ export * from './gcs-corpus-adapter.service';
 export * from './gcs-time-series-adapter.service';
 export * from './historical-options-retrieval.service';
 export * from './nightly-corpus.service';
+export * from './options-index.writer';
+export * from './storage-file-viewer.service';
 export * from './pilot.service';
 export * from './time-series-builder.service';
 export * from './time-series-contract.utils';

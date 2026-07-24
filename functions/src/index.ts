@@ -133,4 +133,6 @@ export { processHistoricalOptionsCorpusSeedTask } from './v2/historical-options-
 
 export { triggerHistoricalOptionsPilot } from './v2/historical-options-corpus/handlers/trigger-historical-options-pilot.http';
 export { triggerHistoricalOptionsTimeSeriesBuild } from './v2/historical-options-corpus/handlers/trigger-historical-options-time-series-build.http';
+export { storageFileViewer } from './v2/historical-options-corpus/handlers/storage-file-viewer.http';
+export { processOptionsIndexWriteTask } from './v2/historical-options-corpus/handlers/options-index-write.task';
 export { refreshHistoricalOptionsCorpusNightly } from './v2/historical-options-corpus/jobs/historical-options-nightly.scheduler';

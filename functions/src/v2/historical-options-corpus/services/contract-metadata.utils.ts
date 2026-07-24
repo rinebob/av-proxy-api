@@ -15,7 +15,7 @@ export interface ContractMetadata {
  * Format: `{SYMBOL}{YYMMDD}{C|P}{8DIGIT_STRIKE}` where the strike is
  * encoded in 1/1000 of a dollar and padded with leading zeros.
  */
-function parseContractIDMetadata(symbol: string, contractID: string): ContractMetadata | null {
+export function parseContractIDMetadata(symbol: string, contractID: string): ContractMetadata | null {
   const sym = symbol.toUpperCase();
   const id = contractID.toUpperCase();
   if (!id.startsWith(sym)) return null;

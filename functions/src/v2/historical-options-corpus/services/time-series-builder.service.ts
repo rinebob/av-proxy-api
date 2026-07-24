@@ -1,8 +1,10 @@
 import { getStorage } from 'firebase-admin/storage';
 
+import { db } from '../../../firebase-admin-init';
 import { createLogger } from '../../utils/utils';
 import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import { GcsTimeSeriesAdapter } from './gcs-time-series-adapter.service';
+import { OptionsIndexWriter } from './options-index.writer';
 import { TradingCalendarService } from './trading-calendar.service';
 import type { CorpusReadResult } from '../types';
 import {
@@ -17,6 +19,8 @@ export interface TimeSeriesBuilderDependencies {
   targetGcs: GcsTimeSeriesAdapter;
   calendar: TradingCalendarService;
   logger: (message: string, meta?: Record<string, unknown>) => void;
+  /** Optional index writer for maintaining the Firestore options file index. */
+  indexWriter?: OptionsIndexWriter;
   /** Number of trading days to accumulate in memory before flushing per-contract files. */
   chunkDays?: number;
   /** Maximum concurrent GCS writes when flushing a chunk. */
@@ -284,6 +288,15 @@ export class TimeSeriesBuilderService {
     };
 
     await this.deps.targetGcs.writeLines(symbol, contractID, lines, customMetadata);
+
+    if (this.deps.indexWriter) {
+      try {
+        await this.deps.indexWriter.upsertContract(symbol, contractID);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.deps.logger('builder.index.upsert.error', { symbol, contractID, error: message });
+      }
+    }
   }
 }
 
@@ -308,5 +321,6 @@ export function createTimeSeriesBuilderService(
     targetGcs: new GcsTimeSeriesAdapter(getStorage().bucket(resolvedTarget)),
     calendar: new TradingCalendarService(),
     logger: (message, meta) => logger.info(message, meta ?? {}),
+    indexWriter: new OptionsIndexWriter(db),
   });
 }
