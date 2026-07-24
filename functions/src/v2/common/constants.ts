@@ -18,4 +18,7 @@ export enum CloudTask {
   // Background worker that retries fetching Company Overview for a newly added
   // equity symbol after D/W/M time-series are ready. Queue name matches function id.
   FETCH_COMPANY_OVERVIEW_ONBOARDING = 'processCompanyOverviewOnboardingTask',
+  // Options file index rebuild: writes a batch of index docs to Firestore.
+  // Queue name matches the exported function id.
+  OPTIONS_INDEX_WRITE = 'processOptionsIndexWriteTask',
 }
