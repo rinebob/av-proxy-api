@@ -57,6 +57,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 9. Options File Index: admin read-only for storage viewer UI.
+    // Written by backend functions using Admin SDK (bypasses rules).
+    match /options-file-index/{document=**} {
+      allow read: if request.auth.token.admin == true;
+      allow write: if false;
+    }
+
     // Optional: Default deny for any other collections not explicitly matched
     // match /{document=**} {
     //   allow read, write: if false;
