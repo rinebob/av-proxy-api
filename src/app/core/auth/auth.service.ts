@@ -4,7 +4,6 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { 
   Auth,
-  getIdTokenResult,
   idToken, 
   authState, 
   User, 
@@ -65,7 +64,7 @@ export class AuthService {
           freshToken = await user.getIdToken(true);
         } catch {}
         await this.logTokenDetails(user, freshToken ?? undefined);
-        const tokenResult = await getIdTokenResult(user);
+        const tokenResult = await user.getIdTokenResult();
         this.isAdmin.set(!!tokenResult.claims['admin']);
       } else {
         console.log('AuthService: No user is currently signed in');
