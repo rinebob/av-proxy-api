@@ -3,28 +3,22 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 import { parseContractIDMetadata } from './contract-metadata.utils';
 
-/** Firestore root collection for the options file index. */
-export const OPTIONS_FILE_INDEX_COLLECTION = 'options-file-index';
+import {
+  OPTIONS_FILE_INDEX_COLLECTION,
+  TS_EXPIRATIONS_SUBCOLLECTION,
+  TS_STRIKES_SUBCOLLECTION,
+  type ExpirationIndexDoc,
+  type StrikeIndexDoc,
+} from '@shared/options';
 
-/** Subcollection for per-expiration index docs. */
-export const TS_EXPIRATIONS_SUBCOLLECTION = 'ts-expirations';
-
-/** Subcollection for per-strike index docs. */
-export const TS_STRIKES_SUBCOLLECTION = 'ts-strikes';
-
-export interface ExpirationIndexDoc {
-  date: string;
-  strikes: number[];
-  types: string[];
-  contractIds: string[];
-}
-
-export interface StrikeIndexDoc {
-  strike: number;
-  expirations: string[];
-  types: string[];
-  contractIds: string[];
-}
+// Re-export for backward compatibility with existing consumers.
+export {
+  OPTIONS_FILE_INDEX_COLLECTION,
+  TS_EXPIRATIONS_SUBCOLLECTION,
+  TS_STRIKES_SUBCOLLECTION,
+  type ExpirationIndexDoc,
+  type StrikeIndexDoc,
+};
 
 export interface IndexMetadataDoc {
   symbol: string;
