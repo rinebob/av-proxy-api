@@ -2,47 +2,17 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { getStorage } from 'firebase-admin/storage';
 import type { Firestore } from 'firebase-admin/firestore';
 
-import {
-  OPTIONS_FILE_INDEX_COLLECTION,
-  TS_EXPIRATIONS_SUBCOLLECTION,
-  TS_STRIKES_SUBCOLLECTION,
-  type ExpirationIndexDoc,
-  type StrikeIndexDoc,
-} from './options-index.writer';
-import { parseContractIDMetadata } from './contract-metadata.utils';
+import type {
+  ListTimeSeriesResult,
+  ListCorpusResult,
+  ReadResult,
+  CorpusFileEntry,
+} from '@shared/options';
+
+import { queryContractsByFilters } from './options-index-query.service';
 import { TIME_SERIES_PREFIX, HISTORICAL_OPTIONS_CORPUS_PREFIX } from '../types';
 import { GcsTimeSeriesAdapter } from './gcs-time-series-adapter.service';
 import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
-
-export type BucketName = 'time-series' | 'corpus';
-
-export interface ContractResult {
-  contractId: string;
-  expiration: string;
-  strike: number;
-  type: string;
-}
-
-export interface ListTimeSeriesResult {
-  bucket: 'time-series';
-  symbol: string;
-  contracts: ContractResult[];
-  count: number;
-}
-
-export interface ListCorpusResult {
-  bucket: 'corpus';
-  symbol: string;
-  dates: string[];
-  count: number;
-}
-
-export interface ReadResult {
-  bucket: BucketName;
-  path: string;
-  content: string;
-  bytes: number;
-}
 
 const PAGE_SIZE = 1000;
 
@@ -62,65 +32,14 @@ export class StorageFileViewerService {
     type?: 'C' | 'P',
   ): Promise<ListTimeSeriesResult> {
     const upperSymbol = symbol.toUpperCase();
-    const symbolDocRef = this.db.collection(OPTIONS_FILE_INDEX_COLLECTION).doc(upperSymbol);
-
-    // Path 1: symbol + expiration → get strikes and contract IDs from expiration doc
-    if (expiration && strike === undefined) {
-      const expDoc = await symbolDocRef.collection(TS_EXPIRATIONS_SUBCOLLECTION).doc(expiration).get();
-      if (!expDoc.exists) {
-        return { bucket: 'time-series', symbol: upperSymbol, contracts: [], count: 0 };
-      }
-      const doc = expDoc.data() as ExpirationIndexDoc;
-      const contracts = filterContractsByType(doc.contractIds, upperSymbol, type);
-      return { bucket: 'time-series', symbol: upperSymbol, contracts, count: contracts.length };
-    }
-
-    // Path 2: symbol + strike → get expirations and contract IDs from strike doc
-    if (strike !== undefined && !expiration) {
-      const strikeDoc = await symbolDocRef.collection(TS_STRIKES_SUBCOLLECTION).doc(String(strike)).get();
-      if (!strikeDoc.exists) {
-        return { bucket: 'time-series', symbol: upperSymbol, contracts: [], count: 0 };
-      }
-      const doc = strikeDoc.data() as StrikeIndexDoc;
-      const contracts = filterContractsByType(doc.contractIds, upperSymbol, type);
-      return { bucket: 'time-series', symbol: upperSymbol, contracts, count: contracts.length };
-    }
-
-    // Path 3: symbol + expiration + strike → intersect contract IDs
-    if (expiration && strike !== undefined) {
-      const [expDoc, strikeDoc] = await Promise.all([
-        symbolDocRef.collection(TS_EXPIRATIONS_SUBCOLLECTION).doc(expiration).get(),
-        symbolDocRef.collection(TS_STRIKES_SUBCOLLECTION).doc(String(strike)).get(),
-      ]);
-
-      if (!expDoc.exists || !strikeDoc.exists) {
-        return { bucket: 'time-series', symbol: upperSymbol, contracts: [], count: 0 };
-      }
-
-      const expData = expDoc.data() as ExpirationIndexDoc;
-      const strikeData = strikeDoc.data() as StrikeIndexDoc;
-      const expSet = new Set(expData.contractIds);
-      const intersection = strikeData.contractIds.filter((id) => expSet.has(id));
-      const contracts = filterContractsByType(intersection, upperSymbol, type);
-      return { bucket: 'time-series', symbol: upperSymbol, contracts, count: contracts.length };
-    }
-
-    // Path 4: symbol only → list all expirations
-    if (!expiration && strike === undefined) {
-      const expSnap = await symbolDocRef.collection(TS_EXPIRATIONS_SUBCOLLECTION).get();
-      const contracts: ContractResult[] = [];
-      for (const doc of expSnap.docs) {
-        const docData = doc.data() as ExpirationIndexDoc;
-        for (const id of docData.contractIds) {
-          if (type && !id.includes(type === 'C' ? 'C' : 'P')) continue;
-          const parsed = parseContractResult(upperSymbol, id);
-          if (parsed) contracts.push(parsed);
-        }
-      }
-      return { bucket: 'time-series', symbol: upperSymbol, contracts, count: contracts.length };
-    }
-
-    throw new HttpsError('invalid-argument', 'Unsupported filter combination.');
+    const contracts = await queryContractsByFilters(
+      this.db,
+      upperSymbol,
+      expiration,
+      strike,
+      type,
+    );
+    return { bucket: 'time-series', symbol: upperSymbol, contracts, count: contracts.length };
   }
 
   async listCorpus(symbol: string): Promise<ListCorpusResult> {
@@ -133,21 +52,28 @@ export class StorageFileViewerService {
     const bucket = getStorage().bucket(bucketName);
     const prefix = `${HISTORICAL_OPTIONS_CORPUS_PREFIX}/${upperSymbol}/`;
 
-    const dates: string[] = [];
+    const files: CorpusFileEntry[] = [];
     let pageToken: string | undefined;
 
     for (;;) {
-      const [files, , apiResponse] = await bucket.getFiles({
+      const [gcsFiles, , apiResponse] = await bucket.getFiles({
         prefix,
         maxResults: PAGE_SIZE,
         pageToken,
       });
 
-      for (const file of files) {
+      for (const file of gcsFiles) {
         const relativePath = file.name.slice(prefix.length);
         if (!relativePath.endsWith('.json.gz')) continue;
         const date = relativePath.replace(/\.json\.gz$/, '');
-        if (date) dates.push(date);
+        if (!date) continue;
+        const [metadata] = await file.getMetadata();
+        files.push({
+          date,
+          size: Number(metadata.size) || 0,
+          generation: String(metadata.generation ?? ''),
+          updated: metadata.updated ?? '',
+        });
       }
 
       const nextPageToken = (apiResponse as any)?.nextPageToken;
@@ -155,8 +81,9 @@ export class StorageFileViewerService {
       pageToken = nextPageToken;
     }
 
-    dates.sort();
-    return { bucket: 'corpus', symbol: upperSymbol, dates, count: dates.length };
+    files.sort((a, b) => a.date.localeCompare(b.date));
+    const dates = files.map((f) => f.date);
+    return { bucket: 'corpus', symbol: upperSymbol, dates, files, count: files.length };
   }
 
   async readTimeSeries(symbol: string, contractId: string): Promise<ReadResult> {
@@ -170,14 +97,18 @@ export class StorageFileViewerService {
     const bucket = getStorage().bucket(bucketName);
     const adapter = new GcsTimeSeriesAdapter(bucket);
 
-    const lines = await adapter.readLines(upperSymbol, upperContractId);
+    const [lines, metadata] = await Promise.all([
+      adapter.readLines(upperSymbol, upperContractId),
+      adapter.getMetadata(upperSymbol, upperContractId),
+    ]);
+
     if (lines === undefined) {
       throw new HttpsError('not-found', `File not found: ${TIME_SERIES_PREFIX}/${upperSymbol}/${upperContractId}.jsonl`);
     }
 
     const content = lines.join('\n');
     const path = `${TIME_SERIES_PREFIX}/${upperSymbol}/${upperContractId}.jsonl`;
-    return { bucket: 'time-series', path, content, bytes: content.length };
+    return { bucket: 'time-series', path, content, bytes: content.length, metadata };
   }
 
   async readCorpus(symbol: string, date: string): Promise<ReadResult> {
@@ -204,32 +135,3 @@ export class StorageFileViewerService {
   }
 }
 
-/**
- * Parses an OCC contract ID into a ContractResult using the canonical
- * parseContractIDMetadata utility. Returns null if invalid.
- */
-function parseContractResult(symbol: string, contractId: string): ContractResult | null {
-  const meta = parseContractIDMetadata(symbol, contractId);
-  if (!meta) return null;
-
-  const strikeNumeric = Number(meta.strike);
-  if (!Number.isFinite(strikeNumeric)) return null;
-
-  return {
-    contractId: contractId.toUpperCase(),
-    expiration: meta.expiration,
-    strike: strikeNumeric / 1000,
-    type: meta.type,
-  };
-}
-
-function filterContractsByType(contractIds: string[], symbol: string, type?: 'C' | 'P'): ContractResult[] {
-  const contracts: ContractResult[] = [];
-  for (const id of contractIds) {
-    const parsed = parseContractResult(symbol, id);
-    if (!parsed) continue;
-    if (type && parsed.type !== (type === 'C' ? 'call' : 'put')) continue;
-    contracts.push(parsed);
-  }
-  return contracts;
-}

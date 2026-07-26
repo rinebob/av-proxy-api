@@ -56,11 +56,20 @@ export interface ListTimeSeriesResult {
   count: number;
 }
 
+/** Metadata for a single corpus file entry from GCS listing. */
+export interface CorpusFileEntry {
+  date: string;
+  size: number;
+  generation: string;
+  updated: string;
+}
+
 /** Result of listing corpus dates for a symbol. */
 export interface ListCorpusResult {
   bucket: 'corpus';
   symbol: string;
   dates: string[];
+  files: CorpusFileEntry[];
   count: number;
 }
 

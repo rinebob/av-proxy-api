@@ -49,6 +49,34 @@ export class GcsTimeSeriesAdapter {
   }
 
   /**
+   * Fetches GCS custom metadata for a per-contract JSONL file.
+   * Returns undefined when the object does not exist.
+   */
+  async getMetadata(symbol: string, contractID: string): Promise<Record<string, string> | undefined> {
+    const file = this.getFile(symbol, contractID);
+
+    try {
+      const [exists] = await file.exists();
+      if (!exists) {
+        return undefined;
+      }
+
+      const [metadata] = await file.getMetadata();
+      return (metadata?.metadata ?? {}) as Record<string, string>;
+    } catch (error: any) {
+      if (error?.code === 404) {
+        return undefined;
+      }
+
+      throw new GcsTimeSeriesWriteError(
+        `getMetadata failed for ${this.getObjectPath(symbol, contractID)}: ${String(error?.message ?? error)}`,
+        'METADATA_FAILED',
+        error,
+      );
+    }
+  }
+
+  /**
    * Downloads the per-contract JSONL file and returns its non-empty lines.
    * Returns undefined when the object does not exist.
    */

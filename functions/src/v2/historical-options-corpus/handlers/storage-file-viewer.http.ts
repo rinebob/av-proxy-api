@@ -3,37 +3,7 @@ import * as logger from 'firebase-functions/logger';
 
 import { db } from '../../../firebase-admin-init';
 import { StorageFileViewerService } from '../services/storage-file-viewer.service';
-
-interface ListTimeSeriesRequest {
-  action: 'list';
-  bucket: 'time-series';
-  symbol: string;
-  expiration?: string;
-  strike?: number;
-  type?: 'C' | 'P';
-}
-
-interface ListCorpusRequest {
-  action: 'list';
-  bucket: 'corpus';
-  symbol: string;
-}
-
-interface ReadTimeSeriesRequest {
-  action: 'read';
-  bucket: 'time-series';
-  symbol: string;
-  contractId: string;
-}
-
-interface ReadCorpusRequest {
-  action: 'read';
-  bucket: 'corpus';
-  symbol: string;
-  date: string;
-}
-
-type StorageViewerRequest = ListTimeSeriesRequest | ListCorpusRequest | ReadTimeSeriesRequest | ReadCorpusRequest;
+import type { StorageViewerRequest } from '@shared/options';
 
 /**
  * Admin-only onCall function for the Storage File Viewer.
@@ -57,7 +27,12 @@ export const storageFileViewer = onCall<StorageViewerRequest>(
       throw new HttpsError('permission-denied', 'Admin role required.');
     }
 
-    const data = request.data;
+    const data = request.data as StorageViewerRequest;
+
+    if (!data.symbol || typeof data.symbol !== 'string' || !data.symbol.trim()) {
+      throw new HttpsError('invalid-argument', 'Symbol is required.');
+    }
+
     const service = new StorageFileViewerService(db);
 
     if (data.action === 'list' && data.bucket === 'time-series') {

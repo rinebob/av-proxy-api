@@ -1,4 +1,5 @@
 export * from './av-throttle.service';
+export * from './contract-result.utils';
 export * from './corpus-metadata.service';
 export * from './corpus-planner.service';
 export * from './corpus-seed.worker';
@@ -6,6 +7,7 @@ export * from './gcs-corpus-adapter.service';
 export * from './gcs-time-series-adapter.service';
 export * from './historical-options-retrieval.service';
 export * from './nightly-corpus.service';
+export * from './options-index-query.service';
 export * from './options-index.writer';
 export * from './storage-file-viewer.service';
 export * from './pilot.service';
