@@ -462,7 +462,7 @@ At least one of `expiration` or `strike` must be provided (in addition to `symbo
 1. Call `partnerListContractsV2` with `{ symbol, expiration?, strike?, type? }` to discover available contract IDs
 2. Call `partnerHistoricalOptionsContractV2` with a discovered `contractId` to fetch the full time series
 
-**Status:** Not yet implemented. See `docs/operations/storage-file-viewer-design.md` Phase 3.
+**Status:** Implemented. See `docs/operations/storage-file-viewer-design.md` Phase 3.
 
 ## Contacts
 
