@@ -73,9 +73,18 @@ export class TimeSeriesBuilderService {
     this.writeConcurrency = deps.writeConcurrency ?? DEFAULT_WRITE_CONCURRENCY;
   }
 
-  async buildSymbol(symbol: string, startDate: string, endDate: string, contractID?: string): Promise<TimeSeriesBuildReport> {
+  async buildSymbol(
+    symbol: string,
+    startDate: string,
+    endDate: string,
+    contractID?: string,
+    contractIDs?: Set<string>,
+  ): Promise<TimeSeriesBuildReport> {
     const upperSymbol = symbol.toUpperCase();
     const targetContractID = contractID?.trim().toUpperCase() || undefined;
+    const targetContractIDs = contractIDs
+      ? new Set(Array.from(contractIDs).map((id) => id.trim().toUpperCase()))
+      : undefined;
     const tradingDates = this.deps.calendar.getTradingDates(startDate, endDate);
 
     this.deps.logger('builder.symbol.start', {
@@ -146,6 +155,9 @@ export class TimeSeriesBuilderService {
         }
 
         const currentContractID = contract.contractID.toUpperCase();
+        if (targetContractIDs && !targetContractIDs.has(currentContractID)) {
+          continue;
+        }
         if (targetContractID && currentContractID !== targetContractID) {
           continue;
         }

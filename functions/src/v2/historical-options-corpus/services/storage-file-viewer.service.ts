@@ -16,6 +16,18 @@ import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 
 const PAGE_SIZE = 1000;
 
+/** Subset of GCS File metadata fields used by the corpus lister. */
+interface GcsFileMetadata {
+  size?: string | number;
+  generation?: string | number;
+  updated?: string;
+}
+
+/** Shape of the GCS getFiles API response relevant to pagination. */
+interface GcsListResponse {
+  nextPageToken?: string;
+}
+
 /**
  * Service for the Storage File Viewer.
  *
@@ -67,16 +79,16 @@ export class StorageFileViewerService {
         if (!relativePath.endsWith('.json.gz')) continue;
         const date = relativePath.replace(/\.json\.gz$/, '');
         if (!date) continue;
-        const [metadata] = await file.getMetadata();
+        const meta = (file.metadata as GcsFileMetadata | undefined) ?? {};
         files.push({
           date,
-          size: Number(metadata.size) || 0,
-          generation: String(metadata.generation ?? ''),
-          updated: metadata.updated ?? '',
+          size: Number(meta.size) || 0,
+          generation: String(meta.generation ?? ''),
+          updated: meta.updated ?? '',
         });
       }
 
-      const nextPageToken = (apiResponse as any)?.nextPageToken;
+      const nextPageToken = (apiResponse as GcsListResponse | undefined)?.nextPageToken;
       if (!nextPageToken || nextPageToken === pageToken) break;
       pageToken = nextPageToken;
     }
