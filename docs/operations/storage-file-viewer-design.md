@@ -1,7 +1,9 @@
+> **⚠ Superseded:** The UI layout, component structure, and state management described in this document have been superseded by the [Storage Viewer Dual-Column Refactor](./storage-viewer-dual-column-refactor.md). This document is retained as the original design and implementation record. The backend, Firestore index, and Cloud Function sections remain current.
+
 # Storage File Viewer & Contract Discovery — Design Document
 
 **Date:** 2026-07-23  
-**Status:** Approved  
+**Status:** Approved (UI layout superseded — see [Dual-Column Refactor](./storage-viewer-dual-column-refactor.md))  
 **Route:** `/storage-file-viewer`  
 **Required Role:** `admin`
 
@@ -107,6 +109,8 @@ Three-pane layout, no modals:
 - **Search controls** across the top, in left-to-right order: bucket toggle, symbol, expiration, strike, P/C
 - **Left panel** — list of matching files (contract IDs or filenames), updates live as filters change
 - **Right panel** — raw file content from GCS, full height with vertical scrollbar. Opens on click, no dialog/modal
+
+> **Note:** This layout has been superseded by a dual-column design. See [Storage Viewer Dual-Column Refactor](./storage-viewer-dual-column-refactor.md) for the updated layout.
 
 ---
 
@@ -361,6 +365,8 @@ src/app/feat/storage-file-viewer/
     file-viewer.store.ts         ← NgRx Signal Store
 ```
 
+> **Note:** This structure was implemented as a single `StorageViewerComponent`. The planned dual-column refactor will split this into `CorpusViewerComponent` and `TimeSeriesViewerComponent` — see [Dual-Column Refactor](./storage-viewer-dual-column-refactor.md).
+
 ### State Management
 
 NgRx Signal Store following the existing `AdminDashboardStore` pattern:
@@ -387,6 +393,8 @@ interface FileViewerState {
 }
 ```
 
+> **Note:** This single-store design will be split into `CorpusViewerStore` and `TimeSeriesViewerStore` in the dual-column refactor — see [Dual-Column Refactor](./storage-viewer-dual-column-refactor.md).
+
 ### Service
 
 A `StorageViewerService` in `src/app/core/services/` that wraps the Cloud Function calls, following the existing `FirestoreService` pattern.
@@ -406,16 +414,18 @@ A `StorageViewerService` in `src/app/core/services/` that wraps the Cloud Functi
 7. ⬜ Deploy and run rebuild script for QQQ (370k files) and TQQQ
 8. ⬜ Verify Firestore index docs in console
 
-### Phase 2: Frontend — Angular Components
+### Phase 2: Frontend — Angular Components (Initial Implementation)
 
-1. Scaffold the component structure
-2. Implement the NgRx Signal Store
-3. Implement the `StorageViewerService`
-4. Build the search controls component (bucket toggle, symbol, expiration, strike, P/C)
-5. Build the file list component (left panel)
-6. Build the file content component (right panel)
-7. Wire up the layout component
-8. Add route and nav item
+1. ✅ Scaffold the component structure (implemented as single `StorageViewerComponent`)
+2. ✅ Implement the NgRx Signal Store (`StorageViewerStore`)
+3. ✅ Implement the `StorageViewerApiService`
+4. ✅ Build the search controls (bucket toggle, symbol, expiration, strike, P/C)
+5. ✅ Build the file list panel
+6. ✅ Build the file content panel
+7. ✅ Wire up the layout component
+8. ✅ Add route and nav item
+
+> **Note:** The initial frontend was implemented as a single monolithic component with a bucket toggle. A dual-column refactor is planned — see [Storage Viewer Dual-Column Refactor](./storage-viewer-dual-column-refactor.md) for the implementation plan.
 
 ### Phase 3: Partner-Facing Contract Discovery Endpoint
 
