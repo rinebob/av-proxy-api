@@ -1,0 +1,123 @@
+<section class="corpus-viewer">
+  <!-- Form row -->
+  <div class="form-row">
+    <mat-form-field appearance="outline" class="symbol-field">
+      <mat-label>Symbol</mat-label>
+      <input
+        matInput
+        [formControl]="symbolCtrl"
+        placeholder="e.g. QQQ"
+        uppercase
+      />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+      <mat-label>Date Filter</mat-label>
+      <input
+        matInput
+        [formControl]="dateFilterCtrl"
+        placeholder="e.g. 2026-07"
+      />
+    </mat-form-field>
+
+    <button
+      mat-flat-button
+      color="primary"
+      (click)="onList()"
+      [disabled]="!store.symbol() || store.loadingList()"
+      class="list-btn"
+    >
+      <mat-icon fontIcon="search"></mat-icon>
+      List
+    </button>
+  </div>
+
+  <!-- List + Content side by side -->
+  <div class="viewer-row">
+    <!-- File list (left) -->
+    <div class="list-panel">
+      @if (store.loadingList()) {
+        <div class="loading-row">
+          <mat-progress-spinner mode="indeterminate" diameter="32" />
+          <span>Loading dates&hellip;</span>
+        </div>
+      } @else {
+        @if (store.listResult(); as result) {
+          <div class="list-header">
+            <span class="count-badge">{{ result.count }} dates</span>
+            <button mat-icon-button (click)="onList()" matTooltip="Refresh" [disabled]="store.loadingList()">
+              <mat-icon fontIcon="refresh"></mat-icon>
+            </button>
+          </div>
+
+          @if (filteredCorpusFiles().length > 0) {
+            <div class="item-list">
+              <div class="list-column-header">
+                <span class="col col-date">Date</span>
+                <span class="col col-size">Size</span>
+                <span class="col col-updated">Updated</span>
+              </div>
+              @for (file of filteredCorpusFiles(); track file.date) {
+                <button
+                  class="item-row"
+                  [class.selected]="selectedItemId() === file.date"
+                  (click)="onReadItem(file.date)"
+                  [disabled]="store.loadingRead()"
+                >
+                  <span class="col col-date">{{ file.date }}</span>
+                  <span class="col col-size">{{ formatBytes(file.size) }}</span>
+                  <span class="col col-updated">{{ file.updated }}</span>
+                </button>
+              }
+            </div>
+          } @else if (filteredDates().length > 0) {
+            <div class="item-list">
+              <div class="list-column-header">
+                <span class="col col-date">Date</span>
+              </div>
+              @for (date of filteredDates(); track date) {
+                <button
+                  class="item-row"
+                  [class.selected]="selectedItemId() === date"
+                  (click)="onReadItem(date)"
+                  [disabled]="store.loadingRead()"
+                >
+                  <span class="col col-date">{{ date }}</span>
+                </button>
+              }
+            </div>
+          } @else {
+            <div class="empty-state">No dates found for {{ result.symbol }}</div>
+          }
+        } @else {
+          <div class="empty-state">Enter a symbol and click List to browse files</div>
+        }
+      }
+    </div>
+
+    <!-- Content viewer (right) -->
+    <div class="content-panel">
+      @if (store.loadingRead()) {
+        <div class="loading-row">
+          <mat-progress-spinner mode="indeterminate" diameter="32" />
+          <span>Reading file&hellip;</span>
+        </div>
+      } @else {
+        @if (store.readResult(); as readResult) {
+          <div class="content-header">
+            <div class="content-meta">
+              <span class="path">{{ readResult.path }}</span>
+              <span class="bytes">{{ formatBytes(readResult.bytes) }}</span>
+            </div>
+            <button mat-icon-button (click)="onClearRead()" matTooltip="Close">
+              <mat-icon fontIcon="close"></mat-icon>
+            </button>
+          </div>
+          <pre class="content-pre" appContentViewer [bucket]="'corpus'" [content]="rawContent()"></pre>
+        } @else {
+          <div class="empty-state">Select a file from the list to view its contents</div>
+        }
+      }
+    </div>
+  </div>
+</section>

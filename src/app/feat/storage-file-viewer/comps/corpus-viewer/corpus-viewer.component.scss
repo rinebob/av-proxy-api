@@ -1,0 +1,67 @@
+@use '../../common/viewer-mixins' as viewer;
+
+.corpus-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+
+  .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.75rem;
+    flex-shrink: 0;
+
+    .symbol-field {
+      width: 8rem;
+    }
+
+    .filter-field {
+      width: 12rem;
+    }
+
+    .list-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      height: 2.5rem;
+
+      .mat-icon {
+        font-size: 1.125rem;
+        width: 1.125rem;
+        height: 1.125rem;
+        line-height: 1.125rem;
+      }
+    }
+  }
+
+  .viewer-row {
+    @include viewer.viewer-row;
+  }
+
+  .list-panel {
+    @include viewer.list-panel-styles;
+
+    .col-date { width: 8rem; }
+    .col-size { width: 4rem; text-align: right; }
+    .col-updated { width: 10rem; }
+  }
+
+  .loading-row {
+    @include viewer.loading-row;
+  }
+
+  .content-panel {
+    @include viewer.content-panel-styles($flex: 0 0 40%);
+  }
+}
+
+// Dark mode theme adjustments
+@media (prefers-color-scheme: dark) {
+  .corpus-viewer {
+    @include viewer.viewer-dark-mode;
+  }
+}

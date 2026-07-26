@@ -1,0 +1,232 @@
+/// Shared mixins for storage viewer components.
+/// Eliminates ~200 lines of duplicated SCSS between corpus-viewer and time-series-viewer.
+///
+/// Usage:
+///   @use '../../common/viewer-mixins' as viewer;
+
+/// Viewer row: horizontal flex container for list + content panels.
+@mixin viewer-row {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/// Loading row: spinner + text.
+@mixin loading-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.875rem;
+}
+
+/// List panel: scrollable file/contract list with header, column headers, and item rows.
+/// Includes all nested shared styles for list-header, item-list, list-column-header,
+/// item-row, col base, and empty-state.
+@mixin list-panel-styles {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--divider, rgba(0, 0, 0, 0.08));
+  border-radius: 0.5rem;
+  background: var(--card-background, #fff);
+  overflow: hidden;
+  min-height: 0;
+
+  .list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--divider, rgba(0, 0, 0, 0.08));
+
+    .count-badge {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-secondary, #6b7280);
+    }
+  }
+
+  .item-list {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .list-column-header {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1px solid var(--divider, rgba(0, 0, 0, 0.08));
+    background: var(--card-background, #fff);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-secondary, #6b7280);
+    text-transform: uppercase;
+    letter-spacing: 0.03rem;
+  }
+
+  .item-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.75rem;
+    border: none;
+    border-bottom: 1px solid var(--divider, rgba(0, 0, 0, 0.04));
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background-color 0.15s ease;
+    font-size: 0.78rem;
+
+    &:hover {
+      background: var(--sidenav-hover, rgba(63, 81, 181, 0.04));
+    }
+
+    &.selected {
+      background: var(--sidenav-active, rgba(63, 81, 181, 0.08));
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .col {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-primary, #111827);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.875rem;
+    text-align: center;
+  }
+}
+
+/// Content panel: displays file content with header and scrollable pre element.
+/// @param $flex - The flex value for the panel (differs between corpus and time-series).
+/// Includes all nested shared styles for content-header, content-meta, content-pre,
+/// search-hit highlighting, and empty-state.
+@mixin content-panel-styles($flex: 1 1 auto) {
+  flex: $flex;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--divider, rgba(0, 0, 0, 0.08));
+  border-radius: 0.5rem;
+  background: var(--card-background, #fff);
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+
+  .content-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--divider, rgba(0, 0, 0, 0.08));
+
+    .content-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
+
+      .path {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 0.8rem;
+        color: var(--text-primary, #111827);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .bytes {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-secondary, #6b7280);
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  .content-pre {
+    margin: 0;
+    padding: 0.75rem;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text-primary, #111827);
+    background: transparent;
+
+    ::ng-deep mark.search-hit {
+      background: #ffeb3b;
+      color: inherit;
+      border-radius: 0.15rem;
+      padding: 0;
+    }
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.875rem;
+    text-align: center;
+  }
+}
+
+/// Shared dark mode overrides for list-panel, content-panel, list-column-header, and item-row.
+/// Components can add additional dark mode rules after including this mixin.
+@mixin viewer-dark-mode {
+  .list-panel,
+  .content-panel {
+    background: var(--card-background, #1e1e1e);
+    border-color: var(--divider, rgba(255, 255, 255, 0.08));
+  }
+
+  .list-column-header {
+    background: var(--card-background, #1e1e1e);
+    border-bottom-color: var(--divider, rgba(255, 255, 255, 0.08));
+  }
+
+  .item-row {
+    border-bottom-color: var(--divider, rgba(255, 255, 255, 0.04));
+
+    &:hover {
+      background: var(--sidenav-hover, rgba(255, 255, 255, 0.04));
+    }
+
+    &.selected {
+      background: var(--sidenav-active, rgba(63, 81, 181, 0.16));
+    }
+  }
+}

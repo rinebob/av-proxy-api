@@ -1,21 +1,16 @@
-import { signalStore, withState, withMethods, withProps, withHooks, patchState } from '@ngrx/signals';
+import { signalStore, withState, withMethods, withHooks, patchState } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap, catchError, of, forkJoin, defer } from 'rxjs';
-import { toObservable } from '@angular/core/rxjs-interop';
 import { inject, computed } from '@angular/core';
 import { Firestore, collection, query, getDocs, doc } from '@angular/fire/firestore';
 
 import { StorageViewerApiService } from '../common/storage-viewer-api';
 import type {
-  BucketName,
   ContractResult,
-  CorpusFileEntry,
   ListResult,
   ReadResult,
   ListTimeSeriesRequest,
-  ListCorpusRequest,
   ReadTimeSeriesRequest,
-  ReadCorpusRequest,
   ExpirationIndexDoc,
   StrikeIndexDoc,
 } from '@shared/options';
@@ -25,16 +20,13 @@ import {
   TS_STRIKES_SUBCOLLECTION,
 } from '@shared/options';
 
-interface StorageViewerState {
-  bucket: BucketName;
+interface TimeSeriesViewerState {
   symbol: string;
   expiration: string | null;
   strike: number | null;
   optionType: 'C' | 'P' | null;
   listResult: ListResult | null;
   contracts: ContractResult[];
-  dates: string[];
-  corpusFiles: CorpusFileEntry[];
   readResult: ReadResult | null;
   loadingList: boolean;
   loadingRead: boolean;
@@ -54,16 +46,13 @@ interface StorageViewerState {
   filteredStrikes: number[];
 }
 
-const initialState: StorageViewerState = {
-  bucket: 'time-series',
+const initialState: TimeSeriesViewerState = {
   symbol: 'QQQ',
   expiration: null,
   strike: null,
   optionType: null,
   listResult: null,
   contracts: [],
-  dates: [],
-  corpusFiles: [],
   readResult: null,
   loadingList: false,
   loadingRead: false,
@@ -78,39 +67,14 @@ const initialState: StorageViewerState = {
 };
 
 /**
- * NgRx Signal Store for the Storage File Viewer feature.
- * Manages bucket selection, filters, Firestore index loading, list/read operations, and error state.
+ * NgRx Signal Store for the Time-Series viewer column.
+ * Manages time-series-only state: symbol, filters, Firestore index, list/read operations, and error state.
  */
-export const StorageViewerStore = signalStore(
+export const TimeSeriesViewerStore = signalStore(
   { providedIn: 'root' },
   withState(initialState),
-  withProps((store) => ({
-    bucket$: toObservable(store.bucket),
-    symbol$: toObservable(store.symbol),
-    listResult$: toObservable(store.listResult),
-    readResult$: toObservable(store.readResult),
-    loadingList$: toObservable(store.loadingList),
-    loadingRead$: toObservable(store.loadingRead),
-    loadingIndex$: toObservable(store.loadingIndex),
-    error$: toObservable(store.error),
-    /** True when filter dropdowns should be disabled (no symbol or index loading). */
-    filtersDisabled: computed(() => !store.symbol() || store.loadingIndex()),
-  })),
   withMethods((store, api = inject(StorageViewerApiService), firestore = inject(Firestore)) => ({
-    /** Set the active bucket (time-series or corpus). */
-    setBucket: (bucket: BucketName) => {
-      patchState(store, {
-        bucket,
-        listResult: null,
-        contracts: [],
-        dates: [],
-        corpusFiles: [],
-        readResult: null,
-        error: null,
-      });
-    },
-
-    /** Set the symbol and trigger index load. */
+    /** Set the symbol and trigger index reload. */
     setSymbol: (symbol: string) => {
       const upper = symbol.toUpperCase().trim();
       patchState(store, {
@@ -119,8 +83,6 @@ export const StorageViewerStore = signalStore(
         strike: null,
         listResult: null,
         contracts: [],
-        dates: [],
-        corpusFiles: [],
         readResult: null,
         allExpirations: [],
         allStrikes: [],
@@ -163,7 +125,7 @@ export const StorageViewerStore = signalStore(
       }
     },
 
-    /** Set the option type filter (time-series only). */
+    /** Set the option type filter. */
     setOptionType: (optionType: 'C' | 'P' | null) => {
       patchState(store, { optionType });
     },
@@ -175,6 +137,9 @@ export const StorageViewerStore = signalStore(
     clearRead: () => {
       patchState(store, { readResult: null });
     },
+
+    /** True when filter dropdowns should be disabled (no symbol or index loading). */
+    filtersDisabled: computed(() => !store.symbol() || store.loadingIndex()),
 
     /** Load the Firestore index for the current symbol (expirations + strikes). */
     loadIndex: rxMethod<void>(
@@ -231,7 +196,7 @@ export const StorageViewerStore = signalStore(
               },
             }),
             catchError((err) => {
-              console.error('[StorageViewerStore] loadIndex error:', err);
+              console.error('[TimeSeriesViewerStore] loadIndex error:', err);
               patchState(store, {
                 loadingIndex: false,
                 error: err.message || 'Failed to load index from Firestore.',
@@ -249,7 +214,7 @@ export const StorageViewerStore = signalStore(
       ),
     ),
 
-    /** Execute a list operation based on current bucket + filters. */
+    /** List time-series contracts for the current symbol + filters. */
     list: rxMethod<void>(
       pipe(
         tap(() => {
@@ -262,49 +227,34 @@ export const StorageViewerStore = signalStore(
             return of(null);
           }
 
-          let req: ListTimeSeriesRequest | ListCorpusRequest;
-          if (store.bucket() === 'time-series') {
-            req = {
-              action: 'list',
-              bucket: 'time-series',
-              symbol,
-              expiration: store.expiration() ?? undefined,
-              strike: store.strike() ?? undefined,
-              type: store.optionType() ?? undefined,
-            };
-          } else {
-            req = {
-              action: 'list',
-              bucket: 'corpus',
-              symbol,
-            };
-          }
+          const req: ListTimeSeriesRequest = {
+            action: 'list',
+            bucket: 'time-series',
+            symbol,
+            expiration: store.expiration() ?? undefined,
+            strike: store.strike() ?? undefined,
+            type: store.optionType() ?? undefined,
+          };
 
           return api.list(req).pipe(
             tap({
               next: (result) => {
                 const contracts = result.bucket === 'time-series' ? result.contracts : [];
-                const dates = result.bucket === 'corpus' ? result.dates : [];
-                const corpusFiles = result.bucket === 'corpus' ? result.files : [];
                 patchState(store, {
                   listResult: result,
                   contracts,
-                  dates,
-                  corpusFiles,
                   loadingList: false,
                   error: null,
                 });
               },
             }),
             catchError((err) => {
-              console.error('[StorageViewerStore] list error:', err);
+              console.error('[TimeSeriesViewerStore] list error:', err);
               patchState(store, {
                 loadingList: false,
-                error: err.message || 'Failed to list files.',
+                error: err.message || 'Failed to list contracts.',
                 listResult: null,
                 contracts: [],
-                dates: [],
-                corpusFiles: [],
               });
               return of(null);
             }),
@@ -313,25 +263,25 @@ export const StorageViewerStore = signalStore(
       ),
     ),
 
-    /** Read a specific file (contract or date) from the current bucket. */
+    /** Read a specific time-series file by contract ID. */
     read: rxMethod<string>(
       pipe(
         tap(() => {
           patchState(store, { loadingRead: true, error: null });
         }),
-        switchMap((id) => {
+        switchMap((contractId) => {
           const symbol = store.symbol();
           if (!symbol) {
             patchState(store, { loadingRead: false, error: 'Symbol is required.' });
             return of(null);
           }
 
-          let req: ReadTimeSeriesRequest | ReadCorpusRequest;
-          if (store.bucket() === 'time-series') {
-            req = { action: 'read', bucket: 'time-series', symbol, contractId: id };
-          } else {
-            req = { action: 'read', bucket: 'corpus', symbol, date: id };
-          }
+          const req: ReadTimeSeriesRequest = {
+            action: 'read',
+            bucket: 'time-series',
+            symbol,
+            contractId,
+          };
 
           return api.read(req).pipe(
             tap({
@@ -340,7 +290,7 @@ export const StorageViewerStore = signalStore(
               },
             }),
             catchError((err) => {
-              console.error('[StorageViewerStore] read error:', err);
+              console.error('[TimeSeriesViewerStore] read error:', err);
               patchState(store, {
                 loadingRead: false,
                 error: err.message || 'Failed to read file.',

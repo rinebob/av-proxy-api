@@ -1,0 +1,238 @@
+@use '../../common/viewer-mixins' as viewer;
+
+.ts-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+
+  .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.5rem;
+    flex-shrink: 0;
+
+    .symbol-field {
+      width: 7rem;
+    }
+
+    .filter-field {
+      width: 12rem;
+
+      &.strike-field {
+        width: 6rem;
+      }
+    }
+
+    .type-field {
+      width: 5rem;
+    }
+
+    .list-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      height: 2.5rem;
+
+      .mat-icon {
+        font-size: 1.125rem;
+        width: 1.125rem;
+        height: 1.125rem;
+        line-height: 1.125rem;
+      }
+    }
+
+    .contract-id-direct {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+
+      .contract-id-field {
+        width: 12rem;
+      }
+
+      .go-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        height: 2.5rem;
+
+        .mat-icon {
+          font-size: 1.125rem;
+          width: 1.125rem;
+          height: 1.125rem;
+          line-height: 1.125rem;
+        }
+      }
+    }
+  }
+
+  .viewer-row {
+    @include viewer.viewer-row;
+  }
+
+  .left-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .list-panel {
+    @include viewer.list-panel-styles;
+
+    .col-id { width: 11rem; }
+    .col-exp { width: 10rem; }
+    .col-strike {
+      width: 4rem;
+      text-align: right;
+      padding: 0.1rem 0.35rem;
+      border-radius: 0.25rem;
+      background: rgba(255, 152, 0, 0.12);
+      color: #e65100;
+      font-weight: 600;
+    }
+    .col-type {
+      width: 2.5rem;
+      text-align: center;
+      padding: 0.1rem 0.35rem;
+      border-radius: 0.25rem;
+      font-weight: 600;
+      background: rgba(0, 0, 0, 0.06);
+      color: var(--text-secondary, #6b7280);
+    }
+    .col-type.call {
+      background: rgba(76, 175, 80, 0.12);
+      color: #2e7d32;
+    }
+    .col-type.put {
+      background: rgba(244, 67, 54, 0.12);
+      color: #c62828;
+    }
+    .col-length { width: 3rem; text-align: center; }
+    .col-obs { width: 3rem; text-align: right; }
+    .col-first { width: 10rem; }
+  }
+
+  .metadata-panel {
+    flex: 0 0 auto;
+    max-height: 10rem;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--divider, rgba(0, 0, 0, 0.08));
+    border-radius: 0.5rem;
+    background: var(--card-background, #fff);
+    overflow: hidden;
+    min-height: 0;
+
+    .metadata-header {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--divider, rgba(0, 0, 0, 0.08));
+
+      .metadata-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-secondary, #6b7280);
+      }
+    }
+
+    .metadata-body {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 0.5rem 0;
+    }
+
+    .metadata-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      padding: 0.35rem 0.75rem;
+      border-bottom: 1px solid var(--divider, rgba(0, 0, 0, 0.04));
+
+      .metadata-key {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--text-secondary, #6b7280);
+        text-transform: uppercase;
+        letter-spacing: 0.03rem;
+      }
+
+      .metadata-value {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 0.8rem;
+        color: var(--text-primary, #111827);
+      }
+    }
+
+    .empty-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1 1 auto;
+      padding: 1rem;
+      color: var(--text-secondary, #6b7280);
+      font-size: 0.875rem;
+      text-align: center;
+    }
+  }
+
+  .loading-row {
+    @include viewer.loading-row;
+  }
+
+  .content-panel {
+    @include viewer.content-panel-styles($flex: 0 0 25%);
+  }
+}
+
+// Strike autocomplete panel: limit height for scrollable list
+::ng-deep .strike-autocomplete-panel {
+  max-height: 18rem;
+}
+
+// Dark mode theme adjustments
+@media (prefers-color-scheme: dark) {
+  .ts-viewer {
+    @include viewer.viewer-dark-mode;
+
+    .metadata-panel {
+      background: var(--card-background, #1e1e1e);
+      border-color: var(--divider, rgba(255, 255, 255, 0.08));
+    }
+
+    .col-strike {
+      background: rgba(255, 152, 0, 0.2);
+      color: #ffcc80;
+    }
+
+    .col-type {
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .col-type.call {
+      background: rgba(76, 175, 80, 0.2);
+      color: #81c784;
+    }
+
+    .col-type.put {
+      background: rgba(244, 67, 54, 0.2);
+      color: #ef9a9a;
+    }
+
+    .metadata-row {
+      border-bottom-color: var(--divider, rgba(255, 255, 255, 0.04));
+    }
+  }
+}
