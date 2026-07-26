@@ -434,9 +434,67 @@ A `StorageViewerService` in `src/app/core/services/` that wraps the Cloud Functi
 
 ## Future Work
 
-- **Pretty-print JSON/JSONL** in the file content viewer
 - **Reconciliation script** — diffs GCS vs Firestore index, reports missing entries, optionally auto-fixes
 - **Additional symbols** — extend the symbol toggle beyond QQQ/TQQQ
-- **Contract length display** — show contract length bucket in the file list
 - **Virtual scroll** for large file lists (if needed for corpus date listings)
 - **File download** — add a download button for individual files
+
+---
+
+## Added Features
+
+The following features were implemented beyond the original design spec. They are documented here for historical accuracy.
+
+### Direct Contract ID Read
+
+**Added:** 2026-07-25
+
+A direct contract ID input field with a "Go" button, positioned in the search controls row. Allows reading a specific time-series file by OCC contract ID without needing to filter through the dropdowns.
+
+- Input: free-text, auto-uppercased
+- Triggers: "Go" button click or Enter key
+- Calls the `read` action directly with `{ bucket: 'time-series', symbol, contractId }`
+- No list operation required
+
+### Metadata Panel (Third Pane)
+
+**Added:** 2026-07-25
+
+A third panel between the file list and content viewer, visible only when the time-series bucket is active. Displays GCS custom metadata for the selected contract file.
+
+- Shows labeled key-value pairs from the GCS object's custom metadata
+- Known fields (symbol, contractID, expiration, type, strike, firstObserved, lastObserved, observationCount, schemaVersion) are displayed with human-readable labels and date formatting
+- Unknown metadata fields are appended with their raw key names
+- Loading and empty states included
+
+### Pretty-Print JSONL
+
+**Added:** 2026-07-25
+
+The content viewer automatically pretty-prints JSONL content. Each line is parsed as JSON and re-serialized with 2-space indentation. If parsing fails (non-JSON content), it falls back to displaying the raw content.
+
+### Contract Length Display
+
+**Added:** 2026-07-25
+
+The file list panel includes a "Length" column that classifies each contract by its calendar-day duration from `firstObserved` to `expiration`. Uses the `classifyContractLength` utility with 16 length buckets (1d, 1w, 2w, 1mo, 2mo, 3mo, 6mo, 1yr, 2yr, 3yr, 3yr+).
+
+Also includes a "First Trading" column showing the first observed date with day-of-week.
+
+### Error Snackbar
+
+**Added:** 2026-07-25
+
+Errors from the store (list/read/index operations) are surfaced via a Material snackbar with a 5-second auto-dismiss. Uses an `effect()` in the component to watch the store's `error` signal.
+
+### Strike Autocomplete
+
+**Added:** 2026-07-25
+
+The strike filter uses a Material autocomplete input. As the user types, the strike options are filtered in real-time using `toSignal()` to bridge the `FormControl.valueChanges` Observable to a signal consumed by a `computed()`.
+
+### Corpus File Metadata
+
+**Added:** 2026-07-25
+
+The corpus list panel displays GCS object metadata (file size, last updated timestamp) alongside each date entry. The backend `listCorpus` method fetches `size`, `generation`, and `updated` from GCS object metadata for each file.
