@@ -1,0 +1,243 @@
+<section class="storage-viewer">
+  <header class="header">
+    <div class="title">
+      <h1>Storage File Viewer</h1>
+      <p class="subtitle">Browse and read GCS files from the options time-series and corpus buckets</p>
+    </div>
+  </header>
+
+  <div class="controls">
+    <mat-button-toggle-group
+      [value]="store.bucket()"
+      (change)="onBucketChange($event.value)"
+      aria-label="Select bucket"
+    >
+      <mat-button-toggle value="time-series">Time Series</mat-button-toggle>
+      <mat-button-toggle value="corpus">Corpus</mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <mat-form-field appearance="outline" class="symbol-field">
+      <mat-label>Symbol</mat-label>
+      <input
+        matInput
+        [formControl]="symbolCtrl"
+        placeholder="e.g. QQQ"
+        uppercase
+      />
+    </mat-form-field>
+
+    @if (isTimeSeries()) {
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Expiration</mat-label>
+        <mat-select
+          [value]="store.expiration()"
+          (selectionChange)="onExpirationSelected($event.value ?? null)"
+          [disabled]="store.filtersDisabled()"
+          panelClass="exp-select-panel"
+        >
+          <mat-option [value]="null">All</mat-option>
+          @for (exp of store.filteredExpirations(); track exp) {
+            <mat-option [value]="exp">{{ exp }} ({{ dayOfWeek(exp) }})</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Strike</mat-label>
+        <input
+          matInput
+          type="text"
+          [formControl]="strikeCtrl"
+          [matAutocomplete]="strikeAuto"
+          [disabled]="store.filtersDisabled()"
+          placeholder="Search strike"
+        />
+        <mat-autocomplete #strikeAuto="matAutocomplete" class="strike-autocomplete-panel" (optionSelected)="onStrikeSelected($event.option.value)">
+          <mat-option [value]="">All</mat-option>
+          @for (strike of filteredStrikes(); track strike) {
+            <mat-option [value]="strike">{{ strike }}</mat-option>
+          }
+        </mat-autocomplete>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="type-field">
+        <mat-label>Type</mat-label>
+        <mat-select
+          [value]="store.optionType()"
+          (selectionChange)="onOptionTypeChange($event.value ?? null)"
+          [disabled]="store.filtersDisabled()"
+        >
+          <mat-option [value]="null">All</mat-option>
+          <mat-option value="C">Call</mat-option>
+          <mat-option value="P">Put</mat-option>
+        </mat-select>
+      </mat-form-field>
+    }
+
+    <button
+      mat-flat-button
+      color="primary"
+      (click)="onList()"
+      [disabled]="!store.symbol() || store.loadingList()"
+      class="list-btn"
+    >
+      <mat-icon fontIcon="search"></mat-icon>
+      List
+    </button>
+
+    <div class="contract-id-direct">
+      <mat-form-field appearance="outline" class="contract-id-field">
+        <mat-label>Contract ID</mat-label>
+        <input
+          matInput
+          [formControl]="contractIdCtrl"
+          placeholder="e.g. QQQ190104C00128500"
+          uppercase
+          (keyup.enter)="onReadContractId()"
+        />
+      </mat-form-field>
+      <button
+        mat-flat-button
+        color="accent"
+        (click)="onReadContractId()"
+        [disabled]="!contractIdCtrl.value.trim() || store.loadingRead()"
+        class="go-btn"
+      >
+        <mat-icon fontIcon="arrow_forward"></mat-icon>
+        Go
+      </button>
+    </div>
+  </div>
+
+  @if (store.loadingIndex() || store.loadingList()) {
+    <div class="page-loading">
+      <mat-progress-spinner mode="indeterminate" diameter="48" />
+      <span>{{ store.loadingIndex() ? 'Loading index&hellip;' : 'Loading contracts&hellip;' }}</span>
+    </div>
+  } @else {
+    <div class="results-container">
+    <!-- List panel (left) -->
+    <div class="list-panel">
+      @if (store.listResult(); as result) {
+        <div class="list-header">
+          <span class="count-badge">{{ result.count }} {{ result.bucket === 'time-series' ? 'contracts' : 'dates' }}</span>
+          <button mat-icon-button (click)="onList()" matTooltip="Refresh" [disabled]="store.loadingList()">
+            <mat-icon fontIcon="refresh"></mat-icon>
+          </button>
+        </div>
+
+        @if (result.bucket === 'time-series') {
+          @if (store.contracts().length > 0) {
+            <div class="item-list">
+              <div class="list-column-header">
+                <span class="col col-id">Contract ID</span>
+                <span class="col col-exp">Expiration</span>
+                <span class="col col-strike">Strike</span>
+                <span class="col col-type">Type</span>
+                <span class="col col-length">Length</span>
+                <span class="col col-obs">Obs</span>
+                <span class="col col-first">First Trading</span>
+              </div>
+              @for (contract of store.contracts(); track contract.contractId) {
+                <button
+                  class="item-row"
+                  [class.selected]="selectedItemId() === contract.contractId"
+                  (click)="onReadItem(contract.contractId)"
+                  [disabled]="store.loadingRead()"
+                >
+                  <span class="col col-id">{{ contract.contractId }}</span>
+                  <span class="col col-exp">{{ formatDateWithDow(contract.expiration) }}</span>
+                  <span class="col col-strike">{{ formatStrike(contract.strike) }}</span>
+                  <span class="col col-type {{ contract.type }}">{{ contract.type }}</span>
+                  <span class="col col-length">{{ contractLength(contract) }}</span>
+                  <span class="col col-obs">{{ contract.observationCount ?? '—' }}</span>
+                  <span class="col col-first">{{ firstTradingDate(contract) }}</span>
+                </button>
+              }
+            </div>
+          } @else {
+            <div class="empty-state">No contracts found for {{ result.symbol }}</div>
+          }
+        } @else {
+          @if (store.dates().length > 0) {
+            <div class="item-list">
+              <div class="list-column-header corpus-header">
+                <span class="col col-date">Date</span>
+                <span class="col col-size">Size</span>
+                <span class="col col-updated">Updated</span>
+              </div>
+              @for (file of store.corpusFiles(); track file.date) {
+                <button
+                  class="item-row"
+                  [class.selected]="selectedItemId() === file.date"
+                  (click)="onReadItem(file.date)"
+                  [disabled]="store.loadingRead()"
+                >
+                  <span class="col col-date">{{ file.date }}</span>
+                  <span class="col col-size">{{ formatBytes(file.size) }}</span>
+                  <span class="col col-updated">{{ file.updated }}</span>
+                </button>
+              }
+            </div>
+          } @else {
+            <div class="empty-state">No dates found for {{ result.symbol }}</div>
+          }
+        }
+      } @else {
+        <div class="empty-state">Enter a symbol and click List to browse files</div>
+      }
+    </div>
+
+    <!-- Metadata panel (center, time-series only) -->
+    @if (isTimeSeries()) {
+      <div class="metadata-panel">
+        @if (store.readResult()?.metadata; as meta) {
+          <div class="metadata-header">
+            <span class="metadata-title">Contract Metadata</span>
+          </div>
+          <div class="metadata-body">
+            @for (entry of metadataEntries(meta); track entry.key) {
+              <div class="metadata-row">
+                <span class="metadata-key">{{ entry.label }}</span>
+                <span class="metadata-value">{{ entry.value }}</span>
+              </div>
+            }
+          </div>
+        } @else if (store.loadingRead()) {
+          <div class="loading-row">
+            <mat-progress-spinner mode="indeterminate" diameter="32" />
+            <span>Loading metadata&hellip;</span>
+          </div>
+        } @else {
+          <div class="empty-state">Select a contract to view its metadata</div>
+        }
+      </div>
+    }
+
+    <!-- Content viewer panel (right) -->
+    <div class="content-panel">
+      @if (store.loadingRead()) {
+        <div class="loading-row">
+          <mat-progress-spinner mode="indeterminate" diameter="32" />
+          <span>Reading file&hellip;</span>
+        </div>
+      }
+
+      @if (store.readResult(); as readResult) {
+        <div class="content-header">
+          <div class="content-meta">
+            <span class="path">{{ readResult.path }}</span>
+            <span class="bytes">{{ formatBytes(readResult.bytes) }}</span>
+          </div>
+          <button mat-icon-button (click)="onClearRead()" matTooltip="Close">
+            <mat-icon fontIcon="close"></mat-icon>
+          </button>
+        </div>
+        <pre class="content-pre">{{ formatContent(readResult.content) }}</pre>
+      } @else if (!store.loadingRead()) {
+        <div class="empty-state">Select a file from the list to view its contents</div>
+      }
+    </div>
+    </div>
+  }
+</section>

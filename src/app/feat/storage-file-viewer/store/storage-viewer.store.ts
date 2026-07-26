@@ -9,6 +9,7 @@ import { StorageViewerApiService } from '../common/storage-viewer-api';
 import type {
   BucketName,
   ContractResult,
+  CorpusFileEntry,
   ListResult,
   ReadResult,
   ListTimeSeriesRequest,
@@ -33,6 +34,7 @@ interface StorageViewerState {
   listResult: ListResult | null;
   contracts: ContractResult[];
   dates: string[];
+  corpusFiles: CorpusFileEntry[];
   readResult: ReadResult | null;
   loadingList: boolean;
   loadingRead: boolean;
@@ -61,6 +63,7 @@ const initialState: StorageViewerState = {
   listResult: null,
   contracts: [],
   dates: [],
+  corpusFiles: [],
   readResult: null,
   loadingList: false,
   loadingRead: false,
@@ -101,6 +104,7 @@ export const StorageViewerStore = signalStore(
         listResult: null,
         contracts: [],
         dates: [],
+        corpusFiles: [],
         readResult: null,
         error: null,
       });
@@ -116,6 +120,7 @@ export const StorageViewerStore = signalStore(
         listResult: null,
         contracts: [],
         dates: [],
+        corpusFiles: [],
         readResult: null,
         allExpirations: [],
         allStrikes: [],
@@ -280,10 +285,12 @@ export const StorageViewerStore = signalStore(
               next: (result) => {
                 const contracts = result.bucket === 'time-series' ? result.contracts : [];
                 const dates = result.bucket === 'corpus' ? result.dates : [];
+                const corpusFiles = result.bucket === 'corpus' ? result.files : [];
                 patchState(store, {
                   listResult: result,
                   contracts,
                   dates,
+                  corpusFiles,
                   loadingList: false,
                   error: null,
                 });
@@ -297,6 +304,7 @@ export const StorageViewerStore = signalStore(
                 listResult: null,
                 contracts: [],
                 dates: [],
+                corpusFiles: [],
               });
               return of(null);
             }),

@@ -56,5 +56,13 @@ export const NAV_ITEMS: NavItem[] = [
     exact: false,
     requiredRole: 'admin',
     tooltip: 'Health metrics and request logs'
+  },
+  {
+    displayName: 'Storage Viewer',
+    iconName: 'folder_open',
+    route: '/storage-viewer',
+    exact: false,
+    requiredRole: 'admin',
+    tooltip: 'Browse and read GCS options files'
   }
 ];

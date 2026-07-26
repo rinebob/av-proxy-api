@@ -10,6 +10,7 @@ import { SymbolManagerComponent } from './feat/symbol-manager-view/components/sy
 import { DashboardLayoutComponent } from './feat/admin-dashboard/components/dashboard-layout/dashboard-layout.component';
 import { HealthDashboardComponent } from './feat/health-view/comps/health-dashboard/health-dashboard.component';
 import { ChartViewComponent } from './feat/chart-view/chart-view.component';
+import { StorageViewerComponent } from './feat/storage-file-viewer/comps/storage-viewer/storage-viewer.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -20,6 +21,7 @@ export const routes: Routes = [
   { path: 'symbol-manager', component: SymbolManagerComponent, canActivate: [authGuard] },
   { path: 'logos', component: CompanyLogoGalleryComponent, canActivate: [authGuard] },
   { path: 'system-health', component: HealthDashboardComponent, canActivate: [authGuard] },
+  { path: 'storage-viewer', component: StorageViewerComponent, canActivate: [authGuard] },
   { path: 'admin', component: DashboardLayoutComponent, canActivate: [authGuard] },
   // Redirect root path to login by default
   { path: '', redirectTo: '/login', pathMatch: 'full' },

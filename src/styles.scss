@@ -140,3 +140,9 @@ router-outlet + * {
 @mixin desktop {
   @media (min-width: 960px) { @content; }
 }
+
+/* Storage Viewer: expiration dropdown panel */
+.exp-select-panel.mat-mdc-select-panel {
+  min-width: 12rem;
+  max-width: 16rem;
+}

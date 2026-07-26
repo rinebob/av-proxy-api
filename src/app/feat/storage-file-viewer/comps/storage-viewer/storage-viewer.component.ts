@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, OnInit, DestroyRef } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -64,9 +64,12 @@ export class StorageViewerComponent implements OnInit {
   /** Track which list item is currently selected (contractId or date). */
   readonly selectedItemId = signal<string | null>(null);
 
+  /** Signal tracking the current strike input text for autocomplete filtering. */
+  readonly strikeInput = toSignal(this.strikeCtrl.valueChanges, { initialValue: '' });
+
   /** Filtered strikes for autocomplete based on typed text. */
   readonly filteredStrikes = computed<string[]>(() => {
-    const input = this.strikeCtrl.value?.toLowerCase() ?? '';
+    const input = this.strikeInput()?.toLowerCase() ?? '';
     const strikes = this.store.filteredStrikes();
     if (!input) return strikes.map((s) => String(s));
     return strikes.filter((s) => String(s).includes(input)).map((s) => String(s));
