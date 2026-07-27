@@ -1,5 +1,4 @@
 import { Directive, ElementRef, inject, input, computed, effect, OnDestroy } from '@angular/core';
-import { DomSanitizer } from '@angular/platform-browser';
 
 import { ContentSearchService, type SearchBucket } from './content-search.service';
 import { formatContent, highlightContent } from './viewer-utils';
@@ -22,7 +21,6 @@ import { formatContent, highlightContent } from './viewer-utils';
 })
 export class ContentViewerDirective implements OnDestroy {
   private readonly searchService = inject(ContentSearchService);
-  private readonly sanitizer = inject(DomSanitizer);
   private readonly el = inject<ElementRef<HTMLPreElement>>(ElementRef);
 
   /** Bucket identifier for search state tracking. */
@@ -50,15 +48,11 @@ export class ContentViewerDirective implements OnDestroy {
 
   constructor() {
     // # Reason: Update innerHTML when content or search term changes.
-    // We use DomSanitizer.bypassSecurityTrustHtml to explicitly mark the HTML as safe.
-    // The escapeHtml function in highlightContent is the security boundary — it escapes
-    // all HTML entities before wrapping search matches in <mark> tags.
+    // highlightContent calls escapeHtml first, which escapes all HTML entities,
+    // then wraps search matches in <mark> tags. This makes the output XSS-safe.
     effect(() => {
       const html = highlightContent(this.formattedContent(), this.searchService.searchTerm());
-      const safe = this.sanitizer.bypassSecurityTrustHtml(html);
-      // # Reason: SafeHtml is a branded string at runtime; setting it via innerHTML
-      // is the trusted code path. The sanitizer call documents the security boundary.
-      this.el.nativeElement.innerHTML = safe as unknown as string;
+      this.el.nativeElement.innerHTML = html;
     });
 
     // # Reason: Register/clear content with the search service when it changes.
