@@ -21,3 +21,8 @@
   - [ ] Approve or reject the proposed GCS development corpus for `QQQ` and `TQQQ` from 2019 onward after Alpha Vantage licensing/quota, GCS retention/IAM, and shared-throttling decisions are confirmed; no implementation is authorized.
 - [x] **2026-07-20: Create partner historical-options V2 as-built guide** — Document the endpoint's end-to-end request lifecycle, implementation paths, contract, tests, deployment prerequisites, and operational limits.
 - [x] **2026-07-22: Implement and deploy `triggerHistoricalOptionsTimeSeriesBuild` and complete 2019–2024 QQQ per-contract time-series backfill** — Added `TimeSeriesBuilderService` with idempotent per-contract JSONL merge, progress logging, optional `contractID` filter, `DEFAULT_WRITE_CONCURRENCY` reduced to 20, GCS retry for `EPIPE`/`ECONNRESET`/`ETIMEDOUT`/`ECONNREFUSED`, and `timeoutSeconds` raised to 1200s; deployed and used to backfill QQQ 2019, 2020, 2021, 2022, 2023, and 2024.
+- [x] **2026-07-26: Refactor Storage Viewer to dual-column layout** — Split `StorageViewerStore` into `CorpusViewerStore` and `TimeSeriesViewerStore`, extracted shared utilities to `viewer-utils.ts`, created `ContentSearchService` for global in-content search, created `CorpusViewerComponent` and `TimeSeriesViewerComponent` with side-by-side list+content panels, refactored `StorageViewerComponent` into thin layout wrapper with find bar, updated barrel exports and SCSS. `ng build` passes.
+
+## Discovered During Work
+
+- [ ] **TECH-DEBT: Split diagnostic scripts exceeding 500-line limit** — `data-quality-detect.ts` (594 lines) needs decomposition: extract `detectStructuralIssues` into its own module and/or split `detectBsAnomalies` out. Apply app-wide as a tech debt effort to catch all instances of files over 500 lines.
