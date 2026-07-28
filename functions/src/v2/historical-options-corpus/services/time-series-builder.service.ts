@@ -5,6 +5,7 @@ import { createLogger } from '../../utils/utils';
 import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import { GcsTimeSeriesAdapter } from './gcs-time-series-adapter.service';
 import { OptionsIndexWriter } from './options-index.writer';
+import { ContractCatalogWriter } from './contract-catalog.writer';
 import { TradingCalendarService } from './trading-calendar.service';
 import type { CorpusReadResult } from '../types';
 import {
@@ -21,6 +22,8 @@ export interface TimeSeriesBuilderDependencies {
   logger: (message: string, meta?: Record<string, unknown>) => void;
   /** Optional index writer for maintaining the Firestore options file index. */
   indexWriter?: OptionsIndexWriter;
+  /** Optional catalog writer for maintaining the Firestore ts-contracts subcollection. */
+  catalogWriter?: ContractCatalogWriter;
   /** Number of trading days to accumulate in memory before flushing per-contract files. */
   chunkDays?: number;
   /** Maximum concurrent GCS writes when flushing a chunk. */
@@ -309,6 +312,22 @@ export class TimeSeriesBuilderService {
         this.deps.logger('builder.index.upsert.error', { symbol, contractID, error: message });
       }
     }
+
+    if (this.deps.catalogWriter) {
+      try {
+        await this.deps.catalogWriter.upsertContractCatalog({
+          symbol,
+          contractId: contractID,
+          firstObserved: sorted[0]?.d ?? '',
+          lastObserved: sorted[sorted.length - 1]?.d ?? '',
+          observationCount: sorted.length,
+          latestRecord: sorted[sorted.length - 1],
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.deps.logger('builder.catalog.upsert.error', { symbol, contractID, error: message });
+      }
+    }
   }
 }
 
@@ -334,5 +353,6 @@ export function createTimeSeriesBuilderService(
     calendar: new TradingCalendarService(),
     logger: (message, meta) => logger.info(message, meta ?? {}),
     indexWriter: new OptionsIndexWriter(db),
+    catalogWriter: new ContractCatalogWriter(db),
   });
 }

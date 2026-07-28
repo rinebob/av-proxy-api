@@ -75,15 +75,19 @@ export function formatDateWithDow(dateStr: string): string {
 }
 
 /**
- * Computes calendar days between two ISO date strings (end − start).
+ * Computes inclusive calendar days between two ISO date strings (end − start + 1).
+ *
+ * # Reason: A contract first observed on Jan 2 and expiring Jan 4 spans
+ * 3 calendar days (Jan 2, 3, 4), not 2. The inclusive count matches
+ * `expectedObservationCount` semantics and gives correct length buckets.
  *
  * @param startDate - ISO date (e.g. "2025-10-15")
  * @param endDate - ISO date (e.g. "2026-01-15")
- * @returns Whole number of calendar days, or null if either date is invalid.
+ * @returns Whole number of calendar days (inclusive), or null if either date is invalid.
  */
 export function calendarDaysBetween(startDate: string, endDate: string): number | null {
   const start = parseIsoDate(startDate);
   const end = parseIsoDate(endDate);
   if (!start || !end) return null;
-  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
 }

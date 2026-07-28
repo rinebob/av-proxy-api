@@ -40,6 +40,7 @@ export { partnerCompanyOverviewV2 } from './v2/partner/company-overview-partner'
 export { partnerHistoricalOptionsV2 } from './v2/partner/historical-options-partner';
 export { partnerHistoricalOptionsContractV2 } from './v2/partner/historical-options-contract-partner';
 export { partnerListContractsV2 } from './v2/partner/list-contracts-partner';
+export { partnerContractCatalogV2 } from './v2/partner/partner-contract-catalog-partner';
 
 // Note: HTTP dataReadyWebhook has been removed. Publishing is internal-only via enqueueDataReadyInternal.
 
