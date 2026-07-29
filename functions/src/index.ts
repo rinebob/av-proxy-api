@@ -41,6 +41,8 @@ export { partnerHistoricalOptionsV2 } from './v2/partner/historical-options-part
 export { partnerHistoricalOptionsContractV2 } from './v2/partner/historical-options-contract-partner';
 export { partnerListContractsV2 } from './v2/partner/list-contracts-partner';
 export { partnerContractCatalogV2 } from './v2/partner/partner-contract-catalog-partner';
+export { partnerSpreadTimeSeries } from './v2/partner/spread-time-series-partner';
+export { partnerSpreadTimeSeriesBatch } from './v2/partner/spread-time-series-batch-partner';
 
 // Note: HTTP dataReadyWebhook has been removed. Publishing is internal-only via enqueueDataReadyInternal.
 
