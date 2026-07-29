@@ -23,6 +23,33 @@
 - [x] **2026-07-22: Implement and deploy `triggerHistoricalOptionsTimeSeriesBuild` and complete 2019–2024 QQQ per-contract time-series backfill** — Added `TimeSeriesBuilderService` with idempotent per-contract JSONL merge, progress logging, optional `contractID` filter, `DEFAULT_WRITE_CONCURRENCY` reduced to 20, GCS retry for `EPIPE`/`ECONNRESET`/`ETIMEDOUT`/`ECONNREFUSED`, and `timeoutSeconds` raised to 1200s; deployed and used to backfill QQQ 2019, 2020, 2021, 2022, 2023, and 2024.
 - [x] **2026-07-26: Refactor Storage Viewer to dual-column layout** — Split `StorageViewerStore` into `CorpusViewerStore` and `TimeSeriesViewerStore`, extracted shared utilities to `viewer-utils.ts`, created `ContentSearchService` for global in-content search, created `CorpusViewerComponent` and `TimeSeriesViewerComponent` with side-by-side list+content panels, refactored `StorageViewerComponent` into thin layout wrapper with find bar, updated barrel exports and SCSS. `ng build` passes.
 
+- [ ] **2026-07-27: Implement contract catalog — metadata, discovery & filtering** — Build Firestore `ts-contracts` subcollection with per-contract metadata (length, observations, greeks), `partnerContractCatalogV2` endpoint with summary/catalog modes, builder integration for daily writes, backfill script, and Firestore indexes. PRD: `docs/partner/options-data/contract-catalog-prd.md`.
+  - [x] Phase 1: Shared types & constants (`shared/options/contract-catalog.types.ts`)
+  - [x] Phase 2: Catalog writer (`contract-catalog.writer.ts`)
+  - [x] Phase 3: Catalog query service (`contract-catalog-query.service.ts`)
+  - [x] Phase 4: Summary aggregator (`contract-summary-aggregator.service.ts`)
+  - [x] Phase 5: Builder integration (catalog writer wired into `writeMerged()`)
+  - [x] Phase 6: Endpoint (`partner-contract-catalog-partner.ts`, registered in `index.ts`)
+  - [x] Phase 7: Firestore indexes (`firestore.indexes.json`)
+  - [x] Phase 8: Backfill script (`backfill-contract-catalog.ts`) — created with missing-metadata detection + repair
+  - [ ] Phase 9: Scheduled summary refresh
+  - [x] Phase 10: Firestore rules review (no changes needed — Admin SDK bypasses rules)
+
+- [ ] **2026-07-28: Implement spread time series endpoint** — Build on-demand spread pricing engine that computes historical time series for multi-leg options positions (verticals, straddles, strangles, iron condors) from stored per-contract JSONL data. PRD: `docs/partner/options-data/spread-time-series-prd.md`. Implementation plan: `docs/partner/options-data/spread-time-series-implementation-plan.md`.
+  - [ ] Phase 1: Single-spread endpoint (`POST /partnerSpreadTimeSeries`, sync)
+    - [ ] Task 1.1: Shared types (`spread-request.types.ts`)
+    - [ ] Task 1.2: OCC ID constructor (`occ-id-constructor.utils.ts`)
+    - [ ] Task 1.3: Spread validator (`spread-validator.utils.ts`)
+    - [ ] Task 1.4: Leg mark resolver (`leg-mark-resolver.utils.ts`)
+    - [ ] Task 1.5: Spread pricing service (`spread-pricing.service.ts`)
+    - [ ] Task 1.6: HTTP handler (`spread-time-series-partner.ts`)
+    - [ ] Task 1.7: Register in `index.ts`
+    - [ ] Task 1.8: Tests
+    - [ ] Task 1.9: Post-deployment workflow
+  - [ ] Phase 2: Batch endpoint (`POST /partnerSpreadTimeSeriesBatch`, sync, max 200)
+  - [ ] Phase 3: Strategy scan (async, Cloud Tasks, GCS output)
+  - [ ] Phase 4: Caching (GCS persistence)
+
 ## Discovered During Work
 
 - [ ] **TECH-DEBT: Split diagnostic scripts exceeding 500-line limit** — `data-quality-detect.ts` (594 lines) needs decomposition: extract `detectStructuralIssues` into its own module and/or split `detectBsAnomalies` out. Apply app-wide as a tech debt effort to catch all instances of files over 500 lines.

@@ -464,6 +464,30 @@ At least one of `expiration` or `strike` must be provided (in addition to `symbo
 
 **Status:** Implemented. See `docs/operations/storage-file-viewer-design.md` Phase 3.
 
+### Spread time-series endpoints
+
+Savant exposes two endpoints for computing historical time series of multi-leg options spread positions (verticals, straddles, strangles, iron condors). Unlike traditional charting software that shows theoretical expiration P/L diagrams, these endpoints return the actual historical price of the spread over time as a single daily time series.
+
+#### Single-spread endpoint
+
+- Function: `partnerSpreadTimeSeries`
+- Method: `POST`
+- URL: `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerSpreadTimeSeries`
+- Purpose: Computes and returns a historical time series for a single options spread, on-demand from stored per-contract JSONL data in GCS.
+- Allowlist: `QQQ` and `TQQQ` only.
+- Discovery guide: `docs/partner/options-data/spread-time-series-discovery.md`
+- PRD: `docs/partner/options-data/spread-time-series-prd.md`
+
+#### Batch endpoint (Phase 2)
+
+- Function: `partnerSpreadTimeSeriesBatch`
+- Method: `POST`
+- URL: `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerSpreadTimeSeriesBatch`
+- Purpose: Computes time series for up to 200 spreads in a single request. Returns per-spread results with partial failure support.
+- Allowlist: `QQQ` and `TQQQ` only.
+
+**Status:** Single-spread and batch endpoints deployed; strategy scan pending (Phase 3).
+
 ## Contacts
 
 - Integration support: Contact your Savant representative or open a ticket in the shared tracker.
