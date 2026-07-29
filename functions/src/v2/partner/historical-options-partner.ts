@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { onRequest } from 'firebase-functions/v2/https';
+import { onRequest, type HttpsOptions } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
@@ -20,20 +20,15 @@ import {
   mapHistoricalOptionsProviderError,
   parseHistoricalOptionsRequest,
 } from './historical-options-request.utils';
+import {
+  allowedServiceAccounts,
+  expectedGoogleAudience,
+} from './partner-handler-base';
 
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const logger = createLogger('[partner-historical-options]');
 
 const alphaVantageApiKey = defineSecret('ALPHAVANTAGE_API_KEY');
-const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
-const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
-
-type HttpsOptions = {
-  memory: '128MiB' | '256MiB' | '512MiB' | '1GiB' | '2GiB' | '4GiB' | '8GiB';
-  maxInstances?: number;
-  timeoutSeconds?: number;
-  secrets?: ReturnType<typeof defineSecret>[];
-};
 
 const functionOptions: HttpsOptions = {
   memory: '1GiB',

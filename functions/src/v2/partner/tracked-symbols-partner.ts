@@ -1,23 +1,15 @@
-import { onRequest } from 'firebase-functions/v2/https';
+import { onRequest, type HttpsOptions } from 'firebase-functions/v2/https';
 import type { Request, Response } from 'express';
-import { defineSecret } from 'firebase-functions/params';
 
 import { withCors } from '../utils/cors-middleware';
 import { authenticateRequestEither } from '../utils/utils';
 import { symbolManagerService } from '../alpha-vantage/services/symbol-manager.service';
 import { serializeTrackedSymbols } from '../common/common-dm';
 import type { ListSymbolsOptions } from '@shared/alpha-vantage';
-
-// Secrets for allowlisted partner service accounts and expected audience
-const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
-const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
-
-type HttpsOptions = {
-  memory: '128MiB' | '256MiB' | '512MiB' | '1GiB' | '2GiB' | '4GiB' | '8GiB';
-  maxInstances?: number;
-  timeoutSeconds?: number;
-  secrets?: ReturnType<typeof defineSecret>[];
-};
+import {
+  allowedServiceAccounts,
+  expectedGoogleAudience,
+} from './partner-handler-base';
 
 const functionOptions: HttpsOptions = {
   memory: '256MiB',
@@ -75,8 +67,9 @@ async function handler(req: Request, res: Response) {
       timestamp: new Date().toISOString(),
       processingTimeMs: Date.now() - start,
     });
-  } catch (e: any) {
-    res.status(500).json({ ok: false, error: e?.message || 'UNKNOWN', code: 'INTERNAL_ERROR', timestamp: new Date().toISOString() });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'UNKNOWN';
+    res.status(500).json({ ok: false, error: message, code: 'INTERNAL_ERROR', timestamp: new Date().toISOString() });
   }
 }
 

@@ -1,14 +1,17 @@
-import { onRequest } from 'firebase-functions/v2/https';
+import { onRequest, type HttpsOptions } from 'firebase-functions/v2/https';
 import type { Request, Response } from 'express';
 
 import { withCors } from '../utils/cors-middleware';
 import { authenticateRequestEither, createLogger } from '../utils/utils';
 import { db } from '../../firebase-admin-init';
-import { defineSecret } from 'firebase-functions/params';
 import { getSymbolTimeSeriesYearDocPath } from '../common/firestore/firestore-paths';
 import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import type { CompactBar } from '@shared/alpha-vantage';
+import {
+  allowedServiceAccounts,
+  expectedGoogleAudience,
+} from './partner-handler-base';
 
 const logger = createLogger('[partner-intraday-snapshot]');
 
@@ -193,27 +196,17 @@ async function handler(req: Request, res: Response) {
     };
 
     res.status(200).json(response);
-  } catch (e: any) {
-    logger.error('intradaySnapshot.error', { error: e?.message || 'UNKNOWN' });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'UNKNOWN';
+    logger.error('intradaySnapshot.error', { error: message });
     res.status(500).json({
       ok: false,
-      error: e?.message || 'INTERNAL_ERROR',
+      error: message,
       code: 'INTERNAL_ERROR',
       timestamp: new Date().toISOString()
     });
   }
 }
-
-// Define the function options with explicit type
-type HttpsOptions = {
-  memory: '128MiB' | '256MiB' | '512MiB' | '1GiB' | '2GiB' | '4GiB' | '8GiB';
-  maxInstances?: number;
-  timeoutSeconds?: number;
-  secrets?: ReturnType<typeof defineSecret>[];
-};
-
-const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
-const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
 
 const functionOptions: HttpsOptions = {
   memory: '1GiB',

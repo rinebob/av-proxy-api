@@ -1,25 +1,17 @@
-import { onRequest } from 'firebase-functions/v2/https';
+import { onRequest, type HttpsOptions } from 'firebase-functions/v2/https';
 import type { Request, Response } from 'express';
-import { defineSecret } from 'firebase-functions/params';
 
 import { withCors } from '../utils/cors-middleware';
 import { authenticateRequestEither, createLogger } from '../utils/utils';
 import { db } from '../../firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 import type { AvCompanyOverview } from '@shared/alpha-vantage';
+import {
+  allowedServiceAccounts,
+  expectedGoogleAudience,
+} from './partner-handler-base';
 
 const logger = createLogger('[partner-company-overview]');
-
-// Secrets for allowlisted partner service accounts and expected audience
-const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
-const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
-
-type HttpsOptions = {
-  memory: '128MiB' | '256MiB' | '512MiB' | '1GiB' | '2GiB' | '4GiB' | '8GiB';
-  maxInstances?: number;
-  timeoutSeconds?: number;
-  secrets?: ReturnType<typeof defineSecret>[];
-};
 
 const functionOptions: HttpsOptions = {
   memory: '256MiB',
@@ -132,11 +124,12 @@ async function handler(req: Request, res: Response): Promise<void> {
       timestamp: new Date().toISOString(),
       processingTimeMs,
     });
-  } catch (e: any) {
-    logger.error('companyOverview.error', { error: e?.message || 'UNKNOWN' });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'UNKNOWN';
+    logger.error('companyOverview.error', { error: message });
     res.status(500).json({
       ok: false,
-      error: e?.message || 'INTERNAL_ERROR',
+      error: message,
       code: 'INTERNAL_ERROR',
       timestamp: new Date().toISOString(),
     });

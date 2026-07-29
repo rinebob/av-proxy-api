@@ -1,13 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Bucket } from '@google-cloud/storage';
-import { getStorage } from 'firebase-admin/storage';
-import { onRequest } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
+import { onRequest, type HttpsOptions } from 'firebase-functions/v2/https';
 import type { Request, Response } from 'express';
 
 import { isValidIsoDate } from '../common/utils/date-time.utils';
-import { GcsTimeSeriesAdapter } from '../historical-options-corpus/services/gcs-time-series-adapter.service';
 import { resolveContractMetadata } from '../historical-options-corpus/services/contract-metadata.utils';
 import {
   parseStorageLine,
@@ -16,22 +12,18 @@ import {
 } from '../historical-options-corpus/services/time-series-contract.utils';
 import { authenticateRequestEither, createLogger } from '../utils/utils';
 import { HistoricalOptionsErrorCode } from './historical-options-request.utils';
+import {
+  ALLOWED_SYMBOLS,
+  allowedServiceAccounts,
+  expectedGoogleAudience,
+  defaultGetGcs,
+  type GcsAdapterPair,
+} from './partner-handler-base';
 
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const ALLOWED_SYMBOLS = new Set(['QQQ', 'TQQQ']);
 
 const logger = createLogger('[partner-historical-options-contract]');
-
-const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
-const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
-
-type HttpsOptions = {
-  memory: '128MiB' | '256MiB' | '512MiB' | '1GiB' | '2GiB' | '4GiB' | '8GiB';
-  maxInstances?: number;
-  timeoutSeconds?: number;
-  secrets?: ReturnType<typeof defineSecret>[];
-};
 
 const functionOptions: HttpsOptions = {
   memory: '256MiB',
@@ -39,11 +31,6 @@ const functionOptions: HttpsOptions = {
   timeoutSeconds: 30,
   secrets: [allowedServiceAccounts, expectedGoogleAudience],
 };
-
-interface GcsAdapterPair {
-  adapter: GcsTimeSeriesAdapter;
-  bucket: Bucket;
-}
 
 export interface PartnerHistoricalOptionsContractDependencies {
   authenticateRequest: typeof authenticateRequestEither;
@@ -64,15 +51,6 @@ function parseOptionalDate(value: unknown): string | null {
   if (!raw) return null;
   if (!DATE_PATTERN.test(raw)) return null;
   return isValidIsoDate(raw) ? raw : null;
-}
-
-function defaultGetGcs(): GcsAdapterPair {
-  const bucketName = process.env.OPTIONS_TIME_SERIES_BUCKET;
-  if (!bucketName) {
-    throw new Error('OPTIONS_TIME_SERIES_BUCKET environment variable is not configured');
-  }
-  const bucket = getStorage().bucket(bucketName);
-  return { adapter: new GcsTimeSeriesAdapter(bucket), bucket };
 }
 
 const defaultDependencies: PartnerHistoricalOptionsContractDependencies = {
@@ -288,7 +266,7 @@ export async function partnerHistoricalOptionsContractHandler(
       processingTimeMs: dependencies.now().getTime() - startedAt,
     });
     res.status(200).json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error('partnerHistoricalOptionsContract.error', {
       requestId,

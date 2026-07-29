@@ -1,20 +1,20 @@
 import { randomUUID } from 'node:crypto';
 
 import { onRequest, type HttpsOptions } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
 import type { Request, Response } from 'express';
 
 import { queryContractsByFilters } from '../historical-options-corpus/services/options-index-query.service';
 import { authenticateRequestEither, createLogger, db } from '../utils/utils';
 import { HistoricalOptionsErrorCode } from './historical-options-request.utils';
+import {
+  ALLOWED_SYMBOLS,
+  allowedServiceAccounts,
+  expectedGoogleAudience,
+} from './partner-handler-base';
 
-const ALLOWED_SYMBOLS = new Set(['QQQ', 'TQQQ']);
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const logger = createLogger('[partner-list-contracts]');
-
-const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
-const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
 
 const functionOptions: HttpsOptions = {
   memory: '256MiB',
@@ -196,7 +196,7 @@ export async function partnerListContractsHandler(
       contracts,
       count: contracts.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error('partnerListContracts.error', {
       requestId,

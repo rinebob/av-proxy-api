@@ -1,11 +1,14 @@
-import { onRequest } from 'firebase-functions/v2/https';
+import { onRequest, type HttpsOptions } from 'firebase-functions/v2/https';
 import type { Request, Response } from 'express';
 
 import { withCors } from '../utils/cors-middleware';
 import { authenticateRequestEither, createLogger } from '../utils/utils';
 import { getPartnerTimeSeries, type TimeSeriesReadParams } from '../common/firestore/time-series-readers';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
-import { defineSecret } from 'firebase-functions/params';
+import {
+  allowedServiceAccounts,
+  expectedGoogleAudience,
+} from './partner-handler-base';
 
 // Accepted intervals derived from the shared enum (no magic strings)
 const ALLOWED_INTERVALS = [
@@ -87,21 +90,11 @@ async function handler(req: Request, res: Response) {
     });
     const status = result.ok ? 200 : result.code === 'NOT_FOUND' ? 404 : 500;
     res.status(status).json({ ...result, processingTimeMs: Date.now() - start });
-  } catch (e: any) {
-    res.status(500).json({ ok: false, error: e?.message || 'UNKNOWN', code: 'INTERNAL_ERROR', timestamp: new Date().toISOString() });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'UNKNOWN';
+    res.status(500).json({ ok: false, error: message, code: 'INTERNAL_ERROR', timestamp: new Date().toISOString() });
   }
 }
-
-// Define the function options with explicit type
-type HttpsOptions = {
-  memory: '128MiB' | '256MiB' | '512MiB' | '1GiB' | '2GiB' | '4GiB' | '8GiB';
-  maxInstances?: number;
-  timeoutSeconds?: number;
-  secrets?: ReturnType<typeof defineSecret>[];
-};
-
-const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
-const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
 
 const functionOptions: HttpsOptions = {
   memory: '1GiB',

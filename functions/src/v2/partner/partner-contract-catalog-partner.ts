@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
 import { onRequest, type HttpsOptions } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
 import type { Request, Response } from 'express';
 
 import { ContractCatalogQueryService, FilterConflictError } from '../historical-options-corpus/services/contract-catalog-query.service';
@@ -14,6 +13,11 @@ import {
   parseOptionalNonNegativeNumber,
   parseOptionalBool,
 } from './partner-request.utils';
+import {
+  ALLOWED_SYMBOLS,
+  allowedServiceAccounts,
+  expectedGoogleAudience,
+} from './partner-handler-base';
 
 import type {
   CatalogSortField,
@@ -24,16 +28,12 @@ import type {
   ContractCatalogErrorResponse,
 } from '@shared/options';
 
-const ALLOWED_SYMBOLS = new Set(['QQQ', 'TQQQ']);
 const VALID_SORT_FIELDS = new Set<CatalogSortField>([
   'expiration', 'strike', 'contractLengthDays', 'observationCount', 'delta',
 ]);
 const VALID_SORT_ORDERS = new Set<CatalogSortOrder>(['asc', 'desc']);
 
 const logger = createLogger('[partner-contract-catalog]');
-
-const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
-const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
 
 const functionOptions: HttpsOptions = {
   memory: '256MiB',
@@ -331,7 +331,7 @@ export async function partnerContractCatalogHandler(
     });
 
     res.status(200).json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof FilterConflictError) {
       res.status(400).json(errorResponse(
         HistoricalOptionsErrorCode.BAD_REQUEST,

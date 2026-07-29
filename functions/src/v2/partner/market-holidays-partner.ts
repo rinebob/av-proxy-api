@@ -1,10 +1,13 @@
-import { onRequest } from 'firebase-functions/v2/https';
+import { onRequest, type HttpsOptions } from 'firebase-functions/v2/https';
 import type { Request, Response } from 'express';
 
 import { withCors } from '../utils/cors-middleware';
 import { authenticateRequestEither, createLogger } from '../utils/utils';
-import { defineSecret } from 'firebase-functions/params';
 import { getUnifiedMarketHolidaysForYear } from './market-holidays.data';
+import {
+  allowedServiceAccounts,
+  expectedGoogleAudience,
+} from './partner-handler-base';
 
 const logger = createLogger('[partner-market-holidays]');
 
@@ -61,27 +64,17 @@ async function handler(req: Request, res: Response) {
       processingTimeMs: Date.now() - start,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    logger.error('marketHolidays.error', { error: e?.message || String(e) });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'UNKNOWN';
+    logger.error('marketHolidays.error', { error: message });
     res.status(500).json({
       ok: false,
-      error: e?.message || 'UNKNOWN',
+      error: message,
       code: 'INTERNAL_ERROR',
       timestamp: new Date().toISOString(),
     });
   }
 }
-
-// Define the function options with explicit type (mirrors partnerTimeSeriesV2)
-type HttpsOptions = {
-  memory: '128MiB' | '256MiB' | '512MiB' | '1GiB' | '2GiB' | '4GiB' | '8GiB';
-  maxInstances?: number;
-  timeoutSeconds?: number;
-  secrets?: ReturnType<typeof defineSecret>[];
-};
-
-const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
-const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
 
 const functionOptions: HttpsOptions = {
   memory: '256MiB',
