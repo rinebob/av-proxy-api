@@ -28,7 +28,7 @@ A static CSV (`audit-timeseries-coverage.ts` output) exists but is not live, not
 - Expose `partnerContractCatalogV2` — a single endpoint that serves both:
   - **Summary mode** (`?summary=true`): returns a length-bucket histogram and totals for the symbol.
   - **Catalog mode** (default): returns paginated, filtered, sorted contract metadata.
-- Enable filtering by: `expiration`, `strike`, `type`, `contractLengthBucket`, `deltaGte/deltaLte`, `ivGte/ivLte`, `minObservationCount`.
+- Enable filtering by: `expiration`, `expirationGte/expirationLte` (range), `strike`, `type`, `contractLengthBucket` (multi-value), `deltaGte/deltaLte`, `ivGte/ivLte`, `minObservationCount`.
 - Enable sorting by: `expiration`, `strike`, `contractLengthDays`, `observationCount`, `delta`.
 - Support both interactive UI browsing and programmatic strategy-builder consumption.
 - Keep `ts-expirations` and `ts-strikes` unchanged for dropdown support.
@@ -125,16 +125,31 @@ Path: `options-file-index/{symbol}` (existing doc, enhanced)
   "symbol": "QQQ",
   "totalContracts": 184523,
   "expirationCount": 412,
-  "lengthBuckets": {
-    "1d": 8, "3d": 15, "5d": 22, "7d": 30, "14d": 45,
-    "21d": 18, "1mo": 120, "1.5mo": 35, "2mo": 60, "3mo": 380,
-    "4mo": 95, "6mo": 210, "9mo": 48, "1yr": 95, "2yr": 40, "3yr": 12
-  },
+  "lengthBuckets": [
+    { "label": "1d", "count": 8, "sortOrder": 0 },
+    { "label": "3d", "count": 15, "sortOrder": 1 },
+    { "label": "5d", "count": 22, "sortOrder": 2 },
+    { "label": "7d", "count": 30, "sortOrder": 3 },
+    { "label": "14d", "count": 45, "sortOrder": 4 },
+    { "label": "21d", "count": 18, "sortOrder": 5 },
+    { "label": "1mo", "count": 120, "sortOrder": 6 },
+    { "label": "1.5mo", "count": 35, "sortOrder": 7 },
+    { "label": "2mo", "count": 60, "sortOrder": 8 },
+    { "label": "3mo", "count": 380, "sortOrder": 9 },
+    { "label": "4mo", "count": 95, "sortOrder": 10 },
+    { "label": "6mo", "count": 210, "sortOrder": 11 },
+    { "label": "9mo", "count": 48, "sortOrder": 12 },
+    { "label": "1yr", "count": 95, "sortOrder": 13 },
+    { "label": "2yr", "count": 40, "sortOrder": 14 },
+    { "label": "3yr", "count": 12, "sortOrder": 15 }
+  ],
   "lastUpdated": "2026-07-25T16:00:00Z"
 }
 ```
 
 The `lengthBuckets` histogram counts contracts per bucket label. Powers the filter-button row in the UI — only buckets with count > 0 are rendered as clickable buttons.
+
+**Breaking change (v2):** `lengthBuckets` was previously a `Record<string, number>` (object keyed by label). It is now a `LengthBucketEntry[]` array, pre-sorted shortest-to-longest by `sortOrder`. This enables consumers to render the histogram in canonical order without client-side sorting. The `sortOrder` field provides the chronological position for consumers that need to re-sort or reference a bucket's position independently of array index.
 
 ### 5.3 Unchanged Subcollections
 
@@ -162,8 +177,10 @@ The `lengthBuckets` histogram counts contracts per bucket label. Powers the filt
 |---|---|---|---|
 | `symbol` | yes | string | `QQQ` or `TQQQ` (uppercased) |
 | `summary` | no | boolean | If `true`, returns symbol summary (histogram + totals). Ignores all other params. |
-| `expiration` | no | string (`YYYY-MM-DD`) | Filter by exact expiration date |
-| `contractLengthBucket` | no | string | Filter by length bucket: `1d`, `3d`, `5d`, `7d`, `14d`, `21d`, `1mo`, `1.5mo`, `2mo`, `3mo`, `4mo`, `6mo`, `9mo`, `1yr`, `2yr`, `3yr` |
+| `expiration` | no | string (`YYYY-MM-DD`) | Filter by exact expiration date. Mutually exclusive with `expirationGte`/`expirationLte`. |
+| `expirationGte` | no | string (`YYYY-MM-DD`) | Lower bound (inclusive) for expiration date range filtering. Mutually exclusive with `expiration`. |
+| `expirationLte` | no | string (`YYYY-MM-DD`) | Upper bound (inclusive) for expiration date range filtering. Mutually exclusive with `expiration`. |
+| `contractLengthBucket` | no | string (comma-separated) | Filter by one or more length buckets: `1d`, `3d`, `5d`, `7d`, `14d`, `21d`, `1mo`, `1.5mo`, `2mo`, `3mo`, `4mo`, `6mo`, `9mo`, `1yr`, `2yr`, `3yr`. Multiple values are comma-separated (e.g. `contractLengthBucket=3mo,6mo,1yr`). Uses Firestore `in` operator (max 30 values). |
 | `type` | no | string (`C` or `P`) | Filter by option type |
 | `strike` | no | number | Filter by exact strike |
 | `strikeGte` | no | number | Strike >= value (range filter — see §6.5) |
@@ -190,11 +207,24 @@ Request: `GET ?symbol=QQQ&summary=true`
   "symbol": "QQQ",
   "totalContracts": 184523,
   "expirationCount": 412,
-  "lengthBuckets": {
-    "1d": 8, "3d": 15, "5d": 22, "7d": 30, "14d": 45,
-    "21d": 18, "1mo": 120, "1.5mo": 35, "2mo": 60, "3mo": 380,
-    "4mo": 95, "6mo": 210, "9mo": 48, "1yr": 95, "2yr": 40, "3yr": 12
-  },
+  "lengthBuckets": [
+    { "label": "1d", "count": 8, "sortOrder": 0 },
+    { "label": "3d", "count": 15, "sortOrder": 1 },
+    { "label": "5d", "count": 22, "sortOrder": 2 },
+    { "label": "7d", "count": 30, "sortOrder": 3 },
+    { "label": "14d", "count": 45, "sortOrder": 4 },
+    { "label": "21d", "count": 18, "sortOrder": 5 },
+    { "label": "1mo", "count": 120, "sortOrder": 6 },
+    { "label": "1.5mo", "count": 35, "sortOrder": 7 },
+    { "label": "2mo", "count": 60, "sortOrder": 8 },
+    { "label": "3mo", "count": 380, "sortOrder": 9 },
+    { "label": "4mo", "count": 95, "sortOrder": 10 },
+    { "label": "6mo", "count": 210, "sortOrder": 11 },
+    { "label": "9mo", "count": 48, "sortOrder": 12 },
+    { "label": "1yr", "count": 95, "sortOrder": 13 },
+    { "label": "2yr", "count": 40, "sortOrder": 14 },
+    { "label": "3yr", "count": 12, "sortOrder": 15 }
+  ],
   "lastUpdated": "2026-07-25T16:00:00Z"
 }
 ```
@@ -241,7 +271,9 @@ When there are no more results, `nextPageToken` is omitted.
 
 ### 6.5 Firestore Query Constraints
 
-Firestore supports at most **one range field** per query. Equality filters (`expiration`, `contractLengthBucket`, `type`, `strike`) can combine freely. Range filters (`strikeGte/Lte`, `deltaGte/Lte`, `ivGte/Lte`, `minObservationCount`) conflict with each other.
+Firestore supports at most **one range field** per query. Equality filters (`expiration`, `contractLengthBucket`, `type`, `strike`) can combine freely. `contractLengthBucket` accepts comma-separated values and uses Firestore's `in` operator (equality, not range). Range filters (`expirationGte/Lte`, `strikeGte/Lte`, `deltaGte/Lte`, `ivGte/Lte`, `minObservationCount`) conflict with each other.
+
+`expiration` can be used as either an equality filter (exact match) or a range filter (`expirationGte`/`expirationLte`), but not both in the same request.
 
 **Allowed combinations:**
 
@@ -252,13 +284,17 @@ Firestore supports at most **one range field** per query. Equality filters (`exp
 | `contractLengthBucket` + `type` + sort by `expiration` | 2 equality + orderBy |
 | `expiration` + `deltaGte` + `deltaLte` | 1 equality + 1 range (same field) |
 | `strike` + `deltaGte` + `deltaLte` | 1 equality + 1 range (same field) |
+| `expirationGte` + `expirationLte` + `type` + sort by `strike` | 1 equality + 1 range (expiration) |
+| `expirationGte` + `expirationLte` + `contractLengthBucket` + sort by `expiration` | 1 equality + 1 range (expiration) |
 
-**Not allowed (two different range fields):**
+**Not allowed:**
 
 | Filters | Why |
 |---|---|
+| `expiration` + `expirationGte` | Mutually exclusive (exact match vs range) |
 | `strikeGte` + `deltaGte` | Two different range fields |
 | `ivGte` + `deltaGte` | Two different range fields |
+| `expirationGte` + `strikeGte` | Two different range fields |
 
 **Handling:** The endpoint validates the combination and returns `400` with a clear error message when an unsupported combination is requested. The error message lists which filters conflict. Consumers adjust by using equality filters where possible and doing client-side filtering for the remainder.
 
@@ -270,12 +306,15 @@ For `sortBy=delta`, the query orders by `latest.delta`. This requires a composit
 
 - `symbol` is trimmed, uppercased, and must be in `ALLOWED_SYMBOLS` (`QQQ`, `TQQQ`).
 - `expiration`, if supplied, must match `YYYY-MM-DD` and be a valid calendar date.
+- `expirationGte`/`expirationLte`, if supplied, must match `YYYY-MM-DD` and be valid calendar dates.
+- `expiration` (exact) and `expirationGte`/`expirationLte` (range) are mutually exclusive.
+- `expirationGte` must be <= `expirationLte` when both are supplied.
 - `type`, if supplied, must be `C` or `P`.
 - `strike`, if supplied, must be a non-negative finite number.
-- `contractLengthBucket`, if supplied, must be one of the defined bucket labels.
+- `contractLengthBucket`, if supplied, must be one or more comma-separated bucket labels from the defined set. Multiple values use Firestore's `in` operator (max 30 values).
 - Range params (`strikeGte`, `strikeLte`, `deltaGte`, `deltaLte`, `ivGte`, `ivLte`) must be finite numbers.
 - `deltaGte` must be <= `deltaLte` when both are supplied (same for other range pairs).
-- At most one range field dimension (strike, delta, iv) may be used per request. If two different range dimensions are supplied, return `400` with a descriptive error.
+- At most one range field dimension (expiration, strike, delta, iv, observationCount) may be used per request. If two different range dimensions are supplied, return `400` with a descriptive error.
 - `sortBy` must be one of: `expiration`, `strike`, `contractLengthDays`, `observationCount`, `delta`.
 - `sortOrder` must be `asc` or `desc`.
 - `pageSize` must be between 1 and 500.

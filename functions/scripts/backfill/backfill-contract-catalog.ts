@@ -411,7 +411,7 @@ async function main(): Promise<void> {
       console.log(`\n  Running summary aggregator for ${symbol}...`);
       try {
         const summary = await aggregator.aggregateAndWriteSummary(symbol);
-        console.log(`  Summary written: ${summary.totalContracts} contracts, ${summary.expirationCount} expirations, ${Object.keys(summary.lengthBuckets).length} length buckets`);
+        console.log(`  Summary written: ${summary.totalContracts} contracts, ${summary.expirationCount} expirations, ${summary.lengthBuckets.length} length buckets`);
       } catch (error: any) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`  [ERROR] Summary aggregation failed: ${message}`);

@@ -95,10 +95,20 @@ export interface ContractSummaryDoc {
   totalContracts: number;
   /** Number of distinct expiration dates. */
   expirationCount: number;
-  /** Histogram: bucket label → contract count. */
-  lengthBuckets: Record<string, number>;
+  /** Length-bucket histogram, ordered shortest-to-longest by `sortOrder`. */
+  lengthBuckets: LengthBucketEntry[];
   /** ISO timestamp of the last aggregation run. */
   lastUpdated: string;
+}
+
+/** Single entry in the length-bucket histogram. */
+export interface LengthBucketEntry {
+  /** Human-readable bucket label (e.g. "3mo", "1yr"). */
+  label: string;
+  /** Number of contracts in this bucket. */
+  count: number;
+  /** Zero-based chronological position. Lower = shorter contract length. */
+  sortOrder: number;
 }
 
 // ---- API response types ----
@@ -131,7 +141,7 @@ export interface ContractSummaryResponse {
   symbol: string;
   totalContracts: number;
   expirationCount: number;
-  lengthBuckets: Record<string, number>;
+  lengthBuckets: LengthBucketEntry[];
   lastUpdated: string;
 }
 

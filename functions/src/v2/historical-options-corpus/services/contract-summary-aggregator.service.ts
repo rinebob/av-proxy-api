@@ -3,7 +3,10 @@ import type { Firestore } from 'firebase-admin/firestore';
 import {
   OPTIONS_FILE_INDEX_COLLECTION,
   TS_CONTRACTS_SUBCOLLECTION,
+  LENGTH_BUCKET_LABELS,
+  LENGTH_BUCKET_SORT_INDEX,
   type ContractSummaryDoc,
+  type LengthBucketEntry,
 } from '@shared/options';
 
 export type SummaryLogger = (message: string, meta?: Record<string, unknown>) => void;
@@ -40,7 +43,7 @@ export class ContractSummaryAggregator {
 
     const snap = await colRef.get();
 
-    const lengthBuckets: Record<string, number> = {};
+    const rawCounts = new Map<string, number>();
     const expirationSet = new Set<string>();
     let totalContracts = 0;
 
@@ -50,12 +53,27 @@ export class ContractSummaryAggregator {
 
       const bucket = data.contractLengthBucket as string | undefined;
       if (bucket) {
-        lengthBuckets[bucket] = (lengthBuckets[bucket] ?? 0) + 1;
+        rawCounts.set(bucket, (rawCounts.get(bucket) ?? 0) + 1);
       }
 
       const expiration = data.expiration as string | undefined;
       if (expiration) {
         expirationSet.add(expiration);
+      }
+    }
+
+    // # Reason: Iterate LENGTH_BUCKET_LABELS in canonical order so the
+    // output array is pre-sorted by contract length. Only include buckets
+    // with at least one contract.
+    const lengthBuckets: LengthBucketEntry[] = [];
+    for (const label of LENGTH_BUCKET_LABELS) {
+      const count = rawCounts.get(label);
+      if (count) {
+        lengthBuckets.push({
+          label,
+          count,
+          sortOrder: LENGTH_BUCKET_SORT_INDEX.get(label) ?? -1,
+        });
       }
     }
 
@@ -74,7 +92,7 @@ export class ContractSummaryAggregator {
       symbol: upperSymbol,
       totalContracts,
       expirationCount: expirationSet.size,
-      bucketCount: Object.keys(lengthBuckets).length,
+      bucketCount: lengthBuckets.length,
     });
 
     return summary;

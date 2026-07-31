@@ -32,6 +32,17 @@ const LENGTH_BUCKETS: ReadonlyArray<LengthBucket> = [
   { label: '3yr', maxDays: Number.MAX_SAFE_INTEGER },
 ];
 
+/** Ordered list of bucket labels, shortest to longest. */
+export const LENGTH_BUCKET_LABELS: ReadonlyArray<string> = LENGTH_BUCKETS.map((b) => b.label);
+
+/** Set of valid length bucket labels, derived from LENGTH_BUCKETS. */
+export const VALID_LENGTH_BUCKETS: ReadonlySet<string> = new Set(LENGTH_BUCKET_LABELS);
+
+/** Zero-based chronological sort index for each bucket label. */
+export const LENGTH_BUCKET_SORT_INDEX: ReadonlyMap<string, number> = new Map(
+  LENGTH_BUCKET_LABELS.map((label, idx) => [label, idx]),
+);
+
 /**
  * Classifies a calendar-day span into a length label.
  *

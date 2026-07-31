@@ -27,6 +27,7 @@ import type {
   ContractSummaryResponse,
   ContractCatalogErrorResponse,
 } from '@shared/options';
+import { VALID_LENGTH_BUCKETS } from '@shared/options';
 
 const VALID_SORT_FIELDS = new Set<CatalogSortField>([
   'expiration', 'strike', 'contractLengthDays', 'observationCount', 'delta',
@@ -45,6 +46,8 @@ const functionOptions: HttpsOptions = {
 export interface PartnerContractCatalogDependencies {
   authenticateRequest: typeof authenticateRequestEither;
   now: () => Date;
+  /** Override for testing. Defaults to `new ContractCatalogQueryService(db)`. */
+  queryServiceFactory?: () => ContractCatalogQueryService;
 }
 
 const defaultDependencies: PartnerContractCatalogDependencies = {
@@ -74,12 +77,71 @@ function parseSortOrder(value: unknown): CatalogSortOrder | null {
   return null;
 }
 
+/**
+ * Parses a comma-separated list of contract length bucket labels.
+ * Returns `undefined` when the param is absent, or a string array of trimmed
+ * non-empty values. Does not validate individual labels — that is the caller's
+ * responsibility.
+ */
+function parseOptionalBucketList(value: unknown): string[] | undefined {
+  const raw = toFirstString(value);
+  if (!raw) return undefined;
+  return raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
 function errorResponse(
   code: HistoricalOptionsErrorCode,
   message: string,
   timestamp: string,
 ): ContractCatalogErrorResponse {
   return { ok: false, error: message, code, timestamp };
+}
+
+/**
+ * Sends a 400 error when a parsed param is `null` but the raw query value
+ * was provided (indicating a format error). Returns `true` when the param
+ * is valid or absent, `false` when the error response was sent.
+ */
+function requireValidParam(
+  res: Response,
+  parsed: unknown,
+  rawProvided: boolean,
+  paramName: string,
+  expectedFormat: string,
+  now: string,
+): boolean {
+  if (parsed === null && rawProvided) {
+    res.status(400).json(errorResponse(
+      HistoricalOptionsErrorCode.BAD_REQUEST,
+      `Invalid ${paramName}. Expected ${expectedFormat}.`,
+      now,
+    ));
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Sends a 400 error when a range pair's lower bound exceeds its upper bound.
+ * Works for both string (ISO date) and numeric comparisons.
+ * Returns `true` when the pair is valid, `false` when the error was sent.
+ */
+function requireRangeOrder<T extends string | number>(
+  res: Response,
+  gte: T | null,
+  lte: T | null,
+  paramName: string,
+  now: string,
+): boolean {
+  if (gte !== null && lte !== null && gte > lte) {
+    res.status(400).json(errorResponse(
+      HistoricalOptionsErrorCode.BAD_REQUEST,
+      `${paramName}Gte must be less than or equal to ${paramName}Lte.`,
+      now,
+    ));
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -142,7 +204,7 @@ export async function partnerContractCatalogHandler(
       return;
     }
 
-    const queryService = new ContractCatalogQueryService(db);
+    const queryService = (dependencies.queryServiceFactory ?? (() => new ContractCatalogQueryService(db)))();
     const now = dependencies.now().toISOString();
 
     // --- Summary mode ---
@@ -181,9 +243,22 @@ export async function partnerContractCatalogHandler(
 
     // --- Catalog mode ---
     const expiration = parseOptionalDate(req.query.expiration);
+    const expirationGte = parseOptionalDate(req.query.expirationGte);
+    const expirationLte = parseOptionalDate(req.query.expirationLte);
     const strike = parseOptionalNonNegativeNumber(req.query.strike);
     const type = parseOptionalType(req.query.type);
-    const contractLengthBucket = toFirstString(req.query.contractLengthBucket) || undefined;
+    const contractLengthBuckets = parseOptionalBucketList(req.query.contractLengthBucket);
+    if (contractLengthBuckets) {
+      const invalid = contractLengthBuckets.filter((b) => !VALID_LENGTH_BUCKETS.has(b));
+      if (invalid.length > 0) {
+        res.status(400).json(errorResponse(
+          HistoricalOptionsErrorCode.BAD_REQUEST,
+          `Invalid contractLengthBucket value(s): ${invalid.join(', ')}. Valid values: ${[...VALID_LENGTH_BUCKETS].join(', ')}.`,
+          now,
+        ));
+        return;
+      }
+    }
     const strikeGte = parseOptionalNumber(req.query.strikeGte);
     const strikeLte = parseOptionalNumber(req.query.strikeLte);
     const deltaGte = parseOptionalNumber(req.query.deltaGte);
@@ -197,94 +272,42 @@ export async function partnerContractCatalogHandler(
     const pageToken = toFirstString(req.query.pageToken) || undefined;
 
     // Validate individual params
-    if (expiration === null && req.query.expiration !== undefined) {
+    if (!requireValidParam(res, expiration, req.query.expiration !== undefined, 'expiration', 'YYYY-MM-DD', now)) return;
+    if (!requireValidParam(res, expirationGte, req.query.expirationGte !== undefined, 'expirationGte', 'YYYY-MM-DD', now)) return;
+    if (!requireValidParam(res, expirationLte, req.query.expirationLte !== undefined, 'expirationLte', 'YYYY-MM-DD', now)) return;
+
+    // # Reason: exact-match expiration and range expiration are mutually exclusive —
+    // combining them is contradictory and would produce confusing Firestore behavior.
+    if (expiration && (expirationGte || expirationLte)) {
       res.status(400).json(errorResponse(
         HistoricalOptionsErrorCode.BAD_REQUEST,
-        'Invalid expiration. Expected YYYY-MM-DD.',
+        'expiration (exact match) cannot be combined with expirationGte/expirationLte (range filter).',
         now,
       ));
       return;
     }
 
-    if (strike === null && req.query.strike !== undefined) {
-      res.status(400).json(errorResponse(
-        HistoricalOptionsErrorCode.BAD_REQUEST,
-        'Invalid strike. Expected a non-negative number.',
-        now,
-      ));
-      return;
-    }
-
-    if (type === null && req.query.type !== undefined) {
-      res.status(400).json(errorResponse(
-        HistoricalOptionsErrorCode.BAD_REQUEST,
-        'Invalid type. Expected C or P.',
-        now,
-      ));
-      return;
-    }
-
-    if (sortBy === null && req.query.sortBy !== undefined) {
-      res.status(400).json(errorResponse(
-        HistoricalOptionsErrorCode.BAD_REQUEST,
-        `Invalid sortBy. Expected one of: ${[...VALID_SORT_FIELDS].join(', ')}.`,
-        now,
-      ));
-      return;
-    }
-
-    if (sortOrder === null && req.query.sortOrder !== undefined) {
-      res.status(400).json(errorResponse(
-        HistoricalOptionsErrorCode.BAD_REQUEST,
-        'Invalid sortOrder. Expected asc or desc.',
-        now,
-      ));
-      return;
-    }
-
-    if (pageSize === null && req.query.pageSize !== undefined) {
-      res.status(400).json(errorResponse(
-        HistoricalOptionsErrorCode.BAD_REQUEST,
-        'Invalid pageSize. Expected a non-negative number.',
-        now,
-      ));
-      return;
-    }
+    if (!requireValidParam(res, strike, req.query.strike !== undefined, 'strike', 'a non-negative number', now)) return;
+    if (!requireValidParam(res, type, req.query.type !== undefined, 'type', 'C or P', now)) return;
+    if (!requireValidParam(res, sortBy, req.query.sortBy !== undefined, 'sortBy', `one of: ${[...VALID_SORT_FIELDS].join(', ')}`, now)) return;
+    if (!requireValidParam(res, sortOrder, req.query.sortOrder !== undefined, 'sortOrder', 'asc or desc', now)) return;
+    if (!requireValidParam(res, pageSize, req.query.pageSize !== undefined, 'pageSize', 'a non-negative number', now)) return;
 
     // Validate range pairs
-    if (strikeGte !== null && strikeLte !== null && strikeGte > strikeLte) {
-      res.status(400).json(errorResponse(
-        HistoricalOptionsErrorCode.BAD_REQUEST,
-        'strikeGte must be less than or equal to strikeLte.',
-        now,
-      ));
-      return;
-    }
-
-    if (deltaGte !== null && deltaLte !== null && deltaGte > deltaLte) {
-      res.status(400).json(errorResponse(
-        HistoricalOptionsErrorCode.BAD_REQUEST,
-        'deltaGte must be less than or equal to deltaLte.',
-        now,
-      ));
-      return;
-    }
-
-    if (ivGte !== null && ivLte !== null && ivGte > ivLte) {
-      res.status(400).json(errorResponse(
-        HistoricalOptionsErrorCode.BAD_REQUEST,
-        'ivGte must be less than or equal to ivLte.',
-        now,
-      ));
-      return;
-    }
+    // # Reason: ISO date strings sort lexicographically in calendar order.
+    if (!requireRangeOrder(res, expirationGte, expirationLte, 'expiration', now)) return;
+    if (!requireRangeOrder(res, strikeGte, strikeLte, 'strike', now)) return;
+    if (!requireRangeOrder(res, deltaGte, deltaLte, 'delta', now)) return;
+    if (!requireRangeOrder(res, ivGte, ivLte, 'iv', now)) return;
 
     logger.info('partnerContractCatalog.request', {
       requestId,
       requester: authResult.serviceAccountEmail,
       symbol,
       expiration: expiration ?? 'none',
-      contractLengthBucket: contractLengthBucket ?? 'none',
+      expirationGte: expirationGte ?? 'none',
+      expirationLte: expirationLte ?? 'none',
+      contractLengthBuckets: contractLengthBuckets?.join(',') ?? 'none',
       type: type ?? 'none',
       strike: strike ?? 'none',
       sortBy: sortBy ?? 'default',
@@ -296,7 +319,9 @@ export async function partnerContractCatalogHandler(
     const result = await queryService.queryCatalog({
       symbol,
       expiration: expiration ?? undefined,
-      contractLengthBucket,
+      expirationGte: expirationGte ?? undefined,
+      expirationLte: expirationLte ?? undefined,
+      contractLengthBuckets,
       type: type ?? undefined,
       strike: strike ?? undefined,
       strikeGte: strikeGte ?? undefined,

@@ -13,13 +13,20 @@ import {
  * Filters accepted by the catalog query service.
  *
  * Equality filters can be combined freely.  At most one range dimension
- * (strike, delta, or iv) may be used per query — Firestore does not support
- * range filters on two different fields in the same query.
+ * (expiration, strike, delta, iv, or observationCount) may be used per
+ * query — Firestore does not support range filters on two different
+ * fields in the same query.
  */
 export interface CatalogQueryFilters {
   symbol: string;
+  /** Exact-match expiration date (YYYY-MM-DD). Mutually exclusive with expirationGte/expirationLte. */
   expiration?: string;
-  contractLengthBucket?: string;
+  /** Lower bound (inclusive) for expiration date range filtering. */
+  expirationGte?: string;
+  /** Upper bound (inclusive) for expiration date range filtering. */
+  expirationLte?: string;
+  /** One or more length bucket labels for equality filtering (e.g. ['3mo', '6mo']). */
+  contractLengthBuckets?: string[];
   type?: 'call' | 'put';
   strike?: number;
   strikeGte?: number;
@@ -91,7 +98,14 @@ export class ContractCatalogQueryService {
     const sortOrder = filters.sortOrder ?? 'asc';
     const sortField = SORT_FIELD_MAP[sortBy];
 
-    this.validateFilterCombination(filters);
+    const rangeDims = this.getActiveRangeDimensions(filters);
+    if (rangeDims.length > 1) {
+      throw new FilterConflictError(
+        `At most one range dimension is supported per query. ` +
+          `Found: ${rangeDims.map((d) => d.dimension).join(', ')}. ` +
+          `Use equality filters where possible and apply the remaining range filter client-side.`,
+      );
+    }
 
     const colRef = this.db
       .collection(OPTIONS_FILE_INDEX_COLLECTION)
@@ -104,8 +118,19 @@ export class ContractCatalogQueryService {
     if (filters.expiration) {
       q = q.where('expiration', '==', filters.expiration);
     }
-    if (filters.contractLengthBucket) {
-      q = q.where('contractLengthBucket', '==', filters.contractLengthBucket);
+    // Range filter on expiration — counts as the one allowed range dimension
+    if (filters.expirationGte) {
+      q = q.where('expiration', '>=', filters.expirationGte);
+    }
+    if (filters.expirationLte) {
+      q = q.where('expiration', '<=', filters.expirationLte);
+    }
+    if (filters.contractLengthBuckets && filters.contractLengthBuckets.length > 0) {
+      if (filters.contractLengthBuckets.length === 1) {
+        q = q.where('contractLengthBucket', '==', filters.contractLengthBuckets[0]);
+      } else {
+        q = q.where('contractLengthBucket', 'in', filters.contractLengthBuckets);
+      }
     }
     if (filters.type) {
       q = q.where('type', '==', filters.type);
@@ -138,6 +163,14 @@ export class ContractCatalogQueryService {
     }
 
     // Sort
+    // # Reason: Firestore requires that the first orderBy matches the field
+    // used in a range filter. When the user's sortBy differs from the range
+    // field, we must prepend orderBy on the range field, then add the user's
+    // requested sort as a secondary orderBy.
+    const rangeField = rangeDims.length > 0 ? rangeDims[0].fieldPath : null;
+    if (rangeField && rangeField !== sortField) {
+      q = q.orderBy(rangeField, 'asc');
+    }
     q = q.orderBy(sortField, sortOrder);
 
     // Cursor pagination
@@ -177,32 +210,33 @@ export class ContractCatalogQueryService {
   }
 
   /**
-   * Validates that at most one range dimension is used.
-   * @throws {FilterConflictError} when two different range dimensions are used.
+   * Returns all active range dimensions from the filters.
+   * Each entry contains the dimension name (for error messages) and the
+   * Firestore field path (for orderBy).
+   *
+   * # Reason: Consolidates range-dimension detection so validation and
+   * orderBy construction share a single source of truth.
    */
-  private validateFilterCombination(filters: CatalogQueryFilters): void {
-    const rangeDimensions: string[] = [];
+  private getActiveRangeDimensions(filters: CatalogQueryFilters): Array<{ dimension: string; fieldPath: string }> {
+    const dims: Array<{ dimension: string; fieldPath: string }> = [];
 
+    if (filters.expirationGte !== undefined || filters.expirationLte !== undefined) {
+      dims.push({ dimension: 'expiration', fieldPath: 'expiration' });
+    }
     if (filters.strikeGte !== undefined || filters.strikeLte !== undefined) {
-      rangeDimensions.push('strike');
+      dims.push({ dimension: 'strike', fieldPath: 'strike' });
     }
     if (filters.deltaGte !== undefined || filters.deltaLte !== undefined) {
-      rangeDimensions.push('delta');
+      dims.push({ dimension: 'delta', fieldPath: 'latestDelta' });
     }
     if (filters.ivGte !== undefined || filters.ivLte !== undefined) {
-      rangeDimensions.push('iv');
+      dims.push({ dimension: 'iv', fieldPath: 'latestIv' });
     }
     if (filters.minObservationCount !== undefined) {
-      rangeDimensions.push('observationCount');
+      dims.push({ dimension: 'observationCount', fieldPath: 'observationCount' });
     }
 
-    if (rangeDimensions.length > 1) {
-      throw new FilterConflictError(
-        `At most one range dimension is supported per query. ` +
-          `Found: ${rangeDimensions.join(', ')}. ` +
-          `Use equality filters where possible and apply the remaining range filter client-side.`,
-      );
-    }
+    return dims;
   }
 
   /**
