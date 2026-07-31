@@ -2,51 +2,19 @@
 
 ## Why this file only contains 8 indexes
 
-The `alpha-vantage-proxy-api` project has **22 composite indexes already deployed** in Firestore. The Firebase CLI has a known bug where it cannot match indexes in `firestore.indexes.json` to existing deployed indexes — it tries to create them again, gets a 409 Conflict, and aborts the entire deploy.
+The `alpha-vantage-proxy-api` project has **42 composite indexes already deployed** in Firestore (auto-created from failed queries + previously deployed). The Firebase CLI cannot match indexes in `firestore.indexes.json` to existing deployed indexes — it tries to create them again, gets a 409 Conflict, and aborts the entire deploy.
 
-To work around this, only the **8 new indexes** (not yet deployed) are listed in `firestore.indexes.json`. During `firebase deploy --only firestore:indexes`, answer **N** to the "Would you like to delete these indexes?" prompt to preserve the 22 existing indexes.
+To work around this, only the **8 new indexes** (not yet deployed) are listed in `firestore.indexes.json`. During `firebase deploy --only firestore:indexes`, answer **N** to the "Would you like to delete these indexes?" prompt to preserve all existing indexes.
 
-## 22 Deployed Indexes (NOT in firestore.indexes.json — do NOT delete)
+## 21 Indexes Removed from firestore.indexes.json (already deployed — do NOT delete)
 
-### realtime-runs
-1. `(interval ASC, runType ASC, marketDate DESC, __name__ DESC)` — CICAgNi47oMK
+These indexes were previously listed in `firestore.indexes.json` but already exist in Firestore. They were removed to avoid 409 conflicts on deploy. All are on `ts-contracts` collection.
 
-### request-logs
-2. `(endpointId ASC, timestamp DESC, __name__ DESC)` — CICAgJj7z4EK
-3. `(status ASC, timestamp DESC, __name__ DESC)` — CICAgJjF9oIK
-
-### tracked-symbols
-4. `(_isActive ASC, symbol ASC, __name__ ASC)` — CICAgJim14AK
-5. `(isActive ASC, symbol ASC, __name__ ASC)` — CICAgJiUpoMK
-
-### ts-contracts
-6. `(expiration ASC, strike ASC, __name__ ASC)` — CICAgNiav4AK
-7. `(expiration ASC, latest.delta ASC, __name__ ASC)` — CICAgLjy8IAK
-8. `(expiration ASC, type ASC, strike ASC, __name__ ASC)` — CICAgNiroIEK
-9. `(contractLengthBucket ASC, type ASC, strike DESC, __name__ DESC)` — CICAgLiT6IEK
-10. `(expiration DESC, strike DESC, __name__ DESC)` — CICAgNjpgYIK
-11. `(expiration DESC, type ASC, strike DESC, __name__ DESC)` — CICAgLjRyYIK
-12. `(contractLengthBucket ASC, expiration ASC, __name__ ASC)` — CICAgLiIkYMK
-13. `(expiration ASC, latest.delta DESC, __name__ DESC)` — CICAgJjmnIgK
-14. `(expiration ASC, contractLengthBucket ASC, strike DESC, __name__ DESC)` — CICAgNja0ogK
-15. `(contractLengthBucket ASC, contractLengthDays DESC, __name__ DESC)` — CICAgNjp84oK
-16. `(expiration ASC, type ASC, strike DESC, __name__ DESC)` — CICAgNi4o4sK
-17. `(contractLengthBucket ASC, expiration DESC, __name__ DESC)` — CICAgJiH2JAK
-18. `(expiration ASC, contractLengthBucket ASC, strike ASC, __name__ ASC)` — CICAgJjmiJEK
-19. `(contractLengthBucket ASC, type ASC, strike ASC, __name__ ASC)` — CICAgLiIjZIK
-20. `(strike DESC, expiration DESC, __name__ DESC)` — CICAgNjaxJEK
-21. `(strike ASC, expiration ASC, __name__ ASC)` — CICAgNi4-ZIK
-22. `(contractLengthBucket ASC, contractLengthDays ASC, __name__ ASC)` — CICAgNjp5ZMK
-
-## 8 New Indexes (in firestore.indexes.json — will be created on deploy)
-
-These are the indexes that don't exist in Firestore yet:
-
-### ts-contracts — latestDelta (numeric, replaces stale `latest.delta` string indexes)
+### ts-contracts — latestDelta (numeric)
 1. `(expiration ASC, latestDelta ASC, __name__ ASC)`
 2. `(expiration ASC, latestDelta DESC, __name__ DESC)`
 
-### ts-contracts — contractLengthBucket without type (fixes "Both" + length bucket 500 bug)
+### ts-contracts — contractLengthBucket without type
 3. `(contractLengthBucket ASC, strike ASC, __name__ ASC)`
 4. `(contractLengthBucket ASC, strike DESC, __name__ DESC)`
 5. `(contractLengthBucket ASC, latestDelta ASC, __name__ ASC)`
@@ -54,12 +22,93 @@ These are the indexes that don't exist in Firestore yet:
 7. `(contractLengthBucket ASC, observationCount ASC, __name__ ASC)`
 8. `(contractLengthBucket ASC, observationCount DESC, __name__ DESC)`
 
+### ts-contracts — type + expiration (equality)
+9. `(type ASC, expiration ASC, __name__ ASC)`
+10. `(type ASC, expiration DESC, __name__ DESC)`
+
+### ts-contracts — type + expiration + strike
+11. `(type ASC, expiration ASC, strike ASC, __name__ ASC)`
+12. `(type ASC, expiration ASC, strike DESC, __name__ DESC)`
+
+### ts-contracts — type + expiration + contractLengthDays
+13. `(type ASC, expiration ASC, contractLengthDays ASC, __name__ ASC)`
+14. `(type ASC, expiration ASC, contractLengthDays DESC, __name__ DESC)`
+
+### ts-contracts — type + expiration + observationCount
+15. `(type ASC, expiration ASC, observationCount ASC, __name__ ASC)`
+16. `(type ASC, expiration ASC, observationCount DESC, __name__ DESC)`
+
+### ts-contracts — type + expiration + latestDelta
+17. `(type ASC, expiration ASC, latestDelta ASC, __name__ ASC)`
+18. `(type ASC, expiration ASC, latestDelta DESC, __name__ DESC)`
+
+### ts-contracts — type + contractLengthBucket + expiration
+19. `(type ASC, contractLengthBucket ASC, expiration ASC, __name__ ASC)`
+20. `(type ASC, contractLengthBucket ASC, expiration DESC, __name__ DESC)`
+
+### ts-contracts — expiration + strike (auto-created)
+21. `(expiration ASC, strike ASC, __name__ ASC)` — CICAgNiav4AK
+
+## Other Deployed Indexes (NOT in firestore.indexes.json — do NOT delete)
+
+### realtime-runs
+- `(interval ASC, runType ASC, marketDate DESC, __name__ DESC)`
+
+### request-logs
+- `(endpointId ASC, timestamp DESC, __name__ DESC)`
+- `(status ASC, timestamp DESC, __name__ DESC)`
+
+### tracked-symbols
+- `(_isActive ASC, symbol ASC, __name__ ASC)`
+- `(isActive ASC, symbol ASC, __name__ ASC)`
+
+### ts-contracts — additional auto-created indexes
+- `(expiration ASC, strike ASC, __name__ ASC)`
+- `(expiration ASC, latest.delta ASC, __name__ ASC)`
+- `(expiration ASC, type ASC, strike ASC, __name__ ASC)`
+- `(contractLengthBucket ASC, type ASC, strike DESC, __name__ DESC)`
+- `(expiration DESC, strike DESC, __name__ DESC)`
+- `(expiration DESC, type ASC, strike DESC, __name__ DESC)`
+- `(contractLengthBucket ASC, expiration ASC, __name__ ASC)`
+- `(expiration ASC, latest.delta DESC, __name__ DESC)`
+- `(expiration ASC, contractLengthBucket ASC, strike DESC, __name__ DESC)`
+- `(contractLengthBucket ASC, contractLengthDays DESC, __name__ DESC)`
+- `(expiration ASC, type ASC, strike DESC, __name__ DESC)`
+- `(contractLengthBucket ASC, expiration DESC, __name__ DESC)`
+- `(expiration ASC, contractLengthBucket ASC, strike ASC, __name__ ASC)`
+- `(contractLengthBucket ASC, type ASC, strike ASC, __name__ ASC)`
+- `(strike DESC, expiration DESC, __name__ DESC)`
+- `(strike ASC, expiration ASC, __name__ ASC)`
+- `(contractLengthBucket ASC, contractLengthDays ASC, __name__ ASC)`
+
+## 8 New Indexes (in firestore.indexes.json — will be created on deploy)
+
+### ts-contracts — contractLengthBucket (equality/in) + expiration range + sort
+1. `(contractLengthBucket ASC, expiration ASC, strike ASC, __name__ ASC)`
+2. `(contractLengthBucket ASC, expiration ASC, strike DESC, __name__ DESC)`
+3. `(contractLengthBucket ASC, expiration ASC, contractLengthDays ASC, __name__ ASC)`
+4. `(contractLengthBucket ASC, expiration ASC, contractLengthDays DESC, __name__ DESC)`
+5. `(contractLengthBucket ASC, expiration ASC, observationCount ASC, __name__ ASC)`
+6. `(contractLengthBucket ASC, expiration ASC, observationCount DESC, __name__ DESC)`
+7. `(contractLengthBucket ASC, expiration ASC, latestDelta ASC, __name__ ASC)`
+8. `(contractLengthBucket ASC, expiration ASC, latestDelta DESC, __name__ DESC)`
+
+### 5 Indexes also removed (already deployed — were in previous version of this file)
+
+These 5 indexes were previously listed as "new" but are already deployed in Firestore:
+
+- `(expiration ASC, strike DESC, __name__ DESC)`
+- `(expiration ASC, contractLengthDays ASC, __name__ ASC)`
+- `(expiration ASC, contractLengthDays DESC, __name__ DESC)`
+- `(expiration ASC, observationCount ASC, __name__ ASC)`
+- `(expiration ASC, observationCount DESC, __name__ DESC)`
+
 ## Deploy Instructions
 
 ```bash
 firebase deploy --only firestore:indexes --project alpha-vantage-proxy-api
 ```
 
-When prompted "Would you like to delete these indexes?", answer **N** to preserve the 22 existing indexes.
+When prompted "Would you like to delete these indexes?", answer **N** to preserve all existing indexes.
 
 Indexes on 370K+ docs take several minutes to build. Queries requiring the new indexes will return 500 until state is `READY`.
