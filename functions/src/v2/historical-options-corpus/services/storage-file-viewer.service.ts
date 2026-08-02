@@ -7,6 +7,12 @@ import type {
   ListCorpusResult,
   ReadResult,
   CorpusFileEntry,
+  ContractResult,
+  ContractCatalogDoc,
+} from '@shared/options';
+import {
+  OPTIONS_FILE_INDEX_COLLECTION,
+  TS_CONTRACTS_SUBCOLLECTION,
 } from '@shared/options';
 
 import { queryContractsByFilters } from './options-index-query.service';
@@ -51,7 +57,57 @@ export class StorageFileViewerService {
       strike,
       type,
     );
-    return { bucket: 'time-series', symbol: upperSymbol, contracts, count: contracts.length };
+
+    const enriched = await this.enrichWithCatalogData(upperSymbol, contracts);
+
+    return { bucket: 'time-series', symbol: upperSymbol, contracts: enriched, count: enriched.length };
+  }
+
+  /**
+   * Batch-fetch `ts-contracts` catalog docs and merge `firstObserved` +
+   * `observationCount` into each {@link ContractResult}.
+   *
+   * # Reason: `queryContractsByFilters` only parses the contract ID — it doesn't
+   * read the catalog subcollection. The storage viewer UI needs these fields
+   * for the Length, Observations, and First Trading columns.
+   *
+   * Firestore `getAll` accepts max 500 refs per call, so we chunk.
+   */
+  private async enrichWithCatalogData(
+    symbol: string,
+    contracts: ContractResult[],
+  ): Promise<ContractResult[]> {
+    if (contracts.length === 0) return contracts;
+
+    const contractsCol = this.db
+      .collection(OPTIONS_FILE_INDEX_COLLECTION)
+      .doc(symbol)
+      .collection(TS_CONTRACTS_SUBCOLLECTION);
+
+    const CHUNK_SIZE = 500;
+    const catalogMap = new Map<string, ContractCatalogDoc>();
+
+    for (let i = 0; i < contracts.length; i += CHUNK_SIZE) {
+      const chunk = contracts.slice(i, i + CHUNK_SIZE);
+      const refs = chunk.map((c) => contractsCol.doc(c.contractId));
+      const snaps = await this.db.getAll(...refs);
+      for (const snap of snaps) {
+        if (snap.exists) {
+          const data = snap.data() as ContractCatalogDoc;
+          catalogMap.set(data.contractId, data);
+        }
+      }
+    }
+
+    return contracts.map((c) => {
+      const catalog = catalogMap.get(c.contractId);
+      if (!catalog) return c;
+      return {
+        ...c,
+        firstObserved: catalog.firstObserved,
+        observationCount: catalog.observationCount,
+      };
+    });
   }
 
   async listCorpus(symbol: string): Promise<ListCorpusResult> {
@@ -146,4 +202,3 @@ export class StorageFileViewerService {
     return { bucket: 'corpus', path, content, bytes: content.length };
   }
 }
-
