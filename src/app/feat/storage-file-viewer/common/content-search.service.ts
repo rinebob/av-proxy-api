@@ -45,12 +45,8 @@ export class ContentSearchService {
   );
   /** Total corpus occurrences. */
   readonly corpusTotal = this.bucketComputed('corpus', (s) => s.occurrences.length);
-  /** Current corpus occurrence (or null). */
-  readonly corpusCurrentOccurrence = this.bucketComputed('corpus', (s) =>
-    s.currentIndex >= 0 && s.currentIndex < s.occurrences.length
-      ? s.occurrences[s.currentIndex]
-      : null,
-  );
+  /** 0-based corpus occurrence index (for selecting a specific <mark> element). */
+  readonly corpusCurrentIndex = this.bucketComputed('corpus', (s) => s.currentIndex);
 
   /** Current time-series occurrence position (1-based for display, 0 when empty). */
   readonly tsCurrent = this.bucketComputed('ts', (s) =>
@@ -58,12 +54,9 @@ export class ContentSearchService {
   );
   /** Total time-series occurrences. */
   readonly tsTotal = this.bucketComputed('ts', (s) => s.occurrences.length);
-  /** Current time-series occurrence (or null). */
-  readonly tsCurrentOccurrence = this.bucketComputed('ts', (s) =>
-    s.currentIndex >= 0 && s.currentIndex < s.occurrences.length
-      ? s.occurrences[s.currentIndex]
-      : null,
-  );
+
+  /** 0-based time-series occurrence index (for selecting a specific <mark> element). */
+  readonly tsCurrentIndex = this.bucketComputed('ts', (s) => s.currentIndex);
 
   /** Update the search term. Does not recompute occurrences (sub-components do that). */
   setSearchTerm(term: string): void {

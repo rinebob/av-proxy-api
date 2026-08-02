@@ -10,7 +10,7 @@ import { formatContent, highlightContent } from './viewer-utils';
  * - Pretty-printing raw content via `formatContent`.
  * - Highlighting search matches via `highlightContent` (XSS-safe HTML escaping).
  * - Registering content with `ContentSearchService` for occurrence tracking.
- * - Scrolling to the current search occurrence using `getComputedStyle`.
+ * - Scrolling to the current search occurrence using `scrollIntoView` on `<mark>` elements.
  *
  * # Reason: Extracts duplicated logic from `CorpusViewerComponent` and
  * `TimeSeriesViewerComponent` into a single reusable directive.
@@ -36,14 +36,14 @@ export class ContentViewerDirective implements OnDestroy {
   });
 
   /**
-   * Current occurrence for this bucket, selected dynamically based on the `bucket` input.
-   * # Reason: Computed tracks both the bucket input and the service's per-bucket signals.
+   * Current 0-based occurrence index for this bucket.
+   * # Reason: Used to select the Nth `<mark>` element in the DOM for scrollIntoView.
    */
-  private readonly currentOccurrence = computed(() => {
+  private readonly currentIndex = computed(() => {
     const bucket = this.bucket();
     return bucket === 'corpus'
-      ? this.searchService.corpusCurrentOccurrence()
-      : this.searchService.tsCurrentOccurrence();
+      ? this.searchService.corpusCurrentIndex()
+      : this.searchService.tsCurrentIndex();
   });
 
   constructor() {
@@ -66,26 +66,21 @@ export class ContentViewerDirective implements OnDestroy {
     });
 
     // # Reason: Scroll to the current search occurrence when the index changes.
+    // Uses the actual <mark> element's scrollIntoView instead of a mathematical
+    // pixel calculation, which breaks when lines wrap due to pre-wrap + word-break.
     effect(() => {
-      const occurrence = this.currentOccurrence();
-      if (occurrence) {
-        this.scrollToOccurrence(occurrence.lineIndex);
+      const index = this.currentIndex();
+      if (index < 0) return;
+      // # Reason: querySelectorAll is live at this point because the innerHTML
+      // effect runs first (it's declared above). Angular effects run in order.
+      const marks = this.el.nativeElement.querySelectorAll('mark.search-hit');
+      if (index < marks.length) {
+        marks[index].scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     });
   }
 
   ngOnDestroy(): void {
     this.searchService.clearBucket(this.bucket());
-  }
-
-  /**
-   * Scroll the `<pre>` element to bring the given line index into view.
-   * # Reason: Uses `getComputedStyle` to read the actual line height from CSS,
-   * avoiding a hardcoded magic number that would break if font-size or line-height changes.
-   */
-  private scrollToOccurrence(lineIndex: number): void {
-    const pre = this.el.nativeElement;
-    const lineHeight = parseFloat(getComputedStyle(pre).lineHeight);
-    pre.scrollTop = lineIndex * (isNaN(lineHeight) ? 19.2 : lineHeight);
   }
 }
