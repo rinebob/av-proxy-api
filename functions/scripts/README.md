@@ -292,6 +292,43 @@ The following steps detail how to manually trigger the `fetchAndPersistBenzingaN
 
 ---
 
+## refresh-summary.ts
+
+One-off script that re-runs the contract summary aggregator for given symbols. Useful after backfilling or when summary docs get out of sync with the `ts-contracts` subcollection.
+
+### Usage
+
+Run from the `functions/` directory:
+
+```bash
+# Default symbols (QQQ, TQQQ), live mode (writes to Firestore)
+npx ts-node -r tsconfig-paths/register scripts/refresh-summary.ts
+
+# Specific symbols
+npx ts-node -r tsconfig-paths/register scripts/refresh-summary.ts --symbols=QQQ,TQQQ
+
+# Dry run (no writes — verifies connection and prints doc counts)
+npx ts-node -r tsconfig-paths/register scripts/refresh-summary.ts --dry-run
+```
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--symbols=QQQ,TQQQ` | Comma-separated list of symbols to process (default: `QQQ,TQQQ`) |
+| `--dry-run` | Verify connection and print doc counts without writing summary docs |
+
+### Prerequisites
+
+Same as other scripts — requires `@shared/*` imports to resolve:
+
+```bash
+npm run build:shared
+npm --prefix functions run copy-shared
+```
+
+---
+
 ## Lock down HTTPS function invokers (IAM)
 
 Use Cloud Run IAM to restrict who can invoke your HTTPS Cloud Functions (Gen2). Remove public access (allUsers) and grant `roles/run.invoker` only to the identities you control (e.g., your frontend app’s service account or a CI/CD SA).
