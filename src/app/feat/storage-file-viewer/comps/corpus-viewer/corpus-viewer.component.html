@@ -11,13 +11,16 @@
       />
     </mat-form-field>
 
-    <mat-form-field appearance="outline" class="filter-field">
+    <mat-form-field appearance="outline" class="date-picker-field">
       <mat-label>Date Filter</mat-label>
       <input
         matInput
-        [formControl]="dateFilterCtrl"
-        placeholder="e.g. 2026-07"
+        [matDatepicker]="corpusDatePicker"
+        [formControl]="datePickerCtrl"
+        placeholder="e.g. 2026-07-15"
       />
+      <mat-datepicker-toggle matSuffix [for]="corpusDatePicker" />
+      <mat-datepicker #corpusDatePicker />
     </mat-form-field>
 
     <button

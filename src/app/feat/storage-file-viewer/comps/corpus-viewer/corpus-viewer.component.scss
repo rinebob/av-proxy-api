@@ -19,7 +19,7 @@
       width: 8rem;
     }
 
-    .filter-field {
+    .date-picker-field {
       width: 12rem;
     }
 
@@ -55,7 +55,7 @@
   }
 
   .content-panel {
-    @include viewer.content-panel-styles($flex: 0 0 40%);
+    @include viewer.content-panel-styles($flex: 0 0 50%);
   }
 }
 
