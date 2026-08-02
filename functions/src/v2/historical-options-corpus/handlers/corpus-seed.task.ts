@@ -12,6 +12,7 @@ import { GcsCorpusAdapter } from '../services/gcs-corpus-adapter.service';
 import { HistoricalOptionsRetrievalService } from '../services/historical-options-retrieval.service';
 import { MAX_CORPUS_SEED_ATTEMPTS, seedCorpusItem } from '../services/corpus-seed.worker';
 import type { CorpusSeedPayload } from '../types';
+import { OPTIONS_TS_BUILD_TASK_QUEUE, type TsBuildPayload } from './ts-build.task';
 
 export const OPTIONS_CORPUS_SEED_TASK_QUEUE = 'processHistoricalOptionsCorpusSeedTask';
 
@@ -67,6 +68,11 @@ export const processHistoricalOptionsCorpusSeedTask = onTaskDispatched<CorpusSee
         await queue.enqueue(nextPayload);
       },
       logger: (message, meta) => console.log(`[corpus-seed] ${message}`, meta ?? {}),
+      onSeedSuccess: async (symbol, date) => {
+        const tsQueue = getFunctions().taskQueue<TsBuildPayload>(OPTIONS_TS_BUILD_TASK_QUEUE);
+        await tsQueue.enqueue({ symbol, date });
+        console.log('[corpus-seed] enqueued ts-build', { symbol, date });
+      },
     });
   },
 );

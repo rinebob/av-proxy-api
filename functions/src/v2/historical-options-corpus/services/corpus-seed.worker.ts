@@ -19,6 +19,12 @@ export interface SeedWorkerDependencies {
   enqueueTask: (payload: CorpusSeedPayload) => Promise<void>;
   maxAttempts: number;
   logger: (message: string, meta?: Record<string, unknown>) => void;
+  /**
+   * Optional callback invoked after a corpus item is confirmed stored (or was
+   * already present in GCS). Used to piggyback a time-series build task enqueue
+   * without blocking the seed result. Errors are logged and swallowed.
+   */
+  onSeedSuccess?: (symbol: string, date: string) => Promise<void>;
 }
 
 /**
@@ -57,6 +63,12 @@ export async function seedCorpusItem(
     });
     await deps.metadata.incrementCompleted(runId, 0);
     deps.logger('seed.skip.gcs-hit', { runId, symbol, date });
+    // # Reason: notifySeedSuccess is intentionally called here even though the
+    // corpus item already existed. The ts-build builder is idempotent (reads
+    // existing JSONL, merges, deduplicates by date), so a redundant enqueue
+    // produces the same output as a single run. This avoids a separate GCS
+    // check for the time-series file.
+    await notifySeedSuccess(deps, symbol, date);
     return { status: 'skipped', reason: 'gcs-hit' };
   }
 
@@ -86,6 +98,8 @@ export async function seedCorpusItem(
       alreadyExists: writeResult.alreadyExists,
     });
 
+    await notifySeedSuccess(deps, symbol, date);
+
     return {
       status: 'stored',
       gcsPath: writeResult.gcsPath,
@@ -109,6 +123,20 @@ export async function seedCorpusItem(
     await deps.metadata.setItemFailure(runId, key, message, 'failure');
     await deps.enqueueTask({ runId, symbol, date, attempt: nextAttempt });
     return { status: 'retry_enqueued', nextAttempt };
+  }
+}
+
+/**
+ * Fires the onSeedSuccess callback if provided. Errors are logged and swallowed
+ * so that a failed time-series enqueue never causes the seed task to report failure.
+ */
+async function notifySeedSuccess(deps: SeedWorkerDependencies, symbol: string, date: string): Promise<void> {
+  if (!deps.onSeedSuccess) return;
+  try {
+    await deps.onSeedSuccess(symbol, date);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    deps.logger('seed.onSeedSuccess.error', { symbol, date, error: message });
   }
 }
 

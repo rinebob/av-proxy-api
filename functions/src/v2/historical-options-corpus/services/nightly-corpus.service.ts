@@ -12,7 +12,7 @@ export const NIGHTLY_CORPUS_SYMBOLS = ['QQQ', 'TQQQ'] as const;
 
 export interface NightlyCorpusDependencies {
   calendar: Pick<TradingCalendarService, 'isTradingDay'>;
-  metadata: Pick<CorpusMetadataService, 'getItemDoc' | 'setItemSuccess' | 'incrementCompleted' | 'markRunStatus'>;
+  metadata: CorpusMetadataService;
   gcs: Pick<GcsCorpusAdapter, 'getMetadata'>;
   planRun: (options: PlanCorpusRunOptions) => Promise<CorpusRunPlan>;
   enqueueTask: (payload: CorpusSeedPayload) => Promise<void>;
@@ -47,6 +47,7 @@ export class NightlyCorpusService {
       endDate: targetDate,
       dryRun: false,
       pilot: false,
+      metadata: this.deps.metadata,
     });
 
     let queuedItems = 0;
