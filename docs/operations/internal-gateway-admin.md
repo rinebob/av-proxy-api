@@ -2,7 +2,7 @@
 
 Audience: Savant engineering/admins responsible for SavantApi.com browser-facing gateways. This document explains which endpoints are considered internal, how they are protected, how to operate them safely, and how this differs from partner endpoints.
 
-Last updated: 2025-09-10
+Last updated: 2026-08-03
 
 ---
 
@@ -61,8 +61,8 @@ See: `docs/partner/partner-discovery.md`, `docs/partner/partner-integration.md`.
     ```
 
 - Partner gateways:
-  - Use `functions/scripts/lockdown-invokers.ps1` (opt‑in, partner‑only) to remove `allUsers` and grant specific SAs
-  - See: `functions/scripts/README.lockdown-invokers.md`
+  - Use `gcloud run services add-iam-policy-binding` / `remove-iam-policy-binding` per partner endpoint
+  - See: `docs/partner/partner-endpoint-inventory.md` for the full list of partner endpoints
 
 ---
 
@@ -101,7 +101,7 @@ See: `docs/partner/partner-discovery.md`, `docs/partner/partner-integration.md`.
 - `functions/src/v2/alpha-vantage/alpha-vantage-gateway.ts`
 - `functions/src/v2/benzinga/benzinga-gateway.ts`
 - `functions/src/v2/common/functions/listSymbolsV2.ts`
-- `functions/scripts/README.lockdown-invokers.md`
+- `docs/partner/partner-endpoint-inventory.md`
 - `docs/partner/partner-discovery.md`
 - `docs/partner/partner-integration.md`
 
@@ -144,14 +144,14 @@ These endpoints power the internal Health Dashboard. They are protected with the
     - `offset` (optional)
   - Response: `{ success: boolean, data: RefreshRequestLog[], total, limit, offset, hasMore }`
 
-- `getSymbolStatus`
+- `getSymbolStatusV2`
   - Returns latest `SymbolStatus` across endpoints for a symbol (if present)
   - Method: GET
   - Params:
     - `symbol` (required)
   - Response: `{ success: boolean, data: SymbolStatus | null }`
 
-- `getSymbolMetrics`
+- `getSymbolMetricsV2`
   - Returns aggregated `SymbolRefreshMetrics` for a symbol (if present)
   - Method: GET
   - Params:
@@ -168,21 +168,21 @@ These endpoints power the internal Health Dashboard. They are protected with the
 ```bash
 # Health summary
 curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
-  https://<region>-<project>.cloudfunctions.net/getHealthSummary
+  https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/getHealthSummary
 
 # Endpoint health
 curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
-  "https://<region>-<project>.cloudfunctions.net/getHealthMetrics?endpoint=TIME_SERIES_DAILY_ADJUSTED"
+  "https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/getHealthMetrics?endpoint=TIME_SERIES_DAILY_ADJUSTED"
 
 # Request logs (last 24h for AAPL/MSFT daily-adjusted)
 FROM=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
 TO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
-  "https://<region>-<project>.cloudfunctions.net/getRequestLogs?endpointIds=TIME_SERIES_DAILY_ADJUSTED&symbols=AAPL,MSFT&from=$FROM&to=$TO&limit=100&offset=0"
+  "https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/getRequestLogs?endpointIds=TIME_SERIES_DAILY_ADJUSTED&symbols=AAPL,MSFT&from=$FROM&to=$TO&limit=100&offset=0"
 
 # Symbol status/metrics
 curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
-  "https://<region>-<project>.cloudfunctions.net/getSymbolStatus?symbol=AAPL"
+  "https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/getSymbolStatusV2?symbol=AAPL"
 
 curl -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
-  "https://<region>-<project>.cloudfunctions.net/getSymbolMetrics?symbol=AAPL"
+  "https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/getSymbolMetricsV2?symbol=AAPL"

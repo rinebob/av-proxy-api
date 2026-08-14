@@ -43,10 +43,11 @@ This document provides a mid–high level overview of the backend Cloud Function
 ## Invocation Types
 
 - HTTPS (internal/partner):
-  - `alphaVantageApiV2`, `benzingaApiV2`, `partnerTimeSeriesV2`
-  - Options corpus: `triggerHistoricalOptionsPilot`, `triggerHistoricalOptionsTimeSeriesBuild`, `processHistoricalOptionsCorpusSeedTask`, `refreshHistoricalOptionsCorpusNightly`
-  - Partner options: `partnerHistoricalOptionsV2`, `partnerHistoricalOptionsContractV2`
-  - Health: `getHealthSummary`, `getRequestLogs`, `getSymbolStatus`, `getSymbolMetrics`, `getHealthMetrics`
+  - `alphaVantageApiV2`, `benzingaApiV2`, `listSymbolsV2`, `getSymbolDetailsV2`, `saveTrackedSymbol`, `bulkImportSymbolsV2`, `listCollections`
+  - Partner data endpoints: `partnerTimeSeriesV2`, `partnerIntradaySnapshotV2`, `partnerCompanyOverviewV2`, `partnerListTrackedSymbolsV2`, `partnerMarketHolidays`, `partnerHistoricalOptionsV2`, `partnerHistoricalOptionsContractV2`, `partnerListContractsV2`, `partnerContractCatalogV2`, `partnerSpreadTimeSeries`, `partnerSpreadTimeSeriesBatch`, `partnerDataReadyPublishV2`
+  - See `docs/partner/partner-endpoint-inventory.md` for the full partner endpoint list
+  - Options corpus: `triggerHistoricalOptionsPilot`, `triggerHistoricalOptionsTimeSeriesBuild`, `processHistoricalOptionsCorpusSeedTask`, `refreshHistoricalOptionsCorpusNightly`, `storageFileViewer`
+  - Health: `getHealthSummary`, `getRequestLogs`, `getSymbolStatusV2`, `getSymbolMetricsV2`, `getHealthMetrics`
 - Scheduled (Cloud Scheduler):
   - AV refresh manager and time-series cadences
   - BZ calendar refresh manager
@@ -62,53 +63,69 @@ Refer to `functions/src/index.ts` for the authoritative export surface.
 
 How to view/edit this diagram:
 - Use Mermaid Live Editor: https://mermaid.live
-  - Copy the fenced code block (```mermaid ... ```), paste into the editor, and it will render.
+  - Copy the fenced code block, paste into the editor, and it will render.
   - You can export as PNG/SVG from the site.
 - In VS Code, install a Mermaid preview extension or use Markdown preview with Mermaid support.
 
+### AV Gateway Flow
+
+- The AV gateway receives HTTPS requests, routes to `AlphaVantageHandlerFactory.createHandler()`, which dispatches to specific AV handlers under `functions/src/v2/alpha-vantage/handlers/`.
+- Handlers write normalized data to Firestore collections (`symbol-data/{symbol}/...`, `sa-time-series` sharded bars).
+
 ```mermaid
 flowchart TB
-  subgraph Clients
-    A[Internal Apps]
-    B[Automation/Bots]
-    P[Partners OIDC]
-  end
-
-  subgraph Gateways
-    G[alphaVantageApiV2]
-    H[benzingaApiV2]
-    I[partnerTimeSeriesV2]
-  end
-
-  A --> G
-  B --> H
-  P --> I
-
+  A[Internal Apps] --> G[alphaVantageApiV2]
   G --> GF[AV Handler Factory]
-  H --> BF[BZ Handler Factory]
-
   GF --> AH[AV Handlers]
-  BF --> BH[BZ Handlers]
-
   AH --> FS[(Firestore)]
-  BH --> FS
+```
 
-  subgraph Schedulers
-    S1[refreshAlphaVantageDataV2]
-    S2[TS Daily Pre/Post Close]
-    S3[TS Weekly/Monthly Post Close]
-    S4[refreshBenzingaCalendarDataV2]
-    S5[Health Metrics Scheduler]
-  end
+### Schedulers
 
-  S1 --> GF
-  S2 --> GF
-  S3 --> GF
-  S4 --> BF
-  S5 --> FM[Health Metrics Service]
+- `refreshAlphaVantageDataV2` → AV Handler Factory (non-time-series refresh, TTL-gated)
+- `refreshAvDailyTimeSeriesIntradayHourly` → AV Handler Factory (hourly intraday snapshots)
+- `refreshAvDailyTimeSeriesPostClose` → AV Handler Factory (post-close daily finalized bars)
+- `refreshAvTimeSeriesPostAllIntervals` → AV Handler Factory (post-close all intervals)
+- `refreshAvWeeklyTimeSeriesPostClose` → AV Handler Factory (post-close weekly)
+- `refreshAvMonthlyTimeSeriesPostClose` → AV Handler Factory (post-close monthly)
+- `refreshAvDailyTimeSeriesPostEveningRetry00` / `refreshAvDailyTimeSeriesPostMorning0700` → AV Handler Factory (retry/catch-up)
+- `partnerDataReadyHeartbeat` → Pub/Sub (scheduled Data-Ready publisher)
+- `healthMetricsScheduler` / `purgeOldHealthHistory` / `purgeOldRequestLogs` → Health Metrics Service
+- `cleanupOldRunDocs` → Firestore cleanup
+- `refreshHistoricalOptionsCorpusNightly` → Options corpus refresh
 
-  FS <--> FM
-  I --> FS
+```mermaid
+flowchart TB
+  S1[Schedulers] --> GF[AV Handler Factory]
+  S1 --> FM[Health Metrics]
+  FS[(Firestore)] <--> FM
+```
+
+### Partner Endpoints
+
+- All partner endpoints use dual-auth (OIDC or Firebase ID token). See `docs/partner/partner-endpoint-inventory.md`.
+- **Firestore-reading endpoints:** `partnerTimeSeriesV2`, `partnerIntradaySnapshotV2`, `partnerCompanyOverviewV2`, `partnerListTrackedSymbolsV2`, `partnerMarketHolidays`, `partnerListContractsV2`, `partnerContractCatalogV2`
+- **GCS-reading endpoints:** `partnerHistoricalOptionsContractV2` (per-contract time series from GCS)
+- **Live AV fetch:** `partnerHistoricalOptionsV2` (proxies to Alpha Vantage directly)
+- **GCS compute endpoints:** `partnerSpreadTimeSeries`, `partnerSpreadTimeSeriesBatch` (reads GCS JSONL, computes spread pricing)
+- **Symbol restrictions:** `partnerHistoricalOptionsContractV2`, `partnerListContractsV2`, `partnerContractCatalogV2`, `partnerSpreadTimeSeries`, `partnerSpreadTimeSeriesBatch` are restricted to `QQQ` and `TQQQ` only.
+
+```mermaid
+flowchart TB
+  P[Partners OIDC] --> PE[12 Partner Endpoints\nSee: partner-endpoint-inventory.md]
+  PE --> FS[(Firestore)]
+  PE --> GCS[(GCS)]
+```
+
+### Firestore Triggers
+
+- `onSymbolAdded` → initializes symbol data paths when a new symbol is added to `tracked_symbols`
+- `onDailyAdjustedFinalizedPublish` → publishes Data-Ready Pub/Sub message when daily adjusted bars are finalized
+
+```mermaid
+flowchart TB
+  T1[onSymbolAdded] --> FS[(Firestore)]
+  T2[onDailyAdjustedFinalizedPublish] --> PS[Pub/Sub Data-Ready]
 ```
 
 ---
@@ -119,11 +136,22 @@ flowchart TB
   - `functions/src/v2/alpha-vantage/alpha-vantage-gateway.ts` → `AlphaVantageHandlerFactory.createHandler()` → AV handlers under `functions/src/v2/alpha-vantage/handlers/`
   - `functions/src/v2/benzinga/benzinga-gateway.ts` → `BenzingaHandlerFactory.createHandler()` → BZ handlers under `functions/src/v2/benzinga/handlers/`
   - `functions/src/v2/partner/time-series-partner.ts` → reads from Firestore time-series shards per request (supports `adjusted=true` for split-adjusted data)
+  - `functions/src/v2/partner/intraday-snapshot-partner.ts` → reads intraday snapshot fields from Firestore
+  - `functions/src/v2/partner/company-overview-partner.ts` → reads AV OVERVIEW data from Firestore
+  - `functions/src/v2/partner/tracked-symbols-partner.ts` → reads tracked symbols list from Firestore
+  - `functions/src/v2/partner/market-holidays-partner.ts` → returns US market holiday calendar
+  - `functions/src/v2/partner/historical-options-partner.ts` → live AV fetch for historical options chain
+  - `functions/src/v2/partner/historical-options-contract-partner.ts` → reads per-contract time series from GCS (QQQ/TQQQ only)
+  - `functions/src/v2/partner/list-contracts-partner.ts` → queries Firestore options index for contract discovery (QQQ/TQQQ only)
+  - `functions/src/v2/partner/partner-contract-catalog-partner.ts` → queries Firestore contract catalog with filtering (QQQ/TQQQ only)
+  - `functions/src/v2/partner/spread-time-series-partner.ts` → computes spread time series from GCS JSONL data (QQQ/TQQQ only)
+  - `functions/src/v2/partner/spread-time-series-batch-partner.ts` → batch spread time series, up to 200 per request (QQQ/TQQQ only)
+  - See `docs/partner/partner-endpoint-inventory.md` for the full partner endpoint reference
 
 - __Schedulers__
   - `functions/src/v2/alpha-vantage/data-refresher/av-refresh-manager.ts`
     - `refreshAlphaVantageDataV2` (non-time-series) → `AlphaVantageHandlerFactory` → AV handlers
-    - `refreshAvDailyTimeSeriesPreClose`/`PostClose`/`WeeklyMonthlyPostClose` → `refreshForEndpoints()` → AV handlers (time-series)
+    - Time-series schedulers (in `av-time-series-refresh-manager.ts`): `refreshAvDailyTimeSeriesIntradayHourly`, `refreshAvDailyTimeSeriesPostClose`, `refreshAvTimeSeriesPostAllIntervals`, `refreshAvWeeklyTimeSeriesPostClose`, `refreshAvMonthlyTimeSeriesPostClose`, `refreshAvDailyTimeSeriesPostEveningRetry00`, `refreshAvDailyTimeSeriesPostMorning0700` → AV handlers (time-series)
   - `functions/src/v2/benzinga/data-refresher/bz-calendar-refresh-manager.ts`
     - `refreshBenzingaCalendarDataV2` → `BenzingaHandlerFactory` → BZ handlers
   - `functions/src/v2/health-metrics/health-metrics.scheduler.ts`
@@ -414,6 +442,8 @@ Admin-triggered and scheduled functions for the `QQQ`/`TQQQ` historical options 
 - `functions/src/v2/historical-options-corpus/jobs/historical-options-nightly.scheduler.ts` — `refreshHistoricalOptionsCorpusNightly` (scheduled incremental raw-corpus refresh)
 - `functions/src/v2/partner/historical-options-partner.ts` — `partnerHistoricalOptionsV2` (raw-chain partner proxy)
 - `functions/src/v2/partner/historical-options-contract-partner.ts` — `partnerHistoricalOptionsContractV2` (per-contract time-series partner endpoint)
+- `functions/src/v2/partner/list-contracts-partner.ts` — `partnerListContractsV2` (contract discovery endpoint, QQQ/TQQQ only)
+- `functions/src/v2/partner/partner-contract-catalog-partner.ts` — `partnerContractCatalogV2` (contract catalog with filtering, QQQ/TQQQ only)
 - `functions/src/v2/historical-options-corpus/services/time-series-builder.service.ts` — `TimeSeriesBuilderService` (builds per-contract JSONL)
 - `functions/src/v2/historical-options-corpus/services/gcs-time-series-adapter.service.ts` — `GcsTimeSeriesAdapter` (reads/writes `time-series/v1/{SYMBOL}/{CONTRACT_ID}.jsonl`)
 - `functions/src/v2/historical-options-corpus/services/gcs-corpus-adapter.service.ts` — `GcsCorpusAdapter` (reads/writes `historical-options/v1/{SYMBOL}/{YYYY-MM-DD}.json.gz`)
@@ -623,7 +653,7 @@ Querying logs
              +-----------------------------------------------+
              |                 Firestore                     |
              |  symbol-data/{symbol}/... (normalized)       |
-             |  time-series (sharded bars)                  |
+             |  sa-time-series (sharded bars)               |
              +------------------+----------------------------+
                                 ^
                                 | metadata (freshness only)
@@ -640,8 +670,19 @@ Querying logs
                                    +---------------------------+
 
                     +----------------------------------------+
-                    | Partner HTTPS (time-series reads)      |
-                    | partnerTimeSeriesV2 (allowlisted OIDC) |
+                    | Partner HTTPS endpoints (read-only)    |
+                    | partnerTimeSeriesV2 (Firestore reads)  |
+                    | partnerIntradaySnapshotV2              |
+                    | partnerCompanyOverviewV2               |
+                    | partnerListTrackedSymbolsV2            |
+                    | partnerMarketHolidays                  |
+                    | partnerHistoricalOptionsV2 (live AV)   |
+                    | partnerHistoricalOptionsContractV2(GCS)|
+                    | partnerListContractsV2 (Firestore)     |
+                    | partnerContractCatalogV2 (Firestore)   |
+                    | partnerSpreadTimeSeries (GCS compute)  |
+                    | partnerSpreadTimeSeriesBatch (GCS)     |
+                    | See: partner-endpoint-inventory.md     |
                     +----------------------------------------+
 ```
 
@@ -719,20 +760,53 @@ For operational **manual backfill and split-adjusted data maintenance workflows*
 - __HTTPS__
   - `alphaVantageApiV2` — AV gateway (dual-auth); routes to AV handlers.
   - `benzingaApiV2` — BZ gateway (dual-auth); routes to BZ handlers.
-  - `partnerTimeSeriesV2` — Partner-only time-series read from Firestore.
-  - Health: `getHealthSummary`, `getRequestLogs`, `getSymbolStatus`, `getSymbolMetrics`, `getHealthMetrics`.
-  - Utilities: `listCollections`, `saveTrackedSymbol`, `listSymbolsV2`, `requestBenzingaNews`.
+  - Partner data endpoints (see `docs/partner/partner-endpoint-inventory.md`):
+    - `partnerTimeSeriesV2` — Partner-only time-series read from Firestore.
+    - `partnerIntradaySnapshotV2` — Bulk intraday price snapshots.
+    - `partnerCompanyOverviewV2` — Company fundamentals from Firestore.
+    - `partnerListTrackedSymbolsV2` — List tracked symbols.
+    - `partnerMarketHolidays` — US market holiday calendar.
+    - `partnerHistoricalOptionsV2` — Historical options chain (live AV fetch).
+    - `partnerHistoricalOptionsContractV2` — Per-contract options time series from GCS (QQQ/TQQQ).
+    - `partnerListContractsV2` — Contract discovery (QQQ/TQQQ).
+    - `partnerContractCatalogV2` — Contract catalog with filtering (QQQ/TQQQ).
+    - `partnerSpreadTimeSeries` — Single spread time series (QQQ/TQQQ).
+    - `partnerSpreadTimeSeriesBatch` — Batch spread time series (QQQ/TQQQ).
+    - `partnerDataReadyPublishV2` — Manual Data-Ready Pub/Sub publish (internal/testing).
+  - Health: `getHealthSummary`, `getRequestLogs`, `getHealthMetrics`, `getSymbolStatusV2`, `getSymbolMetricsV2`.
+  - Utilities: `listCollections`, `saveTrackedSymbol`, `listSymbolsV2`, `getSymbolDetailsV2`, `bulkImportSymbolsV2`, `storageFileViewer`.
 
 - __Scheduled (Cloud Scheduler)__
   - `refreshAlphaVantageDataV2` — AV non-time-series refresh manager; gating by TTL.
-  - `refreshAvDailyTimeSeriesPreClose` — Pre-close daily writes (snapshot fields only, no finalize).
+  - `refreshAvDailyTimeSeriesIntradayHourly` — Hourly intraday snapshot writes (PRE phase).
   - `refreshAvDailyTimeSeriesPostClose` — Post-close daily finalized bar writes.
-  - `refreshAvWeeklyMonthlyTimeSeriesPostClose` — Post-close weekly+monthly finalized writes.
-  - `refreshBenzingaCalendarDataV2` — BZ calendar refresh cadence.
-  - Health: `healthMetricsScheduler` (check all endpoints), `purgeOldHealthHistory`.
+  - `refreshAvTimeSeriesPostAllIntervals` — Post-close all-intervals finalized writes.
+  - `refreshAvWeeklyTimeSeriesPostClose` — Post-close weekly finalized writes.
+  - `refreshAvMonthlyTimeSeriesPostClose` — Post-close monthly finalized writes.
+  - `refreshAvDailyTimeSeriesPostEveningRetry00` — Evening retry for failed daily writes.
+  - `refreshAvDailyTimeSeriesPostMorning0700` — Morning catch-up for failed daily writes.
+  - `refreshBenzingaCalendarDataV2` — BZ calendar refresh cadence (currently PAUSED).
+  - `requestBenzingaNews` — BZ news request (currently PAUSED).
+  - `partnerDataReadyHeartbeat` — Scheduled Data-Ready heartbeat publisher.
+  - Health: `healthMetricsScheduler` (check all endpoints), `purgeOldHealthHistory`, `purgeOldRequestLogs`.
+  - `cleanupOldRunDocs` — Cleanup of old run documents.
+  - `refreshHistoricalOptionsCorpusNightly` — Nightly incremental options corpus refresh.
 
 - __Firestore Trigger__
   - `onSymbolAdded` — reacts to `tracked_symbols` changes (initialization flows).
+  - `onDailyAdjustedFinalizedPublish` — publishes Data-Ready when daily adjusted bars are finalized.
+
+- __Cloud Task Workers__
+  - `processTimeSeriesJobTask` — AV time-series job worker (production).
+  - `processTimeSeriesJobDev` — AV time-series job HTTP entry (emulator/dev only).
+  - `processIntradaySnapshotJobTask` — Intraday snapshot job worker.
+  - `processHistoricalOptionsCorpusSeedTask` — Options corpus seed worker.
+  - `processHistoricalOptionsTsBuildTask` — Options time-series build worker.
+  - `processOptionsIndexWriteTask` — Options Firestore index write worker.
+  - `processCompanyOverviewOnboardingTask` — Company overview onboarding retry worker.
+  - `remediateSplitHistory` — Split history remediation task.
+  - `processFullBackfillRunTask` — Full backfill run worker.
+  - `triggerFullBackfillJobs` — Full backfill HTTP trigger.
 
 Refer to `functions/src/index.ts` for the definitive list and to `v2/common/function-schedules.ts` for cron expressions.
 
