@@ -78,6 +78,9 @@ firebase-export-*
 src/app/common/*.js
 src/app/common/*.js.map
 desktop.ini
+
+# Diagnostic script output
+functions/scripts/diagnostics/output/
 functions/emulator-export/**/*
 functions/scripts/script-env-vars.txt
 functions/src/v2/benzinga/data-refresher/bz-news-refresh-manager.copy_0723-1624.ts
