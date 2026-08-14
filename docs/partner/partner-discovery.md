@@ -2,7 +2,7 @@
 
 Audience: External partner engineering/admin teams integrating with Savant partner endpoints. This document explains partner-facing surfaces, authentication, data schemas, and operational expectations.
 
-Last updated: 2026-02-14
+Last updated: 2026-08-03
 
 > Start here: Read this discovery guide first to understand the surface area, data shapes, and auth model. When ready to make requests, proceed to `docs/partner/partner-integration.md` for step-by-step integration examples.
 
@@ -27,10 +27,20 @@ For server-to-server integrations, partners should use Google OIDC (service acco
 
 ## Partner Endpoint Surface
 
-- Endpoint: Partner Time Series API (read-only)
-  - Deployed as a Google Cloud HTTPS function/service (Cloud Functions for Firebase / Cloud Run)
-  - Canonical function name (current): `partnerTimeSeriesV2`
-  - Purpose: Deliver normalized OHLCV bars for common intervals without hitting upstream providers directly
+Savant exposes multiple partner-facing HTTPS endpoints. For the full list, see `docs/partner/partner-endpoint-inventory.md`.
+
+Key data-serving endpoints:
+- `partnerTimeSeriesV2` — Normalized OHLCV time series (daily/weekly/monthly)
+- `partnerIntradaySnapshotV2` — Bulk intraday price snapshots
+- `partnerCompanyOverviewV2` — Company fundamentals from AV OVERVIEW
+- `partnerListTrackedSymbolsV2` — List all tracked symbols
+- `partnerMarketHolidays` — US market holiday calendar
+- `partnerHistoricalOptionsV2` — Full historical options chain (live AV fetch)
+- `partnerHistoricalOptionsContractV2` — Per-contract options time series from GCS (QQQ/TQQQ only)
+- `partnerListContractsV2` — Discover available option contract IDs (QQQ/TQQQ only)
+- `partnerContractCatalogV2` — Query contract catalog with filtering (QQQ/TQQQ only)
+- `partnerSpreadTimeSeries` — Single options spread time series (QQQ/TQQQ only)
+- `partnerSpreadTimeSeriesBatch` — Batch spread time series, up to 200 per request (QQQ/TQQQ only)
 
 ### Authentication Notes
 - Dual-auth middleware accepts either:
@@ -420,9 +430,9 @@ Savant exposes two related historical options surfaces for partners.
 - Discovery guide: `docs/partner/options-data/historical-options-contract-v2-discovery.md`
 - Usage guide: `docs/partner/options-data/historical-options-contract-v2-usage.md`
 
-### Contract discovery endpoint (upcoming)
+### Contract discovery endpoint
 
-- Function: `partnerListContractsV2` (planned)
+- Function: `partnerListContractsV2`
 - Method: `GET`
 - Purpose: Returns a list of option contract IDs that exist in our GCS storage for a given symbol, filtered by expiration, strike, and/or type. This solves the discovery problem — partners currently need to know a contract ID to call `partnerHistoricalOptionsContractV2`, but have no way to discover which contract IDs are available.
 - Auth: Same service account OIDC + audience model as other partner endpoints.
@@ -462,7 +472,7 @@ At least one of `expiration` or `strike` must be provided (in addition to `symbo
 1. Call `partnerListContractsV2` with `{ symbol, expiration?, strike?, type? }` to discover available contract IDs
 2. Call `partnerHistoricalOptionsContractV2` with a discovered `contractId` to fetch the full time series
 
-**Status:** Implemented. See `docs/operations/storage-file-viewer-design.md` Phase 3.
+**Status:** Deployed. See `docs/operations/storage-file-viewer-design.md` Phase 3.
 
 ### Spread time-series endpoints
 
@@ -487,6 +497,25 @@ Savant exposes two endpoints for computing historical time series of multi-leg o
 - Allowlist: `QQQ` and `TQQQ` only.
 
 **Status:** Single-spread and batch endpoints deployed; strategy scan pending (Phase 3).
+
+### Contract catalog endpoint
+
+- Function: `partnerContractCatalogV2`
+- Method: `GET`
+- URL: `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerContractCatalogV2`
+- Purpose: Query the contract catalog with filtering by expiration range, strike buckets, type, and moneyness. Returns paginated contract metadata.
+- Auth: Same service account OIDC + audience model as other partner endpoints.
+- Allowlist: `QQQ` and `TQQQ` only.
+- As-built doc: `docs/partner/options-data/partner-contract-catalog-v2-as-built.md`
+
+### Market holidays endpoint
+
+- Function: `partnerMarketHolidays`
+- Method: `GET`
+- URL: `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerMarketHolidays`
+- Purpose: Returns US market holiday dates for a given year (defaults to current year).
+- Auth: Same service account OIDC + audience model as other partner endpoints.
+- Query parameters: `year` (optional, defaults to current year)
 
 ## Contacts
 

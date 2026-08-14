@@ -4,7 +4,7 @@ This guide explains how Savant partner backends should call the Partner Time Ser
 
 > Read order: Start with `docs/partner/partner-discovery.md` for concepts, data shapes, and auth. Then use this integration guide for step-by-step setup and request examples. For details on how time-series data is refreshed and monitored internally (jobs, retries, validation, audits), see `docs/pipeline/time-series-job-pipeline-plan.md`.
 
-> Note: This document covers the Partner Time Series endpoint (`partnerTimeSeriesV2`) and the Partner Intraday Snapshot endpoint (`partnerIntradaySnapshotV2`). As additional partner endpoints are introduced, we will expand this document with dedicated sections.
+> Note: This document covers the Partner Time Series endpoint (`partnerTimeSeriesV2`) and the Partner Intraday Snapshot endpoint (`partnerIntradaySnapshotV2`) in detail. For the full list of deployed partner endpoints, see `docs/partner/partner-endpoint-inventory.md`.
 
 ## Operational Checklist (Quick Start)
 - Remove `allUsers` invoker on Cloud Run; require authentication
@@ -36,7 +36,7 @@ The calling principal must pass BOTH checks.
 3. Permissions tab → Principals:
    - Remove `allUsers` if present for role `Cloud Run Invoker`.
    - Click “Grant access” and add each partner service account email with role `Cloud Run Invoker (roles/run.invoker)`.
-     - Example: `rel-str-caller@rel-str.iam.gserviceaccount.com`
+     - Example: `rel-str-partner-caller-prod@rel-str.iam.gserviceaccount.com`
 4. Save changes and deploy a new revision if prompted.
 
 #### B) gcloud (CLI) steps
@@ -45,7 +45,7 @@ Set variables:
 PROJECT_ID=alpha-vantage-proxy-api
 REGION=us-central1
 SERVICE=partnerTimeSeriesV2
-PARTNER_SA="rel-str-caller@rel-str.iam.gserviceaccount.com"
+PARTNER_SA="rel-str-partner-caller-prod@rel-str.iam.gserviceaccount.com"
 ```
 
 Remove public invoker (if present):
@@ -96,7 +96,7 @@ Examples:
 ```bash
 # As a quick test from your side (impersonating a partner SA you’ve granted invoker):
 gcloud auth print-identity-token \
-  --impersonate-service-account="rel-str-caller@rel-str.iam.gserviceaccount.com" \
+  --impersonate-service-account="rel-str-partner-caller-prod@rel-str.iam.gserviceaccount.com" \
   --audiences="https://partnertimeseriesv2-<hash>-uc.a.run.app" \
   --include-email
 ```
@@ -336,7 +336,7 @@ gcloud run services update partnerTimeSeriesV2 \
 
 1. Add partner service account email(s) to the allowlist Secret Manager key on the deployed service:
    - Key: `ALLOWED_SERVICE_ACCOUNT_EMAILS`
-   - Value (comma-separated): `maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com,rel-str-caller@rel-str.iam.gserviceaccount.com`
+   - Value (comma-separated): `maintenance-bot@alpha-vantage-proxy-api.iam.gserviceaccount.com,rel-str-partner-caller-prod@rel-str.iam.gserviceaccount.com`
 2. Set audience Secret Manager key:
    - Key: `EXPECTED_GOOGLE_AUDIENCE`
    - Value: your deployed service URL (e.g., `https://partnertimeseriesv2-<hash>-uc.a.run.app`)

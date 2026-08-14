@@ -130,7 +130,7 @@ Expect HTTP 200. If you get 403 "Google ID token audience mismatch", the secret 
 
 ### 7. Update Documentation
 
-Update `docs/partner/partner-auth-and-audience.md` to include the new endpoint URL in the recommended audience list and the deploy/invoker examples.
+Update `docs/partner/partner-auth-and-audience.md` to include the new endpoint URL in the recommended audience list and the deploy/invoker examples. Also add the new endpoint to `docs/partner/partner-endpoint-inventory.md`.
 
 ## Common Partner Service Accounts
 
@@ -140,7 +140,19 @@ Update `docs/partner/partner-auth-and-audience.md` to include the new endpoint U
 
 ## Deployed Endpoints
 
+For the full list of deployed partner endpoints, see `docs/partner/partner-endpoint-inventory.md`.
+
 | Function Name | Cloud Run Service Name | URL |
 |---|---|---|
+| `partnerTimeSeriesV2` | `partnertimeseriesv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerTimeSeriesV2` |
+| `partnerIntradaySnapshotV2` | `partnerintradaysnapshotv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerIntradaySnapshotV2` |
+| `partnerCompanyOverviewV2` | `partnercompanyoverviewv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerCompanyOverviewV2` |
+| `partnerListTrackedSymbolsV2` | `partnerlisttrackedsymbolsv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerListTrackedSymbolsV2` |
+| `partnerMarketHolidays` | `partnermarketholidays` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerMarketHolidays` |
+| `partnerHistoricalOptionsV2` | `partnerhistoricaloptionsv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerHistoricalOptionsV2` |
+| `partnerHistoricalOptionsContractV2` | `partnerhistoricaloptionscontractv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerHistoricalOptionsContractV2` |
+| `partnerListContractsV2` | `partnerlistcontractsv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerListContractsV2` |
+| `partnerContractCatalogV2` | `partnercontractcatalogv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerContractCatalogV2` |
 | `partnerSpreadTimeSeries` | `partnerspreadtimeseries` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerSpreadTimeSeries` |
 | `partnerSpreadTimeSeriesBatch` | `partnerspreadtimeseriesbatch` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerSpreadTimeSeriesBatch` |
+| `partnerDataReadyPublishV2` | `partnerdatareadypublishv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerDataReadyPublishV2` |

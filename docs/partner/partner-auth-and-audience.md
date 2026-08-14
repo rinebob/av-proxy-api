@@ -3,7 +3,7 @@
 This document explains how partner HTTPS endpoints are secured and how to call them successfully with Google OIDC ID tokens. It focuses on 2nd‑gen Cloud Functions fronted by Cloud Run.
 
 - Audience: Savant partner backends and internal maintainers
-- Scope: `partnerListTrackedSymbolsV2`, `partnerTimeSeriesV2` (and future partner endpoints)
+- Scope: All partner HTTPS endpoints. See `docs/partner/partner-endpoint-inventory.md` for the full list.
 
 ## Key Concepts
 
@@ -26,8 +26,9 @@ This document explains how partner HTTPS endpoints are secured and how to call t
 
 - __Multi‑Audience Support (backend)__
   - Our middleware accepts multiple audiences by reading a comma-separated list from Secret Manager key `EXPECTED_GOOGLE_AUDIENCE`.
-  - Recommended value (comma-separated):
-    - `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net,https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerListTrackedSymbolsV2,https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerTimeSeriesV2`
+  - Recommended value: a comma-separated list of the base host plus each deployed function URL. See `docs/partner/partner-endpoint-inventory.md` for the full list of function URLs.
+  - Example (subset):
+    - `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net,https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerListTrackedSymbolsV2,https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerTimeSeriesV2,...`
   - This lets us support both the base host and per-function URLs at once, while the CF front door still typically requires the per-function URL.
 
 ## Required Configuration (Prod)
@@ -110,16 +111,18 @@ firebase functions:secrets:set EXPECTED_GOOGLE_AUDIENCE
 ```
 2. __Deploy functions__
 ```bash
-firebase deploy --only "functions:partnerListTrackedSymbolsV2,functions:partnerTimeSeriesV2" --project "alpha-vantage-proxy-api"
+# Deploy all partner endpoints (see docs/partner/partner-endpoint-inventory.md for the full list)
+firebase deploy --only "functions:partnerTimeSeriesV2,functions:partnerIntradaySnapshotV2,functions:partnerCompanyOverviewV2,functions:partnerListTrackedSymbolsV2,functions:partnerMarketHolidays,functions:partnerHistoricalOptionsV2,functions:partnerHistoricalOptionsContractV2,functions:partnerListContractsV2,functions:partnerContractCatalogV2,functions:partnerSpreadTimeSeries,functions:partnerSpreadTimeSeriesBatch,functions:partnerDataReadyPublishV2" --project "alpha-vantage-proxy-api"
 ```
 3. __Grant invoker on Cloud Run services__
 ```bash
-gcloud run services add-iam-policy-binding partnerListTrackedSymbolsV2 \
+# Repeat for each partner endpoint service (see docs/partner/partner-endpoint-inventory.md)
+gcloud run services add-iam-policy-binding partnerTimeSeriesV2 \
   --region us-central1 --project alpha-vantage-proxy-api \
   --member "serviceAccount:rel-str-partner-caller-prod@rel-str.iam.gserviceaccount.com" \
   --role roles/run.invoker
 
-gcloud run services add-iam-policy-binding partnerTimeSeriesV2 \
+gcloud run services add-iam-policy-binding partnerListTrackedSymbolsV2 \
   --region us-central1 --project alpha-vantage-proxy-api \
   --member "serviceAccount:rel-str-partner-caller-prod@rel-str.iam.gserviceaccount.com" \
   --role roles/run.invoker
