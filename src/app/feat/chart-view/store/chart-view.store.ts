@@ -3,8 +3,14 @@ import { inject } from '@angular/core';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap, catchError, of } from 'rxjs';
 import { ChartDataService } from '../services/chart-data.service';
+import { calculateHilbertIndicators } from '../services/hilbert-indicators';
 
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
+
+export interface IndicatorPoint {
+  t: Date;
+  v: number;
+}
 
 type ChartViewState = {
   symbols: string[];
@@ -16,6 +22,13 @@ type ChartViewState = {
   error: string | null;
   zoomFactor: number | null;
   zoomPosition: number | null;
+  // Hilbert Transform indicator toggles
+  showHtTrendline: boolean;
+  showHtSine: boolean;
+  // Computed indicator series (aligned to chartData by index)
+  htTrendlineData: IndicatorPoint[];
+  htSineData: IndicatorPoint[];
+  htLeadSineData: IndicatorPoint[];
 };
 
 const initialState: ChartViewState = {
@@ -28,6 +41,11 @@ const initialState: ChartViewState = {
   error: null,
   zoomFactor: null,
   zoomPosition: null,
+  showHtTrendline: false,
+  showHtSine: false,
+  htTrendlineData: [],
+  htSineData: [],
+  htLeadSineData: [],
 };
 
 export const ChartViewStore = signalStore(
@@ -110,7 +128,34 @@ export const ChartViewStore = signalStore(
                // Sort by timestamp explicitly
                transformedBars.sort((a, b) => a.t.getTime() - b.t.getTime());
 
-               patchState(store, { chartData: transformedBars, isLoading: false });
+               // Compute Hilbert Transform indicators from close prices
+               const closes = transformedBars.map((b: any) => b.c);
+               const ht = calculateHilbertIndicators(closes);
+
+               const htTrendlineData: IndicatorPoint[] = [];
+               const htSineData: IndicatorPoint[] = [];
+               const htLeadSineData: IndicatorPoint[] = [];
+
+               for (let i = 0; i < transformedBars.length; i++) {
+                 const t = transformedBars[i].t;
+                 if (ht.trendline[i] != null) {
+                   htTrendlineData.push({ t, v: ht.trendline[i]! });
+                 }
+                 if (ht.sine[i] != null) {
+                   htSineData.push({ t, v: ht.sine[i]! });
+                 }
+                 if (ht.leadSine[i] != null) {
+                   htLeadSineData.push({ t, v: ht.leadSine[i]! });
+                 }
+               }
+
+               patchState(store, {
+                 chartData: transformedBars,
+                 isLoading: false,
+                 htTrendlineData,
+                 htSineData,
+                 htLeadSineData,
+               });
              }),
              catchError((err) => {
                 patchState(store, { error: err.message, isLoading: false });
@@ -146,8 +191,14 @@ export const ChartViewStore = signalStore(
         patchState(store, { selectedInterval: interval });
         loadChartData();
       },
-      setZoomSettings: (zoomFactor: number, zoomPosition: number) => {
+      setZoomSettings: (zoomFactor: number | null, zoomPosition: number | null) => {
         patchState(store, { zoomFactor, zoomPosition });
+      },
+      toggleHtTrendline: () => {
+        patchState(store, { showHtTrendline: !store.showHtTrendline() });
+      },
+      toggleHtSine: () => {
+        patchState(store, { showHtSine: !store.showHtSine() });
       }
     };
   })
