@@ -1,10 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 
-// Try to read .env file if it exists
+// Try to read .env / .env.local files if they exist
 try {
   const dotenv = require('dotenv');
   dotenv.config({ quiet: true });
+  dotenv.config({ path: '.env.local', quiet: true });
 } catch (e) {
   // dotenv might not be available or needed if env vars are set otherwise
 }
