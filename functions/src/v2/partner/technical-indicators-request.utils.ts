@@ -1,6 +1,4 @@
 /**
- * @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
- *
  * Error codes and typed error mapping for the technical indicators partner endpoint.
  * Follows the pattern established by historical-options-request.utils.ts.
  */

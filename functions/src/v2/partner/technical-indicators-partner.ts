@@ -1,6 +1,4 @@
 /**
- * @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
- *
  * Partner HTTPS endpoint for technical indicators (Hilbert Transform family).
  * On-demand: calls Alpha Vantage directly on each request — no Firestore persistence.
  *

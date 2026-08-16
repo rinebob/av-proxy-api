@@ -1,6 +1,3 @@
-/**
- * @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
- */
 import type { Request, Response } from 'express';
 
 import { HttpMethod } from '@shared/core';
