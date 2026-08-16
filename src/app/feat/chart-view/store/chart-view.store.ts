@@ -8,9 +8,6 @@ import { calculateHilbertIndicators } from '../services/hilbert-indicators';
 
 import { HtIndicator, PriceSeries, TimeSeriesInterval } from '@shared/alpha-vantage';
 
-/**
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
- */
 export interface IndicatorPoint {
   t: Date;
   v: number;

@@ -10,9 +10,6 @@ import { ChartDataService } from '../services/chart-data.service';
 import { API_BASES, type ApiBases } from '../../../core/api/api.tokens';
 import { HtIndicator, PriceSeries, TimeSeriesInterval } from '@shared/alpha-vantage';
 
-/**
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
- */
 describe('ChartViewStore — IndicatorState + fetch logic + caching', () => {
   let store: InstanceType<typeof ChartViewStore>;
   let httpMock: HttpTestingController;
