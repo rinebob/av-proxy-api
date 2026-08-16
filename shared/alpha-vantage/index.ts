@@ -1,3 +1,4 @@
+// @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
 // Barrel file for shared/alpha-vantage
 
 export * from './av-company-overview';
@@ -7,6 +8,7 @@ export * from './av-endpoints';
 export * from './av-global-quote';
 export * from './av-historical-options';
 export * from './av-symbol-search';
+export * from './av-technical-indicators-config';
 export * from './av-time-series';
 export * from './av-time-series.types';
 export * from './av-bulk-import.types';
@@ -19,6 +21,7 @@ import * as endpoints from './av-endpoints';
 import * as globalQuote from './av-global-quote';
 import * as historicalOptions from './av-historical-options';
 import * as symbolSearch from './av-symbol-search';
+import * as technicalIndicatorsConfig from './av-technical-indicators-config';
 import * as timeSeries from './av-time-series';
 
 const alphaVantage = {
@@ -29,6 +32,7 @@ const alphaVantage = {
   ...globalQuote,
   ...historicalOptions,
   ...symbolSearch,
+  ...technicalIndicatorsConfig,
   ...timeSeries,
 };
 
