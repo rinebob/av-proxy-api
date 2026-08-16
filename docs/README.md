@@ -73,6 +73,9 @@ Read in this order for partner onboarding:
 | `TEST-av-endpoints-hilbert-be.md` | BE test plan for Hilbert Transform — unit and consistency test targets. |
 | `CODE-REVIEW-av-endpoints-hilbert-be.md` | Code review for Task #12 — Standards, Spec, Thermo-nuclear axes. Verdict: PASS. |
 | `CODE-REVIEW-av-endpoints-hilbert-be-task13.md` | Code review for Task #13 (partner endpoint) — Standards, Spec, Thermo-nuclear axes. Verdict: PASS. |
+| `CODE-REVIEW-av-endpoints-hilbert-be-task14.md` | Code review for Task #14 (export + deploy) — all axes. Verdict: PASS. |
+| `AS-BUILT-av-endpoints-hilbert.md` | As-built doc for the full Topic #5 — architecture, components, deviations, deployment. |
+| `API-REFERENCE-av-endpoints-hilbert.md` | API reference for the technical indicators partner endpoint — params, response, error codes. |
 
 ---
 

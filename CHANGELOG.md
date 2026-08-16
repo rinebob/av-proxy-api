@@ -14,6 +14,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Alpha Vantage Endpoint Expansion] 5-13_BE-IMPL-AV-ENDPOINTS: Add technical-indicators partner endpoint with typed error mapping
 - [Alpha Vantage Endpoint Expansion] 5-13_BE-TEST-AV-ENDPOINTS: Add unit tests for technical-indicators partner endpoint
 - [Alpha Vantage Endpoint Expansion] 5-13_DOCS-AV-ENDPOINTS: Add code review doc for technical-indicators partner endpoint
+- [Alpha Vantage Endpoint Expansion] 5-14_BE-IMPL-AV-ENDPOINTS: Export technical-indicators partner endpoint and update inventory
+- [Alpha Vantage Endpoint Expansion] 5-14_DOCS-AV-ENDPOINTS: Add code review doc for Task #14
 
 ### Changed
 - [Alpha Vantage Endpoint Expansion] 5-13_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
+- [Alpha Vantage Endpoint Expansion] 5-14_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
