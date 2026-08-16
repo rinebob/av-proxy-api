@@ -76,6 +76,10 @@ Read in this order for partner onboarding:
 | `CODE-REVIEW-av-endpoints-hilbert-be-task14.md` | Code review for Task #14 (export + deploy) — all axes. Verdict: PASS. |
 | `AS-BUILT-av-endpoints-hilbert.md` | As-built doc for the full Topic #5 — architecture, components, deviations, deployment. |
 | `API-REFERENCE-av-endpoints-hilbert.md` | API reference for the technical indicators partner endpoint — params, response, error codes. |
+| `PRD-av-endpoints-hilbert-fe.md` | PRD for FE Hilbert Transform endpoint integration — 5 user stories for chart-view UI. |
+| `IMPL-av-endpoints-hilbert-fe.md` | FE implementation plan for Topic #17 — 5 tasks (config, store, component, chart, integration). |
+| `TEST-av-endpoints-hilbert-fe.md` | FE test plan for Topic #17 — E2E journeys, integration boundaries, unit targets. |
+| `CODE-REVIEW-av-endpoints-hilbert-fe-task23.md` | Code review for Task #23 (config + service + interceptor) — all axes. Verdict: PASS. |
 
 ---
 

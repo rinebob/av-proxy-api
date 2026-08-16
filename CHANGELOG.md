@@ -3,6 +3,19 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-08-16]
+
+### Added
+- [SA UI HT Endpoint Integration] 17-23_FE-IMPL-AV-ENDPOINTS: Add partner endpoint config and shared enums
+- [SA UI HT Endpoint Integration] 17-23_FE-IMPL-AV-ENDPOINTS: Add TechnicalIndicatorsService with unit tests
+- [SA UI HT Endpoint Integration] 17-23_DOCS-AV-ENDPOINTS: Add PRD, IMPL, TEST, and CODE-REVIEW docs for Topic #17
+
+### Fixed
+- [SA UI HT Endpoint Integration] 17-23_FE-CHORE-AV-ENDPOINTS: Fix pre-existing test infrastructure bugs
+
+### Changed
+- [SA UI HT Endpoint Integration] 17-23_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
+
 ## [2026-08-15]
 
 ### Added
