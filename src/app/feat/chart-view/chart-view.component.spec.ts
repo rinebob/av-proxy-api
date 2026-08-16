@@ -11,16 +11,6 @@ import { ChartDataService } from './services/chart-data.service';
 import { API_BASES, type ApiBases } from '../../core/api/api.tokens';
 import { HtIndicator, PriceSeries, TimeSeriesInterval } from '@shared/alpha-vantage';
 
-/**
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
- *
- * Tests IB-3 from TEST-av-endpoints-hilbert-fe.md:
- * - Toggle UI calls correct store method
- * - Series type dropdown calls setIndicatorSeriesType
- * - Sine display mode toggle calls setSineDisplayMode
- * - Loading state reflects in toggle UI
- * - Error state reflects in toggle UI
- */
 describe('ChartViewComponent — indicator toggle controls', () => {
   let fixture: ComponentFixture<ChartViewComponent>;
   let component: ChartViewComponent;
