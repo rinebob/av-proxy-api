@@ -1,6 +1,4 @@
 /**
- * @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
- *
  * Config-driven mapping of technical indicator names to Alpha Vantage API function names
  * and required parameters. The partner endpoint resolves the `indicator` query param
  * through this config to determine which AV function to call and which params to pass.

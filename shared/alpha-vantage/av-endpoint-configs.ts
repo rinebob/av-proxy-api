@@ -1,4 +1,3 @@
-// @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
 import { OutputSize, TimeSeriesInterval} from './av-time-series';
 import { AlphaVantageEndpoint, AvEndpointCategory } from './av-endpoints';
 import {

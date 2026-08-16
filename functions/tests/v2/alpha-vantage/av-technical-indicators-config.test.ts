@@ -1,6 +1,3 @@
-/**
- * @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
- */
 import {
   TECHNICAL_INDICATORS_CONFIG,
 } from '@shared/alpha-vantage/av-technical-indicators-config';
