@@ -1,3 +1,4 @@
+// @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
 .chart-view-container {
   display: flex;
   flex-direction: column;
@@ -26,6 +27,75 @@
       background-color: #e0e0e0;
       margin: 0 0.25rem;
     }
+
+    .series-type-select {
+      width: 90px;
+      mat-form-field {
+        width: 90px;
+      }
+    }
+
+    .indicator-toggles {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      flex-wrap: wrap;
+    }
+
+    .indicator-toggle {
+      min-width: auto;
+      padding: 0 0.5rem;
+      font-size: 11px;
+      line-height: 28px;
+      height: 28px;
+
+      &--active {
+        background-color: #e3f2fd;
+        border-color: #1976d2;
+        color: #1976d2;
+      }
+
+      &--loading {
+        opacity: 0.7;
+      }
+
+      &--error {
+        border-color: #f44336;
+        color: #f44336;
+      }
+
+      .spin {
+        animation: spin 1s linear infinite;
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        vertical-align: middle;
+        margin-right: 2px;
+      }
+
+      .error-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        vertical-align: middle;
+        margin-right: 2px;
+      }
+    }
+
+    .sine-mode-toggle {
+      height: 28px;
+
+      ::ng-deep .mat-button-toggle-button {
+        line-height: 26px;
+        font-size: 11px;
+        padding: 0 8px;
+      }
+    }
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 
   .main-content {

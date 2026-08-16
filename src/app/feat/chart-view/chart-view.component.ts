@@ -10,14 +10,22 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
 import { ChartModule, ChartComponent, CandleSeriesService, LineSeriesService, CategoryService, TooltipService, ZoomService, CrosshairService, ZoomSettingsModel, IZoomCompleteEventArgs, IScrollEventArgs, ScrollBarService, StripLineService, StripLineSettingsModel, ITooltipRenderEventArgs, IAxisLabelRenderEventArgs } from '@syncfusion/ej2-angular-charts';
-import { ChartViewStore } from './store/chart-view.store';
-import { TimeSeriesInterval } from '@shared/alpha-vantage';
+import { ChartViewStore, IndicatorState } from './store/chart-view.store';
+import { HtIndicator, PriceSeries, SineDisplayMode, TimeSeriesInterval } from '@shared/alpha-vantage';
 
 interface YAxisViewport {
   min: number;
   max: number;
+}
+
+/** Template-facing view model for a single endpoint indicator toggle. */
+interface IndicatorToggleView {
+  key: HtIndicator;
+  label: string;
+  state: IndicatorState;
 }
 
 @Component({
@@ -32,6 +40,7 @@ interface YAxisViewport {
     MatIconModule,
     MatTooltipModule,
     MatButtonToggleModule,
+    MatSnackBarModule,
     FormsModule,
     ChartModule
   ],
@@ -52,8 +61,28 @@ interface YAxisViewport {
 export class ChartViewComponent implements OnInit {
   @ViewChild('chart') chart!: ChartComponent;
   readonly store = inject(ChartViewStore);
+  private readonly snackBar = inject(MatSnackBar);
   readonly currentYear = new Date().getFullYear();
   readonly TimeSeriesInterval = TimeSeriesInterval;
+  readonly HtIndicator = HtIndicator;
+  readonly PriceSeries = PriceSeries;
+
+  /** All 6 endpoint indicators with their current state, for template iteration. */
+  readonly indicatorToggles = computed<IndicatorToggleView[]>(() => {
+    const s = this.store;
+    return [
+      { key: HtIndicator.HT_TRENDLINE, label: 'Trendline', state: s.htTrendline() },
+      { key: HtIndicator.HT_SINE,      label: 'Sine',      state: s.htSine() },
+      { key: HtIndicator.HT_DCPERIOD,  label: 'DC Period', state: s.htDcperiod() },
+      { key: HtIndicator.HT_DCPHASE,   label: 'DC Phase',  state: s.htDcphase() },
+      { key: HtIndicator.HT_TRENDMODE, label: 'Trend Mode',state: s.htTrendmode() },
+      { key: HtIndicator.HT_PHASOR,    label: 'Phasor',    state: s.htPhasor() },
+    ];
+  });
+
+  /** HT_SINE state — used to conditionally show the sine display mode control.
+   *  Aliased as a computed for template readability; could use store.htSine() directly. */
+  readonly htSineState = computed(() => this.store.htSine());
 
   private isInitialLoad = true;
 
@@ -165,6 +194,31 @@ export class ChartViewComponent implements OnInit {
 
       chart.animateSeries = false;
       chart.dataBind();
+    });
+
+    // Effect (C): Watch indicator states for errors and show a toast when one appears.
+    // Uses a tracked-set to avoid re-showing the same error on unrelated signal triggers.
+    // Errors are removed from the set when they clear (indicator toggled off or new fetch
+    // succeeds), so the same error can be re-shown if it re-occurs later.
+    const shownErrors = new Set<string>();
+    effect(() => {
+      const currentErrors = new Set<string>();
+      for (const toggle of this.indicatorToggles()) {
+        const err = toggle.state.error;
+        if (err) {
+          currentErrors.add(err);
+          if (!shownErrors.has(err)) {
+            shownErrors.add(err);
+            this.showIndicatorError(err);
+          }
+        }
+      }
+      // Remove errors that are no longer active — prevents unbounded growth
+      for (const shown of shownErrors) {
+        if (!currentErrors.has(shown)) {
+          shownErrors.delete(shown);
+        }
+      }
     });
   }
 
@@ -289,6 +343,28 @@ export class ChartViewComponent implements OnInit {
   onLocalHtCalcToggle(checked: boolean): void {
     this.store.toggleLocalHtCalc();
     this.refreshChartAfterToggle();
+  }
+
+  onIndicatorToggle(key: HtIndicator): void {
+    this.store.toggleIndicator(key);
+    this.refreshChartAfterToggle();
+  }
+
+  onSeriesTypeChange(seriesType: PriceSeries): void {
+    this.store.setIndicatorSeriesType(seriesType);
+    this.refreshChartAfterToggle();
+  }
+
+  onSineDisplayModeChange(mode: SineDisplayMode): void {
+    this.store.setSineDisplayMode(mode);
+    this.refreshChartAfterToggle();
+  }
+
+  private showIndicatorError(message: string): void {
+    this.snackBar.open(`Indicator error: ${message}`, 'Dismiss', {
+      duration: 5000,
+      panelClass: ['indicator-error-toast'],
+    });
   }
 
   private refreshChartAfterToggle(): void {
