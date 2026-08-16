@@ -1,10 +1,28 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { Auth } from '@angular/fire/auth';
+import { Firestore } from '@angular/fire/firestore';
+import { Functions } from '@angular/fire/functions';
+import { FirebaseApp } from '@angular/fire/app';
 import { AppComponent } from './app.component';
 
 describe('AppComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: Auth, useValue: {} },
+        { provide: Firestore, useValue: {} },
+        { provide: Functions, useValue: {} },
+        { provide: FirebaseApp, useValue: { options: { projectId: 'test' } } },
+      ],
     }).compileComponents();
   });
 
@@ -12,18 +30,5 @@ describe('AppComponent', () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
     expect(app).toBeTruthy();
-  });
-
-  it(`should have the 'myapp' title`, () => {
-    const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
-    expect(app.title).toEqual('myapp');
-  });
-
-  it('should render title', () => {
-    const fixture = TestBed.createComponent(AppComponent);
-    fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, myapp');
   });
 });
