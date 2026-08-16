@@ -1,7 +1,10 @@
 import { environment } from '../../environments/environment';
-import { AlphaVantageFunctionName, BenzingaFunctionName } from './fe-common-fn';
+import { AlphaVantageFunctionName, BenzingaFunctionName, PartnerFunctionName } from './fe-common-fn';
 import { DataMaintainerFunctionName } from '../feat/data-maintainer-view/common/fe-common-dm-api';
 
+/**
+ * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
+ */
 // Define the production URLs for each 2nd Gen Cloud Function
 const PROD_URLS = {
   // Alpha Vantage
@@ -23,13 +26,16 @@ const PROD_URLS = {
   [DataMaintainerFunctionName.SAVE_TRACKED_SYMBOL]: 'https://savetrackedsymbol-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.LIST_SYMBOLS_V2]: 'https://listsymbolsv2-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.GET_SYMBOL_DETAILS_V2]: 'https://getsymboldetailsv2-lsluydmucq-uc.a.run.app',
+
+  // Partner (cloudfunctions.net URL — partner endpoints use this canonical URL, not run.app)
+  [PartnerFunctionName.PARTNER_TECHNICAL_INDICATORS_V2]: 'https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerTechnicalIndicatorsV2',
 } as const;
 
 // Development URL base
 const DEV_URL_BASE = 'http://localhost:5001/alpha-vantage-proxy-api/us-central1';
 
 // Function to get the correct URL based on environment and function name
-const getFunctionUrl = (functionName: AlphaVantageFunctionName | BenzingaFunctionName | DataMaintainerFunctionName) => {
+const getFunctionUrl = (functionName: AlphaVantageFunctionName | BenzingaFunctionName | DataMaintainerFunctionName | PartnerFunctionName) => {
   if (environment.production) {
     return PROD_URLS[functionName];
   }

@@ -1,3 +1,6 @@
+/**
+ * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
+ */
 import { HttpInterceptorFn, HttpRequest, HttpHandlerFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -27,6 +30,7 @@ export const authInterceptor: HttpInterceptorFn = (
     apiBases.av,
     apiBases.dm,
     apiBases.benzinga,
+    apiBases.partner,
   ];
 
   if (pr) console.group(' Auth Interceptor - Request Info');

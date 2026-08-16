@@ -74,7 +74,10 @@ export const appConfig: ApplicationConfig = {
       });
     }),
 
-    // Centralized API bases (health, av, dm, benzinga)
+    // Centralized API bases (health, av, dm, benzinga, partner)
+    /**
+     * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
+     */
     {
       provide: API_BASES,
       deps: [FirebaseApp],
@@ -88,6 +91,7 @@ export const appConfig: ApplicationConfig = {
           av: fnBase,
           dm: fnBase,
           benzinga: fnBase,
+          partner: fnBase,
         };
       },
     },

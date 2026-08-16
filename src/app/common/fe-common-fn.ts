@@ -25,6 +25,13 @@ export enum HealthFunctionName {
 }
 
 /**
+ * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
+ */
+export enum PartnerFunctionName {
+  PARTNER_TECHNICAL_INDICATORS_V2 = 'partnerTechnicalIndicatorsV2',
+}
+
+/**
  * Gateway function path segments for 2nd Gen HTTPS gateways.
  * Use these to build URLs instead of hardcoding strings in call sites.
  */
