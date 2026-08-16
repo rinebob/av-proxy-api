@@ -1,6 +1,6 @@
 # Documentation Index
 
-Last updated: 2026-02-14
+Last updated: 2026-08-15
 
 This is the master table of contents for the `docs/` directory. Documents are grouped by domain and listed in recommended reading order within each group.
 
@@ -61,6 +61,17 @@ Read in this order for partner onboarding:
 | `backfill/backfill-timeseries-window.md` | `backfill-timeseries-window.ts` script: bounded date-range backfill with durable Firestore progress tracking. |
 | `backfill/manual-full-backfill-process-as-built.md` | As-built doc for the Cloud Tasks-based full backfill system: HTTP trigger, job creation, worker, aggregator. |
 | `backfill/bulk-symbol-upload.md` | Bulk symbol onboarding plan: scraper JSON → `bulkImportSymbolsV2` → AV SYMBOL_SEARCH → tracked-symbols. |
+
+---
+
+## Alpha Vantage Endpoint Expansion
+
+| Doc | Purpose |
+|-----|---------|
+| `PRD-av-endpoints-hilbert.md` | PRD for Hilbert Transform technical indicators (6 endpoints, on-demand, single partner endpoint). |
+| `IMPL-av-endpoints-hilbert-be.md` | BE implementation plan for Hilbert Transform — task breakdown and architecture. |
+| `TEST-av-endpoints-hilbert-be.md` | BE test plan for Hilbert Transform — unit and consistency test targets. |
+| `CODE-REVIEW-av-endpoints-hilbert-be.md` | Code review for Task #12 — Standards, Spec, Thermo-nuclear axes. Verdict: PASS. |
 
 ---
 
