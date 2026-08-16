@@ -72,6 +72,7 @@ Read in this order for partner onboarding:
 | `IMPL-av-endpoints-hilbert-be.md` | BE implementation plan for Hilbert Transform — task breakdown and architecture. |
 | `TEST-av-endpoints-hilbert-be.md` | BE test plan for Hilbert Transform — unit and consistency test targets. |
 | `CODE-REVIEW-av-endpoints-hilbert-be.md` | Code review for Task #12 — Standards, Spec, Thermo-nuclear axes. Verdict: PASS. |
+| `CODE-REVIEW-av-endpoints-hilbert-be-task13.md` | Code review for Task #13 (partner endpoint) — Standards, Spec, Thermo-nuclear axes. Verdict: PASS. |
 
 ---
 
