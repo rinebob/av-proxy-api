@@ -1,8 +1,11 @@
+/**
+ * @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
+ */
 # Partner Endpoint Inventory
 
 Single source of truth for all deployed partner HTTPS Cloud Function endpoints. Other docs should link here instead of maintaining their own lists.
 
-Last updated: 2026-08-03
+Last updated: 2026-08-15
 
 ---
 
@@ -23,6 +26,7 @@ These endpoints serve data to partner applications (read-only from Firestore or 
 | `partnerContractCatalogV2` | `partnercontractcatalogv2` | GET | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Query contract catalog with filtering (expiration range, strike buckets, type, moneyness) | `docs/partner/options-data/partner-contract-catalog-v2-as-built.md` |
 | `partnerSpreadTimeSeries` | `partnerspreadtimeseries` | POST | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Historical time series for a single options spread | `docs/partner/options-data/spread-time-series-discovery.md` |
 | `partnerSpreadTimeSeriesBatch` | `partnerspreadtimeseriesbatch` | POST | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Batch spread time series (up to 200 spreads per request) | `docs/partner/options-data/spread-time-series-discovery.md` |
+| `partnerTechnicalIndicatorsV2` | `partnertechnicalindicatorsv2` | GET | None (any tracked symbol) | Dual-auth (OIDC/Firebase) | On-demand AV technical indicators (Hilbert Transform family) — config-driven, calls AV directly | `docs/PRD-av-endpoints-hilbert.md` |
 
 ## Internal / Operational Endpoints
 

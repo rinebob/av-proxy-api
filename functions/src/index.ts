@@ -1,3 +1,6 @@
+/**
+ * @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
+ */
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,6 +46,7 @@ export { partnerListContractsV2 } from './v2/partner/list-contracts-partner';
 export { partnerContractCatalogV2 } from './v2/partner/partner-contract-catalog-partner';
 export { partnerSpreadTimeSeries } from './v2/partner/spread-time-series-partner';
 export { partnerSpreadTimeSeriesBatch } from './v2/partner/spread-time-series-batch-partner';
+export { partnerTechnicalIndicatorsV2 } from './v2/partner/technical-indicators-partner';
 
 // Note: HTTP dataReadyWebhook has been removed. Publishing is internal-only via enqueueDataReadyInternal.
 
