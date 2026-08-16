@@ -7,9 +7,6 @@ import { API_BASES, type ApiBases } from '../../../core/api/api.tokens';
 import { HtIndicator, PriceSeries } from '@shared/alpha-vantage';
 import { TimeSeriesInterval } from '@shared/alpha-vantage';
 
-/**
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
- */
 describe('TechnicalIndicatorsService', () => {
   let service: TechnicalIndicatorsService;
   let httpMock: HttpTestingController;

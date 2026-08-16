@@ -1,4 +1,3 @@
-// @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
 // Barrel file for shared/alpha-vantage
 
 export * from './av-company-overview';

@@ -24,9 +24,6 @@ export enum HealthFunctionName {
   GET_SYMBOL_METRICS_V2 = 'getSymbolMetricsV2',
 }
 
-/**
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
- */
 export enum PartnerFunctionName {
   PARTNER_TECHNICAL_INDICATORS_V2 = 'partnerTechnicalIndicatorsV2',
 }

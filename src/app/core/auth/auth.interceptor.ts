@@ -1,6 +1,3 @@
-/**
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
- */
 import { HttpInterceptorFn, HttpRequest, HttpHandlerFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -21,7 +18,7 @@ export const authInterceptor: HttpInterceptorFn = (
   const authService = inject(AuthService);
   const router = inject(Router);
   const apiBases = inject(API_BASES);
-  
+
   // Get all possible backend URLs
   const backendUrls = [
     ...Object.values(StockDataUrl),
@@ -40,14 +37,14 @@ export const authInterceptor: HttpInterceptorFn = (
   // Skip for non-backend requests
   const isBackendRequest = backendUrls.some(backendUrl => {
     if (pr) console.log(`Checking backend URL: ${backendUrl}`);
-    
+
     // For absolute URLs, check if the request URL starts with the backend URL
     if (req.url.startsWith('http')) {
       const matches = req.url.startsWith(backendUrl as string);
       if (pr) console.log(`  - Absolute URL check: ${matches ? ' MATCH' : ' NO MATCH'}`);
       return matches;
     }
-    
+
     // For relative URLs, check if the path matches any backend URL path
     try {
       const urlObj = new URL(backendUrl as string, window.location.origin);
@@ -73,8 +70,8 @@ export const authInterceptor: HttpInterceptorFn = (
     take(1),
     switchMap(token => {
       if (!token) {
-        router.navigate(['/login'], { 
-          queryParams: { returnUrl: router.routerState.snapshot.url } 
+        router.navigate(['/login'], {
+          queryParams: { returnUrl: router.routerState.snapshot.url }
         });
         return throwError(() => new Error('authSvc aI No authentication token available'));
       }
@@ -96,15 +93,15 @@ export const authInterceptor: HttpInterceptorFn = (
               switchMap(newToken => {
                 if (!newToken) {
                   authService.logout();
-                  router.navigate(['/login'], { 
-                    queryParams: { 
+                  router.navigate(['/login'], {
+                    queryParams: {
                       returnUrl: router.routerState.snapshot.url,
                       sessionExpired: 'true'
-                    } 
+                    }
                   });
                   return throwError(() => new Error('Session expired'));
                 }
-                
+
                 // Retry the request with the new token
                 const retryReq = req.clone({
                   setHeaders: {

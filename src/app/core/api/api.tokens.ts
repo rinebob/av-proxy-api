@@ -1,8 +1,5 @@
 import { InjectionToken } from '@angular/core';
 
-/**
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
- */
 export type ApiBases = {
   health: string;
   av: string;

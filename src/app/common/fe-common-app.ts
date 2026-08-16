@@ -2,9 +2,6 @@ import { environment } from '../../environments/environment';
 import { AlphaVantageFunctionName, BenzingaFunctionName, PartnerFunctionName } from './fe-common-fn';
 import { DataMaintainerFunctionName } from '../feat/data-maintainer-view/common/fe-common-dm-api';
 
-/**
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
- */
 // Define the production URLs for each 2nd Gen Cloud Function
 const PROD_URLS = {
   // Alpha Vantage

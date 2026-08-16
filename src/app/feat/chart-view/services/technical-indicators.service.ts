@@ -50,8 +50,6 @@ export interface TechnicalIndicatorParams {
  *
  * The endpoint supports dual-auth (OIDC/Firebase ID tokens). The auth
  * interceptor adds the Firebase ID token automatically.
- *
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
  */
 @Injectable({ providedIn: 'root' })
 export class TechnicalIndicatorsService {
