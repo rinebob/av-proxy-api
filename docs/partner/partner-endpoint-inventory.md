@@ -1,6 +1,3 @@
-/**
- * @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
- */
 # Partner Endpoint Inventory
 
 Single source of truth for all deployed partner HTTPS Cloud Function endpoints. Other docs should link here instead of maintaining their own lists.

@@ -1,6 +1,3 @@
-/**
- * @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
- */
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
