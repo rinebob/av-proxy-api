@@ -1,3 +1,4 @@
+// @topic #5 — Alpha Vantage Endpoint Expansion (opened 2026-08-15)
 export enum AlphaVantageEndpoint {
     // ===== Time Series Data =====
     TIME_SERIES_DAILY = 'TIME_SERIES_DAILY',
@@ -54,10 +55,12 @@ export enum AlphaVantageEndpoint {
     NONFARM_PAYROLL = 'NONFARM_PAYROLL',
   
     // ===== Technical Indicators =====
-    // Add technical indicators here as needed
-    // SMA = 'SMA',
-    // EMA = 'EMA',
-    // RSI = 'RSI'
+    HT_TRENDLINE = 'HT_TRENDLINE',
+    HT_SINE = 'HT_SINE',
+    HT_TRENDMODE = 'HT_TRENDMODE',
+    HT_DCPERIOD = 'HT_DCPERIOD',
+    HT_DCPHASE = 'HT_DCPHASE',
+    HT_PHASOR = 'HT_PHASOR',
 }
 
 export enum AvEndpointCategory {
@@ -80,7 +83,10 @@ export enum AvEndpointCategory {
     ECONOMIC_INDICATORS = 'economic-indicators',
   
     /** Symbol search */
-    SEARCH = 'search'
+    SEARCH = 'search',
+
+    /** Technical indicators (SMA, EMA, Hilbert Transform, etc.) */
+    TECHNICAL_INDICATORS = 'technical-indicators',
 }
 
 /**
@@ -95,4 +101,11 @@ export const AV_IMPLEMENTED_ENDPOINTS: Set<AlphaVantageEndpoint> = new Set<Alpha
     AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED,
     AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED,
     AlphaVantageEndpoint.GLOBAL_QUOTE,
+    // Hilbert Transform technical indicators (on-demand, no Firestore)
+    AlphaVantageEndpoint.HT_TRENDLINE,
+    AlphaVantageEndpoint.HT_SINE,
+    AlphaVantageEndpoint.HT_TRENDMODE,
+    AlphaVantageEndpoint.HT_DCPERIOD,
+    AlphaVantageEndpoint.HT_DCPHASE,
+    AlphaVantageEndpoint.HT_PHASOR,
 ]);
