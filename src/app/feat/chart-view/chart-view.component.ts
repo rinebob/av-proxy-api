@@ -1,3 +1,6 @@
+/**
+ * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
+ */
 import { Component, OnInit, inject, ViewChild, effect, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -283,13 +286,8 @@ export class ChartViewComponent implements OnInit {
     this.isInitialLoad = true;
   }
 
-  onHtTrendlineToggle(checked: boolean): void {
-    this.store.toggleHtTrendline();
-    this.refreshChartAfterToggle();
-  }
-
-  onHtSineToggle(checked: boolean): void {
-    this.store.toggleHtSine();
+  onLocalHtCalcToggle(checked: boolean): void {
+    this.store.toggleLocalHtCalc();
     this.refreshChartAfterToggle();
   }
 

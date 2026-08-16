@@ -1,3 +1,4 @@
+<!-- @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15) -->
 <div class="chart-view-container">
   <div class="controls-bar">
     <mat-form-field appearance="outline">
@@ -26,15 +27,9 @@
     <span class="indicator-divider"></span>
 
     <mat-slide-toggle
-      [checked]="store.showHtTrendline()"
-      (change)="onHtTrendlineToggle($event.checked)">
-      HT Trendline
-    </mat-slide-toggle>
-
-    <mat-slide-toggle
-      [checked]="store.showHtSine()"
-      (change)="onHtSineToggle($event.checked)">
-      HT Sine Wave
+      [checked]="store.showLocalHtCalc()"
+      (change)="onLocalHtCalcToggle($event.checked)">
+      Local HT Calc
     </mat-slide-toggle>
   </div>
 
@@ -77,7 +72,7 @@
             </e-series>
 
             <!-- HT Trendline: instantaneous trendline overlaid on price -->
-            @if (store.showHtTrendline() && categoryHtTrendline().length > 0) {
+            @if (store.showLocalHtCalc() && categoryHtTrendline().length > 0) {
               <e-series [dataSource]="categoryHtTrendline()"
                         type="Line"
                         xName="index" yName="v"
@@ -91,7 +86,7 @@
             }
 
             <!-- HT Sine Wave: sine and lead-sine on a -1..+1 axis -->
-            @if (store.showHtSine() && categoryHtSine().length > 0) {
+            @if (store.showLocalHtCalc() && categoryHtSine().length > 0) {
               <e-series [dataSource]="categoryHtSine()"
                         type="Line"
                         yAxisName="SineAxis"
