@@ -12,6 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [SA UI HT Endpoint Integration] 17-24_FE-IMPL-AV-ENDPOINTS: Refactor ChartViewStore with IndicatorState and fetch logic
 - [SA UI HT Endpoint Integration] 17-24_FE-IMPL-AV-ENDPOINTS: Consolidate local HT calc toggles into single control
 - [SA UI HT Endpoint Integration] 17-24_DOCS-AV-ENDPOINTS: Add code review doc for Task #24
+- [SA UI HT Endpoint Integration] 17-25_FE-IMPL-AV-ENDPOINTS: Add indicator toggles, series_type dropdown, and sine display mode
+- [SA UI HT Endpoint Integration] 17-25_DOCS-AV-ENDPOINTS: Add code review doc for Task #25
 
 ### Fixed
 - [SA UI HT Endpoint Integration] 17-23_FE-CHORE-AV-ENDPOINTS: Fix pre-existing test infrastructure bugs
@@ -19,6 +21,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - [SA UI HT Endpoint Integration] 17-23_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
 - [SA UI HT Endpoint Integration] 17-24_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
+- [SA UI HT Endpoint Integration] 17-25_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
+- [SA UI HT Endpoint Integration] 17-25_CHORE-AV-ENDPOINTS: Add .devin/mcp_config.local.json to gitignore
 
 ## [2026-08-15]
 

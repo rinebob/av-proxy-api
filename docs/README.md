@@ -81,6 +81,7 @@ Read in this order for partner onboarding:
 | `TEST-av-endpoints-hilbert-fe.md` | FE test plan for Topic #17 — E2E journeys, integration boundaries, unit targets. |
 | `CODE-REVIEW-av-endpoints-hilbert-fe-task23.md` | Code review for Task #23 (config + service + interceptor) — all axes. Verdict: PASS. |
 | `CODE-REVIEW-av-endpoints-hilbert-fe-task24.md` | Code review for Task #24 (store refactor — IndicatorState + fetch logic + caching) — all axes. Verdict: PASS. |
+| `CODE-REVIEW-av-endpoints-hilbert-fe-task25.md` | Code review for Task #25 (component toggles + series_type dropdown + sine display mode) — all axes. Verdict: PASS. |
 
 ---
 
