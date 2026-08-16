@@ -109,3 +109,4 @@ functions/backfill-aapl-prod.log
 functions/backfill-aapl.log
 functions/assets/misc/terminal-notes.txt
 #.devin/skills/**/*
+.devin/mcp_config.local.json
