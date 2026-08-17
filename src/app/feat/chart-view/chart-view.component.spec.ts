@@ -1,9 +1,13 @@
+/**
+ * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
+ */
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideExperimentalZonelessChangeDetection } from '@angular/core';
 import { of } from 'rxjs';
 import { ComponentFixture } from '@angular/core/testing';
+import { patchState } from '@ngrx/signals';
 
 import { ChartViewComponent } from './chart-view.component';
 import { ChartViewStore } from './store/chart-view.store';
@@ -44,8 +48,8 @@ describe('ChartViewComponent — indicator toggle controls', () => {
   });
 
   /** Helper: the component's own store instance (provided in component providers). */
-  function store(): InstanceType<typeof ChartViewStore> {
-    return component.store as any;
+  function store(): any {
+    return component.store;
   }
 
   // ============================================================
@@ -217,6 +221,270 @@ describe('ChartViewComponent — indicator toggle controls', () => {
       const args = snackBar.open.calls.mostRecent().args;
       expect(args[0]).toContain('Invalid API key');
       expect(args[0]).toContain('Indicator error:');
+    });
+  });
+
+  // ============================================================
+  // Task #26: Multi-pane chart layout — computed signals
+  // ============================================================
+  describe('multi-pane chart layout', () => {
+    describe('chartRows', () => {
+      it('should have only row 0 (price) when no indicators are toggled on', () => {
+        const rows = component.chartRows();
+        expect(rows.length).toBe(1);
+        expect((rows[0] as any).height).toBe('50%');
+      });
+
+      it('should add a row when HT_PHASOR is toggled on', () => {
+        const s = store();
+        patchState(s,{ htPhasor: { ...s.htPhasor(), show: true } } as any);
+        const rows = component.chartRows();
+        expect(rows.length).toBe(2);
+      });
+
+      it('should add a row when HT_TRENDMODE is toggled on', () => {
+        const s = store();
+        patchState(s,{ htTrendmode: { ...s.htTrendmode(), show: true } } as any);
+        const rows = component.chartRows();
+        expect(rows.length).toBe(2);
+      });
+
+      it('should add a row when HT_SINE is toggled on in pane mode', () => {
+        const s = store();
+        patchState(s,{
+          htSine: { ...s.htSine(), show: true },
+          sineDisplayMode: 'pane'
+        } as any);
+        const rows = component.chartRows();
+        expect(rows.length).toBe(2);
+      });
+
+      it('should NOT add a row when HT_SINE is in overlay mode', () => {
+        const s = store();
+        patchState(s,{
+          htSine: { ...s.htSine(), show: true },
+          sineDisplayMode: 'overlay'
+        } as any);
+        const rows = component.chartRows();
+        expect(rows.length).toBe(1); // only price row
+      });
+
+      it('should add a row when HT_SINE is in both mode', () => {
+        const s = store();
+        patchState(s,{
+          htSine: { ...s.htSine(), show: true },
+          sineDisplayMode: 'both'
+        } as any);
+        const rows = component.chartRows();
+        expect(rows.length).toBe(2);
+      });
+
+      it('should add rows for all toggled indicators in correct stacking order', () => {
+        const s = store();
+        patchState(s,{
+          htPhasor: { ...s.htPhasor(), show: true },
+          htTrendmode: { ...s.htTrendmode(), show: true },
+          htSine: { ...s.htSine(), show: true },
+          sineDisplayMode: 'pane',
+          htDcperiod: { ...s.htDcperiod(), show: true },
+          htDcphase: { ...s.htDcphase(), show: true },
+        } as any);
+        const rows = component.chartRows();
+        // Row 0: price, Row 1: phasor, Row 2: trendmode, Row 3: sine, Row 4: dcperiod, Row 5: dcphase
+        expect(rows.length).toBe(6);
+      });
+    });
+
+    describe('chartAxes', () => {
+      it('should always include SecondaryYAxis at rowIndex 0', () => {
+        const axes = component.chartAxes();
+        const secondary = axes.find((a: any) => a.name === 'SecondaryYAxis');
+        expect(secondary).toBeTruthy();
+        expect((secondary as any).rowIndex).toBe(0);
+      });
+
+      it('should include SineAxis when showLocalHtCalc is true', () => {
+        const s = store();
+        patchState(s,{ showLocalHtCalc: true } as any);
+        const axes = component.chartAxes();
+        const sineAxis = axes.find((a: any) => a.name === 'SineAxis');
+        expect(sineAxis).toBeTruthy();
+        expect((sineAxis as any).rowIndex).toBe(0);
+      });
+
+      it('should include SineAxis when HT_SINE is in overlay mode', () => {
+        const s = store();
+        patchState(s,{
+          htSine: { ...s.htSine(), show: true },
+          sineDisplayMode: 'overlay'
+        } as any);
+        const axes = component.chartAxes();
+        const sineAxis = axes.find((a: any) => a.name === 'SineAxis');
+        expect(sineAxis).toBeTruthy();
+      });
+
+      it('should include PhasorAxis when HT_PHASOR is toggled on', () => {
+        const s = store();
+        patchState(s,{ htPhasor: { ...s.htPhasor(), show: true } } as any);
+        const axes = component.chartAxes();
+        const phasorAxis = axes.find((a: any) => a.name === 'PhasorAxis');
+        expect(phasorAxis).toBeTruthy();
+        expect((phasorAxis as any).rowIndex).toBe(1);
+      });
+
+      it('should include TrendmodeAxis with fixed 0-1 range when HT_TRENDMODE is on', () => {
+        const s = store();
+        patchState(s,{ htTrendmode: { ...s.htTrendmode(), show: true } } as any);
+        const axes = component.chartAxes();
+        const trendmodeAxis = axes.find((a: any) => a.name === 'TrendmodeAxis');
+        expect(trendmodeAxis).toBeTruthy();
+        expect((trendmodeAxis as any).minimum).toBe(0);
+        expect((trendmodeAxis as any).maximum).toBe(1);
+      });
+
+      it('should include SinePaneAxis when HT_SINE is in pane mode', () => {
+        const s = store();
+        patchState(s,{
+          htSine: { ...s.htSine(), show: true },
+          sineDisplayMode: 'pane'
+        } as any);
+        const axes = component.chartAxes();
+        const sinePaneAxis = axes.find((a: any) => a.name === 'SinePaneAxis');
+        expect(sinePaneAxis).toBeTruthy();
+        expect((sinePaneAxis as any).minimum).toBe(-1);
+        expect((sinePaneAxis as any).maximum).toBe(1);
+      });
+
+      it('should NOT include SinePaneAxis when HT_SINE is in overlay mode', () => {
+        const s = store();
+        patchState(s,{
+          htSine: { ...s.htSine(), show: true },
+          sineDisplayMode: 'overlay'
+        } as any);
+        const axes = component.chartAxes();
+        const sinePaneAxis = axes.find((a: any) => a.name === 'SinePaneAxis');
+        expect(sinePaneAxis).toBeFalsy();
+      });
+
+      it('should include DcperiodAxis when HT_DCPERIOD is toggled on', () => {
+        const s = store();
+        patchState(s,{ htDcperiod: { ...s.htDcperiod(), show: true } } as any);
+        const axes = component.chartAxes();
+        const dcperiodAxis = axes.find((a: any) => a.name === 'DcperiodAxis');
+        expect(dcperiodAxis).toBeTruthy();
+      });
+
+      it('should include DcphaseAxis when HT_DCPHASE is toggled on', () => {
+        const s = store();
+        patchState(s,{ htDcphase: { ...s.htDcphase(), show: true } } as any);
+        const axes = component.chartAxes();
+        const dcphaseAxis = axes.find((a: any) => a.name === 'DcphaseAxis');
+        expect(dcphaseAxis).toBeTruthy();
+      });
+
+      it('should assign correct rowIndex when all indicators are on', () => {
+        const s = store();
+        patchState(s,{
+          htPhasor: { ...s.htPhasor(), show: true },
+          htTrendmode: { ...s.htTrendmode(), show: true },
+          htSine: { ...s.htSine(), show: true },
+          sineDisplayMode: 'pane',
+          htDcperiod: { ...s.htDcperiod(), show: true },
+          htDcphase: { ...s.htDcphase(), show: true },
+        } as any);
+        const axes = component.chartAxes();
+        const phasorAxis = axes.find((a: any) => a.name === 'PhasorAxis');
+        const trendmodeAxis = axes.find((a: any) => a.name === 'TrendmodeAxis');
+        const sinePaneAxis = axes.find((a: any) => a.name === 'SinePaneAxis');
+        const dcperiodAxis = axes.find((a: any) => a.name === 'DcperiodAxis');
+        const dcphaseAxis = axes.find((a: any) => a.name === 'DcphaseAxis');
+        expect((phasorAxis as any).rowIndex).toBe(1);
+        expect((trendmodeAxis as any).rowIndex).toBe(2);
+        expect((sinePaneAxis as any).rowIndex).toBe(3);
+        expect((dcperiodAxis as any).rowIndex).toBe(4);
+        expect((dcphaseAxis as any).rowIndex).toBe(5);
+      });
+    });
+
+    describe('endpoint indicator computed signals', () => {
+      it('categoryHtTrendlineEndpoint should return empty when no data', () => {
+        expect(component.categoryHtTrendlineEndpoint()).toEqual([]);
+      });
+
+      it('categoryHtDcperiod should return empty when no data', () => {
+        expect(component.categoryHtDcperiod()).toEqual([]);
+      });
+
+      it('categoryHtDcphase should return empty when no data', () => {
+        expect(component.categoryHtDcphase()).toEqual([]);
+      });
+
+      it('categoryHtTrendmode should return empty when no data', () => {
+        expect(component.categoryHtTrendmode()).toEqual([]);
+      });
+
+      it('categoryHtSineEndpoint should return empty when no data', () => {
+        expect(component.categoryHtSineEndpoint()).toEqual([]);
+      });
+
+      it('categoryHtPhasor should return empty when no data', () => {
+        expect(component.categoryHtPhasor()).toEqual([]);
+      });
+
+      it('mapToCategoryIndex should stitch indicator data to category indices', () => {
+        // Set up chart data with known dates
+        const s = store();
+        const date1 = new Date('2024-01-01');
+        const date2 = new Date('2024-01-02');
+        patchState(s,{
+          chartData: [
+            { t: date1, o: 100, h: 110, l: 95, c: 105 },
+            { t: date2, o: 105, h: 115, l: 100, c: 110 },
+          ]
+        } as any);
+        // Set up indicator data matching one date
+        patchState(s,{
+          htDcperiod: { show: true, loading: false, error: null, data: [{ t: date2, v: 14.5 }] }
+        } as any);
+        const result = component.categoryHtDcperiod();
+        expect(result.length).toBe(1);
+        expect(result[0].index).toBe(1);
+        expect(result[0].v).toBe(14.5);
+      });
+
+      it('mapDualToCategoryIndex should stitch dual-series data (HT_PHASOR)', () => {
+        const s = store();
+        const date1 = new Date('2024-01-01');
+        patchState(s,{
+          chartData: [{ t: date1, o: 100, h: 110, l: 95, c: 105 }]
+        } as any);
+        patchState(s,{
+          htPhasor: { show: true, loading: false, error: null, data: [], dualData: [{ t: date1, v1: 0.5, v2: -0.3 }] }
+        } as any);
+        const result = component.categoryHtPhasor();
+        expect(result.length).toBe(1);
+        expect(result[0].index).toBe(0);
+        expect(result[0].v1).toBe(0.5);
+        expect(result[0].v2).toBe(-0.3);
+      });
+
+      it('mapToCategoryIndex should drop indicator points with no matching date', () => {
+        const s = store();
+        const date1 = new Date('2024-01-01');
+        const orphanDate = new Date('2023-12-31');
+        patchState(s,{
+          chartData: [{ t: date1, o: 100, h: 110, l: 95, c: 105 }]
+        } as any);
+        patchState(s,{
+          htDcphase: { show: true, loading: false, error: null, data: [
+            { t: date1, v: 45.0 },
+            { t: orphanDate, v: 99.9 } // orphan — no matching bar
+          ] }
+        } as any);
+        const result = component.categoryHtDcphase();
+        expect(result.length).toBe(1);
+        expect(result[0].v).toBe(45.0);
+      });
     });
   });
 });

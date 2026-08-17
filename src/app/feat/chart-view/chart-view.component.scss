@@ -1,3 +1,4 @@
+// @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
 .chart-view-container {
   display: flex;
   flex-direction: column;
@@ -117,6 +118,9 @@
     }
     
     // Chart container styles
+    // Multi-pane layout: Syncfusion rows distribute height via percentages.
+    // Row 0 (price) = 50%, lower panes = 15% each, trendmode = 8% (~50px).
+    // overflow: hidden on parent ensures all panes fit within viewport.
     .chart-container {
         position: relative;
         width: 100%;

@@ -1,3 +1,6 @@
+/**
+ * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
+ */
 import { Component, OnInit, inject, ViewChild, effect, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -104,57 +107,66 @@ export class ChartViewComponent implements OnInit {
     }));
   });
 
-  // Category-indexed HT Trendline data
-  readonly categoryHtTrendline = computed(() => {
-    const htData = this.store.htTrendlineData();
+  // ---- Date-stitching helper ----
+  // Maps indicator data points (keyed by date) to category indices matching
+  // the candle series. Drops any indicator points whose dates don't match a bar.
+  private mapToCategoryIndex(htData: any[]): { index: number; v: number }[] {
     const bars = this.store.chartData();
     if (htData.length === 0 || bars.length === 0) return [];
-    // htTrendlineData points have { t, v } — map to index by matching dates
     const dateToIndex = new Map<string, number>();
-    bars.forEach((b: any, i: number) => {
-      dateToIndex.set(this.dateKey(b.t), i);
-    });
+    bars.forEach((b: any, i: number) => dateToIndex.set(this.dateKey(b.t), i));
     return htData
       .map((p: any) => {
         const idx = dateToIndex.get(this.dateKey(p.t));
-        return idx != null ? { index: idx, v: p.v } : null;
+        return idx != null ? { index: idx, v: Number(p.v) } : null;
       })
-      .filter((p: any) => p != null);
-  });
+      .filter((p): p is { index: number; v: number } => p != null);
+  }
 
-  // Category-indexed HT Sine data
-  readonly categoryHtSine = computed(() => {
-    const htData = this.store.htSineData();
+  // Same helper for dual-series indicators (HT_SINE, HT_PHASOR) — maps {t, v1, v2}
+  private mapDualToCategoryIndex(dualData: any[]): { index: number; v1: number; v2: number }[] {
     const bars = this.store.chartData();
-    if (htData.length === 0 || bars.length === 0) return [];
+    if (dualData.length === 0 || bars.length === 0) return [];
     const dateToIndex = new Map<string, number>();
-    bars.forEach((b: any, i: number) => {
-      dateToIndex.set(this.dateKey(b.t), i);
-    });
-    return htData
+    bars.forEach((b: any, i: number) => dateToIndex.set(this.dateKey(b.t), i));
+    return dualData
       .map((p: any) => {
         const idx = dateToIndex.get(this.dateKey(p.t));
-        return idx != null ? { index: idx, v: p.v } : null;
+        return idx != null ? { index: idx, v1: Number(p.v1), v2: Number(p.v2) } : null;
       })
-      .filter((p: any) => p != null);
-  });
+      .filter((p): p is { index: number; v1: number; v2: number } => p != null);
+  }
 
-  // Category-indexed HT Lead Sine data
-  readonly categoryHtLeadSine = computed(() => {
-    const htData = this.store.htLeadSineData();
-    const bars = this.store.chartData();
-    if (htData.length === 0 || bars.length === 0) return [];
-    const dateToIndex = new Map<string, number>();
-    bars.forEach((b: any, i: number) => {
-      dateToIndex.set(this.dateKey(b.t), i);
-    });
-    return htData
-      .map((p: any) => {
-        const idx = dateToIndex.get(this.dateKey(p.t));
-        return idx != null ? { index: idx, v: p.v } : null;
-      })
-      .filter((p: any) => p != null);
-  });
+  // ---- Client-side calc computed signals (existing, refactored to use helper) ----
+
+  // Category-indexed HT Trendline data (client-side calc)
+  readonly categoryHtTrendline = computed(() => this.mapToCategoryIndex(this.store.htTrendlineData()));
+
+  // Category-indexed HT Sine data (client-side calc)
+  readonly categoryHtSine = computed(() => this.mapToCategoryIndex(this.store.htSineData()));
+
+  // Category-indexed HT Lead Sine data (client-side calc)
+  readonly categoryHtLeadSine = computed(() => this.mapToCategoryIndex(this.store.htLeadSineData()));
+
+  // ---- Endpoint indicator computed signals (Task #26) ----
+
+  // HT_TRENDLINE endpoint — single series, overlaid on price chart
+  readonly categoryHtTrendlineEndpoint = computed(() => this.mapToCategoryIndex(this.store.htTrendline().data));
+
+  // HT_DCPERIOD endpoint — single series, lower pane
+  readonly categoryHtDcperiod = computed(() => this.mapToCategoryIndex(this.store.htDcperiod().data));
+
+  // HT_DCPHASE endpoint — single series, lower pane
+  readonly categoryHtDcphase = computed(() => this.mapToCategoryIndex(this.store.htDcphase().data));
+
+  // HT_TRENDMODE endpoint — single series (0/1 values), lower pane ~50px
+  readonly categoryHtTrendmode = computed(() => this.mapToCategoryIndex(this.store.htTrendmode().data));
+
+  // HT_SINE endpoint — dual series (sine + lead_sine), overlay or lower pane
+  readonly categoryHtSineEndpoint = computed(() => this.mapDualToCategoryIndex(this.store.htSine().dualData ?? []));
+
+  // HT_PHASOR endpoint — dual series (in-phase + quadrature), lower pane
+  readonly categoryHtPhasor = computed(() => this.mapDualToCategoryIndex(this.store.htPhasor().dualData ?? []));
 
   constructor() {
     // Effect (A): When chartData changes (new symbol, interval, etc.),
@@ -248,7 +260,8 @@ export class ChartViewComponent implements OnInit {
     enableAutoIntervalOnZooming: true
   };
 
-  public axes: Object[] = [{
+  // Base axis definitions for the price chart (always present)
+  private readonly secondaryYAxisDef = {
     name: 'SecondaryYAxis',
     opposedPosition: true,
     majorGridLines: { width: 0 },
@@ -259,8 +272,9 @@ export class ChartViewComponent implements OnInit {
     labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' },
     titleStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' },
     enableAutoIntervalOnZooming: true
-  },
-  {
+  };
+
+  private readonly sineOverlayAxisDef = {
     name: 'SineAxis',
     opposedPosition: true,
     minimum: -1,
@@ -274,7 +288,98 @@ export class ChartViewComponent implements OnInit {
     labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
     titleStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' },
     title: 'Sine'
-  }];
+  };
+
+  // ---- Dynamic rows + axes (Task #26: multi-pane layout) ----
+
+  /** Dynamic row definitions — row 0 is always the price chart (~50% height).
+   *  Lower panes are added in stacking order: Phasor, Trendmode, Sine, DCPERIOD, DCPHASE.
+   *  Price chart gets 50% of viewport; lower panes share the remaining 50% proportionally.
+   *  HT_TRENDMODE gets a smaller share (~40% of lower-pane allocation) since it's a binary 0/1 plot. */
+  readonly chartRows = computed<Object[]>(() => {
+    const s = this.store;
+    // Count active lower panes (trendmode counts as 0.6 due to compact height)
+    let paneUnits = 0;
+    if (s.htPhasor().show)    paneUnits += 1;
+    if (s.htTrendmode().show) paneUnits += 0.4; // compact pane
+    if (s.htSine().show && (s.sineDisplayMode() === 'pane' || s.sineDisplayMode() === 'both')) paneUnits += 1;
+    if (s.htDcperiod().show)  paneUnits += 1;
+    if (s.htDcphase().show)   paneUnits += 1;
+
+    const rows: Object[] = [{ height: '50%' }];
+    if (paneUnits === 0) return rows;
+
+    const lowerHalf = 50; // remaining 50% of viewport
+    if (s.htPhasor().show)    rows.push({ height: `${(lowerHalf / paneUnits).toFixed(1)}%` });
+    if (s.htTrendmode().show) rows.push({ height: `${(lowerHalf * 0.4 / paneUnits).toFixed(1)}%` });
+    if (s.htSine().show && (s.sineDisplayMode() === 'pane' || s.sineDisplayMode() === 'both')) rows.push({ height: `${(lowerHalf / paneUnits).toFixed(1)}%` });
+    if (s.htDcperiod().show)  rows.push({ height: `${(lowerHalf / paneUnits).toFixed(1)}%` });
+    if (s.htDcphase().show)   rows.push({ height: `${(lowerHalf / paneUnits).toFixed(1)}%` });
+    return rows;
+  });
+
+  /** Dynamic axes — includes price-chart axes + lower-pane axes for toggled indicators.
+   *  Each lower-pane axis gets a rowIndex matching its position in chartRows. */
+  readonly chartAxes = computed<Object[]>(() => {
+    const s = this.store;
+    const axes: Object[] = [{ ...this.secondaryYAxisDef, rowIndex: 0 }];
+
+    // SineAxis (overlay) — present for client-side calc or endpoint overlay/both mode
+    const showSineOverlay = s.showLocalHtCalc() ||
+      (s.htSine().show && (s.sineDisplayMode() === 'overlay' || s.sineDisplayMode() === 'both'));
+    if (showSineOverlay) axes.push({ ...this.sineOverlayAxisDef, rowIndex: 0 });
+
+    // Lower-pane axes — rowIndex tracks the dynamic row position
+    let rowIdx = 1;
+    if (s.htPhasor().show) {
+      axes.push({
+        name: 'PhasorAxis', rowIndex: rowIdx++,
+        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
+        labelFormat: '{value}', rangePadding: 'None',
+        labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
+        title: 'Phasor'
+      });
+    }
+    if (s.htTrendmode().show) {
+      axes.push({
+        name: 'TrendmodeAxis', rowIndex: rowIdx++,
+        minimum: 0, maximum: 1, interval: 1,
+        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
+        labelFormat: '{value}', rangePadding: 'None',
+        labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
+        title: 'Trend Mode'
+      });
+    }
+    if (s.htSine().show && (s.sineDisplayMode() === 'pane' || s.sineDisplayMode() === 'both')) {
+      axes.push({
+        name: 'SinePaneAxis', rowIndex: rowIdx++,
+        minimum: -1, maximum: 1, interval: 0.5,
+        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
+        labelFormat: '{value}', rangePadding: 'None',
+        labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
+        title: 'Sine'
+      });
+    }
+    if (s.htDcperiod().show) {
+      axes.push({
+        name: 'DcperiodAxis', rowIndex: rowIdx++,
+        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
+        labelFormat: '{value}', rangePadding: 'None',
+        labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
+        title: 'DC Period'
+      });
+    }
+    if (s.htDcphase().show) {
+      axes.push({
+        name: 'DcphaseAxis', rowIndex: rowIdx++,
+        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
+        labelFormat: '{value}', rangePadding: 'None',
+        labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
+        title: 'DC Phase'
+      });
+    }
+    return axes;
+  });
 
   public zoomSettings: ZoomSettingsModel = {
     enableMouseWheelZooming: true,
