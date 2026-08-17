@@ -1,6 +1,3 @@
-/**
- * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
- */
 import { Component, OnInit, inject, ViewChild, effect, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';

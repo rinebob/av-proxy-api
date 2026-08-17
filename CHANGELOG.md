@@ -14,6 +14,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [SA UI HT Endpoint Integration] 17-24_DOCS-AV-ENDPOINTS: Add code review doc for Task #24
 - [SA UI HT Endpoint Integration] 17-25_FE-IMPL-AV-ENDPOINTS: Add indicator toggles, series_type dropdown, and sine display mode
 - [SA UI HT Endpoint Integration] 17-25_DOCS-AV-ENDPOINTS: Add code review doc for Task #25
+- [SA UI HT Endpoint Integration] 17-26_FE-IMPL-AV-ENDPOINTS: Add multi-pane chart layout for endpoint indicators
+- [SA UI HT Endpoint Integration] 17-26_DOCS-AV-ENDPOINTS: Add code review doc for Task #26
 
 ### Fixed
 - [SA UI HT Endpoint Integration] 17-23_FE-CHORE-AV-ENDPOINTS: Fix pre-existing test infrastructure bugs
@@ -23,6 +25,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [SA UI HT Endpoint Integration] 17-24_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
 - [SA UI HT Endpoint Integration] 17-25_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
 - [SA UI HT Endpoint Integration] 17-25_CHORE-AV-ENDPOINTS: Add .devin/mcp_config.local.json to gitignore
+- [SA UI HT Endpoint Integration] 17-26_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
 
 ## [2026-08-15]
 
