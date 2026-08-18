@@ -1,4 +1,3 @@
-/** @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15) */
 import type { Request, Response } from 'express';
 
 import { HttpMethod } from '@shared/core';
