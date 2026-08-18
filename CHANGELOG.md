@@ -3,6 +3,16 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-08-18]
+
+### Added
+- [SA UI HT Endpoint Integration] 17-27_BE-IMPL-AV-ENDPOINTS: Accept Firebase user auth for technical indicators endpoint
+- [SA UI HT Endpoint Integration] 17-27_FE-IMPL-AV-ENDPOINTS: Apply review fixes and add integration tests for Hilbert Transform indicators
+- [SA UI HT Endpoint Integration] 17-27_DOCS-AV-ENDPOINTS: Add code review doc for Tasks #24-27 batched review
+
+### Changed
+- [SA UI HT Endpoint Integration] 17-27_CHORE-AV-ENDPOINTS: Remove @topic tags from shipped files
+
 ## [2026-08-16]
 
 ### Added
