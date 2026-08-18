@@ -1,4 +1,6 @@
 /**
+ * @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15)
+ *
  * Partner HTTPS endpoint for technical indicators (Hilbert Transform family).
  * On-demand: calls Alpha Vantage directly on each request — no Firestore persistence.
  *
@@ -112,16 +114,13 @@ export async function technicalIndicatorsPartnerHandler(
       return;
     }
 
-    if (!('serviceAccountEmail' in authResult)) {
-      logger.warn('technicalIndicators.firebase_auth_rejected', { requestId, status: 403 });
-      res.status(403).json({
-        ok: false,
-        error: 'Service account authentication is required',
-        code: TechnicalIndicatorsErrorCode.FORBIDDEN,
-        timestamp: dependencies.now().toISOString(),
-      });
-      return;
-    }
+    // Dual-auth: accept both service-account (server-to-server OIDC) and Firebase user
+    // (browser ID token) auth. Per PRD-av-endpoints-hilbert-fe.md §Technical Context,
+    // the SA UI calls this endpoint directly from the browser using Firebase ID tokens.
+    // The service-account path remains for server-to-server callers.
+    const requester = 'serviceAccountEmail' in authResult
+      ? authResult.serviceAccountEmail
+      : `firebase-user:${(authResult as any)?.uid ?? 'unknown'}`;
 
     // ── Param validation ─────────────────────────────────────────────────────
 
@@ -198,7 +197,7 @@ export async function technicalIndicatorsPartnerHandler(
       indicator: rawIndicator,
       interval,
       series_type: seriesType,
-      requester: authResult.serviceAccountEmail,
+      requester,
     });
 
     // ── Symbol enforcement ───────────────────────────────────────────────────

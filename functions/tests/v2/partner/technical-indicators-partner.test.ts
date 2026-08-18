@@ -1,3 +1,4 @@
+/** @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15) */
 import type { Request, Response } from 'express';
 
 import { HttpMethod } from '@shared/core';
@@ -109,15 +110,15 @@ it('stops when authentication rejects the request', async () => {
   expect(responseState.statusCode).toBeUndefined();
 });
 
-it('rejects a Firebase-authenticated caller (service-account only)', async () => {
+it('accepts a Firebase-authenticated caller (browser user)', async () => {
   const responseState = createResponse();
   await technicalIndicatorsPartnerHandler(
-    createRequest(HttpMethod.GET),
+    createRequest(HttpMethod.GET, { symbol: 'IBM', indicator: 'ht_trendline', interval: 'daily', series_type: 'close' }),
     responseState.response,
-    createDependencies({ authenticateRequest: async () => ({ uid: 'firebase-user' }) }),
+    createDependencies({ authenticateRequest: async () => ({ uid: 'firebase-user' }) as any }),
   );
-  expect(responseState.statusCode).toBe(403);
-  expect((responseState.body as { code?: string }).code).toBe(TechnicalIndicatorsErrorCode.FORBIDDEN);
+  // Should NOT return 403 — should proceed to param validation / fetch
+  expect(responseState.statusCode).not.toBe(403);
 });
 
 // ── Param validation ─────────────────────────────────────────────────────────
