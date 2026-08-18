@@ -28,7 +28,7 @@
 
     <mat-slide-toggle
       [checked]="store.showLocalHtCalc()"
-      (change)="onLocalHtCalcToggle($event.checked)">
+      (change)="onLocalHtCalcToggle()">
       Local HT Calc
     </mat-slide-toggle>
 
@@ -67,7 +67,7 @@
       }
 
       <!-- Sine display mode control (visible when HT_SINE is toggled on) -->
-      @if (htSineState().show) {
+      @if (store.htSine().show) {
         <mat-button-toggle-group
           [value]="store.sineDisplayMode()"
           (change)="onSineDisplayModeChange($event.value)"
@@ -88,19 +88,21 @@
 
     @if (store.selectedSymbol() && store.chartData().length > 0) {
       <ejs-chart #chart id="chart-container"
-        [primaryXAxis]="primaryXAxis"
-        [primaryYAxis]="primaryYAxis"
+        [enableAnimation]="false"
+        [primaryXAxis]="primaryXAxis()"
+        [primaryYAxis]="primaryYAxis()"
         [axes]="chartAxes()"
         [rows]="chartRows()"
+        [height]="'100%'"
+        [width]="'100%'"
+        [legendSettings]="{ visible: false }"
         [title]="title"
         [titleStyle]="titleStyle"
         [zoomSettings]="zoomSettings"
         [tooltip]="tooltipSettings"
         [crosshair]="crosshairSettings"
-        (loaded)="onChartLoaded()"
         (scrollEnd)="onScrollEnd($event)"
         (zoomComplete)="onZoomComplete($event)"
-        (tooltipRender)="tooltipRender($event)"
         (axisLabelRender)="axisLabelRender($event)">
         <e-series-collection>
             <e-series [dataSource]="categoryBars()"
@@ -115,7 +117,7 @@
             <!-- Dummy series to force SecondaryYAxis rendering -->
             <e-series [dataSource]="categoryBars()"
                       type="Line"
-                      yAxisName="SecondaryYAxis"
+                      [yAxisName]="'SecondaryYAxis'"
                       xName="index" yName="c"
                       width="0">
             </e-series>
@@ -138,7 +140,7 @@
             @if (store.showLocalHtCalc() && categoryHtSine().length > 0) {
               <e-series [dataSource]="categoryHtSine()"
                         type="Line"
-                        yAxisName="SineAxis"
+                        [yAxisName]="'SineAxis'"
                         xName="index" yName="v"
                         name="HT Sine (local)"
                         [animation]="{ enable: false }"
@@ -148,7 +150,7 @@
               </e-series>
               <e-series [dataSource]="categoryHtLeadSine()"
                         type="Line"
-                        yAxisName="SineAxis"
+                        [yAxisName]="'SineAxis'"
                         xName="index" yName="v"
                         name="HT Lead Sine (local)"
                         [animation]="{ enable: false }"
@@ -175,10 +177,10 @@
             }
 
             <!-- HT_SINE endpoint: overlay mode (on price chart, SineAxis) -->
-            @if (store.htSine().show && (store.sineDisplayMode() === 'overlay' || store.sineDisplayMode() === 'both') && categoryHtSineEndpoint().length > 0) {
+            @if (sineOverlayActive() && categoryHtSineEndpoint().length > 0) {
               <e-series [dataSource]="categoryHtSineEndpoint()"
                         type="Line"
-                        yAxisName="SineAxis"
+                        [yAxisName]="'SineAxis'"
                         xName="index" yName="v1"
                         name="HT Sine"
                         [animation]="{ enable: false }"
@@ -188,7 +190,7 @@
               </e-series>
               <e-series [dataSource]="categoryHtSineEndpoint()"
                         type="Line"
-                        yAxisName="SineAxis"
+                        [yAxisName]="'SineAxis'"
                         xName="index" yName="v2"
                         name="HT Lead Sine"
                         [animation]="{ enable: false }"
@@ -200,96 +202,88 @@
             }
 
             <!-- HT_SINE endpoint: pane mode (in lower pane, SinePaneAxis) -->
-            @if (store.htSine().show && (store.sineDisplayMode() === 'pane' || store.sineDisplayMode() === 'both') && categoryHtSineEndpoint().length > 0) {
-              <e-series [dataSource]="categoryHtSineEndpoint()"
-                        type="Line"
-                        yAxisName="SinePaneAxis"
-                        xName="index" yName="v1"
-                        name="HT Sine (pane)"
-                        [animation]="{ enable: false }"
-                        [marker]="{ visible: false }"
-                        width="1.5"
-                        fill="#FF9800">
-              </e-series>
-              <e-series [dataSource]="categoryHtSineEndpoint()"
-                        type="Line"
-                        yAxisName="SinePaneAxis"
-                        xName="index" yName="v2"
-                        name="HT Lead Sine (pane)"
-                        [animation]="{ enable: false }"
-                        [marker]="{ visible: false }"
-                        width="1.5"
-                        dashArray="4,2"
-                        fill="#9C27B0">
-              </e-series>
-            }
+            <!-- Always rendered with empty data when inactive so the axis binding
+                 is established at chart init. -->
+            <e-series [dataSource]="sinePaneActive() ? categoryHtSineEndpoint() : []"
+                      type="Line"
+                      [yAxisName]="'SinePaneAxis'"
+                      xName="index" yName="v1"
+                      name="HT Sine (pane)"
+                      [animation]="{ enable: false }"
+                      [marker]="{ visible: false }"
+                      width="1.5"
+                      fill="#FF9800">
+            </e-series>
+            <e-series [dataSource]="sinePaneActive() ? categoryHtSineEndpoint() : []"
+                      type="Line"
+                      [yAxisName]="'SinePaneAxis'"
+                      xName="index" yName="v2"
+                      name="HT Lead Sine (pane)"
+                      [animation]="{ enable: false }"
+                      [marker]="{ visible: false }"
+                      width="1.5"
+                      dashArray="4,2"
+                      fill="#9C27B0">
+            </e-series>
 
             <!-- HT_PHASOR endpoint: in-phase + quadrature in lower pane -->
-            @if (store.htPhasor().show && categoryHtPhasor().length > 0) {
-              <e-series [dataSource]="categoryHtPhasor()"
-                        type="Line"
-                        yAxisName="PhasorAxis"
-                        xName="index" yName="v1"
-                        name="HT In-Phase"
-                        [animation]="{ enable: false }"
-                        [marker]="{ visible: false }"
-                        width="1.5"
-                        fill="#26A69A">
-              </e-series>
-              <e-series [dataSource]="categoryHtPhasor()"
-                        type="Line"
-                        yAxisName="PhasorAxis"
-                        xName="index" yName="v2"
-                        name="HT Quadrature"
-                        [animation]="{ enable: false }"
-                        [marker]="{ visible: false }"
-                        width="1.5"
-                        dashArray="4,2"
-                        fill="#EF5350">
-              </e-series>
-            }
+            <e-series [dataSource]="store.htPhasor().show ? categoryHtPhasor() : []"
+                      type="Line"
+                      [yAxisName]="'PhasorAxis'"
+                      xName="index" yName="v1"
+                      name="HT In-Phase"
+                      [animation]="{ enable: false }"
+                      [marker]="{ visible: false }"
+                      width="1.5"
+                      fill="#26A69A">
+            </e-series>
+            <e-series [dataSource]="store.htPhasor().show ? categoryHtPhasor() : []"
+                      type="Line"
+                      [yAxisName]="'PhasorAxis'"
+                      xName="index" yName="v2"
+                      name="HT Quadrature"
+                      [animation]="{ enable: false }"
+                      [marker]="{ visible: false }"
+                      width="1.5"
+                      dashArray="4,2"
+                      fill="#EF5350">
+            </e-series>
 
             <!-- HT_TRENDMODE endpoint: binary 0/1 in compact lower pane -->
-            @if (store.htTrendmode().show && categoryHtTrendmode().length > 0) {
-              <e-series [dataSource]="categoryHtTrendmode()"
-                        type="Line"
-                        yAxisName="TrendmodeAxis"
-                        xName="index" yName="v"
-                        name="HT Trend Mode"
-                        [animation]="{ enable: false }"
-                        [marker]="{ visible: false }"
-                        width="1.5"
-                        fill="#66BB6A">
-              </e-series>
-            }
+            <e-series [dataSource]="store.htTrendmode().show ? categoryHtTrendmode() : []"
+                      type="Line"
+                      [yAxisName]="'TrendmodeAxis'"
+                      xName="index" yName="v"
+                      name="HT Trend Mode"
+                      [animation]="{ enable: false }"
+                      [marker]="{ visible: false }"
+                      width="1.5"
+                      fill="#66BB6A">
+            </e-series>
 
             <!-- HT_DCPERIOD endpoint: in lower pane -->
-            @if (store.htDcperiod().show && categoryHtDcperiod().length > 0) {
-              <e-series [dataSource]="categoryHtDcperiod()"
-                        type="Line"
-                        yAxisName="DcperiodAxis"
-                        xName="index" yName="v"
-                        name="HT DC Period"
-                        [animation]="{ enable: false }"
-                        [marker]="{ visible: false }"
-                        width="1.5"
-                        fill="#42A5F5">
-              </e-series>
-            }
+            <e-series [dataSource]="store.htDcperiod().show ? categoryHtDcperiod() : []"
+                      type="Line"
+                      [yAxisName]="'DcperiodAxis'"
+                      xName="index" yName="v"
+                      name="HT DC Period"
+                      [animation]="{ enable: false }"
+                      [marker]="{ visible: false }"
+                      width="1.5"
+                      fill="#42A5F5">
+            </e-series>
 
             <!-- HT_DCPHASE endpoint: in lower pane -->
-            @if (store.htDcphase().show && categoryHtDcphase().length > 0) {
-              <e-series [dataSource]="categoryHtDcphase()"
-                        type="Line"
-                        yAxisName="DcphaseAxis"
-                        xName="index" yName="v"
-                        name="HT DC Phase"
-                        [animation]="{ enable: false }"
-                        [marker]="{ visible: false }"
-                        width="1.5"
-                        fill="#AB47BC">
-              </e-series>
-            }
+            <e-series [dataSource]="store.htDcphase().show ? categoryHtDcphase() : []"
+                      type="Line"
+                      [yAxisName]="'DcphaseAxis'"
+                      xName="index" yName="v"
+                      name="HT DC Phase"
+                      [animation]="{ enable: false }"
+                      [marker]="{ visible: false }"
+                      width="1.5"
+                      fill="#AB47BC">
+            </e-series>
         </e-series-collection>
       </ejs-chart>
     } @else if (store.selectedSymbol()) {

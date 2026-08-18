@@ -1,3 +1,4 @@
+/** @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15) */
 import { Component, OnInit, inject, ViewChild, effect, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -9,7 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
-import { ChartModule, ChartComponent, CandleSeriesService, LineSeriesService, CategoryService, TooltipService, ZoomService, CrosshairService, ZoomSettingsModel, IZoomCompleteEventArgs, IScrollEventArgs, ScrollBarService, StripLineService, StripLineSettingsModel, ITooltipRenderEventArgs, IAxisLabelRenderEventArgs } from '@syncfusion/ej2-angular-charts';
+import { ChartModule, ChartComponent, CandleSeriesService, LineSeriesService, CategoryService, TooltipService, ZoomService, CrosshairService, ZoomSettingsModel, IZoomCompleteEventArgs, IScrollEventArgs, ScrollBarService, IAxisLabelRenderEventArgs, ColumnSeriesService, ScatterSeriesService, AreaSeriesService, RangeAreaSeriesService, DateTimeService, LegendService, LogarithmicService } from '@syncfusion/ej2-angular-charts';
 import { ChartViewStore, IndicatorState } from './store/chart-view.store';
 import { HtIndicator, PriceSeries, SineDisplayMode, TimeSeriesInterval } from '@shared/alpha-vantage';
 
@@ -45,12 +46,18 @@ interface IndicatorToggleView {
     ChartViewStore,
     CandleSeriesService,
     LineSeriesService,
+    ColumnSeriesService,
+    ScatterSeriesService,
+    AreaSeriesService,
+    RangeAreaSeriesService,
+    DateTimeService,
     CategoryService,
     TooltipService,
     ZoomService,
     CrosshairService,
     ScrollBarService,
-    StripLineService
+    LegendService,
+    LogarithmicService
   ],
   templateUrl: './chart-view.component.html',
   styleUrls: ['./chart-view.component.scss']
@@ -77,9 +84,16 @@ export class ChartViewComponent implements OnInit {
     ];
   });
 
-  /** HT_SINE state — used to conditionally show the sine display mode control.
-   *  Aliased as a computed for template readability; could use store.htSine() directly. */
-  readonly htSineState = computed(() => this.store.htSine());
+  /** Whether HT_SINE should render in the lower pane (pane or both mode).
+   *  Delegates to the static PANE_CONFIG predicate — single source of truth. */
+  readonly sinePaneActive = computed(() => ChartViewComponent.sinePaneActive(this.store));
+
+  /** Whether HT_SINE should render as an overlay on the price chart (overlay or both mode). */
+  readonly sineOverlayActive = computed(() => {
+    const s = this.store.htSine();
+    const mode = this.store.sineDisplayMode();
+    return s.show && (mode === 'overlay' || mode === 'both');
+  });
 
   private isInitialLoad = true;
 
@@ -112,12 +126,13 @@ export class ChartViewComponent implements OnInit {
     if (htData.length === 0 || bars.length === 0) return [];
     const dateToIndex = new Map<string, number>();
     bars.forEach((b: any, i: number) => dateToIndex.set(this.dateKey(b.t), i));
-    return htData
+    const result = htData
       .map((p: any) => {
         const idx = dateToIndex.get(this.dateKey(p.t));
         return idx != null ? { index: idx, v: Number(p.v) } : null;
       })
       .filter((p): p is { index: number; v: number } => p != null);
+    return result;
   }
 
   // Same helper for dual-series indicators (HT_SINE, HT_PHASOR) — maps {t, v1, v2}
@@ -166,7 +181,7 @@ export class ChartViewComponent implements OnInit {
   readonly categoryHtPhasor = computed(() => this.mapDualToCategoryIndex(this.store.htPhasor().dualData ?? []));
 
   constructor() {
-    // Effect (A): When chartData changes (new symbol, interval, etc.),
+
     // apply initial zoom + Y viewport. This fires whenever the store's
     // chartData signal changes, so it handles symbol switches that don't
     // trigger a (loaded) event (since the chart isn't destroyed/recreated).
@@ -185,6 +200,7 @@ export class ChartViewComponent implements OnInit {
     effect(() => {
       const viewport = this.yAxisViewport();
       const chart = this.chart;
+      const _ = this.primaryYAxis(); // keep dependency on axis config
       if (!chart || !viewport) return;
 
       // Write directly to the chart instance — NOT to the bound primaryYAxis object.
@@ -202,7 +218,27 @@ export class ChartViewComponent implements OnInit {
       chart.dataBind();
     });
 
-    // Effect (C): Watch indicator states for errors and show a toast when one appears.
+    // Effect (C): Rebind chart when indicator data arrives asynchronously.
+    // Syncfusion doesn't pick up [dataSource] updates on existing series when
+    // async data arrives after the initial render. dataBind() forces it to
+    // re-read the series dataSource arrays.
+    effect(() => {
+      // Track all indicator data signals
+      const _ = [
+        this.store.htTrendline().data,
+        this.store.htSine().dualData,
+        this.store.htDcperiod().data,
+        this.store.htDcphase().data,
+        this.store.htTrendmode().data,
+        this.store.htPhasor().dualData,
+      ];
+      const chart = this.chart;
+      if (!chart) return;
+      chart.animateSeries = false;
+      try { chart.dataBind(); } catch { /* suppress Syncfusion race */ }
+    });
+
+    // Effect (D): Watch indicator states for errors and show a toast when one appears.
     // Uses a tracked-set to avoid re-showing the same error on unrelated signal triggers.
     // Errors are removed from the set when they clear (indicator toggled off or new fetch
     // succeeds), so the same error can be re-shown if it re-occurs later.
@@ -230,23 +266,22 @@ export class ChartViewComponent implements OnInit {
 
   // Chart Configuration
   // Category X-axis: uses integer indices, no date gaps for weekends/holidays.
-  // Labels are formatted via the labelFormat callback to show dates.
-  public primaryXAxis: Object = {
-    valueType: 'Category',
-    crosshairTooltip: { enable: true },
-    majorGridLines: { width: 0 },
-    labelPlacement: 'OnTicks',
-    labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' },
-    // Custom label format: show the date for each category index.
-    // Syncfusion Category axis supports a labelFormat function via 'skeleton'/'format'
-    // but the simplest approach is to set the category label to a date string
-    // in the data itself (xName points to a formatted string). We use the
-    // 'dateLabel' field in categoryBars for this.
-    intervalType: 'Auto',
-    edgeLabelPlacement: 'Shift'
-  };
-  public primaryYAxis: Object = {
+  // Labels are formatted via the axisLabelRender callback to show dates.
+  // No striplines (they cause rendering bugs on Category axes). Year separators
+  // are not rendered.
+  readonly primaryXAxis = computed<Object>(() => {
+    // Re-evaluate when the dataset changes so Syncfusion rebuilds the axis
+    this.store.chartData().length;
+
+    return {
+      valueType: 'Category',
+      majorGridLines: { width: 0 },
+      edgeLabelPlacement: 'Shift',
+    };
+  });
+  readonly primaryYAxis = computed(() => ({
     title: 'Price',
+    rowIndex: ChartViewComponent.PRICE_ROW_INDEX,
     majorGridLines: { width: 1 },
     lineStyle: { width: 0 },
     labelFormat: '${value}',
@@ -255,7 +290,7 @@ export class ChartViewComponent implements OnInit {
     titleStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif' },
     crosshairTooltip: { enable: true },
     enableAutoIntervalOnZooming: true
-  };
+  }));
 
   // Base axis definitions for the price chart (always present)
   private readonly secondaryYAxisDef = {
@@ -287,92 +322,94 @@ export class ChartViewComponent implements OnInit {
     title: 'Sine'
   };
 
-  // ---- Dynamic rows + axes (Task #26: multi-pane layout) ----
+  // ---- Fixed-pane rows + axes (Task #26: multi-pane layout) ----
+  // Always emit a FIXED set of lower pane slots so the row/axis structure
+  // never changes on toggle. Inactive panes get 0% height and hidden grid
+  // lines. This avoids Syncfusion's expensive
+  // full-chart reinit (3-5s delay + broken rendering) when rows/axes change.
 
-  /** Dynamic row definitions — row 0 is always the price chart (~50% height).
-   *  Lower panes are added in stacking order: Phasor, Trendmode, Sine, DCPERIOD, DCPHASE.
-   *  Price chart gets 50% of viewport; lower panes share the remaining 50% proportionally.
-   *  HT_TRENDMODE gets a smaller share (~40% of lower-pane allocation) since it's a binary 0/1 plot. */
+  /** Single source of truth for lower-pane configuration.
+   *  Order is bottom-to-top (rowIndex 0..4). Price chart is at rowIndex 5. */
+  private static sinePaneActive(s: InstanceType<typeof ChartViewStore>): boolean {
+    return s.htSine().show && (s.sineDisplayMode() === 'pane' || s.sineDisplayMode() === 'both');
+  }
+
+  private static readonly PANE_CONFIG = [
+    { name: 'DcphaseAxis',   rowIndex: 0, title: 'DC Phase',   compact: false, paneActive: (s: InstanceType<typeof ChartViewStore>) => s.htDcphase().show },
+    { name: 'DcperiodAxis',  rowIndex: 1, title: 'DC Period',  compact: false, paneActive: (s: InstanceType<typeof ChartViewStore>) => s.htDcperiod().show },
+    { name: 'SinePaneAxis',  rowIndex: 2, title: 'Sine',       compact: false, paneActive: ChartViewComponent.sinePaneActive, min: -1, max: 1, interval: 0.5 },
+    { name: 'TrendmodeAxis', rowIndex: 3, title: 'Trend Mode', compact: true,  paneActive: (s: InstanceType<typeof ChartViewStore>) => s.htTrendmode().show, min: 0, max: 1, interval: 1 },
+    { name: 'PhasorAxis',    rowIndex: 4, title: 'Phasor',     compact: false, paneActive: (s: InstanceType<typeof ChartViewStore>) => s.htPhasor().show },
+  ] as const;
+
+  private static readonly PRICE_ROW_INDEX = ChartViewComponent.PANE_CONFIG.length;
+
+  /** Fixed row definitions — 5 lower panes (0% when inactive) + price chart at top.
+   *  Syncfusion rows render bottom-to-top: rows[0] is bottom, rows[N-1] is top. */
   readonly chartRows = computed<Object[]>(() => {
     const s = this.store;
-    // Count active lower panes (trendmode counts as 0.6 due to compact height)
-    let paneUnits = 0;
-    if (s.htPhasor().show)    paneUnits += 1;
-    if (s.htTrendmode().show) paneUnits += 0.4; // compact pane
-    if (s.htSine().show && (s.sineDisplayMode() === 'pane' || s.sineDisplayMode() === 'both')) paneUnits += 1;
-    if (s.htDcperiod().show)  paneUnits += 1;
-    if (s.htDcphase().show)   paneUnits += 1;
+    const panes = ChartViewComponent.PANE_CONFIG;
+    const lowerHalf = 50;
+    const compactWeight = 0.4;
 
-    const rows: Object[] = [{ height: '50%' }];
-    if (paneUnits === 0) return rows;
+    // Single-pass: compute heights and accumulate lower total
+    let lowerTotal = 0;
+    const activeCounts = panes.reduce(
+      (acc, p) => {
+        const isActive = p.paneActive(s);
+        if (isActive) {
+          acc.normal += p.compact ? 0 : 1;
+          acc.compact += p.compact ? 1 : 0;
+        }
+        return acc;
+      },
+      { normal: 0, compact: 0 },
+    );
 
-    const lowerHalf = 50; // remaining 50% of viewport
-    if (s.htPhasor().show)    rows.push({ height: `${(lowerHalf / paneUnits).toFixed(1)}%` });
-    if (s.htTrendmode().show) rows.push({ height: `${(lowerHalf * 0.4 / paneUnits).toFixed(1)}%` });
-    if (s.htSine().show && (s.sineDisplayMode() === 'pane' || s.sineDisplayMode() === 'both')) rows.push({ height: `${(lowerHalf / paneUnits).toFixed(1)}%` });
-    if (s.htDcperiod().show)  rows.push({ height: `${(lowerHalf / paneUnits).toFixed(1)}%` });
-    if (s.htDcphase().show)   rows.push({ height: `${(lowerHalf / paneUnits).toFixed(1)}%` });
+    const totalUnits = activeCounts.normal + activeCounts.compact * compactWeight;
+    const normalH = totalUnits > 0 ? (lowerHalf / totalUnits) : 0;
+    const compactH = normalH * compactWeight;
+
+    const rows = panes.map(p => {
+      const isActive = p.paneActive(s);
+      const h = !isActive ? 0 : (p.compact ? compactH : normalH);
+      if (isActive) lowerTotal += h;
+      return { height: `${h.toFixed(1)}%` };
+    });
+    rows.push({ height: `${(100 - lowerTotal).toFixed(1)}%` }); // price chart at the top
     return rows;
   });
 
-  /** Dynamic axes — includes price-chart axes + lower-pane axes for toggled indicators.
-   *  Each lower-pane axis gets a rowIndex matching its position in chartRows. */
+  /** Fixed axes — always emits all 5 lower-pane axes + price axes.
+   *  Inactive panes get hidden grid lines and empty label format. */
   readonly chartAxes = computed<Object[]>(() => {
     const s = this.store;
-    const axes: Object[] = [{ ...this.secondaryYAxisDef, rowIndex: 0 }];
+    const priceRow = ChartViewComponent.PRICE_ROW_INDEX;
+    const axes: Object[] = [{ ...this.secondaryYAxisDef, rowIndex: priceRow }];
 
     // SineAxis (overlay) — present for client-side calc or endpoint overlay/both mode
-    const showSineOverlay = s.showLocalHtCalc() ||
-      (s.htSine().show && (s.sineDisplayMode() === 'overlay' || s.sineDisplayMode() === 'both'));
-    if (showSineOverlay) axes.push({ ...this.sineOverlayAxisDef, rowIndex: 0 });
+    const showSineOverlay = s.showLocalHtCalc() || this.sineOverlayActive();
+    if (showSineOverlay) axes.push({ ...this.sineOverlayAxisDef, rowIndex: priceRow });
 
-    // Lower-pane axes — rowIndex tracks the dynamic row position
-    let rowIdx = 1;
-    if (s.htPhasor().show) {
+    // Lower-pane axes — derived from PANE_CONFIG (single source of truth)
+    for (const cfg of ChartViewComponent.PANE_CONFIG) {
+      const isActive = cfg.paneActive(s);
       axes.push({
-        name: 'PhasorAxis', rowIndex: rowIdx++,
-        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
-        labelFormat: '{value}', rangePadding: 'None',
+        name: cfg.name,
+        valueType: 'Double',
+        rowIndex: cfg.rowIndex,
+        opposedPosition: true,
+        ...('min' in cfg ? { minimum: cfg.min } : {}),
+        ...('max' in cfg ? { maximum: cfg.max } : {}),
+        ...('interval' in cfg ? { interval: cfg.interval } : {}),
+        majorGridLines: { width: 0, color: 'rgba(158,158,158,0.3)' },
+        majorTickLines: { width: isActive ? 1 : 0 },
+        lineStyle: { width: isActive ? 1 : 0, color: '#9e9e9e' },
+        labelFormat: isActive ? '{value}' : '',
+        rangePadding: 'None',
+        crosshairTooltip: { enable: false },
         labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
-        title: 'Phasor'
-      });
-    }
-    if (s.htTrendmode().show) {
-      axes.push({
-        name: 'TrendmodeAxis', rowIndex: rowIdx++,
-        minimum: 0, maximum: 1, interval: 1,
-        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
-        labelFormat: '{value}', rangePadding: 'None',
-        labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
-        title: 'Trend Mode'
-      });
-    }
-    if (s.htSine().show && (s.sineDisplayMode() === 'pane' || s.sineDisplayMode() === 'both')) {
-      axes.push({
-        name: 'SinePaneAxis', rowIndex: rowIdx++,
-        minimum: -1, maximum: 1, interval: 0.5,
-        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
-        labelFormat: '{value}', rangePadding: 'None',
-        labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
-        title: 'Sine'
-      });
-    }
-    if (s.htDcperiod().show) {
-      axes.push({
-        name: 'DcperiodAxis', rowIndex: rowIdx++,
-        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
-        labelFormat: '{value}', rangePadding: 'None',
-        labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
-        title: 'DC Period'
-      });
-    }
-    if (s.htDcphase().show) {
-      axes.push({
-        name: 'DcphaseAxis', rowIndex: rowIdx++,
-        majorGridLines: { width: 0 }, majorTickLines: { width: 1 }, lineStyle: { width: 1 },
-        labelFormat: '{value}', rangePadding: 'None',
-        labelStyle: { fontFamily: 'Roboto, "Helvetica Neue", sans-serif', size: '10px' },
-        title: 'DC Phase'
+        title: isActive ? cfg.title : ''
       });
     }
     return axes;
@@ -439,7 +476,7 @@ export class ChartViewComponent implements OnInit {
     this.isInitialLoad = true;
   }
 
-  onLocalHtCalcToggle(checked: boolean): void {
+  onLocalHtCalcToggle(): void {
     this.store.toggleLocalHtCalc();
     this.refreshChartAfterToggle();
   }
@@ -469,6 +506,7 @@ export class ChartViewComponent implements OnInit {
   private refreshChartAfterToggle(): void {
     setTimeout(() => {
       if (!this.chart) return;
+      this.chart.animateSeries = false;
       this.chart.dataBind();
       this.chart.refresh();
     });
@@ -483,52 +521,16 @@ export class ChartViewComponent implements OnInit {
     }
   }
 
-  onChartLoaded(): void {
-    // The initial load is handled by effect (A) which watches chartData().
-    // This handler is kept for Syncfusion's (loaded) event but the real
-    // work happens in applyInitialZoom(), called from the effect.
-  }
-
   /**
-   * Applies initial X-axis zoom, striplines, and Y-axis viewport for the
-   * current dataset. Called from effect (A) when chartData changes and
-   * from onChartLoaded as a fallback.
+   * Applies initial X-axis zoom and Y-axis viewport for the current dataset.
+   * Called from effect (A) when chartData changes. Year striplines were removed
+   * (they cause rendering bugs on Category axes); date labels are shown via
+   * the axisLabelRender callback instead.
    */
   private applyInitialZoom(data: any[]): void {
     if (!this.chart || !data || data.length === 0) return;
 
-    // 1. Generate year striplines at the category index of the first bar of each year.
-    if (this.chart.primaryXAxis) {
-        const stripLines: StripLineSettingsModel[] = [];
-        const seenYears = new Set<number>();
-
-        for (let i = 0; i < data.length; i++) {
-          const d = new Date(data[i].t);
-          const year = d.getFullYear();
-          if (!seenYears.has(year)) {
-            seenYears.add(year);
-            stripLines.push({
-                start: i,
-                size: 1,
-                sizeType: 'Pixel',
-                color: '#7a7a7a',
-                dashArray: '3,3',
-                text: year.toString(),
-                textStyle: {
-                    color: '#7a7a7a',
-                    size: '12px',
-                    fontWeight: 'bold',
-                    fontFamily: 'Roboto, "Helvetica Neue", sans-serif'
-                },
-                verticalAlignment: 'Start',
-                horizontalAlignment: 'Middle'
-            });
-          }
-        }
-        this.chart.primaryXAxis.stripLines = stripLines;
-    }
-
-    // 2. Determine zoom factor/position (persisted or default)
+    // 1. Determine zoom factor/position (persisted or default)
     const savedFactor = this.store.zoomFactor();
     const savedPosition = this.store.zoomPosition();
 
@@ -563,7 +565,7 @@ export class ChartViewComponent implements OnInit {
         this.store.setZoomSettings(zoomFactor, zoomPosition);
     }
 
-    // 3. Set X zoom, then set viewport signal (triggers effect B)
+    // 2. Set X zoom, then set viewport signal (triggers effect B)
     this.chart.primaryXAxis.zoomFactor = zoomFactor;
     this.chart.primaryXAxis.zoomPosition = zoomPosition;
     this.computeAndSetViewport(data, zoomFactor, zoomPosition);
@@ -598,22 +600,29 @@ export class ChartViewComponent implements OnInit {
     }
   }
 
-  tooltipRender(args: ITooltipRenderEventArgs): void {
-  }
-
   /**
    * Replaces Category axis integer labels (0, 1, 2...) with formatted date strings.
    * Syncfusion Category axis uses the xName field as the label, which is an integer
    * index. We look up the actual date from chartData and format it.
    */
   axisLabelRender(args: IAxisLabelRenderEventArgs): void {
-    if (args.axis.name !== 'primaryXAxis') return;
-    const idx = Number(args.text);
-    if (isNaN(idx)) return;
-    const data = this.store.chartData();
-    if (idx < 0 || idx >= data.length) return;
-    const d = new Date(data[idx].t);
-    args.text = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    // Ensure text is always a string — Syncfusion's crosshair tooltip calls
+    // text.indexOf() which crashes if text is a number or undefined.
+    if (args.axis.name === 'primaryXAxis') {
+      const idx = Number(args.text);
+      if (!isNaN(idx)) {
+        const data = this.store.chartData();
+        if (idx >= 0 && idx < data.length) {
+          const d = new Date(data[idx].t);
+          args.text = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          return;
+        }
+      }
+    }
+    // For all other axes, coerce text to string to prevent crosshair crash
+    if (args.text != null && typeof args.text !== 'string') {
+      args.text = String(args.text);
+    }
   }
 
   /**

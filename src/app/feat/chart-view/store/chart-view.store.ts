@@ -1,3 +1,4 @@
+/** @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15) */
 import { patchState, signalStore, withMethods, withState } from '@ngrx/signals';
 import { inject } from '@angular/core';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
@@ -34,14 +35,21 @@ function emptyIndicatorState(isDual: boolean = false): IndicatorState {
   return { show: false, loading: false, error: null, data: [], dualData: isDual ? [] : undefined, rawData: undefined };
 }
 
-/** AV response field names per indicator. */
+/** AV response field names per indicator.
+ *  These must match the field names inside the "Technical Analysis: <INDICATOR>" entries
+ *  returned by the Alpha Vantage API.
+ *
+ *  NOTE: HT_PHASOR field names ('PHASE'/'QUADRATURE') are unverified against a live AV
+ *  response — the demo API key doesn't support HT_PHASOR. TA-Lib uses 'inphase'/'quadrature',
+ *  but AV often diverges from TA-Lib naming (e.g. 'LEAD SINE' with a space for HT_SINE).
+ *  If stitching yields 0 points for HT_PHASOR, try 'INPHASE' instead of 'PHASE'. */
 const INDICATOR_FIELD_MAP: Record<HtIndicator, { primary: string; secondary?: string }> = {
   [HtIndicator.HT_TRENDLINE]: { primary: 'HT_TRENDLINE' },
-  [HtIndicator.HT_SINE]: { primary: 'SINE', secondary: 'LEAD_SINE' },
+  [HtIndicator.HT_SINE]: { primary: 'SINE', secondary: 'LEAD SINE' },
   [HtIndicator.HT_DCPERIOD]: { primary: 'DCPERIOD' },
-  [HtIndicator.HT_DCPHASE]: { primary: 'DCPHASE' },
-  [HtIndicator.HT_TRENDMODE]: { primary: 'HT_TRENDMODE' },
-  [HtIndicator.HT_PHASOR]: { primary: 'INPHASE', secondary: 'QUADRATURE' },
+  [HtIndicator.HT_DCPHASE]: { primary: 'HT_DCPHASE' },
+  [HtIndicator.HT_TRENDMODE]: { primary: 'TRENDMODE' },
+  [HtIndicator.HT_PHASOR]: { primary: 'PHASE', secondary: 'QUADRATURE' },
 };
 
 type ChartViewState = {
@@ -118,6 +126,23 @@ function dateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Extract the date-keyed data from an AV technical indicator response.
+ *  AV wraps the actual data inside a "Technical Analysis: <INDICATOR>" key,
+ *  alongside a "Meta Data" key. This unwraps the nested structure. */
+function extractDateKeyedData(
+  avData: Record<string, Record<string, string>>,
+): Record<string, Record<string, string>> {
+  // Look for a key that starts with "Technical Analysis" — that's the date-keyed data.
+  const taKey = Object.keys(avData).find(k => k.startsWith('Technical Analysis'));
+  if (taKey && avData[taKey]) {
+    return avData[taKey] as unknown as Record<string, Record<string, string>>;
+  }
+  // Fallback: if no "Technical Analysis" wrapper, assume the data is already flat
+  // (date-keyed at top level). Non-date keys (e.g. "Meta Data") will be ignored by
+  // the downstream date-matching in stitchIndicatorData.
+  return avData;
+}
+
 /** Stitch AV date-keyed response data to chartData candle dates. Drops orphans. */
 function stitchIndicatorData(
   avData: Record<string, Record<string, string>>,
@@ -127,6 +152,9 @@ function stitchIndicatorData(
   if (chartData.length === 0) {
     return { data: [], dualData: fieldMap.secondary ? [] : undefined };
   }
+
+  // Unwrap the AV response structure if needed
+  const dateKeyedData = extractDateKeyedData(avData);
 
   const dateToIndex = new Map<string, number>();
   chartData.forEach((bar: any, i: number) => {
@@ -138,14 +166,14 @@ function stitchIndicatorData(
   const dualData: DualIndicatorPoint[] = [];
 
   // Sort AV dates ascending
-  const sortedDates = Object.keys(avData).sort();
+  const sortedDates = Object.keys(dateKeyedData).sort();
 
   for (const dateStr of sortedDates) {
     const idx = dateToIndex.get(dateStr);
     if (idx == null) continue; // drop orphans (dates in AV but not in chartData)
 
     const bar = chartData[idx];
-    const entry = avData[dateStr];
+    const entry = dateKeyedData[dateStr];
     const primaryVal = entry[fieldMap.primary];
     if (primaryVal == null) continue;
 
@@ -465,12 +493,10 @@ export const ChartViewStore = signalStore(
         patchState(store, { indicatorSeriesType: seriesType });
 
         // Re-fetch all shown indicators (fetchIndicator cancels previous fetch for each)
-        if (store.htTrendline().show) fetchIndicator(HtIndicator.HT_TRENDLINE);
-        if (store.htSine().show) fetchIndicator(HtIndicator.HT_SINE);
-        if (store.htDcperiod().show) fetchIndicator(HtIndicator.HT_DCPERIOD);
-        if (store.htDcphase().show) fetchIndicator(HtIndicator.HT_DCPHASE);
-        if (store.htTrendmode().show) fetchIndicator(HtIndicator.HT_TRENDMODE);
-        if (store.htPhasor().show) fetchIndicator(HtIndicator.HT_PHASOR);
+        for (const key of ALL_INDICATORS) {
+          const field = indicatorKeyToField(key);
+          if ((store[field]() as IndicatorState).show) fetchIndicator(key);
+        }
       },
 
       setSineDisplayMode: (mode: 'overlay' | 'pane' | 'both') => {

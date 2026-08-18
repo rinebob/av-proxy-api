@@ -1,3 +1,4 @@
+/** @topic #17 — SA UI — AV Hilbert Transform Endpoint Integration (opened 2026-08-15) */
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
@@ -149,6 +150,43 @@ describe('ChartViewStore — IndicatorState + fetch logic + caching', () => {
       expect(store.htDcperiod().show).toBe(true);
       expect(store.htDcperiod().loading).toBe(false);
       httpMock.expectNone((r) => r.url.includes('partnerTechnicalIndicatorsV2'));
+    });
+
+    it('should unwrap nested AV response (Technical Analysis wrapper) and stitch data', () => {
+      const bars = [
+        { d: '2025-12-08', o: 100, h: 105, l: 99, c: 102, v: 1000 },
+        { d: '2025-12-09', o: 102, h: 106, l: 100, c: 104, v: 1100 },
+      ];
+      setupSymbolWithBars('IBM', bars);
+
+      store.toggleIndicator(HtIndicator.HT_DCPERIOD);
+      const req = httpMock.expectOne(
+        (r) => r.url.includes('partnerTechnicalIndicatorsV2')
+      );
+      // Simulate the real AV response format with nested "Technical Analysis" wrapper
+      req.flush({
+        ok: true,
+        data: {
+          'Meta Data': {
+            '1: Symbol': 'IBM',
+            '2: Indicator': 'Hilbert Transform - Dominant Cycle Period (HT_DCPERIOD)',
+            '3: Last Refreshed': '2025-12-09',
+            '4: Interval': 'daily',
+            '5: Series Type': 'close',
+            '6: Time Zone': 'US/Eastern Time'
+          },
+          'Technical Analysis: HT_DCPERIOD': {
+            '2025-12-08': { 'DCPERIOD': '14.5' },
+            '2025-12-09': { 'DCPERIOD': '15.2' },
+          }
+        }
+      });
+
+      expect(store.htDcperiod().loading).toBe(false);
+      expect(store.htDcperiod().error).toBeNull();
+      expect(store.htDcperiod().data.length).toBe(2);
+      expect(store.htDcperiod().data[0].v).toBe(14.5);
+      expect(store.htDcperiod().data[1].v).toBe(15.2);
     });
 
     it('should set error message on fetch failure', () => {
@@ -397,7 +435,7 @@ describe('ChartViewStore — IndicatorState + fetch logic + caching', () => {
       req.flush({
         ok: true,
         data: {
-          '2025-12-08': { 'SINE': '0.5', 'LEAD_SINE': '0.8' },
+          '2025-12-08': { 'SINE': '0.5', 'LEAD SINE': '0.8' },
         },
       });
 
@@ -416,7 +454,7 @@ describe('ChartViewStore — IndicatorState + fetch logic + caching', () => {
       req.flush({
         ok: true,
         data: {
-          '2025-12-08': { 'INPHASE': '0.3', 'QUADRATURE': '0.7' },
+          '2025-12-08': { 'PHASE': '0.3', 'QUADRATURE': '0.7' },
         },
       });
 
@@ -438,8 +476,8 @@ describe('ChartViewStore — IndicatorState + fetch logic + caching', () => {
       req.flush({
         ok: true,
         data: {
-          '2025-12-08': { 'SINE': '0.5', 'LEAD_SINE': '0.8' },
-          '2025-12-09': { 'SINE': '0.6', 'LEAD_SINE': '0.9' },
+          '2025-12-08': { 'SINE': '0.5', 'LEAD SINE': '0.8' },
+          '2025-12-09': { 'SINE': '0.6', 'LEAD SINE': '0.9' },
         },
       });
 
@@ -462,7 +500,7 @@ describe('ChartViewStore — IndicatorState + fetch logic + caching', () => {
       req.flush({
         ok: true,
         data: {
-          '2025-12-08': { 'INPHASE': '0.3', 'QUADRATURE': '0.7' },
+          '2025-12-08': { 'PHASE': '0.3', 'QUADRATURE': '0.7' },
         },
       });
 

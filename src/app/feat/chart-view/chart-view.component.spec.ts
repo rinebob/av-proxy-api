@@ -89,7 +89,7 @@ describe('ChartViewComponent — indicator toggle controls', () => {
 
     it('onLocalHtCalcToggle should call store.toggleLocalHtCalc', () => {
       spyOn(store(), 'toggleLocalHtCalc');
-      component.onLocalHtCalcToggle(true);
+      component.onLocalHtCalcToggle();
       expect(store().toggleLocalHtCalc).toHaveBeenCalled();
     });
   });
@@ -229,57 +229,72 @@ describe('ChartViewComponent — indicator toggle controls', () => {
   // ============================================================
   describe('multi-pane chart layout', () => {
     describe('chartRows', () => {
-      it('should have only row 0 (price) when no indicators are toggled on', () => {
+      it('should always emit 6 rows (5 fixed lower panes + price) even when no indicators are on', () => {
         const rows = component.chartRows();
-        expect(rows.length).toBe(1);
-        expect((rows[0] as any).height).toBe('50%');
+        expect(rows.length).toBe(6);
+        // First 5 rows are lower panes (0% when inactive), last row is price (100% when no indicators)
+        expect((rows[0] as any).height).toBe('0.0%');
+        expect((rows[1] as any).height).toBe('0.0%');
+        expect((rows[2] as any).height).toBe('0.0%');
+        expect((rows[3] as any).height).toBe('0.0%');
+        expect((rows[4] as any).height).toBe('0.0%');
+        expect((rows[5] as any).height).toBe('100.0%');
       });
 
-      it('should add a row when HT_PHASOR is toggled on', () => {
+      it('should give non-zero height to a lower pane when HT_PHASOR is toggled on', () => {
         const s = store();
         patchState(s,{ htPhasor: { ...s.htPhasor(), show: true } } as any);
         const rows = component.chartRows();
-        expect(rows.length).toBe(2);
+        expect(rows.length).toBe(6);
+        // Phasor is slot 4 (rowIndex 4)
+        expect(parseFloat((rows[4] as any).height)).toBeGreaterThan(0);
       });
 
-      it('should add a row when HT_TRENDMODE is toggled on', () => {
+      it('should give non-zero height to a lower pane when HT_TRENDMODE is toggled on', () => {
         const s = store();
         patchState(s,{ htTrendmode: { ...s.htTrendmode(), show: true } } as any);
         const rows = component.chartRows();
-        expect(rows.length).toBe(2);
+        expect(rows.length).toBe(6);
+        // Trendmode is slot 3 (rowIndex 3)
+        expect(parseFloat((rows[3] as any).height)).toBeGreaterThan(0);
       });
 
-      it('should add a row when HT_SINE is toggled on in pane mode', () => {
+      it('should give non-zero height to SinePane slot when HT_SINE is in pane mode', () => {
         const s = store();
         patchState(s,{
           htSine: { ...s.htSine(), show: true },
           sineDisplayMode: 'pane'
         } as any);
         const rows = component.chartRows();
-        expect(rows.length).toBe(2);
+        expect(rows.length).toBe(6);
+        // SinePane is slot 2 (rowIndex 2)
+        expect(parseFloat((rows[2] as any).height)).toBeGreaterThan(0);
       });
 
-      it('should NOT add a row when HT_SINE is in overlay mode', () => {
+      it('should NOT give height to SinePane slot when HT_SINE is in overlay mode', () => {
         const s = store();
         patchState(s,{
           htSine: { ...s.htSine(), show: true },
           sineDisplayMode: 'overlay'
         } as any);
         const rows = component.chartRows();
-        expect(rows.length).toBe(1); // only price row
+        expect(rows.length).toBe(6);
+        // SinePane slot stays 0% in overlay mode
+        expect((rows[2] as any).height).toBe('0.0%');
       });
 
-      it('should add a row when HT_SINE is in both mode', () => {
+      it('should give height to SinePane slot when HT_SINE is in both mode', () => {
         const s = store();
         patchState(s,{
           htSine: { ...s.htSine(), show: true },
           sineDisplayMode: 'both'
         } as any);
         const rows = component.chartRows();
-        expect(rows.length).toBe(2);
+        expect(rows.length).toBe(6);
+        expect(parseFloat((rows[2] as any).height)).toBeGreaterThan(0);
       });
 
-      it('should add rows for all toggled indicators in correct stacking order', () => {
+      it('should give height to all lower panes when all indicators are on', () => {
         const s = store();
         patchState(s,{
           htPhasor: { ...s.htPhasor(), show: true },
@@ -290,17 +305,30 @@ describe('ChartViewComponent — indicator toggle controls', () => {
           htDcphase: { ...s.htDcphase(), show: true },
         } as any);
         const rows = component.chartRows();
-        // Row 0: price, Row 1: phasor, Row 2: trendmode, Row 3: sine, Row 4: dcperiod, Row 5: dcphase
         expect(rows.length).toBe(6);
+        // All 5 lower panes should have non-zero height
+        for (let i = 0; i < 5; i++) {
+          expect(parseFloat((rows[i] as any).height)).toBeGreaterThan(0);
+        }
       });
     });
 
     describe('chartAxes', () => {
-      it('should always include SecondaryYAxis at rowIndex 0', () => {
+      it('should always include SecondaryYAxis at rowIndex 5 (price row)', () => {
         const axes = component.chartAxes();
         const secondary = axes.find((a: any) => a.name === 'SecondaryYAxis');
         expect(secondary).toBeTruthy();
-        expect((secondary as any).rowIndex).toBe(0);
+        expect((secondary as any).rowIndex).toBe(5);
+      });
+
+      it('should always include all 5 lower-pane axes even when no indicators are on', () => {
+        const axes = component.chartAxes();
+        const names = axes.map((a: any) => a.name);
+        expect(names).toContain('DcphaseAxis');
+        expect(names).toContain('DcperiodAxis');
+        expect(names).toContain('SinePaneAxis');
+        expect(names).toContain('TrendmodeAxis');
+        expect(names).toContain('PhasorAxis');
       });
 
       it('should include SineAxis when showLocalHtCalc is true', () => {
@@ -309,7 +337,7 @@ describe('ChartViewComponent — indicator toggle controls', () => {
         const axes = component.chartAxes();
         const sineAxis = axes.find((a: any) => a.name === 'SineAxis');
         expect(sineAxis).toBeTruthy();
-        expect((sineAxis as any).rowIndex).toBe(0);
+        expect((sineAxis as any).rowIndex).toBe(5);
       });
 
       it('should include SineAxis when HT_SINE is in overlay mode', () => {
@@ -323,26 +351,27 @@ describe('ChartViewComponent — indicator toggle controls', () => {
         expect(sineAxis).toBeTruthy();
       });
 
-      it('should include PhasorAxis when HT_PHASOR is toggled on', () => {
+      it('should always include PhasorAxis at fixed rowIndex 4', () => {
         const s = store();
         patchState(s,{ htPhasor: { ...s.htPhasor(), show: true } } as any);
         const axes = component.chartAxes();
         const phasorAxis = axes.find((a: any) => a.name === 'PhasorAxis');
         expect(phasorAxis).toBeTruthy();
-        expect((phasorAxis as any).rowIndex).toBe(1);
+        expect((phasorAxis as any).rowIndex).toBe(4);
       });
 
-      it('should include TrendmodeAxis with fixed 0-1 range when HT_TRENDMODE is on', () => {
+      it('should always include TrendmodeAxis with fixed 0-1 range at rowIndex 3', () => {
         const s = store();
         patchState(s,{ htTrendmode: { ...s.htTrendmode(), show: true } } as any);
         const axes = component.chartAxes();
         const trendmodeAxis = axes.find((a: any) => a.name === 'TrendmodeAxis');
         expect(trendmodeAxis).toBeTruthy();
+        expect((trendmodeAxis as any).rowIndex).toBe(3);
         expect((trendmodeAxis as any).minimum).toBe(0);
         expect((trendmodeAxis as any).maximum).toBe(1);
       });
 
-      it('should include SinePaneAxis when HT_SINE is in pane mode', () => {
+      it('should always include SinePaneAxis at rowIndex 2 with -1..1 range', () => {
         const s = store();
         patchState(s,{
           htSine: { ...s.htSine(), show: true },
@@ -351,11 +380,12 @@ describe('ChartViewComponent — indicator toggle controls', () => {
         const axes = component.chartAxes();
         const sinePaneAxis = axes.find((a: any) => a.name === 'SinePaneAxis');
         expect(sinePaneAxis).toBeTruthy();
+        expect((sinePaneAxis as any).rowIndex).toBe(2);
         expect((sinePaneAxis as any).minimum).toBe(-1);
         expect((sinePaneAxis as any).maximum).toBe(1);
       });
 
-      it('should NOT include SinePaneAxis when HT_SINE is in overlay mode', () => {
+      it('should still include SinePaneAxis (inactive) when HT_SINE is in overlay mode', () => {
         const s = store();
         patchState(s,{
           htSine: { ...s.htSine(), show: true },
@@ -363,26 +393,30 @@ describe('ChartViewComponent — indicator toggle controls', () => {
         } as any);
         const axes = component.chartAxes();
         const sinePaneAxis = axes.find((a: any) => a.name === 'SinePaneAxis');
-        expect(sinePaneAxis).toBeFalsy();
+        // Fixed pane: axis always exists, just inactive (empty label, hidden grid)
+        expect(sinePaneAxis).toBeTruthy();
+        expect((sinePaneAxis as any).labelFormat).toBe('');
       });
 
-      it('should include DcperiodAxis when HT_DCPERIOD is toggled on', () => {
+      it('should always include DcperiodAxis at fixed rowIndex 1', () => {
         const s = store();
         patchState(s,{ htDcperiod: { ...s.htDcperiod(), show: true } } as any);
         const axes = component.chartAxes();
         const dcperiodAxis = axes.find((a: any) => a.name === 'DcperiodAxis');
         expect(dcperiodAxis).toBeTruthy();
+        expect((dcperiodAxis as any).rowIndex).toBe(1);
       });
 
-      it('should include DcphaseAxis when HT_DCPHASE is toggled on', () => {
+      it('should always include DcphaseAxis at fixed rowIndex 0', () => {
         const s = store();
         patchState(s,{ htDcphase: { ...s.htDcphase(), show: true } } as any);
         const axes = component.chartAxes();
         const dcphaseAxis = axes.find((a: any) => a.name === 'DcphaseAxis');
         expect(dcphaseAxis).toBeTruthy();
+        expect((dcphaseAxis as any).rowIndex).toBe(0);
       });
 
-      it('should assign correct rowIndex when all indicators are on', () => {
+      it('should assign correct fixed rowIndexes when all indicators are on', () => {
         const s = store();
         patchState(s,{
           htPhasor: { ...s.htPhasor(), show: true },
@@ -398,11 +432,11 @@ describe('ChartViewComponent — indicator toggle controls', () => {
         const sinePaneAxis = axes.find((a: any) => a.name === 'SinePaneAxis');
         const dcperiodAxis = axes.find((a: any) => a.name === 'DcperiodAxis');
         const dcphaseAxis = axes.find((a: any) => a.name === 'DcphaseAxis');
-        expect((phasorAxis as any).rowIndex).toBe(1);
-        expect((trendmodeAxis as any).rowIndex).toBe(2);
-        expect((sinePaneAxis as any).rowIndex).toBe(3);
-        expect((dcperiodAxis as any).rowIndex).toBe(4);
-        expect((dcphaseAxis as any).rowIndex).toBe(5);
+        expect((dcphaseAxis as any).rowIndex).toBe(0);
+        expect((dcperiodAxis as any).rowIndex).toBe(1);
+        expect((sinePaneAxis as any).rowIndex).toBe(2);
+        expect((trendmodeAxis as any).rowIndex).toBe(3);
+        expect((phasorAxis as any).rowIndex).toBe(4);
       });
     });
 
