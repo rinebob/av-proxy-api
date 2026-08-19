@@ -33,6 +33,7 @@
     "src/**/*.ts"
   ],
   "exclude": [
+    "src/**/*.spec.ts",
     "functions/**/*",
     "shared/**/*",
     "node_modules"
