@@ -328,13 +328,11 @@ describe('ChartViewComponent — indicator toggle controls', () => {
         expect(names).toContain('PhasorAxis');
       });
 
-      it('should include SineAxis when showLocalHtCalc is true', () => {
+      it('should keep Sine pane inactive when only local HT calc is on', () => {
         const s = store();
         patchState(s,{ showLocalHtCalc: true } as any);
-        const axes = component.chartAxes();
-        const sineAxis = axes.find((a: any) => a.name === 'SineAxis');
-        expect(sineAxis).toBeTruthy();
-        expect((sineAxis as any).rowIndex).toBe(5);
+        const rows = component.chartRows() as any[];
+        expect(rows[2].height).toBe('0.0%');
       });
 
       it('should include SineAxis when HT_SINE is in overlay mode', () => {

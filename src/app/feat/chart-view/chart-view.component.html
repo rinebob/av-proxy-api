@@ -23,61 +23,63 @@
       Split Adjusted
     </mat-slide-toggle>
 
-    <span class="indicator-divider"></span>
+    @if (showIndicatorControls()) {
+      <span class="indicator-divider"></span>
 
-    <mat-slide-toggle
-      [checked]="store.showLocalHtCalc()"
-      (change)="onLocalHtCalcToggle()">
-      Local HT Calc
-    </mat-slide-toggle>
+      <mat-slide-toggle
+        [checked]="store.showLocalHtCalc()"
+        (change)="onLocalHtCalcToggle()">
+        Local HT Calc
+      </mat-slide-toggle>
 
-    <span class="indicator-divider"></span>
+      <span class="indicator-divider"></span>
 
-    <!-- Series type dropdown for endpoint indicators -->
-    <mat-form-field appearance="outline" class="series-type-select">
-      <mat-label>Series</mat-label>
-      <mat-select [value]="store.indicatorSeriesType()" (selectionChange)="onSeriesTypeChange($event.value)">
-        <mat-option [value]="PriceSeries.CLOSE">Close</mat-option>
-        <mat-option [value]="PriceSeries.OPEN">Open</mat-option>
-        <mat-option [value]="PriceSeries.HIGH">High</mat-option>
-        <mat-option [value]="PriceSeries.LOW">Low</mat-option>
-      </mat-select>
-    </mat-form-field>
+      <!-- Series type dropdown for endpoint indicators -->
+      <mat-form-field appearance="outline" class="series-type-select">
+        <mat-label>Series</mat-label>
+        <mat-select [value]="store.indicatorSeriesType()" (selectionChange)="onSeriesTypeChange($event.value)">
+          <mat-option [value]="PriceSeries.CLOSE">Close</mat-option>
+          <mat-option [value]="PriceSeries.OPEN">Open</mat-option>
+          <mat-option [value]="PriceSeries.HIGH">High</mat-option>
+          <mat-option [value]="PriceSeries.LOW">Low</mat-option>
+        </mat-select>
+      </mat-form-field>
 
-    <!-- Endpoint indicator toggles -->
-    <div class="indicator-toggles">
-      @for (toggle of indicatorToggles(); track toggle.key) {
-        <button
-          mat-stroked-button
-          class="indicator-toggle"
-          [class.indicator-toggle--active]="toggle.state.show"
-          [class.indicator-toggle--loading]="toggle.state.loading"
-          [class.indicator-toggle--error]="toggle.state.error"
-          [disabled]="toggle.state.loading"
-          (click)="onIndicatorToggle(toggle.key)"
-          [matTooltip]="toggle.state.error || toggle.label">
-          @if (toggle.state.loading) {
-            <mat-icon class="spin">refresh</mat-icon>
-          } @else if (toggle.state.error) {
-            <mat-icon class="error-icon">error_outline</mat-icon>
-          }
-          {{ toggle.label }}
-        </button>
-      }
+      <!-- Endpoint indicator toggles -->
+      <div class="indicator-toggles">
+        @for (toggle of indicatorToggles(); track toggle.key) {
+          <button
+            mat-stroked-button
+            class="indicator-toggle"
+            [class.indicator-toggle--active]="toggle.state.show"
+            [class.indicator-toggle--loading]="toggle.state.loading"
+            [class.indicator-toggle--error]="toggle.state.error"
+            [disabled]="toggle.state.loading"
+            (click)="onIndicatorToggle(toggle.key)"
+            [matTooltip]="toggle.state.error || toggle.label">
+            @if (toggle.state.loading) {
+              <mat-icon class="spin">refresh</mat-icon>
+            } @else if (toggle.state.error) {
+              <mat-icon class="error-icon">error_outline</mat-icon>
+            }
+            {{ toggle.label }}
+          </button>
+        }
 
-      <!-- Sine display mode control (visible when HT_SINE is toggled on) -->
-      @if (store.htSine().show) {
-        <mat-button-toggle-group
-          [value]="store.sineDisplayMode()"
-          (change)="onSineDisplayModeChange($event.value)"
-          appearance="legacy"
-          class="sine-mode-toggle">
-          <mat-button-toggle [value]="'pane'">Pane</mat-button-toggle>
-          <mat-button-toggle [value]="'overlay'">Overlay</mat-button-toggle>
-          <mat-button-toggle [value]="'both'">Both</mat-button-toggle>
-        </mat-button-toggle-group>
-      }
-    </div>
+        <!-- Sine display mode control (visible when HT_SINE is toggled on) -->
+        @if (store.htSine().show) {
+          <mat-button-toggle-group
+            [value]="store.sineDisplayMode()"
+            (change)="onSineDisplayModeChange($event.value)"
+            appearance="legacy"
+            class="sine-mode-toggle">
+            <mat-button-toggle [value]="'pane'">Pane</mat-button-toggle>
+            <mat-button-toggle [value]="'overlay'">Overlay</mat-button-toggle>
+            <mat-button-toggle [value]="'both'">Both</mat-button-toggle>
+          </mat-button-toggle-group>
+        }
+      </div>
+    }
   </div>
 
   <div class="main-content">

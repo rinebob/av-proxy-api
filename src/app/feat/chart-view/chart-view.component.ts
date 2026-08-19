@@ -70,6 +70,11 @@ export class ChartViewComponent implements OnInit {
   readonly HtIndicator = HtIndicator;
   readonly PriceSeries = PriceSeries;
 
+  /** Master switch for the indicator controls (Local HT Calc toggle, series-type
+   *  dropdown, 6 endpoint indicator buttons, sine display mode). Set to false to
+   *  hide all indicator UI without removing the underlying code. */
+  readonly showIndicatorControls = signal(false);
+
   /** All 6 endpoint indicators with their current state, for template iteration. */
   readonly indicatorToggles = computed<IndicatorToggleView[]>(() => {
     const s = this.store;
@@ -386,9 +391,9 @@ export class ChartViewComponent implements OnInit {
     const priceRow = ChartViewComponent.PRICE_ROW_INDEX;
     const axes: Object[] = [{ ...this.secondaryYAxisDef, rowIndex: priceRow }];
 
-    // SineAxis (overlay) — present for client-side calc or endpoint overlay/both mode
-    const showSineOverlay = s.showLocalHtCalc() || this.sineOverlayActive();
-    if (showSineOverlay) axes.push({ ...this.sineOverlayAxisDef, rowIndex: priceRow });
+    // SineAxis (overlay) — present only for endpoint HT_SINE overlay/both mode.
+    // Local HT Calc sine/lead-sine are rendered in the Sine lower pane instead.
+    if (this.sineOverlayActive()) axes.push({ ...this.sineOverlayAxisDef, rowIndex: priceRow });
 
     // Lower-pane axes — derived from PANE_CONFIG (single source of truth)
     for (const cfg of ChartViewComponent.PANE_CONFIG) {
