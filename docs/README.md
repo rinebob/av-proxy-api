@@ -87,6 +87,14 @@ Read in this order for partner onboarding:
 
 ---
 
+## Decisions
+
+| Doc | Purpose |
+|-----|---------|
+| `decisions/hide-hilbert-indicator-controls.md` | Rationale for hiding the Hilbert Transform indicator UI controls behind a `showIndicatorControls` signal. Code preserved, UI hidden. |
+
+---
+
 ## Internal Operations
 
 | Doc | Purpose |
