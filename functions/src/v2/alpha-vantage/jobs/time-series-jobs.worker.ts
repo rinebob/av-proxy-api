@@ -22,7 +22,6 @@ import {
 import { onBackfillJobTerminal } from './backfill-job-aggregator';
 import { onRealtimeRunJobTerminal } from './realtime-run-aggregator';
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
-import { publishSymbolsReadyBatch } from '../../partner/symbols-ready.publisher';
 import {
   deleteDailyAdjustedForSymbol,
   deleteWeeklyAdjustedForSymbol,
@@ -181,29 +180,11 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
     );
   });
 
-  // For realtime runs with a runId, stamp runStartedAt the first time any
-  // job enters IN_PROGRESS so that run-level duration captures actual AV
-  // fetch time. This is done outside the job transaction to keep the
-  // transaction simple and avoid read-after-write constraints.
-  if (runId && jobType !== TimeSeriesJobType.BACKFILL) {
-    const runRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${runId}`);
-    try {
-      const runSnap = await runRef.get();
-      if (runSnap.exists) {
-        const runData = runSnap.data() as any;
-        if (!runData?.runStartedAt) {
-          await runRef.set(
-            {
-              runStartedAt: Timestamp.now(),
-            },
-            { merge: true },
-          );
-        }
-      }
-    } catch {
-      // Best-effort only; do not fail the job if runStartedAt cannot be stamped.
-    }
-  }
+  // runStartedAt is set by the orchestrator when the run doc is created, so
+  // there is no need to stamp it here. The block that previously did a
+  // conditional write was a no-op because the orchestrator already sets the
+  // field. totalDuration in the PDR payload includes job creation + enqueue
+  // time, not just AV fetch time.
 
   const targetTs = new Date(`${marketDate}T00:00:00.000Z`).getTime();
 
@@ -353,31 +334,6 @@ export async function processTimeSeriesJobInternal(payload: ProcessTimeSeriesJob
       } catch {
         // Swallow errors here to avoid failing the job purely due to
         // retry list maintenance issues.
-      }
-    }
-
-    // Emit a per-symbol, per-interval partner notification for every SUCCESS job so
-    // consumers (e.g. RS) can react as soon as data for that symbol/interval is
-    // available. Skip for backfill jobs (they're one-time operations).
-    if (jobType !== TimeSeriesJobType.BACKFILL) {
-      try {
-        await publishSymbolsReadyBatch({
-          version: 'v1',
-          marketDate,
-          symbols: [symbol],
-          reason: 'scheduled',
-          interval,
-        });
-        try {
-          logger.info('ts.jobs.publish_symbol_ready', baseLogPayload);
-        } catch {}
-      } catch (e: any) {
-        try {
-          logger.error('ts.jobs.publish_symbol_ready_error', {
-            ...baseLogPayload,
-            function: 'pSJI',
-          });
-        } catch {}
       }
     }
 

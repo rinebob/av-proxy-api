@@ -198,13 +198,29 @@ export async function onRealtimeRunJobTerminal(args: OnRealtimeRunJobTerminalArg
 
       const totalDurationFormatted = formatDurationMs(totalDuration);
 
-      await runRef.update({
-        status: TimeSeriesRunStatus.COMPLETE,
-        // Canonical completion timestamp and duration fields.
-        runFinishedAt: now,
-        totalDuration,
-        totalDurationFormatted,
+      // Atomically claim completion: only one worker wins the race to set COMPLETE.
+      // This prevents duplicate PDR messages when multiple workers finish
+      // concurrently and both see finished === created.
+      let didComplete = false;
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(runRef);
+        if (!snap.exists) return;
+        const current = snap.data() as any;
+        if (current?.status === TimeSeriesRunStatus.COMPLETE) return;
+        tx.update(runRef, {
+          status: TimeSeriesRunStatus.COMPLETE,
+          runFinishedAt: now,
+          totalDuration,
+          totalDurationFormatted,
+        });
+        didComplete = true;
       });
+
+      if (!didComplete) {
+        // Another worker already completed this run; skip PDR publish.
+        logger.info('realtime.run_already_complete', { runId } as any);
+        return;
+      }
 
       // Snapshot the final run doc for alerting/logging. Expose the full
       // run state in the message body, but omit the potentially large
@@ -362,12 +378,26 @@ export async function onRealtimeRunJobTerminal(args: OnRealtimeRunJobTerminalArg
 
       const totalDurationFormatted = formatDurationMs(totalDuration);
 
-      await runRef.update({
-        status: TimeSeriesRunStatus.COMPLETE,
-        runFinishedAt: now,
-        totalDuration,
-        totalDurationFormatted,
+      // Atomically claim completion to prevent duplicate PDR from concurrent reconcile.
+      let didComplete = false;
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(runRef);
+        if (!snap.exists) return;
+        const current = snap.data() as any;
+        if (current?.status === TimeSeriesRunStatus.COMPLETE) return;
+        tx.update(runRef, {
+          status: TimeSeriesRunStatus.COMPLETE,
+          runFinishedAt: now,
+          totalDuration,
+          totalDurationFormatted,
+        });
+        didComplete = true;
       });
+
+      if (!didComplete) {
+        logger.info('realtime.run_already_complete_after_reconcile', { runId } as any);
+        return;
+      }
 
       const retrySymbolsArr = Array.isArray(reconciledData.retrySymbols) ? reconciledData.retrySymbols : [];
       const { retrySymbols, ...runDocSansRetry } = reconciledData as any;

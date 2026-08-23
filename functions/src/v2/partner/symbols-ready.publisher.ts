@@ -17,6 +17,12 @@ export interface SymbolsReadyPayloadV1 {
  * Internal Pub/Sub publisher for symbol-level readiness notifications.
  * Publishes batched symbol lists to topic `partner-symbols-ready`.
  *
+ * NOTE: This publisher is currently unused — the per-symbol notification
+ * path was removed from the time-series worker because RS was not reacting
+ * to these messages. The file is kept for possible future use if a consumer
+ * needs incremental per-symbol updates. The `partner-symbols-ready` Pub/Sub
+ * topic should be manually deleted from GCP if it is no longer needed.
+ *
  * Logging: uses betterLogger with file abbrev 'sR.P' (symbols-ready.publisher.ts)
  * and function abbrev 'pSRB' (publishSymbolsReadyBatch) for human-readable lines.
  */

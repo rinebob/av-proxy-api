@@ -325,8 +325,10 @@ export async function onIntradayRunJobTerminal(
     const pastReconcileWindow = runAgeMs > INTRADAY_MAX_RUN_DURATION_MS;
     logger.info('intraday.agg.reconcile_check', { runId, runAgeMs, INTRADAY_MAX_RUN_DURATION_MS, pastReconcileWindow } as any);
 
-    // Helper to compute duration and mark the run COMPLETE.
-    const completeRun = async (): Promise<number | undefined> => {
+    // Helper to compute duration and atomically claim completion.
+    // Returns { totalDuration, didComplete } — didComplete is false if another
+    // worker already set COMPLETE, preventing duplicate PDR messages.
+    const completeRun = async (): Promise<{ totalDuration: number | undefined; didComplete: boolean }> => {
       const now = Timestamp.now();
       const startedAt =
         (runData.runStartedAt as FirebaseFirestore.Timestamp | undefined) ??
@@ -335,20 +337,33 @@ export async function onIntradayRunJobTerminal(
       if (startedAt && typeof (startedAt as any).toMillis === 'function') {
         totalDuration = (now as any).toMillis() - (startedAt as any).toMillis();
       }
-      await runRef.update({
-        status: TimeSeriesRunStatus.COMPLETE,
-        runFinishedAt: now,
-        totalDuration,
-        totalDurationFormatted: formatDurationMs(totalDuration),
+      const totalDurationFormatted = formatDurationMs(totalDuration);
+      let didComplete = false;
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(runRef);
+        if (!snap.exists) return;
+        const current = snap.data() as any;
+        if (current?.status === TimeSeriesRunStatus.COMPLETE) return;
+        tx.update(runRef, {
+          status: TimeSeriesRunStatus.COMPLETE,
+          runFinishedAt: now,
+          totalDuration,
+          totalDurationFormatted,
+        });
+        didComplete = true;
       });
-      return totalDuration;
+      return { totalDuration, didComplete };
     };
 
     // --- Fast path ---
     logger.info('intraday.agg.path_check', { runId, created, finished, isFastPath: created > 0 && finished === created, isReconcilePath: created > 0 && finished > 0 && pastReconcileWindow } as any);
     if (created > 0 && finished === created) {
       logger.info('intraday.agg.fast_path_enter', { runId, created, finished } as any);
-      const totalDuration = await completeRun();
+      const { totalDuration, didComplete } = await completeRun();
+      if (!didComplete) {
+        logger.info('intraday.agg.already_complete_skip_pdr', { runId } as any);
+        return;
+      }
       logger.info('intraday.agg.run_complete', { runId, marketDate, clockPt, totalDuration } as any);
 
       try {
@@ -383,7 +398,11 @@ export async function onIntradayRunJobTerminal(
       const reconData = reconSnap.data() as any | undefined;
       if (!reconData) return;
 
-      const totalDuration = await completeRun();
+      const { totalDuration, didComplete } = await completeRun();
+      if (!didComplete) {
+        logger.info('intraday.agg.already_complete_after_reconcile', { runId } as any);
+        return;
+      }
       logger.info('intraday.agg.run_complete_after_reconcile', { runId, marketDate, clockPt } as any);
 
       try {
