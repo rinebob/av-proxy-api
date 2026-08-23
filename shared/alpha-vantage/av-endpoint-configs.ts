@@ -110,7 +110,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     apiEndpoint: '/query',
     method: HttpMethod.GET,
     description: 'Returns the annual and quarterly earnings (EPS) for the company of interest.',
-    ttl: 30 * 24 * 60 * 60, // 30 days
+    ttl: 7 * 24 * 60 * 60, // 7 days
     symbolUsage: EndpointSymbolUsage.REQUIRED,
     firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/av-${FirestoreCollection.EARNINGS}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#earnings',
@@ -156,7 +156,7 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     description: 'Annual and quarterly EPS and revenue estimates, with analyst count and revision history.',
     ttl: 7 * 24 * 60 * 60, // 7 days
     symbolUsage: EndpointSymbolUsage.REQUIRED,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS_ESTIMATES}/av-${FirestoreCollection.EARNINGS_ESTIMATES}`,
+    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS}/av-${FirestoreCollection.EARNINGS_ESTIMATES}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/',
     parameters: {
       symbol: {
@@ -258,16 +258,26 @@ export const AV_ENDPOINT_CONFIGS: Partial<Record<AlphaVantageEndpoint, EndpointC
     category: AvEndpointCategory.FUNDAMENTAL_DATA,
     apiEndpoint: '/query',
     method: HttpMethod.GET,
-    description: 'Returns the earnings calendar for stocks that report earnings within the next 3 months.',
+    description: 'Returns the earnings calendar for stocks that report earnings within the next 12 months. AV supports optional per-symbol filtering, but we fetch the global calendar once and filter to tracked symbols in the handler.',
     ttl: 24 * 60 * 60, // 1 day
     symbolUsage: EndpointSymbolUsage.OPTIONAL,
-    firestorePath: `${FirestoreCollection.SYMBOL_DATA}/{symbol}/${FirestoreCollection.EARNINGS_CALENDAR}/av-${FirestoreCollection.EARNINGS_CALENDAR}`,
+    // Global storage path (no {symbol}) — the handler fetches once and filters to tracked symbols.
+    // The refresh manager (task #44) must detect the absence of {symbol} in the path and fetch
+    // once globally rather than once per tracked symbol.
+    firestorePath: `${FirestoreCollection.MARKET_DATA}/av-${FirestoreCollection.EARNINGS_CALENDAR}`,
     documentationUrl: 'https://www.alphavantage.co/documentation/#earnings-calendar',
     parameters: {
       symbol: {
         type: 'string',
-        required: true,
-        description: 'The name of the equity of your choice. For example: symbol=IBM',
+        required: false,
+        description: 'Stock symbol to filter to a specific equity. Omit to get the full calendar.',
+      },
+      horizon: {
+        type: 'string',
+        required: false,
+        description: 'Time horizon for the earnings calendar. Default is 12month.',
+        default: '12month',
+        enum: ['3month', '6month', '12month'],
       },
     },
   },

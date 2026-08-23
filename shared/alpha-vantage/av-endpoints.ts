@@ -108,4 +108,8 @@ export const AV_IMPLEMENTED_ENDPOINTS: Set<AlphaVantageEndpoint> = new Set<Alpha
     AlphaVantageEndpoint.HT_DCPERIOD,
     AlphaVantageEndpoint.HT_DCPHASE,
     AlphaVantageEndpoint.HT_PHASOR,
+    // Earnings endpoints
+    AlphaVantageEndpoint.EARNINGS,
+    AlphaVantageEndpoint.EARNINGS_ESTIMATES,
+    AlphaVantageEndpoint.EARNINGS_CALENDAR,
 ]);
