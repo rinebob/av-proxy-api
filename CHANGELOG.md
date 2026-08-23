@@ -18,6 +18,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [AV SA Earnings Endpoints] 33-40_BE-TEST-AV-SA-EARNINGS-ENDPOINTS: Add unit tests for CSV parser utility
 - [AV SA Earnings Endpoints] 33-40_BE-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add verification script and guide for CSV parser
 - [AV SA Earnings Endpoints] 33-40_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for Task #40
+- [AV SA Earnings Endpoints] 33-41_BE-IMPL-AV-SA-EARNINGS-ENDPOINTS: Add AvEarningsHandler and fix AvReportTime type
+- [AV SA Earnings Endpoints] 33-41_BE-TEST-AV-SA-EARNINGS-ENDPOINTS: Add unit tests for AvEarningsHandler
+- [AV SA Earnings Endpoints] 33-41_BE-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add verification script and guide for AvEarningsHandler
+- [AV SA Earnings Endpoints] 33-41_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for Task #41
 
 ### Changed
 - [PT PDR Rate Limit Fixes] 47-51_BE-REFACTOR-AV-ENDPOINTS: Migrate time-series schedulers from ET to PT and remove deprecated no-op schedulers
