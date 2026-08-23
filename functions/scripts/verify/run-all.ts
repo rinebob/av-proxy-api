@@ -11,6 +11,7 @@ const scripts = [
   'earnings-38-sa-endpoint-types.ts',
   'earnings-39-config-changes.ts',
   'earnings-40-csv-parser.ts',
+  'earnings-41-earnings-handler.ts',
 ];
 
 let passed = 0;

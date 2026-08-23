@@ -134,6 +134,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #38 | `earnings-38-sa-endpoint-types.ts` | SHARED: enum + types import verification | [earnings-38-sa-endpoint-types.md](earnings-38-sa-endpoint-types.md) |
 | #39 | `earnings-39-config-changes.ts` | SHARED: config values + implemented endpoints verification | [earnings-39-config-changes.md](earnings-39-config-changes.md) |
 | #40 | `earnings-40-csv-parser.ts` | BE: CSV parser utility verification | [earnings-40-csv-parser.md](earnings-40-csv-parser.md) |
+| #41 | `earnings-41-earnings-handler.ts` | BE: EARNINGS handler transform verification | [earnings-41-earnings-handler.md](earnings-41-earnings-handler.md) |
 
 ## Execution order
 
