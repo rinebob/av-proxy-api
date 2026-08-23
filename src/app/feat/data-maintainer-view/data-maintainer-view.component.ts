@@ -10,7 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { debounceTime } from 'rxjs/operators';
 
-import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { AlphaVantageEndpoint, AV_ENDPOINT_CONFIGS } from '@shared/alpha-vantage';
 
 import { AlphaVantageStore } from './store/alpha-vantage.store';
 import { EndpointSelectorRowComponent } from './comps/endpoint-selector-row.component';
@@ -105,13 +105,29 @@ export class DataMaintainerViewComponent {
     ].includes(endpoint);
   }
 
+  /**
+   * Returns true if the endpoint's firestorePath has no {symbol} placeholder,
+   * meaning it's a global endpoint that doesn't require a symbol.
+   */
+  isGlobalEndpoint(endpoint: AlphaVantageEndpoint | null): boolean {
+    if (!endpoint) {
+      return false;
+    }
+    const config = (AV_ENDPOINT_CONFIGS as any)[endpoint];
+    return !config?.firestorePath || !config.firestorePath.includes('{symbol}');
+  }
+
   private fetchData() {
-    const symbol = this.alphaVantageStore.symbol();
-    if (!symbol) {
-      return;
+    const endpoint = this.alphaVantageStore.endpoint();
+    const isGlobal = this.isGlobalEndpoint(endpoint);
+
+    if (!isGlobal) {
+      const symbol = this.alphaVantageStore.symbol();
+      if (!symbol) {
+        return;
+      }
     }
 
-    const endpoint = this.alphaVantageStore.endpoint();
     const params: Record<string, any> = {};
     // Pass date only for HISTORICAL_OPTIONS
     if (endpoint === AlphaVantageEndpoint.HISTORICAL_OPTIONS && this.histOptionsDate) {
@@ -134,13 +150,16 @@ export class DataMaintainerViewComponent {
   // Handle form submission (if needed)
   onSubmit(event?: Event) {
     event?.preventDefault();
-    // Validate symbol
-    if (this.symbolControl.invalid) {
-      this.symbolControl.markAsTouched();
-      return;
+    const endpoint = this.alphaVantageStore.endpoint();
+    // Skip symbol validation for global endpoints (no {symbol} in path)
+    if (!this.isGlobalEndpoint(endpoint)) {
+      if (this.symbolControl.invalid) {
+        this.symbolControl.markAsTouched();
+        return;
+      }
     }
     // Validate date if HISTORICAL_OPTIONS is selected
-    if (this.alphaVantageStore.endpoint() === AlphaVantageEndpoint.HISTORICAL_OPTIONS && this.dateControl.invalid) {
+    if (endpoint === AlphaVantageEndpoint.HISTORICAL_OPTIONS && this.dateControl.invalid) {
       this.dateControl.markAsTouched();
       return;
     }

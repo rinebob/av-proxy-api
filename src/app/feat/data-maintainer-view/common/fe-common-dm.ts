@@ -11,7 +11,9 @@ export const DATA_MAINTAINER_ENDPOINTS_METADATA = [
   { key: AlphaVantageEndpoint.BALANCE_SHEET, label: 'Balance Sheet', disabled: true },
   { key: AlphaVantageEndpoint.INCOME_STATEMENT, label: 'Income Statement', disabled: true },
   { key: AlphaVantageEndpoint.CASH_FLOW, label: 'Cash Flow', disabled: true },
-  { key: AlphaVantageEndpoint.EARNINGS, label: 'Earnings', disabled: true },
+  { key: AlphaVantageEndpoint.EARNINGS, label: 'Earnings', disabled: false },
+  { key: AlphaVantageEndpoint.EARNINGS_ESTIMATES, label: 'Earnings Estimates', disabled: false },
+  { key: AlphaVantageEndpoint.EARNINGS_CALENDAR, label: 'Earnings Calendar', disabled: false },
   { key: AlphaVantageEndpoint.SYMBOL_SEARCH, label: 'Symbol Search', disabled: true },
   // Time Series (prefer adjusted)
   { key: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, label: 'Daily Time Series (Adjusted)', disabled: false },
@@ -32,6 +34,8 @@ export interface DataMaintainerResultsMap {
   [AlphaVantageEndpoint.INCOME_STATEMENT]?: any | null;
   [AlphaVantageEndpoint.CASH_FLOW]?: any | null;
   [AlphaVantageEndpoint.EARNINGS]?: any | null;
+  [AlphaVantageEndpoint.EARNINGS_ESTIMATES]?: any | null;
+  [AlphaVantageEndpoint.EARNINGS_CALENDAR]?: any | null;
   [AlphaVantageEndpoint.SYMBOL_SEARCH]?: any | null;
   [AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED]?: any | null;
   [AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED]?: any | null;

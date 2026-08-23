@@ -2,7 +2,7 @@ import { signalStore, withState, patchState, withMethods, withProps } from '@ngr
 import { inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 
-import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
+import { AlphaVantageEndpoint, AV_ENDPOINT_CONFIGS } from '@shared/alpha-vantage';
 
 import { AlphaVantageDataService } from '../services/alpha-vantage-data.service';
 import { FetchAlphaVantageParams } from '../common/fe-common-av-api';
@@ -63,30 +63,37 @@ export const AlphaVantageStore = signalStore(
       console.log('========== aVSto fetchData START ==========');
       const endpoint = store.endpoint();
       const symbol = store.symbol();
-      
+
+      // Global endpoints (no {symbol} in firestorePath) don't require a symbol
+      const endpointConfig = (AV_ENDPOINT_CONFIGS as any)[endpoint];
+      const isGlobal = !endpointConfig?.firestorePath || !endpointConfig.firestorePath.includes('{symbol}');
+
       console.log('Fetching data for endpoint:', endpoint);
       console.log('Symbol:', symbol);
+      console.log('Is global endpoint:', isGlobal);
       console.log('Additional params:', params);
-      
-      if (!symbol) {
+
+      if (!isGlobal && !symbol) {
         const errorMsg = 'Cannot fetch data: No symbol provided';
         console.error(errorMsg);
-        patchState(store, { 
+        patchState(store, {
           error: errorMsg,
-          loading: false 
+          loading: false
         });
         return;
       }
-      
-      patchState(store, { 
-        loading: true, 
+
+      patchState(store, {
+        loading: true,
         error: null,
         lastUpdated: new Date().toISOString()
       });
-      
-      console.log('Calling dataService.fetchData with:', { endpoint, symbol, ...params });
-      
-      dataService.fetchData(endpoint, { ...params, symbol }).subscribe({
+
+      // Build request params — only include symbol for per-symbol endpoints
+      const requestParams = isGlobal ? { ...params } : { ...params, symbol };
+      console.log('Calling dataService.fetchData with:', { endpoint, ...requestParams });
+
+      dataService.fetchData(endpoint, requestParams).subscribe({
         next: (response) => {
           console.log('aVSto fD Response received:', {
             ok: response.ok,
@@ -95,8 +102,11 @@ export const AlphaVantageStore = signalStore(
             error: response.error
           });
           
-          // Check if response.data exists and is not empty
-          if (response.data && Object.keys(response.data).length > 0) {
+          // Check if response.data exists and is not empty (handles both objects and arrays)
+          const hasData = Array.isArray(response.data)
+            ? response.data.length > 0
+            : response.data && Object.keys(response.data).length > 0;
+          if (hasData) {
             patchState(store, { 
               currentData: response.data,
               loading: false,

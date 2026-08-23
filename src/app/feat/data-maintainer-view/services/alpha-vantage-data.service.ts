@@ -22,7 +22,7 @@ export class AlphaVantageDataService {
   /**
    * Generic method to fetch data from any Alpha Vantage endpoint
    * @param endpoint The Alpha Vantage endpoint to call
-   * @param params Parameters for the request, must include at least 'symbol' for most endpoints
+   * @param params Parameters for the request. Symbol is required for per-symbol endpoints but optional for global endpoints.
    * @returns Observable with the API response
    */
   fetchData<T = AlphaVantageResponseData>(

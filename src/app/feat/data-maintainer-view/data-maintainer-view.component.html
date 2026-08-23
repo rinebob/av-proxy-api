@@ -3,26 +3,28 @@
   <app-endpoint-selector-row />
   
   <div class="test-controls">
-    <div class="symbol-input">
-      <mat-form-field appearance="fill" class="symbol-field">
-        <mat-label>Symbol</mat-label>
-        <input
-          id="symbol"
-          matInput
-          type="text"
-          [formControl]="symbolControl"
-          placeholder="Enter symbol (e.g., AAPL)"
-          autocomplete="off"
-          spellcheck="false"
-          aria-required="true"
-          aria-describedby="symbol-hint"
-        />
-        <mat-hint id="symbol-hint">Ticker symbol is required.</mat-hint>
-        @if (symbolControl.touched && symbolControl.hasError('required')) {
-          <mat-error>Symbol is required.</mat-error>
-        }
-      </mat-form-field>
-    </div>
+    @if (!isGlobalEndpoint(alphaVantageStore.endpoint())) {
+      <div class="symbol-input">
+        <mat-form-field appearance="fill" class="symbol-field">
+          <mat-label>Symbol</mat-label>
+          <input
+            id="symbol"
+            matInput
+            type="text"
+            [formControl]="symbolControl"
+            placeholder="Enter symbol (e.g., AAPL)"
+            autocomplete="off"
+            spellcheck="false"
+            aria-required="true"
+            aria-describedby="symbol-hint"
+          />
+          <mat-hint id="symbol-hint">Ticker symbol is required.</mat-hint>
+          @if (symbolControl.touched && symbolControl.hasError('required')) {
+            <mat-error>Symbol is required.</mat-error>
+          }
+        </mat-form-field>
+      </div>
+    }
 
     @if (alphaVantageStore.endpoint() === AlphaVantageEndpoint.HISTORICAL_OPTIONS) {
       <div class="date-input">
@@ -57,9 +59,9 @@
       </div>
     }
 
-    <button 
-      (click)="onSubmit()" 
-      [disabled]="(alphaVantageStore.loading$ | async) || !alphaVantageStore.symbol() || (alphaVantageStore.endpoint() === AlphaVantageEndpoint.HISTORICAL_OPTIONS && dateControl.invalid)"
+    <button
+      (click)="onSubmit()"
+      [disabled]="(alphaVantageStore.loading$ | async) || (!isGlobalEndpoint(alphaVantageStore.endpoint()) && !alphaVantageStore.symbol()) || (alphaVantageStore.endpoint() === AlphaVantageEndpoint.HISTORICAL_OPTIONS && dateControl.invalid)"
       class="fetch-button"
     >
       Fetch
@@ -79,7 +81,7 @@
 
   @if (alphaVantageStore.currentData()) {
     <div class="data-container">
-      <h3>{{ alphaVantageStore.endpoint() }} Data for {{ alphaVantageStore.symbol() }}</h3>
+      <h3>{{ alphaVantageStore.endpoint() }} Data{{ isGlobalEndpoint(alphaVantageStore.endpoint()) ? '' : ' for ' + alphaVantageStore.symbol() }}</h3>
       <pre>{{ alphaVantageStore.currentData() | json }}</pre>
     </div>
   } 

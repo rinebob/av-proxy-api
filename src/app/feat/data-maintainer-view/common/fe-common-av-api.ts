@@ -59,7 +59,7 @@ export interface AlphaVantageApiResponse<T = any> {
  * Parameters for fetching data from Alpha Vantage endpoints
  */
 export interface FetchAlphaVantageParams {
-  symbol: string;
+  symbol?: string;
   [key: string]: any; // Allow for additional parameters
 }
 
