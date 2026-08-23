@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-08-22]
+
+### Added
+- [AV SA Earnings Endpoints] 33-38_SHARED-IMPL-AV-SA-EARNINGS-ENDPOINTS: Add SavantApiEndpoint enum and earnings response types
+- [AV SA Earnings Endpoints] 33-38_BE-IMPL-AV-SA-EARNINGS-ENDPOINTS: Add unit tests for SavantApiEndpoint enum and earnings types
+- [AV SA Earnings Endpoints] 33-38_BE-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add verification scripts and guides for earnings types
+- [AV SA Earnings Endpoints] 33-38_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for Task #38
+
 ## [2026-08-18]
 
 ### Added
