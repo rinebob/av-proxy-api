@@ -10,7 +10,7 @@ export type AvEstimateHorizon = 'fiscal year' | 'fiscal quarter';
 
 export interface AvEarningsEstimate {
   date: string;
-  horizon: AvEstimateHorizon;
+  horizon?: AvEstimateHorizon;
   eps_estimate_average: string;
   eps_estimate_high: string;
   eps_estimate_low: string;
