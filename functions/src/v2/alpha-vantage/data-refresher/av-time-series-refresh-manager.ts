@@ -14,11 +14,8 @@ import { TimeSeriesJobType } from '../jobs/time-series-jobs.model';
 
 import {
   TS_DAILY_POST_CLOSE_SCHEDULE,
-  TS_POST_CLOSE_SCHEDULE,
   TS_DAILY_INTRADAY_HOURLY_SCHEDULE,
-  TS_DAILY_POST_EVENING_RETRY_MINUTE_30,
   TS_DAILY_POST_EVENING_RETRY_MINUTE_00,
-  TS_DAILY_POST_MORNING_CATCHUP_0630,
   TS_DAILY_POST_MORNING_CATCHUP_0700,
 } from '../../common/function-schedules';
 
@@ -74,9 +71,9 @@ function getEtMarketDateAndDow(): { marketDate: string; dow: DayOfWeek } {
  * Builds a canonical realtime POST `runId` for a specific interval.
  *
  * Format: YYYY-MM-DD-DOW-SEQUENCE-INTERVAL-LIVE|MANUAL-PHASE-HHMM
- * Example: 2026-01-29-THU-A-DAILY-LIVE-POST-1635
+ * Example: 2026-01-29-THU-A-DAILY-LIVE-POST-1335
  *
- * The clockEt is always required for identification purposes.
+ * The clockPt is always required for identification purposes.
  */
 function buildRealtimeIntervalRunId(params: {
   marketDate: string;
@@ -85,7 +82,7 @@ function buildRealtimeIntervalRunId(params: {
   isManual: boolean;
   sequence: string;
   phase: TradingPhase;
-  clockEt: string; // Required ET time (HHMM) for identification
+  clockPt: string; // Required PT time (HHMM) for identification
 }): string {
   const realtimeParams: RealtimeRunParams = {
     marketDate: params.marketDate,
@@ -94,9 +91,9 @@ function buildRealtimeIntervalRunId(params: {
     isManual: params.isManual,
     sequence: params.sequence,
     phase: params.phase,
-    clockEt: params.clockEt,
+    clockPt: params.clockPt,
   };
-  
+
   return RunIdFactory.createRealtime(realtimeParams);
 }
 
@@ -204,7 +201,6 @@ async function createRealtimeRunJobAndEnqueueTask(options: {
   const jobPath = `${runPath}/${FirestoreCollection.JOBS}/${jobId}`;
   const jobRef = db.doc(jobPath);
 
-  let createdNewJob = false;
   let skippedForRun = false;
 
   tsJobLogger.timeStart('realtime_job.tx', {
@@ -231,7 +227,9 @@ async function createRealtimeRunJobAndEnqueueTask(options: {
         createdAt: nowTs,
         updatedAt: nowTs,
       });
-      createdNewJob = true;
+      // Atomically increment createdJobs in the same transaction so the
+      // counter never drifts from the actual number of job docs.
+      tx.set(runRef, { createdJobs: FieldValue.increment(1) }, { merge: true });
       return;
     }
 
@@ -273,14 +271,6 @@ async function createRealtimeRunJobAndEnqueueTask(options: {
     endpoint: endpointName,
   } as BetterLogPayload);
 
-  if (createdNewJob) {
-    await runRef.set(
-      {
-        createdJobs: FieldValue.increment(1),
-      },
-      { merge: true },
-    );
-  }
   if (skippedForRun) {
     await runRef.set(
       {
@@ -714,7 +704,7 @@ export async function enqueueFullBackfillJobsForEndpoint(options: {
  * @param options.symbols Optional subset of symbols to target.
  * @param options.isManualRun Whether this run should be labeled MANUAL.
  * @param options.sequence Single-character sequence identifier (e.g. A/B/C).
- * @param options.clockEt Optional ET clock label (HHMM) to embed in runIds.
+ * @param options.clockPt PT clock label (HHMM) to embed in runIds.
  */
 export async function runAllTimeSeriesIntervalsPost(options: {
   trigger: RefreshTrigger;
@@ -722,9 +712,9 @@ export async function runAllTimeSeriesIntervalsPost(options: {
   symbols?: string[];
   isManualRun: boolean;
   sequence: string;
-  clockEt: string; // Required ET time (HHMM) - must be provided by caller
+  clockPt: string; // Required PT time (HHMM) - must be provided by caller
 }): Promise<void> {
-  const { trigger, marketDate, symbols, isManualRun, sequence, clockEt } = options;
+  const { trigger, marketDate, symbols, isManualRun, sequence, clockPt } = options;
 
   // Derive an effective marketDate (ET) for this run so we can stamp the
   // corresponding realtime-runs/{runId} document with stable context.
@@ -795,7 +785,7 @@ export async function runAllTimeSeriesIntervalsPost(options: {
     isManual: isManualRun,
     sequence,
     phase: TradingPhase.POST,
-    clockEt,
+    clockPt,
   });
 
   const weeklyRunId = buildRealtimeIntervalRunId({
@@ -805,7 +795,7 @@ export async function runAllTimeSeriesIntervalsPost(options: {
     isManual: isManualRun,
     sequence,
     phase: TradingPhase.POST,
-    clockEt,
+    clockPt,
   });
 
   const dailyRunId = buildRealtimeIntervalRunId({
@@ -815,7 +805,7 @@ export async function runAllTimeSeriesIntervalsPost(options: {
     isManual: isManualRun,
     sequence,
     phase: TradingPhase.POST,
-    clockEt,
+    clockPt,
   });
 
   const monthlyRunRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${monthlyRunId}`);
@@ -947,9 +937,9 @@ export async function runAllTimeSeriesIntervalsPost(options: {
     const sourceSequence = sequence === 'B' ? 'A' : 'B';
 
     // Prototype: use only the new DOW-inclusive interval runId format for
-    // retry lookups. This keeps B/C completely independent of any clockEt
+    // retry lookups. This keeps B/C completely independent of any clockPt
     // label embedded in prior runs.
-    const sourceClockEt = sourceSequence === 'A' ? '1635' : sourceSequence === 'B' ? '2100' : '0000';
+    const sourceClockPt = sourceSequence === 'A' ? '1335' : sourceSequence === 'B' ? '1800' : '0000';
     const sourceRunId = buildRealtimeIntervalRunId({
       marketDate: effectiveMarketDate!,
       dow,
@@ -957,7 +947,7 @@ export async function runAllTimeSeriesIntervalsPost(options: {
       isManual: isManualRun,
       sequence: sourceSequence,
       phase: TradingPhase.POST,
-      clockEt: sourceClockEt,
+      clockPt: sourceClockPt,
     });
 
     const sourceRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${sourceRunId}`);
@@ -1274,16 +1264,21 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
         const jobPath = `${FirestoreCollection.INTRADAY_RUNS}/${runId}/${FirestoreCollection.JOBS}/${symbolUpper}`;
         const jobRef = db.doc(jobPath);
 
-        await jobRef.set({
+        // Batch job creation + createdJobs increment so the counter never
+        // drifts from the actual number of job docs if the function crashes
+        // between the two writes.
+        const nowTs = Timestamp.now();
+        const batch = db.batch();
+        batch.set(jobRef, {
           symbol: symbolUpper,
           marketDate,
           status: 'PENDING',
           attempts: 0,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
+          createdAt: nowTs,
+          updatedAt: nowTs,
         });
-
-        await runRef.set({ createdJobs: FieldValue.increment(1) }, { merge: true });
+        batch.set(runRef, { createdJobs: FieldValue.increment(1) }, { merge: true });
+        await batch.commit();
 
         try {
           const queue = getFunctions().taskQueue(CloudTask.INTRADAY_SNAPSHOT_JOB);
@@ -1347,28 +1342,6 @@ export const refreshAvDailyTimeSeriesIntradayHourly = onSchedule({
 });
 
 /**
- * Daily time series: post-close (legacy daily-only entrypoint).
- *
- * In the new design, the all-intervals POST run is driven by
- * {@link refreshAvTimeSeriesPostAllIntervals}, which calls
- * {@link runAllTimeSeriesIntervalsPost}. To avoid double runs and keep
- * the contract clear, this legacy daily-only scheduler is now a no-op
- * that only logs when invoked.
- */
-export const refreshAvDailyTimeSeriesPostClose = onSchedule({
-  schedule: TS_DAILY_POST_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  tsJobLogger.info('ts.jobs.daily_post_legacy_noop', {
-    function: 'rTSDPC',
-    marketDate: 'auto',
-    endpoint: AlphaVantageEndpoint[AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED],
-    message: 'Legacy DAILY_POST scheduler no-op; all-intervals POST handled by refreshAvTimeSeriesPostAllIntervals',
-  } as BetterLogPayload);
-});
-
-/**
  * All-intervals time series: post-close orchestrator
  * (DAILY/WEEKLY/MONTHLY).
  *
@@ -1384,7 +1357,7 @@ export const refreshAvDailyTimeSeriesPostClose = onSchedule({
  */
 export const refreshAvTimeSeriesPostAllIntervals = onSchedule({
   schedule: TS_DAILY_POST_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
+  timeZone: 'America/Los_Angeles',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async (event) => {
   const { marketDate } = getEtMarketDateAndDow();
@@ -1403,93 +1376,13 @@ export const refreshAvTimeSeriesPostAllIntervals = onSchedule({
     marketDate,
     isManualRun,
     sequence: 'A',
-    clockEt: '1635',
-  });
-});
-
-/**
- * Weekly time series: post-close every trading day.
- *
- * Left as a logging-only no-op in the new pipeline because all-intervals
- * POST is handled by the DAILY orchestrator.
- */
-export const refreshAvWeeklyTimeSeriesPostClose = onSchedule({
-  schedule: TS_POST_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  timeoutSeconds: 600,
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  // All-intervals POST is now driven by refreshAvDailyTimeSeriesPostClose
-  // via runAllTimeSeriesIntervalsPost. To avoid duplicate runs, this
-  // scheduler is left as a no-op (logging only) in the new pipeline.
-  tsJobLogger.info('ts.jobs.weekly_post_noop', {
-    function: 'rTSWPC',
-    marketDate: 'auto',
-    endpoint: AlphaVantageEndpoint[AlphaVantageEndpoint.TIME_SERIES_WEEKLY_ADJUSTED],
-    message: 'Weekly POST scheduler no-op; all-intervals POST is handled by DAILY orchestrator',
-  } as BetterLogPayload);
-});
-
-/**
- * Monthly time series: post-close every trading day.
- *
- * Left as a logging-only no-op in the new pipeline because all-intervals
- * POST is handled by the DAILY orchestrator.
- */
-export const refreshAvMonthlyTimeSeriesPostClose = onSchedule({
-  schedule: TS_POST_CLOSE_SCHEDULE,
-  timeZone: 'America/New_York',
-  timeoutSeconds: 600,
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  // All-intervals POST is now driven by refreshAvDailyTimeSeriesPostClose
-  // via runAllTimeSeriesIntervalsPost. To avoid duplicate runs, this
-  // scheduler is left as a no-op (logging only) in the new pipeline.
-  tsJobLogger.info('ts.jobs.monthly_post_noop', {
-    function: 'rTSMPC',
-    marketDate: 'auto',
-    endpoint: AlphaVantageEndpoint[AlphaVantageEndpoint.TIME_SERIES_MONTHLY_ADJUSTED],
-    message: 'Monthly POST scheduler no-op; all-intervals POST is handled by DAILY orchestrator',
-  } as BetterLogPayload);
-});
-
-/**
- * Daily time series: post-close evening retries (every 30 mins).
- *
- * Uses the TS job pipeline to schedule additional POST runs focused on
- * the DAILY interval only. These retries are intended to pick up
- * symbols that failed during the primary close run.
- */
-export const refreshAvDailyTimeSeriesPostEveningRetry30 = onSchedule({
-  schedule: TS_DAILY_POST_EVENING_RETRY_MINUTE_30,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  const { marketDate, dow } = getEtMarketDateAndDow();
-
-  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const runId = buildRealtimeIntervalRunId({
-    marketDate,
-    dow,
-    interval: TimeSeriesInterval.DAILY,
-    isManual: isManualRun,
-    sequence: 'X',
-    phase: TradingPhase.POST,
-    clockEt: '0000', // Default for evening retry runs
-  });
-
-  await runTimeSeriesJobsForEndpoint({
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
-    phase: TradingPhase.POST,
-    trigger: RefreshTrigger.SCHEDULER,
-    marketDate,
-    runId,
+    clockPt: '1335',
   });
 });
 
 export const refreshAvDailyTimeSeriesPostEveningRetry00 = onSchedule({
   schedule: TS_DAILY_POST_EVENING_RETRY_MINUTE_00,
-  timeZone: 'America/New_York',
+  timeZone: 'America/Los_Angeles',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
   const { marketDate } = getEtMarketDateAndDow();
@@ -1501,46 +1394,7 @@ export const refreshAvDailyTimeSeriesPostEveningRetry00 = onSchedule({
     marketDate,
     isManualRun,
     sequence: 'B',
-    clockEt: '2100',
-  });
-});
-
-/**
- * Daily time series: next-morning catch-ups (06:30 ET).
- *
- * Schedules a POST run targeting DAILY only to reconcile any gaps that
- * remain after the close and evening retries, prior to market open.
- *
- * NOTE: This scheduler is currently paused. If we decide to keep a
- * DAILY-only catch-up pass in the future, it should be reworked to use the
- * same per-interval realtime-runs model as the A/B/C POST runs (one
- * `realtime-runs/{runId}` doc for DAILY) rather than introducing a
- * divergent code path.
- */
-export const refreshAvDailyTimeSeriesPostMorning0630 = onSchedule({
-  schedule: TS_DAILY_POST_MORNING_CATCHUP_0630,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  const { marketDate, dow } = getEtMarketDateAndDow();
-
-  const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const runId = buildRealtimeIntervalRunId({
-    marketDate,
-    dow,
-    interval: TimeSeriesInterval.DAILY,
-    isManual: isManualRun,
-    sequence: 'X',
-    phase: TradingPhase.POST,
-    clockEt: '0000', // Default for morning catch-up runs
-  });
-
-  await runTimeSeriesJobsForEndpoint({
-    endpoint: AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
-    phase: TradingPhase.POST,
-    trigger: RefreshTrigger.SCHEDULER,
-    marketDate,
-    runId,
+    clockPt: '1800',
   });
 });
 
@@ -1553,7 +1407,7 @@ export const refreshAvDailyTimeSeriesPostMorning0630 = onSchedule({
  */
 export const refreshAvDailyTimeSeriesPostMorning0700 = onSchedule({
   schedule: TS_DAILY_POST_MORNING_CATCHUP_0700,
-  timeZone: 'America/New_York',
+  timeZone: 'America/Los_Angeles',
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
@@ -1572,6 +1426,6 @@ export const refreshAvDailyTimeSeriesPostMorning0700 = onSchedule({
     marketDate: targetMarketDate,
     isManualRun,
     sequence: 'C',
-    clockEt: '0700',
+    clockPt: '0400',
   });
 });

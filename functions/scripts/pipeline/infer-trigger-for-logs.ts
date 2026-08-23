@@ -18,7 +18,6 @@ import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 import {
   AV_REFRESH_MANAGER_SCHEDULE,
-  TS_DAILY_PRE_CLOSE_SCHEDULE,
   TS_DAILY_POST_CLOSE_SCHEDULE,
   DAILY_TIME_SERIES_UPDATE_SCHEDULE,
 } from '../../src/v2/common/function-schedules';
@@ -107,7 +106,6 @@ function etMinutesToUtcCandidates(etMinutes: number): number[] {
 type AvSchedule = { name: string; cron: string };
 const AV_SCHEDULES: AvSchedule[] = [
   { name: 'AV_REFRESH_MANAGER_SCHEDULE', cron: AV_REFRESH_MANAGER_SCHEDULE },
-  { name: 'TS_DAILY_PRE_CLOSE_SCHEDULE', cron: TS_DAILY_PRE_CLOSE_SCHEDULE },
   { name: 'TS_DAILY_POST_CLOSE_SCHEDULE', cron: TS_DAILY_POST_CLOSE_SCHEDULE },
   { name: 'DAILY_TIME_SERIES_UPDATE_SCHEDULE', cron: DAILY_TIME_SERIES_UPDATE_SCHEDULE },
 ];
@@ -145,7 +143,6 @@ function inferTriggerForLog(row: any): { inferredTrigger: InferredTrigger; confi
   // Heuristic 1: Scheduler cron windows (high confidence)
   const cronWindows = [
     AV_REFRESH_MANAGER_SCHEDULE,
-    TS_DAILY_PRE_CLOSE_SCHEDULE,
     TS_DAILY_POST_CLOSE_SCHEDULE,
     DAILY_TIME_SERIES_UPDATE_SCHEDULE,
   ]

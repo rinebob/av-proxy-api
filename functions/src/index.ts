@@ -50,21 +50,13 @@ export { partnerTechnicalIndicatorsV2 } from './v2/partner/technical-indicators-
 // New AlphaVantage Data Refresher
 export { refreshAlphaVantageDataV2 } from './v2/alpha-vantage/data-refresher/av-refresh-manager';
 
-// Note: The following AV time-series schedulers are exported for deploy.
-// The 30-minute evening retry and 06:30 catch-up handlers are defined but INTENTIONALLY NOT exported/deployed:
-// - refreshAvDailyTimeSeriesPostEveningRetry30
-// - refreshAvDailyTimeSeriesPostMorning0630
+// AV time-series schedulers exported for deploy
 export {
   refreshAvDailyTimeSeriesIntradayHourly,
-  refreshAvDailyTimeSeriesPostClose,
   refreshAvTimeSeriesPostAllIntervals,
-  refreshAvWeeklyTimeSeriesPostClose,
-  refreshAvMonthlyTimeSeriesPostClose,
   refreshAvDailyTimeSeriesPostEveningRetry00,
   refreshAvDailyTimeSeriesPostMorning0700,
 } from './v2/alpha-vantage/data-refresher/av-time-series-refresh-manager';
-
-// Intraday RTH-close snapshot superseded by hourly Cloud Tasks pipeline (refreshAvDailyTimeSeriesIntradayHourly)
 
 // New Benzinga Data Refresher
 export { refreshBenzingaCalendarDataV2 } from './v2/benzinga/data-refresher/bz-calendar-refresh-manager';

@@ -20,7 +20,7 @@ export interface RealtimeRunParams {
   isManual: boolean;
   sequence: string; // A, B, C, X, etc.
   phase: TradingPhase; // Trading phase (PRE/POST)
-  clockEt: string; // Required PT time (HHMM) - always included in run ID
+  clockPt: string; // Required PT time (HHMM) - always included in run ID
 }
 
 // Interface for backfill run parameters
@@ -41,12 +41,12 @@ export class RunIdFactory {
    * Creates a realtime run ID for the canonical format.
    * 
    * Format: YYYY-MM-DD-DOW-SEQUENCE-INTERVAL-LIVE|MANUAL-PHASE-HHMM
-   * Example: 2026-01-29-THU-A-DAILY-LIVE-POST-1635
-   * 
-   * The clockEt is always included in the run ID for identification.
+   * Example: 2026-01-29-THU-A-DAILY-LIVE-POST-1335
+   *
+   * The clockPt is always included in the run ID for identification.
    */
   static createRealtime(params: RealtimeRunParams): RealtimeRunId {
-    const { marketDate, dow, interval, isManual, sequence, phase, clockEt } = params;
+    const { marketDate, dow, interval, isManual, sequence, phase, clockPt } = params;
     
     // Validate inputs
     if (!marketDate || !/^\d{4}-\d{2}-\d{2}$/.test(marketDate)) {
@@ -57,8 +57,8 @@ export class RunIdFactory {
       throw new Error(`Invalid sequence: ${sequence}. Expected single character`);
     }
     
-    if (!clockEt || !/^\d{4}$/.test(clockEt)) {
-      throw new Error(`Invalid clockEt format: ${clockEt}. Expected HHMM`);
+    if (!clockPt || !/^\d{4}$/.test(clockPt)) {
+      throw new Error(`Invalid clockPt format: ${clockPt}. Expected HHMM`);
     }
     
     const dowStr = String(dow).toUpperCase();
@@ -66,8 +66,8 @@ export class RunIdFactory {
     const runTypeStr = isManual ? 'MANUAL' : 'LIVE';
     const phaseStr = String(phase).toUpperCase();
     
-    // Build run ID with clockEt as required component
-    return `${marketDate}-${dowStr}-${sequence}-${intervalStr}-${runTypeStr}-${phaseStr}-${clockEt}` as RealtimeRunId;
+    // Build run ID with clockPt as required component
+    return `${marketDate}-${dowStr}-${sequence}-${intervalStr}-${runTypeStr}-${phaseStr}-${clockPt}` as RealtimeRunId;
   }
   
   /**
@@ -92,10 +92,10 @@ export class RunIdFactory {
   
   /**
    * Validates that a run ID matches the expected realtime format.
-   * Only accepts format with required clockEt.
+   * Only accepts format with required clockPt.
    */
   static isValidRealtimeRunId(runId: string): runId is RealtimeRunId {
-    // Pattern with required clockEt: YYYY-MM-DD-DOW-SEQ-INTERVAL-LIVE|MANUAL-PHASE-HHMM
+    // Pattern with required clockPt: YYYY-MM-DD-DOW-SEQ-INTERVAL-LIVE|MANUAL-PHASE-HHMM
     const pattern = /^\d{4}-\d{2}-\d{2}-[A-Z]{3}-[A-Z]-[A-Z]+-(LIVE|MANUAL)-(PRE|POST)-\d{4}$/;
     
     return pattern.test(runId);
@@ -111,7 +111,7 @@ export class RunIdFactory {
   
   /**
    * Extracts components from a realtime run ID.
-   * Handles format with required clockEt.
+   * Handles format with required clockPt.
    */
   static parseRealtimeRunId(runId: RealtimeRunId): {
     marketDate: string;
@@ -120,7 +120,7 @@ export class RunIdFactory {
     interval: string;
     runType: string;
     phase: string;
-    clockEt: string;
+    clockPt: string;
   } {
     if (!this.isValidRealtimeRunId(runId)) {
       throw new Error(`Invalid realtime run ID: ${runId}`);
@@ -131,9 +131,9 @@ export class RunIdFactory {
     // The date is always the first 10 characters (YYYY-MM-DD).
     const marketDate = runId.substring(0, 10);
     const rest = runId.substring(11); // skip the dash after date
-    const [dow, sequence, interval, runType, phase, clockEt] = rest.split('-');
-    
-    return { marketDate, dow, sequence, interval, runType, phase, clockEt };
+    const [dow, sequence, interval, runType, phase, clockPt] = rest.split('-');
+
+    return { marketDate, dow, sequence, interval, runType, phase, clockPt };
   }
   
   /**

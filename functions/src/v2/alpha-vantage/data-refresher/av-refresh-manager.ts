@@ -13,7 +13,7 @@ import { AlphaVantageHandlerFactory } from '../../alpha-vantage/alpha-vantage-fa
 import { AV_ENDPOINT_CONFIGS, AV_IMPLEMENTED_ENDPOINTS, AV_TIME_SERIES_ENDPOINT_CONFIGS, TimeSeriesInterval, AlphaVantageEndpoint, DayOfWeek, OutputSize } from '@shared/alpha-vantage';
 import { ApiProvider } from '@shared/core';
 import { FirestoreCollection, RefreshStatus, RefreshTrigger } from '@shared/firestore';
-import { AV_REFRESH_MANAGER_SCHEDULE, TS_INTRADAY_RTH_CLOSE_1615 } from '../../common/function-schedules';
+import { AV_REFRESH_MANAGER_SCHEDULE } from '../../common/function-schedules';
 import { resolveFirestorePath, getRefreshEventDocId } from '../../utils/firestore-utils';
 import { createLogger, hr, hrBlank, getMarketClosureInfo, RefreshLogComponent, betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { getSymbolTimeSeriesDocPath } from '../../common/firestore/firestore-paths';
@@ -115,9 +115,9 @@ export function computeNextRefreshAtUtc(phase: TradingPhase): string | undefined
       return { y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate() };
     }
 
-    // Schedule-driven calculation aligned with cron windows
-    // PRE: hourly 10:00–15:00 ET (TS_DAILY_INTRADAY_HOURLY_SCHEDULE) + pre-close 15:30 (TS_DAILY_PRE_CLOSE_SCHEDULE)
-    // POST: next weekday 10:00 ET (handoff to next intraday window)
+    // Schedule-driven calculation aligned with cron windows (all PT)
+    // PRE: hourly 8/10/12 PT (TS_DAILY_INTRADAY_HOURLY_SCHEDULE)
+    // POST: 1:35 PM PT (A), 6:00 PM PT (B), 4:00 AM PT (C)
     if (phase === TradingPhase.PRE) {
       const preEtEvents: Array<{ hh: number; mm: number }> = [
         { hh: 10, mm: 0 },
@@ -620,10 +620,11 @@ export const refreshAlphaVantageDataV2 = onSchedule(
 /**
  * Time-series write flow (overview)
  *
- * Schedulers:
- * - refreshAvDailyTimeSeriesPreClose (pre-close) → runs DAILY_ADJUSTED with phase PRE (intraday-only write)
- * - refreshAvDailyTimeSeriesPostClose (post-close) → runs DAILY_ADJUSTED with phase POST (finalized bar write)
- * - refreshAvWeeklyMonthlyTimeSeriesPostClose (post-close) → runs WEEKLY_ADJUSTED + MONTHLY_ADJUSTED with phase POST
+ * Schedulers (all America/Los_Angeles):
+ * - refreshAvDailyTimeSeriesIntradayHourly (intraday) → enqueues intraday snapshot jobs (PRE phase, 8/10/12 PT)
+ * - refreshAvTimeSeriesPostAllIntervals (post-close) → runs DAILY/WEEKLY/MONTHLY with phase POST (sequence A, 1:35 PM PT)
+ * - refreshAvDailyTimeSeriesPostEveningRetry00 (evening retry) → same all-intervals POST (sequence B, 6:00 PM PT)
+ * - refreshAvDailyTimeSeriesPostMorning0700 (morning catch-up) → same all-intervals POST (sequence C, 4:00 AM PT)
  *
  * Execution path:
  * onSchedule → refreshForEndpoints([endpoint...], { phase }) →
@@ -639,25 +640,6 @@ export const refreshAlphaVantageDataV2 = onSchedule(
  * - Top-level provider/interval doc holds metadata + latestBarTimestamp (no large arrays)
  * - Bars are stored in CompactBar shape under sharded docs (DAILY/WEEKLY by year; MONTHLY single 'all')
  */
-
-/**
- * @deprecated Superseded by the Cloud Tasks-backed intraday snapshot pipeline.
- *
- * The hourly `refreshAvDailyTimeSeriesIntradayHourly` scheduler (10am–3pm ET)
- * enqueues one `processIntradaySnapshotJobTask` per tracked symbol, replacing
- * this serial loop. This export is intentionally kept as a no-op so that any
- * existing Cloud Scheduler job continues to exist without error until it is
- * manually deleted from GCP.
- */
-export const refreshAvIntradayRthClose1615Pre = onSchedule({
-  schedule: TS_INTRADAY_RTH_CLOSE_1615,
-  timeZone: 'America/New_York',
-  secrets: ['ALPHAVANTAGE_API_KEY'],
-}, async () => {
-  log.info('pre1615.deprecated.noop', {
-    message: 'refreshAvIntradayRthClose1615Pre is deprecated. Intraday snapshots are now handled by refreshAvDailyTimeSeriesIntradayHourly + processIntradaySnapshotJobTask.',
-  });
-});
 
 export async function refreshForEndpoints(
   endpoints: AlphaVantageEndpoint[], 

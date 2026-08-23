@@ -24,16 +24,6 @@ export const BULK_QUOTE_UPDATE_SCHEDULE = '12 13 * * *';
  */
 export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * 1-5';
 
-// Pre-close run (time-series daily compact)
-/**
- * Pre-close daily time-series run (compact write only).
- *
- * Purpose: writes PRE phase snapshot fields (intraday price/deltas) without finalizing bar.
- * Cron: 30 15 * * * (3:30 PM ET)
- * Timezone: America/New_York (set at function registration).
- */
-export const TS_DAILY_PRE_CLOSE_SCHEDULE = '30 15 * * 1-5';
-
 /**
  * Intraday snapshot time-series run (daily only).
  *
@@ -59,33 +49,12 @@ export const AV_REFRESH_MANAGER_SCHEDULE = '45 13 * * 1-5';
  * Post-close daily time-series run (daily only).
  *
  * Purpose: writes finalized daily bars and bumps freshness metadata.
- * Cron: 35 16 * * * (4:35 PM ET)
- * Timezone: America/New_York (set at function registration).
+ * Cron: 35 13 * * * (1:35 PM PT = 4:35 PM ET)
+ * Timezone: America/Los_Angeles (set at function registration).
  */
-export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 16 * * 1-5';
-export const TS_DAILY_POST_EVENING_RETRY_MINUTE_30 = '30 18-21 * * 1-5';
-export const TS_DAILY_POST_EVENING_RETRY_MINUTE_00 = '0 21 * * 1-5';
-export const TS_DAILY_POST_MORNING_CATCHUP_0630 = '30 6 * * 1-5';
-export const TS_DAILY_POST_MORNING_CATCHUP_0700 = '0 7 * * 1-5';
-
-/**
- * Intraday RTH-close snapshot using delayed data.
- *
- * Purpose: At 16:15 ET, fetch 1-minute intraday to capture the 16:00:00 ET bar
- * for each tracked symbol (RTH close), and persist a PRE snapshot.
- * Cron: 15 16 * * 1-5 (4:15 PM ET)
- * Timezone: America/New_York (set at function registration).
- */
-export const TS_INTRADAY_RTH_CLOSE_1615 = '15 16 * * 1-5';
-
-/**
- * Generic post-close schedule used by weekly/monthly time-series runs.
- *
- * Purpose: writes finalized weekly/monthly bars each trading day after close.
- * Cron: 40 16 * * * (4:40 PM ET)
- * Timezone: America/New_York (set at function registration).
- */
-export const TS_POST_CLOSE_SCHEDULE = '40 16 * * 1-5';
+export const TS_DAILY_POST_CLOSE_SCHEDULE = '35 13 * * 1-5';
+export const TS_DAILY_POST_EVENING_RETRY_MINUTE_00 = '0 18 * * 1-5';
+export const TS_DAILY_POST_MORNING_CATCHUP_0700 = '0 4 * * 1-5';
 
 /**
  * Nightly historical-options corpus maintenance.
