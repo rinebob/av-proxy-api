@@ -5,4 +5,5 @@ export * from './av-response-utils';
 export * from './av-symbol-type.utils';
 export * from './av-upstream-error.utils';
 export * from './bars-utils';
+export * from './av-csv-parser.utils';
 export * from './date-utils';
