@@ -132,6 +132,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | Task | Script | Pipeline Stage | Guide |
 |---|---|---|---|
 | #38 | `earnings-38-sa-endpoint-types.ts` | SHARED: enum + types import verification | [earnings-38-sa-endpoint-types.md](earnings-38-sa-endpoint-types.md) |
+| #39 | `earnings-39-config-changes.ts` | SHARED: config values + implemented endpoints verification | [earnings-39-config-changes.md](earnings-39-config-changes.md) |
 
 ## Execution order
 

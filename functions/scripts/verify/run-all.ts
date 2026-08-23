@@ -9,6 +9,7 @@ import * as path from 'path';
 
 const scripts = [
   'earnings-38-sa-endpoint-types.ts',
+  'earnings-39-config-changes.ts',
 ];
 
 let passed = 0;
