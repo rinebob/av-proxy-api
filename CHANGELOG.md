@@ -34,6 +34,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [AV SA Earnings Endpoints] 33-44_BE-TEST-AV-SA-EARNINGS-ENDPOINTS: Add unit tests for factory registration and isGlobalEndpoint helper
 - [AV SA Earnings Endpoints] 33-44_BE-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add verification script and guide for factory registration + refresh manager fix
 - [AV SA Earnings Endpoints] 33-44_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for Task #44
+- [AV SA Earnings Endpoints] 33-44_FE-IMPL-AV-SA-EARNINGS-ENDPOINTS: Add AV earnings endpoint support to SA Data Maintainer page
+- [AV SA Earnings Endpoints] 33-44_FE-TEST-AV-SA-EARNINGS-ENDPOINTS: Add Karma/Jasmine tests for earnings endpoint frontend support
+- [AV SA Earnings Endpoints] 33-44_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for frontend earnings endpoint support
 
 ### Changed
 - [PT PDR Rate Limit Fixes] 47-51_BE-REFACTOR-AV-ENDPOINTS: Migrate time-series schedulers from ET to PT and remove deprecated no-op schedulers
