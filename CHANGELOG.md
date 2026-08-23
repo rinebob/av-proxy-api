@@ -10,6 +10,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [AV SA Earnings Endpoints] 33-38_BE-IMPL-AV-SA-EARNINGS-ENDPOINTS: Add unit tests for SavantApiEndpoint enum and earnings types
 - [AV SA Earnings Endpoints] 33-38_BE-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add verification scripts and guides for earnings types
 - [AV SA Earnings Endpoints] 33-38_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for Task #38
+- [AV SA Earnings Endpoints] 33-39_SHARED-CONFIG-AV-SA-EARNINGS-ENDPOINTS: Update earnings endpoint configs and implemented set
+- [AV SA Earnings Endpoints] 33-39_BE-TEST-AV-SA-EARNINGS-ENDPOINTS: Add config tests for earnings endpoints
+- [AV SA Earnings Endpoints] 33-39_BE-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add verification script and guide for config changes
+- [AV SA Earnings Endpoints] 33-39_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for Task #39
 
 ## [2026-08-18]
 
