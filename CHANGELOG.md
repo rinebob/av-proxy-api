@@ -30,6 +30,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [AV SA Earnings Endpoints] 33-43_BE-TEST-AV-SA-EARNINGS-ENDPOINTS: Add unit tests for AvEarningsCalendarHandler
 - [AV SA Earnings Endpoints] 33-43_BE-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add verification script and guide for AvEarningsCalendarHandler
 - [AV SA Earnings Endpoints] 33-43_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for Task #43
+- [AV SA Earnings Endpoints] 33-44_BE-IMPL-AV-SA-EARNINGS-ENDPOINTS: Register earnings handlers in factory + fix refresh manager for global endpoints
+- [AV SA Earnings Endpoints] 33-44_BE-TEST-AV-SA-EARNINGS-ENDPOINTS: Add unit tests for factory registration and isGlobalEndpoint helper
+- [AV SA Earnings Endpoints] 33-44_BE-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add verification script and guide for factory registration + refresh manager fix
+- [AV SA Earnings Endpoints] 33-44_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for Task #44
 
 ### Changed
 - [PT PDR Rate Limit Fixes] 47-51_BE-REFACTOR-AV-ENDPOINTS: Migrate time-series schedulers from ET to PT and remove deprecated no-op schedulers
