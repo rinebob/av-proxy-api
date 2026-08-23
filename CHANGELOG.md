@@ -15,6 +15,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [AV SA Earnings Endpoints] 33-39_BE-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add verification script and guide for config changes
 - [AV SA Earnings Endpoints] 33-39_DOCS-DOCS-AV-SA-EARNINGS-ENDPOINTS: Add code review doc for Task #39
 
+### Changed
+- [PT PDR Rate Limit Fixes] 47-51_BE-REFACTOR-AV-ENDPOINTS: Migrate time-series schedulers from ET to PT and remove deprecated no-op schedulers
+- [PT PDR Rate Limit Fixes] 47-51_BE-CHORE-AV-ENDPOINTS: Tune Cloud Tasks rate limits and remove redundant job delay
+
+### Fixed
+- [PT PDR Rate Limit Fixes] 47-51_BE-BUGFIX-AV-ENDPOINTS: Fix duplicate PDR messages with atomic run completion claim
+
+### Added
+- [PT PDR Rate Limit Fixes] 47-51_DOCS-DOCS-AV-ENDPOINTS: Add Topic #47 docs (PRD, IMPL, TEST, code review)
+
 ## [2026-08-18]
 
 ### Added
