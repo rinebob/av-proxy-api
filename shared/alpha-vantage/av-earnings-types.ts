@@ -17,7 +17,7 @@ export interface AvQuarterlyEarning {
   estimatedEPS: string;
   surprise: string;
   surprisePercentage: string;
-  reportTime: AvReportTime;
+  reportTime?: AvReportTime;
 }
 
 export interface AvEarningsResponse {
