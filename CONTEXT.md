@@ -81,3 +81,7 @@ A daily time series for a spread position, where each observation contains the s
 ### Strategy Scan
 
 A planned async operation (Phase 3) that enumerates every instance of a strategy template across the historical dataset (e.g., "open a 1-month ATM iron condor every trading day, hold to expiration"), computes each spread's time series via the Spread Pricing Engine, and writes all results to GCS as a single downloadable file. Uses Cloud Tasks for parallel processing. Not yet implemented.
+
+### Earnings Event Calendar
+
+A planned system that ties options trading strategies to earnings dates. For each tracked symbol, the earnings timeline is synthesized from three Alpha Vantage endpoints: EARNINGS (historical actuals), EARNINGS_ESTIMATES (forward estimates), and EARNINGS_CALENDAR (upcoming dates). Options strategies around earnings have specific timing windows (e.g., 60-45 days before earnings, 1 day before, day-of, post-earnings volatility crush). Since earnings dates are known 3 months out from EARNINGS_CALENDAR, the event calendar can compute all strategy start dates upfront and schedule timed triggers for each phase. Repeats every quarter for each tracked symbol. The three AV endpoints are the data layer; the event calendar and strategy triggers are a future phase that consumes this data. See Topic #33.
