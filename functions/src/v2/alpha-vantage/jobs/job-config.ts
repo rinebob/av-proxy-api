@@ -12,10 +12,14 @@
 export const MAX_JOB_ATTEMPTS = 5;
 
 /**
- * Fixed delay (in milliseconds) added to each job execution
- * to spread AV calls and make individual executions visible in logs.
+ * Fixed delay (in milliseconds) added to each job execution.
+ *
+ * Previously 1000ms to spread AV calls, but this was redundant with the
+ * Cloud Tasks rate limiter (maxDispatchesPerSecond). Set to 0 because the
+ * rate limiter already controls dispatch throughput. If you need to add
+ * jitter for a specific reason, set this to a small value (e.g. 200ms).
  */
-export const JOB_EXECUTION_DELAY_MS = 1_000;
+export const JOB_EXECUTION_DELAY_MS = 0;
 
 /**
  * Maximum number of non-success jobs to include in run documents
@@ -49,10 +53,14 @@ export const INTRADAY_MAX_RUN_DURATION_MS = 20 * 60 * 1000; // 20 minutes
 
 /**
  * Rate limits for Cloud Tasks queue.
+ *
+ * AV API tier: 75 req/min = 1.25/sec. Set to 1.2/sec (72/min) to leave
+ * headroom for non-pipeline AV calls (manual triggers, onboarding, etc.).
+ * With JOB_EXECUTION_DELAY_MS=0, this is the sole rate limiter.
  */
 export const CLOUD_TASKS_RATE_LIMITS = {
   maxConcurrentDispatches: 20,
-  maxDispatchesPerSecond: 1.0, // Stay under AV 75/min limit
+  maxDispatchesPerSecond: 1.2, // 72/min, under AV 75/min limit
 } as const;
 
 /**

@@ -12,15 +12,15 @@ const taskLogger = betterLogger('iS.Tsk');
 /**
  * Cloud Task entry point for processing a single intraday snapshot job.
  *
- * Rate limits are kept identical to the POST time-series queue (1.0/sec,
- * 20 concurrent) so the intraday pipeline respects the same AV API budget.
- * Tune independently of processTimeSeriesJobTask if needed.
+ * Rate limits are kept identical to the POST time-series queue (1.2/sec,
+ * 20 concurrent) so the intraday pipeline respects the same AV API budget
+ * (75 req/min). Tune independently of processTimeSeriesJobTask if needed.
  */
 export const processIntradaySnapshotJobTask = onTaskDispatched<IntradaySnapshotJobPayload>(
   {
     retryConfig: CLOUD_TASKS_RETRY_CONFIG,
     rateLimits: {
-      maxDispatchesPerSecond: 1.0,
+      maxDispatchesPerSecond: 1.2,
       maxConcurrentDispatches: 20,
     },
     memory: JOB_FUNCTION_MEMORY,
