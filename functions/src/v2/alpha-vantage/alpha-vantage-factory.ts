@@ -9,6 +9,9 @@ import { AvHistoricalOptionsHandler } from './handlers/av-historical-options.han
 import { AvWeeklyTimeSeriesHandler } from './handlers/av-weekly-time-series.handler';
 import { AvMonthlyTimeSeriesHandler } from './handlers/av-monthly-time-series.handler';
 import { AvIntradayHandler } from './handlers/av-intraday.handler';
+import { AvEarningsHandler } from './handlers/av-earnings.handler';
+import { AvEarningsEstimatesHandler } from './handlers/av-earnings-estimates.handler';
+import { AvEarningsCalendarHandler } from './handlers/av-earnings-calendar.handler';
 
 type HandlerConstructor = new (config: EndpointConfig | TimeSeriesEndpointConfig) => any;
 
@@ -29,6 +32,10 @@ const HANDLER_MAP: Record<string, HandlerConstructor> = {
   [AlphaVantageEndpoint.REALTIME_BULK_QUOTES]: AvBulkQuoteHandler,
   [AlphaVantageEndpoint.SYMBOL_SEARCH]: AvSymbolSearchHandler,
   [AlphaVantageEndpoint.HISTORICAL_OPTIONS]: AvHistoricalOptionsHandler,
+  // Earnings endpoints
+  [AlphaVantageEndpoint.EARNINGS]: AvEarningsHandler,
+  [AlphaVantageEndpoint.EARNINGS_ESTIMATES]: AvEarningsEstimatesHandler,
+  [AlphaVantageEndpoint.EARNINGS_CALENDAR]: AvEarningsCalendarHandler,
 };
 
 function isTimeSeriesEndpoint(endpoint: AlphaVantageEndpoint): boolean {

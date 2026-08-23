@@ -182,6 +182,18 @@ function isTimeSeriesEndpoint(endpoint: AlphaVantageEndpoint): boolean {
   return !!(AV_TIME_SERIES_ENDPOINT_CONFIGS as any)[endpoint];
 }
 
+/**
+ * Returns true if the endpoint's firestorePath has no {symbol} placeholder,
+ * meaning it's a global document that should be fetched once per refresh cycle
+ * (outside the per-symbol loop) rather than once per tracked symbol.
+ * This applies to endpoints like EARNINGS_CALENDAR and IPO_CALENDAR whose
+ * firestorePath has no {symbol} regardless of symbolUsage being NOT_SUPPORTED
+ * or OPTIONAL.
+ */
+export function isGlobalEndpoint(endpointConfig: { firestorePath?: string }): boolean {
+  return !endpointConfig?.firestorePath || !endpointConfig.firestorePath.includes('{symbol}');
+}
+
 // Helper: history path from a concrete doc path
 function getHistoryPathFor(docPath: string): string {
   return `${docPath}/${FirestoreCollection.REFRESH_HISTORY}`;
@@ -299,7 +311,62 @@ export async function runRefreshAlphaVantageDataV2(options: { force?: boolean } 
     // Track how many real API calls have been made for this endpoint (for rate limiting)
     let endpointFetchCount = 0;
 
-    // 3. For each symbol
+    // 3a. Global endpoints (no {symbol} in firestorePath) — process once outside the per-symbol loop
+    // to avoid N-1 redundant Firestore reads for the same global document.
+    if (!isTimeSeriesEndpoint(endpoint) && isGlobalEndpoint(endpointConfig)) {
+      hr('av.refresh', `--- GLOBAL ENDPOINT: ${endpoint} (processing once, no per-symbol loop) ---`);
+      log.info('endpoint.global', { endpointId: endpoint, endpointName, reason: 'no_symbol_in_path' });
+
+      try {
+        // Use firestorePath directly — isGlobalEndpoint already confirmed no {symbol} placeholder.
+        // Don't call resolveFirestorePath because it throws for OPTIONAL endpoints when no symbol is passed.
+        const docPath = endpointConfig.firestorePath;
+        hr('av.refresh', `docPath: ${docPath}`);
+        const docRef = db.doc(docPath);
+        const docSnap = await docRef.get();
+        const now = Timestamp.now();
+        eStats.checked++;
+
+        let needsRefresh = false;
+        if (!docSnap.exists) {
+          needsRefresh = true;
+          staleCount++;
+        } else {
+          const metadata = docSnap.data()?.metadata;
+          const nextUpdate = metadata?.nextUpdate;
+          const nextUpdateDate: Date | null = nextUpdate?.toDate ? nextUpdate.toDate() : null;
+          const isStale = force || !nextUpdateDate || nextUpdateDate <= now.toDate();
+          if (isStale) {
+            needsRefresh = true;
+            staleCount++;
+          } else {
+            eStats.skippedFresh++;
+          }
+        }
+
+        if (needsRefresh) {
+          hr('av.refresh', `refresh: ${endpoint} (global)`);
+          // Rate limit: wait between AV API calls (consistent with per-symbol loop)
+          if (AV_INTER_REQUEST_DELAY_MS > 0 && endpointFetchCount > 0) {
+            await sleep(AV_INTER_REQUEST_DELAY_MS);
+          }
+          const handler = AlphaVantageHandlerFactory.createHandler(endpoint);
+          await handler.fetch({});
+          eStats.refreshed++;
+          endpointFetchCount++;
+        }
+      } catch (error) {
+        log.error('endpoint.global.error', { endpointId: endpoint, error: String((error as any)?.message || error) });
+        eStats.failures++;
+      }
+
+      // Skip the per-symbol loop for this endpoint
+      hr('av.refresh', `=========== END ENDPOINT [${endpoint}] ===========`);
+      hrBlank(3);
+      continue;
+    }
+
+    // 3b. Per-symbol endpoints — process each tracked symbol
     for (const symbol of symbols) {
       // Guard: Skip Company Overview for non-company symbols (e.g., ETFs, Crypto, Indexes)
       if (endpoint === AlphaVantageEndpoint.OVERVIEW) {
