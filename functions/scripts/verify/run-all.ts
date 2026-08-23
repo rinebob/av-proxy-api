@@ -14,6 +14,7 @@ const scripts = [
   'earnings-41-earnings-handler.ts',
   'earnings-42-earnings-estimates-handler.ts',
   'earnings-43-earnings-calendar-handler.ts',
+  'earnings-44-factory-registration.ts',
 ];
 
 let passed = 0;

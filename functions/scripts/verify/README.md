@@ -137,6 +137,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #41 | `earnings-41-earnings-handler.ts` | BE: EARNINGS handler transform verification | [earnings-41-earnings-handler.md](earnings-41-earnings-handler.md) |
 | #42 | `earnings-42-earnings-estimates-handler.ts` | BE: EARNINGS_ESTIMATES handler transform verification | [earnings-42-earnings-estimates-handler.md](earnings-42-earnings-estimates-handler.md) |
 | #43 | `earnings-43-earnings-calendar-handler.ts` | BE: EARNINGS_CALENDAR handler fetch/parse/filter/save verification | [earnings-43-earnings-calendar-handler.md](earnings-43-earnings-calendar-handler.md) |
+| #44 | `earnings-44-factory-registration.ts` | BE: Factory registration + isGlobalEndpoint helper verification | [earnings-44-factory-registration.md](earnings-44-factory-registration.md) |
 
 ## Execution order
 
