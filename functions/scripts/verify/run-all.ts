@@ -13,6 +13,7 @@ const scripts = [
   'earnings-40-csv-parser.ts',
   'earnings-41-earnings-handler.ts',
   'earnings-42-earnings-estimates-handler.ts',
+  'earnings-43-earnings-calendar-handler.ts',
 ];
 
 let passed = 0;
