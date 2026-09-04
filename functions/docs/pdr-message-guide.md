@@ -108,7 +108,7 @@ Three PDR messages per A run -- one per interval (DAILY, WEEKLY, MONTHLY).
 ```json
 {
   "version": "v1",
-  "runId": "2026-01-24-FRI-POST-A-1335-DAILY",
+  "runId": "2026-01-24-FRI-A-DAILY-LIVE-POST-1335",
   "phase": "post",
   "intervals": ["daily"],
   "time": 1737746100000,
@@ -127,7 +127,7 @@ Three PDR messages per A run -- one per interval (DAILY, WEEKLY, MONTHLY).
 ### Pub/Sub attributes
 
 ```
-runId=2026-01-24-FRI-POST-A-1335-DAILY
+runId=2026-01-24-FRI-A-DAILY-LIVE-POST-1335
 version=v1
 phase=post
 marketDate=2026-01-24
@@ -142,7 +142,7 @@ WEEKLY and MONTHLY are identical except:
 
 - `intervals: ["weekly"]` / `["monthly"]`
 - `interval=weekly` / `interval=monthly`
-- `runId` ends in `-WEEKLY` / `-MONTHLY`
+- `runId` ends in `-WEEKLY-LIVE-POST-1335` / `-MONTHLY-LIVE-POST-1335`
 
 ### `excludeSymbols` semantics (A run only)
 
@@ -160,7 +160,7 @@ fresh for this marketDate."
 
 Same message shape as A, with key differences:
 
-- `runId` ends in `-B-2100-DAILY` (etc.)
+- `runId` ends in `-B-DAILY-LIVE-POST-1800` (etc.)
 - `includeSymbols` instead of `excludeSymbols`
 - Only symbols that became fresh in this retry pass are listed
 
@@ -169,7 +169,7 @@ Same message shape as A, with key differences:
 ```json
 {
   "version": "v1",
-  "runId": "2026-01-24-FRI-POST-B-1800-DAILY",
+  "runId": "2026-01-24-FRI-B-DAILY-LIVE-POST-1800",
   "phase": "post",
   "intervals": ["daily"],
   "time": 1737756600000,
@@ -188,7 +188,7 @@ Same message shape as A, with key differences:
 ### Pub/Sub attributes
 
 ```
-runId=2026-01-24-FRI-POST-B-1800-DAILY
+runId=2026-01-24-FRI-B-DAILY-LIVE-POST-1800
 version=v1
 phase=post
 marketDate=2026-01-24
@@ -216,7 +216,7 @@ completeness accounting.
 
 Same shape as B. Key differences:
 
-- `runId` ends in `-C-0700-DAILY` (etc.)
+- `runId` ends in `-C-DAILY-LIVE-POST-0400` (etc.)
 - `includeSymbols` = symbols that became fresh in this final pass
 - The C run is marked as a **deadline run**: the worker treats persistently
   stale data as a terminal failure after retries, so any symbol still stale
@@ -227,7 +227,7 @@ Same shape as B. Key differences:
 ```json
 {
   "version": "v1",
-  "runId": "2026-01-25-SAT-POST-C-0400-DAILY",
+  "runId": "2026-01-25-SAT-C-DAILY-LIVE-POST-0400",
   "phase": "post",
   "intervals": ["daily"],
   "time": 1737805800000,
@@ -246,7 +246,7 @@ Same shape as B. Key differences:
 ### Pub/Sub attributes
 
 ```
-runId=2026-01-25-SAT-POST-C-0400-DAILY
+runId=2026-01-25-SAT-C-DAILY-LIVE-POST-0400
 version=v1
 phase=post
 marketDate=2026-01-24
@@ -271,7 +271,7 @@ Note: `runStatus` is `completed_with_errors` when `permanentFailures > 0`.
 | `runType` attr | `intraday-snapshot` | `ts-post-all-intervals` |
 | `intervals` | `["intraday"]` | `["daily"]` / `["weekly"]` / `["monthly"]` |
 | `clockPt` attr | `0800` / `1000` / `1200` | (not set) |
-| `runId` pattern | `{date}-{dow}-LIVE-{clockPt}` | `{date}-{dow}-POST-{seq}-{clockPt}-{interval}` |
+| `runId` pattern | `{date}-{dow}-LIVE-{clockPt}` | `{date}-{dow}-{seq}-{interval}-LIVE-POST-{clockPt}` |
 | `includeSymbols`/`excludeSymbols` | (not set) | A: `excludeSymbols`, B/C: `includeSymbols` |
 | `barStatus*` attrs | set (0 or -1) | (not set) |
 
@@ -280,7 +280,7 @@ Note: `runStatus` is `completed_with_errors` when `permanentFailures > 0`.
 | Field | A (initial) | B (evening retry) | C (morning catch-up) |
 |---|---|---|---|
 | `runId` sequence segment | `-A-` | `-B-` | `-C-` |
-| `runId` clock segment | `1335` | `1800` | `0400` |
+| `runId` clock segment | `1335` (suffix) | `1800` (suffix) | `0400` (suffix) |
 | Run doc `runType` | `ts-post-all-intervals-initial` | `ts-post-all-intervals-retry` | `ts-post-all-intervals-retry` |
 | Pub/Sub `runType` attr | `ts-post-all-intervals` | `ts-post-all-intervals` | `ts-post-all-intervals` |
 | Symbol selection | `excludeSymbols` (full universe minus stale) | `includeSymbols` (retry successes only) | `includeSymbols` (retry successes only) |
@@ -313,18 +313,18 @@ Example: `2026-01-24-FRI-LIVE-0800`
 ### POST (A/B/C)
 
 ```
-{marketDate}-{dow}-POST-{sequence}-{clockPt}-{interval}
+{marketDate}-{dow}-{sequence}-{interval}-LIVE-POST-{clockPt}
 ```
 
-Example: `2026-01-24-FRI-POST-A-1335-DAILY`
+Example: `2026-01-24-FRI-A-DAILY-LIVE-POST-1335`
 
 Where:
 
 - `marketDate` = ET trading date (YYYY-MM-DD)
 - `dow` = 3-letter day of week (MON, TUE, WED, THU, FRI, SAT, SUN)
-- `clockPt` = PT clock label (HHMM) for all runs
 - `sequence` = `A`, `B`, or `C`
 - `interval` = `DAILY`, `WEEKLY`, or `MONTHLY`
+- `clockPt` = PT clock label (HHMM) for all runs
 
 ---
 
