@@ -2,7 +2,7 @@
 
 Audience: External partner engineering/admin teams integrating with Savant partner endpoints. This document explains partner-facing surfaces, authentication, data schemas, and operational expectations.
 
-Last updated: 2026-08-03
+Last updated: 2026-08-23
 
 > Start here: Read this discovery guide first to understand the surface area, data shapes, and auth model. When ready to make requests, proceed to `docs/partner/partner-integration.md` for step-by-step integration examples.
 
@@ -41,6 +41,11 @@ Key data-serving endpoints:
 - `partnerContractCatalogV2` — Query contract catalog with filtering (QQQ/TQQQ only)
 - `partnerSpreadTimeSeries` — Single options spread time series (QQQ/TQQQ only)
 - `partnerSpreadTimeSeriesBatch` — Batch spread time series, up to 200 per request (QQQ/TQQQ only)
+
+Earnings endpoints (browser-facing, origin-restricted — see `docs/partner/partner-earnings.md`):
+- `alphaVantageApiV2/EARNINGS` — Historical annual & quarterly EPS (per-symbol, 7-day TTL)
+- `alphaVantageApiV2/EARNINGS_ESTIMATES` — Analyst EPS & revenue estimates with revision history (per-symbol, 7-day TTL)
+- `alphaVantageApiV2/EARNINGS_CALENDAR` — 12-month forward earnings calendar for all tracked symbols (global, 1-day TTL)
 
 ### Authentication Notes
 - Dual-auth middleware accepts either:
