@@ -201,6 +201,7 @@ async function createRealtimeRunJobAndEnqueueTask(options: {
   const jobPath = `${runPath}/${FirestoreCollection.JOBS}/${jobId}`;
   const jobRef = db.doc(jobPath);
 
+  let createdNewJob = false;
   let skippedForRun = false;
 
   tsJobLogger.timeStart('realtime_job.tx', {
@@ -227,9 +228,7 @@ async function createRealtimeRunJobAndEnqueueTask(options: {
         createdAt: nowTs,
         updatedAt: nowTs,
       });
-      // Atomically increment createdJobs in the same transaction so the
-      // counter never drifts from the actual number of job docs.
-      tx.set(runRef, { createdJobs: FieldValue.increment(1) }, { merge: true });
+      createdNewJob = true;
       return;
     }
 
@@ -271,6 +270,14 @@ async function createRealtimeRunJobAndEnqueueTask(options: {
     endpoint: endpointName,
   } as BetterLogPayload);
 
+  if (createdNewJob) {
+    await runRef.set(
+      {
+        createdJobs: FieldValue.increment(1),
+      },
+      { merge: true },
+    );
+  }
   if (skippedForRun) {
     await runRef.set(
       {
