@@ -28,7 +28,7 @@ export interface DataReadyPayloadV1 {
 
   // RS header UI fields
   // Lifecycle status of the run and scheduling hints
-  runStatus?: 'processing' | 'completed' | 'completed_with_errors';
+  runStatus?: 'processing' | 'completed' | 'completed_with_errors' | 'failed';
   endTimeUTC?: string; // RFC3339 UTC timestamp when the refresh finished
   nextRefreshAtUTC?: string; // RFC3339 UTC timestamp when the next refresh is scheduled to begin
   finalizedAtUTC?: string; // RFC3339 UTC timestamp when new daily data was first detected (market-date level)
@@ -145,9 +145,9 @@ export function validateDataReadyPayload(input: unknown): ValidationResult<DataR
   }
   // Optional: RS runStatus + timestamps and legacy nextFetchAt
   if (obj.runStatus != null) {
-    const allowedRunStatuses = ['processing', 'completed', 'completed_with_errors'];
+    const allowedRunStatuses = ['processing', 'completed', 'completed_with_errors', 'failed'];
     if (!allowedRunStatuses.includes(obj.runStatus)) {
-      errors.push('runStatus must be one of: processing, completed, completed_with_errors');
+      errors.push('runStatus must be one of: processing, completed, completed_with_errors, failed');
     }
   }
   if (obj.endTimeUTC != null && typeof obj.endTimeUTC !== 'string') {
