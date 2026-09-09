@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 - [Intraday Run Reliability] 63-68_DOCS-AV-ENDPOINTS: Add PRD, implementation plans, test plans, and code review for intraday run reliability
+- [Intraday Run Reliability] 63-69_SHARED-IMPL-AV-ENDPOINTS: Implement MarketCalendarService
+- [Intraday Run Reliability] 63-69_DOCS-AV-ENDPOINTS: Add code review doc for Task #69
 
 ### Changed
 - [Intraday Run Reliability] 63-68_SHARED-CHORE-AV-ENDPOINTS: Move market-holidays.data.ts to common/market-calendar/
