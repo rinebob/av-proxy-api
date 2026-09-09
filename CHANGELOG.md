@@ -10,6 +10,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Intraday Run Reliability] 63-69_SHARED-IMPL-AV-ENDPOINTS: Implement MarketCalendarService
 - [Intraday Run Reliability] 63-69_DOCS-AV-ENDPOINTS: Add code review doc for Task #69
 - [Intraday Run Reliability] 63-70_DOCS-AV-ENDPOINTS: Add code review doc for Task #70
+- [Intraday Run Reliability] 63-71_BE-IMPL-AV-ENDPOINTS: Add FAILED to PartnerRunStatus enum
+- [Intraday Run Reliability] 63-71_DOCS-AV-ENDPOINTS: Add code review doc for Task #71
 
 ### Changed
 - [Intraday Run Reliability] 63-68_SHARED-CHORE-AV-ENDPOINTS: Move market-holidays.data.ts to common/market-calendar/
