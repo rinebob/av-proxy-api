@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 
 import { withCors } from '../utils/cors-middleware';
 import { authenticateRequestEither, createLogger } from '../utils/utils';
-import { getUnifiedMarketHolidaysForYear } from './market-holidays.data';
+import { getUnifiedMarketHolidaysForYear } from '../common/market-calendar/market-holidays.data';
 import {
   allowedServiceAccounts,
   expectedGoogleAudience,
