@@ -18,6 +18,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Intraday Run Reliability] 63-73_DOCS-AV-ENDPOINTS: Add code review doc for Task #73
 - [Intraday Run Reliability] 63-75_BE-IMPL-AV-ENDPOINTS: Add integration tests for intraday scheduler + self-healing
 - [Intraday Run Reliability] 63-75_DOCS-AV-ENDPOINTS: Add code review doc for Task #75
+- [Intraday Run Reliability] 63-74_BE-IMPL-AV-ENDPOINTS: Add intraday PDR delivery watchdog
+- [Intraday Run Reliability] 63-74_DOCS-AV-ENDPOINTS: Add code review doc for Task #74
 
 ### Changed
 - [Intraday Run Reliability] 63-68_SHARED-CHORE-AV-ENDPOINTS: Move market-holidays.data.ts to common/market-calendar/
