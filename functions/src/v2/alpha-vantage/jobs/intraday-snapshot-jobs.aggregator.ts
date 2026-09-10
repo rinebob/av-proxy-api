@@ -100,8 +100,12 @@ async function reconcileIntradayRunJobs(runId: string): Promise<void> {
  * Fires after every completed hourly run so consumers receive up to 6 PRE
  * notifications per trading day. `clockPt` is included in the payload so
  * consumers can identify which hourly tick triggered the run.
+ *
+ * When `runStatusOverride` is provided (e.g. `PartnerRunStatus.FAILED` for
+ * stale-run self-healing), it takes precedence over the default
+ * `COMPLETED`/`COMPLETED_WITH_ERRORS` computation.
  */
-async function publishIntradayPdr(options: {
+export async function publishIntradayPdr(options: {
   runId: string;
   marketDate: string;
   clockPt: string;
@@ -109,8 +113,9 @@ async function publishIntradayPdr(options: {
   permanentFailureJobs: number;
   trigger: RefreshTrigger | undefined;
   totalDuration: number | undefined;
+  runStatusOverride?: PartnerRunStatus;
 }): Promise<void> {
-  const { runId, marketDate, clockPt, successJobs, permanentFailureJobs, trigger, totalDuration } =
+  const { runId, marketDate, clockPt, successJobs, permanentFailureJobs, trigger, totalDuration, runStatusOverride } =
     options;
   
   logger.info('intraday.agg.pdr.enter', { runId, marketDate, clockPt, successJobs, permanentFailureJobs, trigger, totalDuration } as any);
@@ -123,9 +128,11 @@ async function publishIntradayPdr(options: {
         : undefined;
 
   const hasPermanentFailures = permanentFailureJobs > 0;
-  const endRunStatus = hasPermanentFailures
-    ? PartnerRunStatus.COMPLETED_WITH_ERRORS
-    : PartnerRunStatus.COMPLETED;
+  const endRunStatus = runStatusOverride
+    ? runStatusOverride
+    : hasPermanentFailures
+      ? PartnerRunStatus.COMPLETED_WITH_ERRORS
+      : PartnerRunStatus.COMPLETED;
 
   const payload: DataReadyPayloadV1 = {
     version: 'v1',

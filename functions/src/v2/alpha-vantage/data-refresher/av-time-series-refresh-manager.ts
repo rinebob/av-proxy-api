@@ -28,6 +28,7 @@ import { TimeSeriesJobStatus, TimeSeriesJobMode, TimeSeriesRunStatus } from '../
 import { RunIdFactory, type RealtimeRunParams } from '../jobs/runid-factory';
 import { clockPtNow } from '../../common/bar-status/bar-status.service';
 import { getIntradaySkipReason } from './intraday-calendar-gate';
+import { forceCompleteStaleIntradayRuns } from './intraday-self-healing';
 
 const tsJobLogger = betterLogger('aVTSRM');
 
@@ -1211,6 +1212,19 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
       reason: skipReason,
     } as BetterLogPayload);
     return;
+  }
+
+  // Self-healing: force-complete any stale IN_PROGRESS runs from
+  // previous ticks on this market date before creating new jobs.
+  const staleRuns = await forceCompleteStaleIntradayRuns(marketDate);
+  if (staleRuns.length > 0) {
+    tsJobLogger.warn('intraday.scheduler.self_healed', {
+      function: fnString,
+      marketDate,
+      clockPt,
+      staleRunCount: staleRuns.length,
+      staleRuns: staleRuns.map((r) => r.runId),
+    } as BetterLogPayload);
   }
 
   // Derive day-of-week from marketDate (not current time) so manual
