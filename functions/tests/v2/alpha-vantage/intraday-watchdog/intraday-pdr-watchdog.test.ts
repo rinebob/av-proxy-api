@@ -46,7 +46,7 @@ function setData(callIndex: number): any {
 
 // --- Tests -------------------------------------------------------------
 
-describe('Task #74: Intraday PDR delivery watchdog', () => {
+describe('Task #74/#76: Intraday PDR delivery watchdog', () => {
   beforeEach(() => {
     resetMocks();
   });
