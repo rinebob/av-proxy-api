@@ -14,6 +14,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Intraday Run Reliability] 63-71_DOCS-AV-ENDPOINTS: Add code review doc for Task #71
 - [Intraday Run Reliability] 63-72_BE-IMPL-AV-ENDPOINTS: Add calendar gate to intraday scheduler
 - [Intraday Run Reliability] 63-72_DOCS-AV-ENDPOINTS: Add code review doc for Task #72
+- [Intraday Run Reliability] 63-73_BE-IMPL-AV-ENDPOINTS: Add self-healing for stale intraday runs
+- [Intraday Run Reliability] 63-73_DOCS-AV-ENDPOINTS: Add code review doc for Task #73
 
 ### Changed
 - [Intraday Run Reliability] 63-68_SHARED-CHORE-AV-ENDPOINTS: Move market-holidays.data.ts to common/market-calendar/
