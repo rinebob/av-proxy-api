@@ -33,6 +33,15 @@ export const DAILY_TIME_SERIES_UPDATE_SCHEDULE = '30 16 * * 1-5';
  */
 export const TS_DAILY_INTRADAY_HOURLY_SCHEDULE = '0 8,10,12 * * 1-5';
 
+/**
+ * Intraday PDR delivery watchdog schedule.
+ *
+ * Purpose: fires 15 minutes after each intraday tick to verify PDR delivery.
+ * Cron: 15 8,10,12 * * 1-5 (8:15 AM, 10:15 AM, 12:15 PM PT, weekdays)
+ * Timezone: America/Los_Angeles (set at function registration).
+ */
+export const TS_DAILY_INTRADAY_WATCHDOG_SCHEDULE = '15 8,10,12 * * 1-5';
+
 // for refreshAlphaVantageDataV2
 // functions/src/alpha-vantage/data-refresher/av-refresh-manager.ts
 /**

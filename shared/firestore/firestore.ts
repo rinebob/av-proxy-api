@@ -24,6 +24,9 @@ export enum FirestoreCollection {
 
     // Intraday snapshot runs (hourly PRE pipeline)
     INTRADAY_RUNS = 'intraday-runs',
+
+    // Intraday PDR delivery watchdog health docs
+    INTRADAY_HEALTH = 'intraday-health',
     
     YEARS = 'years',
 
