@@ -27,6 +27,7 @@ import type { IntradaySnapshotJobPayload } from '../jobs/intraday-snapshot-jobs.
 import { TimeSeriesJobStatus, TimeSeriesJobMode, TimeSeriesRunStatus } from '../jobs/time-series-jobs.model';
 import { RunIdFactory, type RealtimeRunParams } from '../jobs/runid-factory';
 import { clockPtNow } from '../../common/bar-status/bar-status.service';
+import { getIntradaySkipReason } from './intraday-calendar-gate';
 
 const tsJobLogger = betterLogger('aVTSRM');
 
@@ -1200,21 +1201,22 @@ export async function runIntradaySnapshotJobsForSymbols(options: {
   const { marketDate, clockPt, symbols: symbolsOverride } = options;
   const fnString = 'rISJFS';
 
-  // Weekend guard: skip entirely on Sat/Sun.
-  const dowIdx = Number(
-    new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
-    ).getDay(),
-  );
-  if (dowIdx === 0 || dowIdx === 6) {
-    tsJobLogger.info('intraday.scheduler.skip_weekend', {
+  // Calendar gate: skip on holidays, weekends, and post-early-close ticks.
+  const skipReason = getIntradaySkipReason(marketDate, clockPt);
+  if (skipReason) {
+    tsJobLogger.info('intraday.scheduler.skip', {
       function: fnString,
       marketDate,
       clockPt,
+      reason: skipReason,
     } as BetterLogPayload);
     return;
   }
 
+  // Derive day-of-week from marketDate (not current time) so manual
+  // invocations with a past date produce the correct runId.
+  const [y, m, d] = marketDate.split('-').map(Number);
+  const dowIdx = new Date(y, m - 1, d).getDay();
   const DOW_ENUM: DayOfWeek[] = [
     DayOfWeek.Sun, DayOfWeek.Mon, DayOfWeek.Tue, DayOfWeek.Wed,
     DayOfWeek.Thu, DayOfWeek.Fri, DayOfWeek.Sat,
