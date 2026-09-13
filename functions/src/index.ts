@@ -121,6 +121,10 @@ export { processTimeSeriesJobDev } from './v2/alpha-vantage/jobs/time-series-job
 export { processIntradaySnapshotJobTask } from './v2/alpha-vantage/jobs/intraday-snapshot-jobs.task';
 export { runIntradaySnapshotDev, processIntradaySnapshotJobDev } from './v2/alpha-vantage/jobs/intraday-snapshot-jobs.http';
 
+// PDR delivery watchdogs
+export { intradayPdrWatchdog } from './v2/alpha-vantage/intraday-watchdog/intraday-pdr-watchdog';
+export { postPdrWatchdog } from './v2/alpha-vantage/post-watchdog/post-pdr-watchdog';
+
 export { processFullBackfillRunTask } from './v2/alpha-vantage/data-refresher/av-full-backfill.task';
 
 export { triggerFullBackfillJobs } from './v2/alpha-vantage/data-refresher/av-full-backfill.http';

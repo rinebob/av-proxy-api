@@ -27,6 +27,9 @@ export enum FirestoreCollection {
 
     // Intraday PDR delivery watchdog health docs
     INTRADAY_HEALTH = 'intraday-health',
+
+    // POST PDR delivery watchdog health docs
+    REALTIME_HEALTH = 'realtime-health',
     
     YEARS = 'years',
 
