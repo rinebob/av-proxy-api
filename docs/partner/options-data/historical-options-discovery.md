@@ -1,8 +1,8 @@
 # Partner Historical Options — Discovery Document
 
 **Status:** Deployed; Savant production smoke test passed for raw chain; `partnerHistoricalOptionsContractV2` deployed and serving QQQ per-contract time series; 2019–2024 QQQ complete; 2025 backfill in progress; TQQQ pending
-**Audience:** Partner engineering and administrative teams  
-**Last updated:** 2026-07-23
+**Audience:** Partner engineering and administrative teams
+**Last updated:** 2026-09-15
 
 ---
 
@@ -11,6 +11,14 @@
 Savant plans to provide historical options chains through a dedicated partner endpoint: `partnerHistoricalOptionsV2`.
 
 The first release is intentionally different from the time-series and company-overview partner APIs: it is an authenticated, on-demand proxy to Alpha Vantage rather than a Firestore-backed reader. Full option chains can be too large for one Firestore document, so raw-chain persistence is not part of the initial service.
+
+## Symbol Scope
+
+This endpoint accepts **any symbol present in the `tracked_symbols` Firestore collection** — not just QQQ/TQQQ. The QQQ/TQQQ restriction applies only to the per-contract time-series endpoints (`partnerHistoricalOptionsContractV2`, `partnerContractCatalogV2`), which read from a GCS corpus that has only been backfilled for those two symbols.
+
+Requests for a symbol that is not in `tracked_symbols` are rejected with `404 NOT_FOUND` (see Error Handling). To request options data for a new symbol, it must be added to `tracked_symbols` first; partners can discover the current tracked set via `partnerListTrackedSymbolsV2`.
+
+The endpoint is a faithful proxy to Alpha Vantage: it will fetch whatever AV returns for the requested symbol and date. "Tracked" means the service will attempt the fetch — it does not guarantee that Alpha Vantage has historical options data for that symbol.
 
 ## Availability
 
@@ -52,7 +60,7 @@ The endpoint uses the same dual-auth model as existing partner endpoints.
 
 | Parameter | Required | Format | Description |
 |---|---:|---|---|
-| `symbol` | Yes | Ticker symbol | Equity symbol, case-insensitive. The service normalizes it to uppercase. |
+| `symbol` | Yes | Ticker symbol | Equity symbol, case-insensitive. The service normalizes it to uppercase. Must be present in the `tracked_symbols` collection or the request is rejected with `404 NOT_FOUND`. |
 | `date` | No | `YYYY-MM-DD` | Historical trading date requested from Alpha Vantage. When omitted, Alpha Vantage determines the returned session. |
 
 Unknown query parameters are ignored.
@@ -109,6 +117,7 @@ Maximum response size and timeout will be communicated during onboarding because
 | 400 | `BAD_REQUEST` | Correct request parameters; do not retry unchanged. |
 | 401 / 403 | Authentication middleware envelope | Verify OIDC token, audience, IAM invoker role, and allowlisting. The response contains `error` and `message`, not an endpoint `code`. |
 | 403 | `FORBIDDEN` | A valid Firebase identity was presented instead of the required service-account identity. |
+| 404 | `NOT_FOUND` | The requested symbol is not in the `tracked_symbols` collection. Add the symbol to `tracked_symbols` before retrying. |
 | 413 | `RESPONSE_TOO_LARGE` | Reduce request scope if a future filter is available; otherwise contact Savant. |
 | 429 | `RATE_LIMITED` | Retry with bounded exponential backoff and jitter. |
 | 502 / 504 | `UPSTREAM_ERROR` / `UPSTREAM_TIMEOUT` | Retry transiently with bounded exponential backoff. |

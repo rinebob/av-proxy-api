@@ -71,6 +71,7 @@ function createDependencies(
     authenticateRequest: async () => ({ serviceAccountEmail: 'rs@example.com' }),
     fetchOptions: async () => ({ response: testData, analysis: testAnalysis }),
     hasExpectedGoogleAudience: () => true,
+    isSymbolTracked: async () => true,
     now: () => testNow,
     ...overrides,
   };
@@ -151,6 +152,25 @@ it('rejects invalid request parameters after authentication', async () => {
   const responseState = createResponse();
   await historicalOptionsPartnerHandler(createRequest(HttpMethod.GET), responseState.response, createDependencies());
   assertEqual(responseState.statusCode, 400, 'status');
+});
+
+it('rejects untracked symbols with 404 NOT_FOUND', async () => {
+  const responseState = createResponse();
+  await historicalOptionsPartnerHandler(
+    createRequest(HttpMethod.GET, { symbol: 'UNTRACKED' }),
+    responseState.response,
+    createDependencies({ isSymbolTracked: async () => false }),
+  );
+  assertEqual(responseState.statusCode, 404, 'status');
+  const body = responseState.body as { ok?: boolean; code?: string; error?: string; timestamp?: string };
+  assertEqual(body.ok, false, 'ok');
+  assertEqual(body.code, HistoricalOptionsErrorCode.NOT_FOUND, 'code');
+  assertEqual(body.timestamp, testNow.toISOString(), 'timestamp');
+  assertEqual(
+    body.error,
+    'Symbol UNTRACKED is not in the tracked_symbols collection. Add the symbol to tracked_symbols before retrying.',
+    'error',
+  );
 });
 
 it('maps typed provider failures', async () => {

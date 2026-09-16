@@ -58,6 +58,22 @@ export class SymbolManagerService {
   }
 
   /**
+   * Checks whether a symbol is tracked (exists in the TRACKED_SYMBOLS collection).
+   * @param symbol - The symbol to check (case-insensitive)
+   * @returns A promise that resolves to true if the symbol is tracked, false otherwise
+   */
+  async isSymbolTracked(symbol: string): Promise<boolean> {
+    if (!symbol || typeof symbol !== 'string') {
+      return false;
+    }
+    try {
+      return (await this.getSymbol(symbol)) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Counts the number of active symbols
    * @returns A promise that resolves to the count of active symbols
    */

@@ -14,6 +14,7 @@ import { ApiProvider, DATA_PROVIDERS, HttpMethod } from '@shared/core';
 import { AlphaVantageUpstreamError } from '../alpha-vantage/utils';
 import { HistoricalOptionsRetrievalService } from '../historical-options-corpus/services/historical-options-retrieval.service';
 import { NoOpAvThrottle } from '../historical-options-corpus/services/av-throttle.service';
+import { symbolManagerService } from '../alpha-vantage/services/symbol-manager.service';
 import { authenticateRequestEither, createLogger, getAlphaVantageApiKey } from '../utils/utils';
 import {
   HistoricalOptionsErrorCode,
@@ -30,6 +31,21 @@ const logger = createLogger('[partner-historical-options]');
 
 const alphaVantageApiKey = defineSecret('ALPHAVANTAGE_API_KEY');
 
+function sendPartnerError(
+  res: Response,
+  status: number,
+  code: HistoricalOptionsErrorCode,
+  message: string,
+  now: () => Date,
+): void {
+  res.status(status).json({
+    ok: false,
+    error: message,
+    code,
+    timestamp: now().toISOString(),
+  });
+}
+
 const functionOptions: HttpsOptions = {
   memory: '1GiB',
   maxInstances: 10,
@@ -43,6 +59,7 @@ export interface HistoricalOptionsPartnerDependencies {
     params: { symbol: string; date?: string },
   ) => Promise<{ response: AvHistoricalOptionsResponse; analysis: SvtOptionsAnalysis }>;
   hasExpectedGoogleAudience: () => boolean;
+  isSymbolTracked: (symbol: string) => Promise<boolean>;
   now: () => Date;
 }
 
@@ -62,6 +79,7 @@ const historicalOptionsPartnerDependencies: HistoricalOptionsPartnerDependencies
     return retrieval.fetch(params);
   },
   hasExpectedGoogleAudience: () => expectedGoogleAudience.value().split(',').some((value) => Boolean(value.trim())),
+  isSymbolTracked: (symbol: string) => symbolManagerService.isSymbolTracked(symbol),
   now: () => new Date(),
 };
 
@@ -81,23 +99,13 @@ export async function historicalOptionsPartnerHandler(
         status: 405,
         processingTimeMs: dependencies.now().getTime() - startedAt,
       });
-      res.status(405).json({
-        ok: false,
-        error: 'Method Not Allowed',
-        code: HistoricalOptionsErrorCode.METHOD_NOT_ALLOWED,
-        timestamp: dependencies.now().toISOString(),
-      });
+      sendPartnerError(res, 405, HistoricalOptionsErrorCode.METHOD_NOT_ALLOWED, 'Method Not Allowed', dependencies.now);
       return;
     }
 
     if (!dependencies.hasExpectedGoogleAudience()) {
       logger.error('historicalOptions.audience_not_configured', { requestId, status: 500 });
-      res.status(500).json({
-        ok: false,
-        error: 'Internal server error',
-        code: HistoricalOptionsErrorCode.INTERNAL_ERROR,
-        timestamp: dependencies.now().toISOString(),
-      });
+      sendPartnerError(res, 500, HistoricalOptionsErrorCode.INTERNAL_ERROR, 'Internal server error', dependencies.now);
       return;
     }
 
@@ -113,28 +121,25 @@ export async function historicalOptionsPartnerHandler(
 
     if (!('serviceAccountEmail' in authResult)) {
       logger.warn('historicalOptions.firebase_auth_rejected', { requestId, status: 403 });
-      res.status(403).json({
-        ok: false,
-        error: 'Service account authentication is required',
-        code: HistoricalOptionsErrorCode.FORBIDDEN,
-        timestamp: dependencies.now().toISOString(),
-      });
+      sendPartnerError(res, 403, HistoricalOptionsErrorCode.FORBIDDEN, 'Service account authentication is required', dependencies.now);
       return;
     }
 
     const request = parseHistoricalOptionsRequest(req.query.symbol, req.query.date);
     if (!request) {
       logger.warn('historicalOptions.invalid_request', { requestId, status: 400 });
-      res.status(400).json({
-        ok: false,
-        error: 'Invalid request. Provide a valid symbol and optional date in YYYY-MM-DD format.',
-        code: HistoricalOptionsErrorCode.BAD_REQUEST,
-        timestamp: dependencies.now().toISOString(),
-      });
+      sendPartnerError(res, 400, HistoricalOptionsErrorCode.BAD_REQUEST, 'Invalid request. Provide a valid symbol and optional date in YYYY-MM-DD format.', dependencies.now);
       return;
     }
 
     const { symbol, date } = request;
+
+    const isTracked = await dependencies.isSymbolTracked(symbol);
+    if (!isTracked) {
+      logger.warn('historicalOptions.symbol_not_tracked', { requestId, symbol, status: 404 });
+      sendPartnerError(res, 404, HistoricalOptionsErrorCode.NOT_FOUND, `Symbol ${symbol} is not in the tracked_symbols collection. Add the symbol to tracked_symbols before retrying.`, dependencies.now);
+      return;
+    }
 
     logger.info('historicalOptions.request', {
       requestId,
@@ -161,12 +166,7 @@ export async function historicalOptionsPartnerHandler(
         status: mapped.status,
         upstreamTimeMs: dependencies.now().getTime() - upstreamStartedAt,
       });
-      res.status(mapped.status).json({
-        ok: false,
-        error: mapped.message,
-        code: mapped.code,
-        timestamp: dependencies.now().toISOString(),
-      });
+      sendPartnerError(res, mapped.status, mapped.code, mapped.message, dependencies.now);
       return;
     }
 
@@ -192,12 +192,7 @@ export async function historicalOptionsPartnerHandler(
         status: 413,
         upstreamTimeMs: dependencies.now().getTime() - upstreamStartedAt,
       });
-      res.status(413).json({
-        ok: false,
-        error: 'Historical options response exceeds the supported response size',
-        code: HistoricalOptionsErrorCode.RESPONSE_TOO_LARGE,
-        timestamp: dependencies.now().toISOString(),
-      });
+      sendPartnerError(res, 413, HistoricalOptionsErrorCode.RESPONSE_TOO_LARGE, 'Historical options response exceeds the supported response size', dependencies.now);
       return;
     }
 
@@ -220,12 +215,7 @@ export async function historicalOptionsPartnerHandler(
       status: 500,
       processingTimeMs: dependencies.now().getTime() - startedAt,
     });
-    res.status(500).json({
-      ok: false,
-      error: 'Internal server error',
-      code: HistoricalOptionsErrorCode.INTERNAL_ERROR,
-      timestamp: dependencies.now().toISOString(),
-    });
+    sendPartnerError(res, 500, HistoricalOptionsErrorCode.INTERNAL_ERROR, 'Internal server error', dependencies.now);
   }
 }
 
