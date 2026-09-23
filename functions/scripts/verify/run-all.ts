@@ -15,6 +15,7 @@ const scripts = [
   'earnings-42-earnings-estimates-handler.ts',
   'earnings-43-earnings-calendar-handler.ts',
   'earnings-44-factory-registration.ts',
+  'symbol-manager-97-companyinfo-writeback.ts',
 ];
 
 let passed = 0;

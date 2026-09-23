@@ -138,6 +138,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #42 | `earnings-42-earnings-estimates-handler.ts` | BE: EARNINGS_ESTIMATES handler transform verification | [earnings-42-earnings-estimates-handler.md](earnings-42-earnings-estimates-handler.md) |
 | #43 | `earnings-43-earnings-calendar-handler.ts` | BE: EARNINGS_CALENDAR handler fetch/parse/filter/save verification | [earnings-43-earnings-calendar-handler.md](earnings-43-earnings-calendar-handler.md) |
 | #44 | `earnings-44-factory-registration.ts` | BE: Factory registration + isGlobalEndpoint helper verification | [earnings-44-factory-registration.md](earnings-44-factory-registration.md) |
+| #97 | `symbol-manager-97-companyinfo-writeback.ts` | BE: companyInfo marketCap/beta write-back (transform + persistence) | [symbol-manager-97-companyinfo-writeback.md](symbol-manager-97-companyinfo-writeback.md) |
 
 ## Execution order
 
@@ -150,6 +151,10 @@ Run scripts in task dependency order. The dependency chain for the earnings Topi
 5. **#42** (BE: EARNINGS_ESTIMATES handler) — blocked by #39
 6. **#43** (BE: EARNINGS_CALENDAR handler) — blocked by #40, #39
 7. **#44** (BE: factory + refresh manager) — blocked by #41, #42, #43
+
+Topic #88 (Symbol Manager company overview):
+
+1. **#97** (BE: companyInfo write-back) — no dependencies
 
 Run all scripts for a task after the task's implementation is complete and unit tests pass. The run-all script handles ordering automatically.
 
