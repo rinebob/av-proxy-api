@@ -3,6 +3,13 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-09-23]
+
+### Added
+- [Add Company Overview Data to Symbol Manager] 88-97_BE-IMPL-SYMBOL-MANAGER: Add numeric marketCap/beta to companyInfo write-back
+- [Add Company Overview Data to Symbol Manager] 88-97_BE-DOCS-SYMBOL-MANAGER: Add verification script and guide for companyInfo write-back
+- [Add Company Overview Data to Symbol Manager] 88-97_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 97
+
 ## [2026-09-20]
 
 ### Added
