@@ -1,20 +1,14 @@
 import { AlphaVantageBaseHandler } from './alpha-vantage-base.handler';
 import { validateAlphaVantageApiResponse } from '../utils/av-response-utils';
 import { createLogger } from '../../utils/utils';
-import { AvCompanyOverview, TrackedSymbolCompanyInfo, TRACKED_SYMBOL_V2_FIELDS } from '@shared/alpha-vantage';
+import { AvCompanyOverview, TRACKED_SYMBOL_V2_FIELDS } from '@shared/alpha-vantage';
 import { FirestoreCollection } from '@shared/firestore';
 import { Timestamp } from 'firebase-admin/firestore';
 import { db } from '../../../firebase-admin-init';
 import type { ApiResponse } from '@shared/core';
+import { buildTrackedSymbolCompanyInfo } from '../logic/company-info.builder';
 
 const log = createLogger('av.handler.company-overview'); // Abbrev: aCO.H
-
-/** Fields copied from AvCompanyOverview into the tracked-symbols doc for sorting/filtering. */
-const COMPANY_INFO_FIELDS: ReadonlyArray<keyof TrackedSymbolCompanyInfo> = [
-  'Symbol', 'AssetType', 'Name', 'Description', 'CIK',
-  'Exchange', 'Currency', 'Country', 'Sector', 'Industry',
-  'Address', 'OfficialSite', 'FiscalYearEnd',
-];
 
 /**
  * Handler for the Alpha Vantage Company Overview endpoint.
@@ -36,23 +30,18 @@ export class AvCompanyOverviewHandler extends AlphaVantageBaseHandler<AvCompanyO
     const data = response?.data;
     if (symbol && data && Object.keys(data).length > 0) {
       try {
-        const typedData = data as AvCompanyOverview;
-        const companyInfo = COMPANY_INFO_FIELDS.reduce((acc, key) => {
-          const val = typedData[key as keyof AvCompanyOverview];
-          if (val !== undefined) acc[key] = val;
-          return acc;
-        }, {} as Partial<TrackedSymbolCompanyInfo>);
+        const companyInfo = buildTrackedSymbolCompanyInfo(data);
 
+        // update() replaces the companyInfo map wholesale (snapshot semantics) so
+        // fields AV stops returning are cleared rather than left stale; merge
+        // would keep them. Only the two written fields change — doc siblings preserved.
         await db
           .collection(FirestoreCollection.TRACKED_SYMBOLS)
           .doc(symbol.toUpperCase())
-          .set(
-            {
-              [TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO]: companyInfo,
-              [TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO_LAST_UPDATED]: Timestamp.now(),
-            },
-            { merge: true }
-          );
+          .update({
+            [TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO]: companyInfo,
+            [TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO_LAST_UPDATED]: Timestamp.now(),
+          });
 
         log.info('tracked_symbols.company_info_updated', { symbol, requestId: this.requestId });
       } catch (writeErr: any) {

@@ -62,10 +62,14 @@ export interface AvCompanyOverview {
 }
 
 /**
- * Stable subset of AvCompanyOverview fields suitable for denormalizing into
- * the tracked-symbols collection. Contains only slowly-changing identity and
- * classification fields — volatile fundamentals (ratios, prices, analyst data)
- * are intentionally excluded and remain in the symbol-data collection only.
+ * Subset of AvCompanyOverview fields denormalized into the tracked-symbols
+ * collection for display and sorting/filtering without joining symbol-data.
+ * Mostly slowly-changing identity and classification fields; marketCap and
+ * beta are the exception — volatile numeric fields parsed from AV strings so
+ * they sort numerically (see ADR 0001, Topic #88). They are only as fresh as
+ * the symbol's last OVERVIEW refresh. The write-back replaces this map
+ * wholesale each refresh, so fields AV stops returning are cleared rather
+ * than left stale.
  */
 export interface TrackedSymbolCompanyInfo {
   Symbol: string;
@@ -81,6 +85,8 @@ export interface TrackedSymbolCompanyInfo {
   Address: string;
   OfficialSite: string;
   FiscalYearEnd: string;
+  marketCap?: number;
+  beta?: number;
 }
 
 /**
