@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-09-20]
+
+### Added
+- [Add Company Overview Data to Symbol Manager] 88-88_DOCS-SYMBOL-MANAGER: Add Topic 88 PRD, ADR 0001, and BE/FE impl + test plans (checkpoint)
+
 ## [2026-09-09]
 
 ### Added
