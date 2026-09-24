@@ -15,6 +15,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Add Company Overview Data to Symbol Manager] 88-98_BE-IMPL-SYMBOL-MANAGER: Add sortBy whitelist + composite indexes for listSymbolsV2
 - [Add Company Overview Data to Symbol Manager] 88-98_BE-DOCS-SYMBOL-MANAGER: Add verification script and guide for sortable fields
 - [Add Company Overview Data to Symbol Manager] 88-98_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 98
+- [Add Company Overview Data to Symbol Manager] 88-99_BE-IMPL-SYMBOL-MANAGER: Add companyInfo diff + backfill script (marketCap/beta onto tracked-symbols)
+- [Add Company Overview Data to Symbol Manager] 88-99_BE-DOCS-SYMBOL-MANAGER: Add backfill verification guide
+- [Add Company Overview Data to Symbol Manager] 88-99_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 99
 
 ## [2026-09-20]
 
