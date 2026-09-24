@@ -18,6 +18,7 @@ const scripts = [
   'symbol-manager-97-companyinfo-writeback.ts',
   'symbol-manager-98-sortable-fields.ts',
   'options-data-122-zigzag-engine.ts',
+  'options-data-123-swing-set-types.ts',
 ];
 
 let passed = 0;
