@@ -144,6 +144,9 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #122 | `options-data-122-zigzag-engine.ts` | SHARED: compiled zigzag engine on real daily bars (transform) | [options-data-122-zigzag-engine.md](options-data-122-zigzag-engine.md) |
 | #123 | `options-data-123-swing-set-types.ts` | SHARED: paramsId + canonical configs + SwingSetDoc assembly (transform) | [options-data-123-swing-set-types.md](options-data-123-swing-set-types.md) |
 | #124 | `options-data-124-swing-set-data-layer.ts` *(mutating, not in run-all)* | BE: DailyAdjustedReader + SwingSetRepository (ingestion + persistence; writes + deletes temp ZZTEST doc) | [options-data-124-swing-set-data-layer.md](options-data-124-swing-set-data-layer.md) |
+| #125 | `options-data-125-swing-set-generation.ts` *(mutating, not in run-all)* | BE: SwingSetGenerationService end-to-end (writes + deletes four canonical docs) | [options-data-125-swing-set-generation.md](options-data-125-swing-set-generation.md) |
+| #126 | `options-data-126-swing-set-task.ts` *(mutating, not in run-all)* | BE: generateSwingSetsTask internals — optionsEnabled enqueue gate, freshness skip, invalid-payload ack | [options-data-126-swing-set-task.md](options-data-126-swing-set-task.md) |
+| #119 | `ops-119-firestore-indexes.ts` | OPS: firestore.indexes.json ↔ prod drift check | [ops-119-firestore-indexes.md](ops-119-firestore-indexes.md) |
 
 ## Execution order
 
@@ -168,6 +171,12 @@ Topic #102 (Swing-driven options corpus):
 1. **#122** (SHARED: zigzag engine port) — no dependencies
 2. **#123** (SHARED: swing-set types + paramsId + canonical configs) — blocked by #122 (consumes the engine)
 3. **#124** (BE: data layer) — blocked by #122, #123; **mutating** — writes a temporary `ZZTEST_*` probe doc and deletes it (not in run-all)
+4. **#125** (BE: generation service) — blocked by #124; **mutating** — writes + deletes `{SYMBOL}_{paramsId}` docs (not in run-all)
+5. **#126** (BE: task handler) — blocked by #125; **mutating** — writes + deletes `tracked-symbols/ZZTEST` + `ZZTEST_*` docs (not in run-all)
+
+Topic #118 (Repo & deploy hygiene):
+
+1. **#119** (OPS: index drift check) — no dependencies; run after any index deploy or suspected drift
 
 Run all scripts for a task after the task's implementation is complete and unit tests pass. The run-all script handles ordering automatically.
 

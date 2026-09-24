@@ -103,6 +103,7 @@ Read in this order for partner onboarding:
 | `operations/local-emulator-workflow.md` | Local development: Firebase emulator setup, HTTP triggers, env config, maintenance scripts on emulator. |
 | `operations/backend-functions-overview.md` | Mid-high level overview of all backend Cloud Functions: directory structure, invocation types, scheduled jobs, data flow. |
 | `operations/gcloud-deploy-workflow.md` | How to deploy Cloud Functions via `gcloud` when `firebase deploy` is blocked by network-level `ECONNRESET` errors. Covers `.gcloudignore` fix, build step, per-function deploy commands, and troubleshooting. |
+| `operations/firestore-indexes-deploy.md` | Firestore index management: firestore.indexes.json is the source of truth — add/adopt/delete index how-to, `__name__` format rule, drift policy, 409 troubleshooting. |
 
 ---
 

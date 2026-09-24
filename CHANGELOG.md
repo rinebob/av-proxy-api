@@ -3,6 +3,16 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-09-24]
+
+### Fixed
+- [Repo & Deploy Hygiene] 118-119_CONFIG-CONFIG-OPS: Reconcile firestore.indexes.json with prod — file now tracks all 78 deployed indexes in CLI-export format
+- [Repo & Deploy Hygiene] 118-119_TESTS-BUG-OPS: Fix relative path depth in contract-summary-aggregator test (pre-existing failure)
+
+### Added
+- [Repo & Deploy Hygiene] 118-119_BE-IMPL-OPS: Add ops-119-firestore-indexes drift verification script
+- [Repo & Deploy Hygiene] 118-119_DOCS-DOCS-OPS: Index management guide, drift-check guide, code review doc, README updates
+
 ## [2026-09-23]
 
 ### Added
