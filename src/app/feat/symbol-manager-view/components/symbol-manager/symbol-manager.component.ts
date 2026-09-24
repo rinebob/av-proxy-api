@@ -17,6 +17,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { SymbolManagerStore } from '../../store/symbol-manager.store';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SymbolInputFormComponent } from '../symbols-dialog/symbol-input-form/symbol-input-form.component';
+import { formatBeta, formatMarketCap, orDash } from '../../utils/company-info.format';
 
 @Component({
   selector: 'app-symbol-manager',
@@ -51,13 +52,18 @@ export class SymbolManagerComponent implements OnInit {
 
   // Table configuration
   displayedV2Columns = [
-    'symbol', 'name', 'type', 'region', 'timezone', 'currency', 'matchScore',
-    '_createdAt', '_lastUpdated', '_isActive'
+    'symbol', 'name', 'sector', 'industry', 'marketCap', 'beta',
+    'type', '_createdAt', '_lastUpdated', '_isActive'
   ];
   readonly pageSize = signal(25);
   readonly pageIndex = signal(0);
   sortField = 'symbol';
   sortDirection: 'asc' | 'desc' = 'asc';
+
+  // companyInfo column formatters (exposed for the template)
+  readonly formatMarketCap = formatMarketCap;
+  readonly formatBeta = formatBeta;
+  readonly orDash = orDash;
 
   // Tab configuration
   readonly tabNames = ['list'] as const;
