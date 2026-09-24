@@ -29,15 +29,14 @@ import {
   DEFAULT_CONFIG,
 } from '@shared/zigzag';
 import type { Pivot, PriceBar, ZigZagConfig, ZigZagResult } from '@shared/zigzag';
-import type { CompactBar } from '@shared/alpha-vantage';
-import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
-import { ApiProvider } from '@shared/core';
-import { getSymbolTimeSeriesYearsCollectionPath } from '../../src/v2/common/firestore/firestore-paths';
 
 if (!admin.apps.length) {
   admin.initializeApp({ projectId: 'alpha-vantage-proxy-api' });
 }
 const db = admin.firestore();
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { DailyAdjustedReader } = require('../../src/v2/swing-set/services/daily-adjusted-reader.service');
 
 function assert(condition: boolean, message: string): void {
   if (!condition) {
@@ -47,37 +46,11 @@ function assert(condition: boolean, message: string): void {
   console.log('PASS: ' + message);
 }
 
-/** Read all year-sharded daily-adjusted bars for a symbol, ascending by time. */
+/** Read all year-sharded daily-adjusted bars for a symbol via the #124 reader, ascending by time. */
 async function readDailyBars(symbol: string): Promise<PriceBar[]> {
-  const yearsPath = getSymbolTimeSeriesYearsCollectionPath(
-    symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, ApiProvider.ALPHA_VANTAGE,
-  );
-  const yearsSnap = await db.collection(yearsPath).get();
-  assert(yearsSnap.size > 0, `${yearsPath} has ${yearsSnap.size} year docs`);
-
-  const bars: PriceBar[] = [];
-  for (const yearDoc of yearsSnap.docs) {
-    const compact = (yearDoc.get('bars') ?? []) as CompactBar[];
-    for (const b of compact) {
-      // Engine reads high/low for pivots and close for downstream consumers;
-      // skip bars missing any of them rather than silently defaulting to 0.
-      // `open` is optional in CompactBar and unused by the engine — fall back
-      // to close when absent.
-      if (!Number.isFinite(b.h) || !Number.isFinite(b.l) || !Number.isFinite(b.c)) continue;
-      const date = b.d ?? new Date(b.t).toISOString().slice(0, 10);
-      bars.push({
-        date,
-        x: new Date(b.t),
-        open: b.o ?? b.c!,
-        high: b.h!,
-        low: b.l!,
-        close: b.c!,
-        volume: b.v,
-      });
-    }
-  }
-  bars.sort((a, b) => a.x.getTime() - b.x.getTime());
-  return bars;
+  const adjusted = await new DailyAdjustedReader(db).read(symbol);
+  assert(adjusted.length > 0, `${symbol}: DailyAdjustedReader returned ${adjusted.length} bars`);
+  return adjusted.map((b: { date: string }) => DailyAdjustedReader.toPriceBar(b));
 }
 
 function checkResult(symbol: string, label: string, result: ZigZagResult): void {

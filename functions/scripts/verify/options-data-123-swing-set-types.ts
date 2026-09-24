@@ -25,15 +25,14 @@ import {
   computeSwingStats,
 } from '@shared/zigzag';
 import type { PriceBar, SwingSetDoc } from '@shared/zigzag';
-import type { CompactBar } from '@shared/alpha-vantage';
-import { AlphaVantageEndpoint } from '@shared/alpha-vantage';
-import { ApiProvider } from '@shared/core';
-import { getSymbolTimeSeriesYearsCollectionPath } from '../../src/v2/common/firestore/firestore-paths';
 
 if (!admin.apps.length) {
   admin.initializeApp({ projectId: 'alpha-vantage-proxy-api' });
 }
 const db = admin.firestore();
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { DailyAdjustedReader } = require('../../src/v2/swing-set/services/daily-adjusted-reader.service');
 
 function assert(condition: boolean, message: string): void {
   if (!condition) {
@@ -44,30 +43,9 @@ function assert(condition: boolean, message: string): void {
 }
 
 async function readDailyBars(symbol: string): Promise<PriceBar[]> {
-  const yearsPath = getSymbolTimeSeriesYearsCollectionPath(
-    symbol, AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED, ApiProvider.ALPHA_VANTAGE,
-  );
-  const yearsSnap = await db.collection(yearsPath).get();
-  assert(yearsSnap.size > 0, `${yearsPath} has ${yearsSnap.size} year docs`);
-
-  const bars: PriceBar[] = [];
-  for (const yearDoc of yearsSnap.docs) {
-    const compact = (yearDoc.get('bars') ?? []) as CompactBar[];
-    for (const b of compact) {
-      if (!Number.isFinite(b.h) || !Number.isFinite(b.l) || !Number.isFinite(b.c)) continue;
-      bars.push({
-        date: b.d ?? new Date(b.t).toISOString().slice(0, 10),
-        x: new Date(b.t),
-        open: b.o ?? b.c!,
-        high: b.h!,
-        low: b.l!,
-        close: b.c!,
-        volume: b.v,
-      });
-    }
-  }
-  bars.sort((a, b) => a.x.getTime() - b.x.getTime());
-  return bars;
+  const adjusted = await new DailyAdjustedReader(db).read(symbol);
+  assert(adjusted.length > 0, `${symbol}: DailyAdjustedReader returned ${adjusted.length} bars`);
+  return adjusted.map((b: { date: string }) => DailyAdjustedReader.toPriceBar(b));
 }
 
 async function main(): Promise<void> {

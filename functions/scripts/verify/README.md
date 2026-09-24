@@ -143,6 +143,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #99 | `backfill/backfill-companyinfo-numbers.ts` (mutating, not in run-all) | BE: one-time marketCap/beta backfill — dry-run/re-run idempotency | [symbol-manager-99-backfill.md](symbol-manager-99-backfill.md) |
 | #122 | `options-data-122-zigzag-engine.ts` | SHARED: compiled zigzag engine on real daily bars (transform) | [options-data-122-zigzag-engine.md](options-data-122-zigzag-engine.md) |
 | #123 | `options-data-123-swing-set-types.ts` | SHARED: paramsId + canonical configs + SwingSetDoc assembly (transform) | [options-data-123-swing-set-types.md](options-data-123-swing-set-types.md) |
+| #124 | `options-data-124-swing-set-data-layer.ts` *(mutating, not in run-all)* | BE: DailyAdjustedReader + SwingSetRepository (ingestion + persistence; writes + deletes temp ZZTEST doc) | [options-data-124-swing-set-data-layer.md](options-data-124-swing-set-data-layer.md) |
 
 ## Execution order
 
@@ -166,6 +167,7 @@ Topic #102 (Swing-driven options corpus):
 
 1. **#122** (SHARED: zigzag engine port) — no dependencies
 2. **#123** (SHARED: swing-set types + paramsId + canonical configs) — blocked by #122 (consumes the engine)
+3. **#124** (BE: data layer) — blocked by #122, #123; **mutating** — writes a temporary `ZZTEST_*` probe doc and deletes it (not in run-all)
 
 Run all scripts for a task after the task's implementation is complete and unit tests pass. The run-all script handles ordering automatically.
 
