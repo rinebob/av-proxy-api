@@ -68,6 +68,31 @@ export interface TrackedSymbolV2 extends AvSymbol {
   // without requiring a join to symbol-data.
   companyInfo?: TrackedSymbolCompanyInfo;
   _companyInfoLastUpdated?: TimestampLike | Date;
+
+  // Options-corpus flags (Topic #102 / Thread #105).
+  // `optionable`: factual — symbol has a listed option chain (system-probed).
+  // `optionsEnabled`: curated — operator opted the symbol into the options
+  // corpus pipeline (swing-set generation → pivot options ingest → contract
+  // time-series). Both absent until Thread #105 lands.
+  optionable?: boolean | null;
+  optionsEnabled?: boolean;
+  optionableCheckedAt?: TimestampLike | Date;
+  /** Liquidity snapshot recorded by the optionable probe (Thread #105 §80). */
+  optionableProbeSummary?: {
+    totalContracts?: number;
+    totalVolume?: number;
+    totalOpenInterest?: number;
+    uniqueStrikes?: number;
+    /** Count of distinct expiration dates in the probed chain. */
+    expirations?: number;
+  };
+  /** Audit trail of optionsEnabled toggles (Thread #105 §70). */
+  optionsEnabledHistory?: {
+    enabled: boolean;
+    changedBy?: string;
+    changedAt: TimestampLike | Date;
+    reason?: string;
+  }[];
 }
 
 export interface ListSymbolsV2Response {
@@ -108,6 +133,11 @@ export const TRACKED_SYMBOL_V2_FIELDS = {
   READY_AT: '_readyAt',
   ONBOARDING_FAILED_AT: '_onboardingFailedAt',
   ONBOARDING_FAILURE_REASON: '_onboardingFailureReason',
+  OPTIONABLE: 'optionable',
+  OPTIONS_ENABLED: 'optionsEnabled',
+  OPTIONABLE_CHECKED_AT: 'optionableCheckedAt',
+  OPTIONABLE_PROBE_SUMMARY: 'optionableProbeSummary',
+  OPTIONS_ENABLED_HISTORY: 'optionsEnabledHistory',
 };
 
 /**
