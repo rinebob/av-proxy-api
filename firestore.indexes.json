@@ -1,299 +1,1199 @@
 {
   "indexes": [
     {
-      "collectionGroup": "tracked-symbols",
+      "collectionGroup": "realtime-runs",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.Sector", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "interval",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "runType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "marketDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "request-logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "endpointId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "request-logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.Sector", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "_createdAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.Industry", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "_createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.Industry", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "_lastUpdated",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.Country", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "_lastUpdated",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.Country", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.beta",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.marketCap", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.beta",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.marketCap", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.Country",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.beta", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.Country",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "companyInfo.beta", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.Industry",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "symbol", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.Industry",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "symbol", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.marketCap",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "name", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.marketCap",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "name", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.Sector",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "type", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyInfo.Sector",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "type", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "currency",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "region", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "currency",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "region", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "name",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "currency", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "name",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "currency", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "region",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "_createdAt", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "region",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "_createdAt", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "symbol",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "_lastUpdated", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "symbol",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "tracked-symbols",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "_isActive", "order": "ASCENDING" },
-        { "fieldPath": "_lastUpdated", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "_isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "symbol",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ts-contracts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contractLengthBucket", "order": "ASCENDING" },
-        { "fieldPath": "expiration", "order": "ASCENDING" },
-        { "fieldPath": "strike", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthDays",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ts-contracts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contractLengthBucket", "order": "ASCENDING" },
-        { "fieldPath": "expiration", "order": "ASCENDING" },
-        { "fieldPath": "strike", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthDays",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ts-contracts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contractLengthBucket", "order": "ASCENDING" },
-        { "fieldPath": "expiration", "order": "ASCENDING" },
-        { "fieldPath": "contractLengthDays", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ts-contracts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contractLengthBucket", "order": "ASCENDING" },
-        { "fieldPath": "expiration", "order": "ASCENDING" },
-        { "fieldPath": "contractLengthDays", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthDays",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ts-contracts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contractLengthBucket", "order": "ASCENDING" },
-        { "fieldPath": "expiration", "order": "ASCENDING" },
-        { "fieldPath": "observationCount", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthDays",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ts-contracts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contractLengthBucket", "order": "ASCENDING" },
-        { "fieldPath": "expiration", "order": "ASCENDING" },
-        { "fieldPath": "observationCount", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latestDelta",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ts-contracts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contractLengthBucket", "order": "ASCENDING" },
-        { "fieldPath": "expiration", "order": "ASCENDING" },
-        { "fieldPath": "latestDelta", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latestDelta",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "ts-contracts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contractLengthBucket", "order": "ASCENDING" },
-        { "fieldPath": "expiration", "order": "ASCENDING" },
-        { "fieldPath": "latestDelta", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observationCount",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observationCount",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latestDelta",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latestDelta",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observationCount",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observationCount",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthDays",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthDays",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latest.delta",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latest.delta",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latestDelta",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latestDelta",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observationCount",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observationCount",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "expiration",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "strike",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthBucket",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthDays",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contractLengthDays",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latestDelta",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "latestDelta",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observationCount",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observationCount",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "strike",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ts-contracts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiration",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],
