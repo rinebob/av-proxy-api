@@ -57,6 +57,7 @@ export enum FirestoreCollection {
     // OPTIONS
     OPTIONS = 'options',
     HISTORICAL_OPTIONS = 'historical-options',
+    OPTIONS_SWING_SETS = 'options-swing-sets',
 
     // AlphaIntelligence Collections
     // Will be under company-data
