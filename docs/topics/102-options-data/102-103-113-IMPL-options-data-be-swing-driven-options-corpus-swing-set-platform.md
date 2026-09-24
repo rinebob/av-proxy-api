@@ -30,19 +30,20 @@ Create `SwingSetGenerationService` in `functions/src/v2/swing-set/`:
 
 ```typescript
 export class SwingSetGenerationService {
-  constructor(deps: {
-    dailyAdjustedReader: DailyAdjustedReader;   // reads SA daily-adjusted store
-    repository: SwingSetRepository;             // Firestore write layer
-    logger: Logger;
-  }) {}
+  constructor(
+    reader: DailyAdjustedReaderLike,   // narrow seam over DailyAdjustedReader.read
+    repository: SwingSetRepository,    // Firestore write layer
+    logger: LoggerLike = console,
+  ) {}
 
   async generateForSymbol(symbol: string): Promise<SwingSetGenerationResult>;
-  async generateForConfig(symbol: string, config: ZigZagConfig): Promise<SwingSetDoc>;
+  async generateForConfig(symbol: string, config: ZigZagConfig): Promise<SwingSetDoc | null>;
 }
 ```
 
-- `generateForSymbol` iterates `CANONICAL_ZIGZAG_CONFIGS` and calls `generateForConfig` for each.
-- `generateForConfig` reads daily-adjusted bars for the symbol, maps them to `PriceBar`, calls `computeZigZagPivots` + `deriveSwings` + `computeSwingStats`, builds a `SwingSetDoc`, and writes it via the repository.
+- `generateForSymbol` reads the symbol's bars once, then iterates `CANONICAL_ZIGZAG_CONFIGS` building+upserting one `SwingSetDoc` per config (it does not delegate to `generateForConfig`, which would re-read bars per config).
+- `generateForConfig` is the standalone single-doc variant: reads bars, maps to `PriceBar`, calls `computeZigZagPivots` + `deriveSwings` + `computeSwingStats`, builds a `SwingSetDoc`, and writes it via the repository. Returns `null` when the symbol has no daily-adjusted data.
+- `generatedAt` is `Timestamp.now()` — docs are idempotent modulo that field.
 
 ### 2. Firestore repository
 
