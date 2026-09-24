@@ -12,7 +12,7 @@
 import type { SwingSetDoc, Pivot } from '@shared/zigzag';
 import { deriveParamsId, CANONICAL_ZIGZAG_CONFIGS } from '@shared/zigzag';
 import type { DistributionSummary, Histogram, SwingStats } from '@shared/zigzag';
-import type { FirestoreLike } from '../../../../src/v2/common/firestore/firestore-like';
+import { createFakeFirestore } from '../fake-firestore';
 
 const emptySummary: DistributionSummary = {
   mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0,
@@ -39,64 +39,6 @@ function makeDoc(overrides: Partial<SwingSetDoc> = {}): SwingSetDoc {
     source: 'sa',
     ...overrides,
   };
-}
-
-/**
- * Minimal in-memory Firestore fake covering the repository's call surface:
- * collection(path).doc(id).{set,get}, collection(path).where(f,op,v).get().
- * Satisfies FirestoreLike structurally — no type-erasing casts.
- * NOTE: set(merge) here is a shallow top-level merge; real Firestore
- * deep-merges map fields — irrelevant for full-doc writes.
- */
-function createFakeFirestore(seed: Record<string, unknown> = {}): FirestoreLike & {
-  calls: { method: string; path: string; payload?: unknown; opts?: unknown }[];
-  store: Map<string, unknown>;
-} {
-  const store = new Map<string, unknown>(Object.entries(seed));
-  const calls: { method: string; path: string; payload?: unknown; opts?: unknown }[] = [];
-
-  const fakeDb = {
-    calls,
-    store,
-    collection(path: string) {
-      return {
-        doc(id: string) {
-          return {
-            async set(payload: unknown, opts?: unknown) {
-              calls.push({ method: 'set', path: `${path}/${id}`, payload, opts });
-              const existing = store.get(`${path}/${id}`) ?? {};
-              store.set(`${path}/${id}`, { ...(existing as object), ...(payload as object) });
-            },
-            async get() {
-              const data = store.get(`${path}/${id}`);
-              return { exists: data !== undefined, data: () => data, id };
-            },
-            async delete() {
-              store.delete(`${path}/${id}`);
-            },
-          };
-        },
-        where(field: string, _op: string, value: unknown) {
-          return {
-            async get() {
-              const docs = [...store.entries()]
-                .filter(([k]) => k.startsWith(`${path}/`))
-                .filter(([, v]) => (v as Record<string, unknown>)[field] === value)
-                .map(([k, v]) => ({ exists: true, id: k.slice(path.length + 1), data: () => v }));
-              return { docs, empty: docs.length === 0, size: docs.length };
-            },
-          };
-        },
-        async get() {
-          const docs = [...store.entries()]
-            .filter(([k]) => k.startsWith(`${path}/`))
-            .map(([k, v]) => ({ exists: true, id: k.slice(path.length + 1), data: () => v }));
-          return { docs, empty: docs.length === 0, size: docs.length };
-        },
-      };
-    },
-  };
-  return fakeDb;
 }
 
 describe('SwingSetRepository', () => {
@@ -165,7 +107,7 @@ describe('SwingSetRepository', () => {
   });
 
   it('getCurrentSwing uses the projection extreme when present', async () => {
-    // Last confirmed pivot is a low; projection is a high → developing 'up' swing
+    // Last confirmed pivot is a low; projection is a high — developing 'up' swing
     const doc = makeDoc({
       pivots: [makePivot(), makePivot({ barIndex: 5, price: 90, isHigh: false })],
       projection: makePivot({ barIndex: 9, price: 120, isHigh: true, confirmed: false }),
@@ -178,7 +120,7 @@ describe('SwingSetRepository', () => {
   });
 
   it('getCurrentSwing uses the last confirmed pivot when no projection', async () => {
-    // Last confirmed pivot is a high → developing 'down' swing from that extreme
+    // Last confirmed pivot is a high — developing 'down' swing from that extreme
     const doc = makeDoc({
       pivots: [makePivot({ isHigh: false }), makePivot({ barIndex: 5, isHigh: true })],
       projection: null,

@@ -138,3 +138,6 @@ export { storageFileViewer } from './v2/historical-options-corpus/handlers/stora
 export { processOptionsIndexWriteTask } from './v2/historical-options-corpus/handlers/options-index-write.task';
 export { refreshHistoricalOptionsCorpusNightly } from './v2/historical-options-corpus/jobs/historical-options-nightly.scheduler';
 export { processHistoricalOptionsTsBuildTask } from './v2/historical-options-corpus/handlers/ts-build.task';
+
+// Swing-set generation task worker (Topic #102 / Thread #103)
+export { generateSwingSetsTask } from './v2/swing-set/handlers/generate-swing-sets.task';

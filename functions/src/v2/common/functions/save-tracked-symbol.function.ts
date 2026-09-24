@@ -6,6 +6,7 @@ import { onCall } from 'firebase-functions/v2/https';
 import { FirestoreCollection } from '@shared/firestore';
 import { TrackedSymbolV2 } from '@shared/alpha-vantage';
 import { SaveTrackedSymbolResponse } from '@shared/alpha-vantage';
+import { enqueueSwingSetGeneration } from '../../swing-set/handlers/generate-swing-sets.core';
 
 /**
  * HTTP Cloud Function to save a tracked symbol to Firestore.
@@ -68,6 +69,22 @@ export const saveTrackedSymbol = onCall<Omit<TrackedSymbolV2, '_createdAt' | '_l
 
       // Save to Firestore
       await docRef.set(documentToSave, { merge: true });
+
+      // Enqueue swing-set generation when the saved payload enables options
+      // (Task #126; Thread #105 owns the full flag lifecycle). The helper
+      // re-checks the persisted flag and the task freshness-gates repeated
+      // saves, so this is safe on every write. Enqueue failure must not fail
+      // the save — the sweep (#127) covers any missed signal.
+      if (symbolData.optionsEnabled === true) {
+        try {
+          await enqueueSwingSetGeneration(db, symbolData.symbol);
+        } catch (e) {
+          console.warn(`[${functionName}] [${requestId}] swing-set generation enqueue failed`, {
+            symbol: symbolData.symbol,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
 
       console.log(`[${functionName}] [${requestId}] Symbol saved successfully`, {
         symbol: symbolData.symbol,

@@ -8,7 +8,7 @@
  */
 import type { DailyAdjustedBar, SwingSetDoc, ZigZagConfig } from '@shared/zigzag';
 import { CANONICAL_ZIGZAG_CONFIGS, deriveParamsId } from '@shared/zigzag';
-import type { FirestoreLike } from '../../../../src/v2/common/firestore/firestore-like';
+import { createFakeFirestore } from '../fake-firestore';
 
 /** Synthetic daily bars — four ~30% legs so even the 10/10/10 config produces confirmed pivots. */
 function makeBars(): DailyAdjustedBar[] {
@@ -34,51 +34,6 @@ function makeBars(): DailyAdjustedBar[] {
     dividendAmount: 0,
     splitCoefficient: 1,
   }));
-}
-
-/** In-memory Firestore fake covering SwingSetRepository's call surface. */
-function createFakeFirestore() {
-  const store = new Map<string, unknown>();
-  const fakeDb: FirestoreLike & { store: Map<string, unknown> } = {
-    store,
-    collection(path: string) {
-      return {
-        doc(id: string) {
-          return {
-            async set(payload: unknown, _opts?: { merge?: boolean }) {
-              const existing = store.get(`${path}/${id}`) ?? {};
-              store.set(`${path}/${id}`, { ...(existing as object), ...(payload as object) });
-            },
-            async get() {
-              const data = store.get(`${path}/${id}`);
-              return { exists: data !== undefined, data: () => data, id };
-            },
-            async delete() {
-              store.delete(`${path}/${id}`);
-            },
-          };
-        },
-        where(field: string, _op: string, value: unknown) {
-          return {
-            async get() {
-              const docs = [...store.entries()]
-                .filter(([k]) => k.startsWith(`${path}/`))
-                .filter(([, v]) => (v as Record<string, unknown>)[field] === value)
-                .map(([k, v]) => ({ exists: true, id: k.slice(path.length + 1), data: () => v }));
-              return { docs, empty: docs.length === 0, size: docs.length };
-            },
-          };
-        },
-        async get() {
-          const docs = [...store.entries()]
-            .filter(([k]) => k.startsWith(`${path}/`))
-            .map(([k, v]) => ({ exists: true, id: k.slice(path.length + 1), data: () => v }));
-          return { docs, empty: docs.length === 0, size: docs.length };
-        },
-      };
-    },
-  };
-  return fakeDb;
 }
 
 /** Reader stub returning a fixed bar fixture (or empty). */
