@@ -26,7 +26,10 @@ const functionOptions: HttpsOptions = {
  * - activeOnly: boolean (default true)
  * - limit: number (default 1000; soft-capped to 5000)
  * - offset: number (default 0)
- * - sortBy: 'symbol' | 'lastUpdated' (default 'symbol')
+ * - sortBy: one of TRACKED_SYMBOL_SORTABLE_FIELDS — 'symbol' (default), 'name', 'type', 'region',
+ *   'currency', '_createdAt', '_lastUpdated', 'companyInfo.Sector', 'companyInfo.Industry',
+ *   'companyInfo.Country', 'companyInfo.marketCap', 'companyInfo.beta'. Invalid values fall back to 'symbol'.
+ *   Note: orderBy on a companyInfo.* field omits docs lacking that field (e.g. ETFs).
  * - sortDirection: 'asc' | 'desc' (default 'asc')
  *
  * Response:
@@ -51,8 +54,8 @@ async function handler(req: Request, res: Response) {
       activeOnly: q.activeOnly === undefined ? true : String(q.activeOnly) === 'true',
       limit: q.limit != null ? Math.min(Math.max(Number(q.limit), 1), 5000) : 1000,
       offset: q.offset != null ? Math.max(Number(q.offset), 0) : 0,
-      sortBy: (q.sortBy as any) || 'symbol',
-      sortDirection: (q.sortDirection as any) || 'asc',
+      sortBy: (q.sortBy as string) || 'symbol',
+      sortDirection: (q.sortDirection as 'asc' | 'desc') || 'asc',
     };
 
     const result = await symbolManagerService.listSymbolsV2(parsed);

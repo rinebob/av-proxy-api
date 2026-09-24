@@ -6,6 +6,7 @@ import {
     ListSymbolsOptions,
     ListSymbolsV2Response,
     TRACKED_SYMBOL_V2_FIELDS,
+    resolveTrackedSymbolSortField,
     TrackedSymbolV2
 } from '@shared/alpha-vantage';
 
@@ -198,10 +199,17 @@ export class SymbolManagerService {
           query = query.where(TRACKED_SYMBOL_V2_FIELDS.IS_ACTIVE, '==', true);
         }
 
-        // Get total count (with fallback if aggregate query fails)
+        // Map sortBy (from UI or API) to a whitelisted Firestore field path
+        const sortField = resolveTrackedSymbolSortField(sortBy);
+        const direction = sortDirection === 'desc' ? 'desc' : 'asc';
+
+        // Get total count matching the sorted query — orderBy on a field also
+        // filters out docs lacking it (sparse companyInfo.* fields), so the count
+        // must carry the same orderBy or `total` overstates the result set.
+        // (with fallback if aggregate query fails)
         let total = 0;
         try {
-          const countSnapshot = await query.count().get();
+          const countSnapshot = await query.orderBy(sortField, direction).count().get();
           total = countSnapshot.data().count;
         } catch (countErr: any) {
           console.error('sMSvc lSV2 count() failed; falling back to approximate count via documentId():', {
@@ -213,15 +221,9 @@ export class SymbolManagerService {
           console.log('sMSvc lSV2 fallback total computed as:', total);
         }
 
-        // Map sortBy (from UI or API) to canonical Firestore field
-        const sortField =
-          Object.values(TRACKED_SYMBOL_V2_FIELDS).includes(sortBy)
-            ? sortBy
-            : TRACKED_SYMBOL_V2_FIELDS.SYMBOL; // fallback to symbol if invalid
-
         // Apply sorting and pagination
         const paginatedQuery = query
-          .orderBy(sortField, sortDirection)
+          .orderBy(sortField, direction)
           .offset(offset)
           .limit(limit);
 

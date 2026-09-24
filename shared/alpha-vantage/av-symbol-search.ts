@@ -110,6 +110,31 @@ export const TRACKED_SYMBOL_V2_FIELDS = {
   ONBOARDING_FAILURE_REASON: '_onboardingFailureReason',
 };
 
+/**
+ * Fields legal for `sortBy` in listSymbolsV2 and the partner list endpoint.
+ * `companyInfo.*` entries are nested field paths — Firestore orderBy accepts
+ * dotted paths on map fields. Narrower than TRACKED_SYMBOL_V2_FIELDS: fields
+ * like matchScore/timezone exist on the doc but are not sortable via the API.
+ */
+export const TRACKED_SYMBOL_SORTABLE_FIELDS = [
+  'symbol', 'name', 'type', 'region', 'currency',
+  '_createdAt', '_lastUpdated',
+  'companyInfo.Sector', 'companyInfo.Industry', 'companyInfo.Country',
+  'companyInfo.marketCap', 'companyInfo.beta',
+] as const;
+
+export type TrackedSymbolSortableField = (typeof TRACKED_SYMBOL_SORTABLE_FIELDS)[number];
+
+/**
+ * Resolves a caller-supplied sortBy value to a valid Firestore field path,
+ * falling back to 'symbol' for absent or non-whitelisted values.
+ */
+export function resolveTrackedSymbolSortField(sortBy: string | undefined | null): string {
+  return sortBy && (TRACKED_SYMBOL_SORTABLE_FIELDS as readonly string[]).includes(sortBy)
+    ? sortBy
+    : TRACKED_SYMBOL_V2_FIELDS.SYMBOL;
+}
+
 export interface SaveTrackedSymbolResponse {
     success: boolean;
     symbol: string;
@@ -125,7 +150,7 @@ export interface ListSymbolsOptions {
     includeInactive?: boolean; // For backward compatibility
     limit?: number;
     offset?: number;
-    sortBy?: 'symbol' | 'lastUpdated';
+    sortBy?: string; // validated via resolveTrackedSymbolSortField; non-whitelisted falls back to 'symbol'
     sortDirection?: 'asc' | 'desc';
   
 }

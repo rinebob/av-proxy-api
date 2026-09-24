@@ -1,6 +1,222 @@
 {
   "indexes": [
     {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.Sector", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.Sector", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.Industry", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.Industry", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.Country", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.Country", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.marketCap", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.marketCap", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.beta", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "companyInfo.beta", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "symbol", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "symbol", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "region", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "region", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "_createdAt", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "_createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "_lastUpdated", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tracked-symbols",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "_isActive", "order": "ASCENDING" },
+        { "fieldPath": "_lastUpdated", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "ts-contracts",
       "queryScope": "COLLECTION",
       "fields": [
