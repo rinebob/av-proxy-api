@@ -26,6 +26,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Add Company Overview Data to Symbol Manager] 88-99_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 99
 - [Add Company Overview Data to Symbol Manager] 88-100_FE-IMPL-SYMBOL-MANAGER: Add Sector/Industry/Market Cap/Beta columns to V2 table; drop region/timezone/currency/matchScore
 - [Add Company Overview Data to Symbol Manager] 88-100_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 100
+- [Add Company Overview Data to Symbol Manager] 88-101_FE-IMPL-SYMBOL-MANAGER: Add multi-level client-side sort, fetch-cap guard, Optionable/Options Enabled columns, optionable probe backfill
+- [Add Company Overview Data to Symbol Manager] 88-101_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 101
 
 ## [2026-09-20]
 
