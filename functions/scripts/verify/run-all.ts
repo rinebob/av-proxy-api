@@ -16,6 +16,8 @@ const scripts = [
   'earnings-43-earnings-calendar-handler.ts',
   'earnings-44-factory-registration.ts',
   'symbol-manager-97-companyinfo-writeback.ts',
+  'symbol-manager-98-sortable-fields.ts',
+  'options-data-122-zigzag-engine.ts',
 ];
 
 let passed = 0;

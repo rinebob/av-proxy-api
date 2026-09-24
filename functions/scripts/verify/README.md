@@ -139,6 +139,8 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #43 | `earnings-43-earnings-calendar-handler.ts` | BE: EARNINGS_CALENDAR handler fetch/parse/filter/save verification | [earnings-43-earnings-calendar-handler.md](earnings-43-earnings-calendar-handler.md) |
 | #44 | `earnings-44-factory-registration.ts` | BE: Factory registration + isGlobalEndpoint helper verification | [earnings-44-factory-registration.md](earnings-44-factory-registration.md) |
 | #97 | `symbol-manager-97-companyinfo-writeback.ts` | BE: companyInfo marketCap/beta write-back (transform + persistence) | [symbol-manager-97-companyinfo-writeback.md](symbol-manager-97-companyinfo-writeback.md) |
+| #98 | `symbol-manager-98-sortable-fields.ts` | BE: sortBy whitelist + composite index + ordering verification | [symbol-manager-98-sortable-fields.md](symbol-manager-98-sortable-fields.md) |
+| #122 | `options-data-122-zigzag-engine.ts` | SHARED: compiled zigzag engine on real daily bars (transform) | [options-data-122-zigzag-engine.md](options-data-122-zigzag-engine.md) |
 
 ## Execution order
 
@@ -155,6 +157,11 @@ Run scripts in task dependency order. The dependency chain for the earnings Topi
 Topic #88 (Symbol Manager company overview):
 
 1. **#97** (BE: companyInfo write-back) — no dependencies
+2. **#98** (BE: sortBy whitelist + indexes) — blocked by #97 (needs the numeric fields); also requires the composite indexes to be deployed and built
+
+Topic #102 (Swing-driven options corpus):
+
+1. **#122** (SHARED: zigzag engine port) — no dependencies
 
 Run all scripts for a task after the task's implementation is complete and unit tests pass. The run-all script handles ordering automatically.
 
