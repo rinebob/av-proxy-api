@@ -2,6 +2,7 @@
 
 # Local cache
 .project-items.json
+.devin/tmp/
 
 # Compiled output
 /dist
