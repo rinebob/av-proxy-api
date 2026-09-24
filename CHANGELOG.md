@@ -21,6 +21,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Add Company Overview Data to Symbol Manager] 88-99_BE-IMPL-SYMBOL-MANAGER: Add companyInfo diff + backfill script (marketCap/beta onto tracked-symbols)
 - [Add Company Overview Data to Symbol Manager] 88-99_BE-DOCS-SYMBOL-MANAGER: Add backfill verification guide
 - [Add Company Overview Data to Symbol Manager] 88-99_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 99
+- [Add Company Overview Data to Symbol Manager] 88-100_FE-IMPL-SYMBOL-MANAGER: Add Sector/Industry/Market Cap/Beta columns to V2 table; drop region/timezone/currency/matchScore
+- [Add Company Overview Data to Symbol Manager] 88-100_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 100
 
 ## [2026-09-20]
 
