@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-24]
 
 ### Fixed
-- [Repo & Deploy Hygiene] 118-119_CONFIG-CONFIG-OPS: Reconcile firestore.indexes.json with prod — file now tracks all 78 deployed indexes in CLI-export format
+- [Repo & Deploy Hygiene] 118-119_CONFIG-CONFIG-OPS: Reconcile firestore.indexes.json with prod â€” file now tracks all 78 deployed indexes in CLI-export format
 - [Repo & Deploy Hygiene] 118-119_TESTS-BUG-OPS: Fix relative path depth in contract-summary-aggregator test (pre-existing failure)
 
 ### Added
@@ -28,6 +28,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Swing-Driven Options Corpus] 102-125_BE-IMPL-OPTIONS-DATA: Add SwingSetGenerationService
 - [Swing-Driven Options Corpus] 102-125_BE-DOCS-OPTIONS-DATA: Add generation verification script and guide
 - [Swing-Driven Options Corpus] 102-125_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 125
+- [Swing-Driven Options Corpus] 102-126_BE-IMPL-OPTIONS-DATA: Add generateSwingSetsTask + optionsEnabled trigger
+- [Swing-Driven Options Corpus] 102-126_BE-DOCS-OPTIONS-DATA: Add task-handler verification script and guide
+- [Swing-Driven Options Corpus] 102-126_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 126
 - [Add Company Overview Data to Symbol Manager] 88-97_BE-IMPL-SYMBOL-MANAGER: Add numeric marketCap/beta to companyInfo write-back
 - [Add Company Overview Data to Symbol Manager] 88-97_BE-DOCS-SYMBOL-MANAGER: Add verification script and guide for companyInfo write-back
 - [Add Company Overview Data to Symbol Manager] 88-97_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 97
