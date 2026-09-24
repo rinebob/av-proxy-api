@@ -12,6 +12,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Swing-Driven Options Corpus] 102-123_SHARED-IMPL-OPTIONS-DATA: Add swing-set types, paramsId, and canonical configs
 - [Swing-Driven Options Corpus] 102-123_SHARED-DOCS-OPTIONS-DATA: Add swing-set types verification script and guide
 - [Swing-Driven Options Corpus] 102-123_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 123
+- [Swing-Driven Options Corpus] 102-124_BE-IMPL-OPTIONS-DATA: Add swing-set data layer (repository + daily-adjusted reader)
+- [Swing-Driven Options Corpus] 102-124_BE-DOCS-OPTIONS-DATA: Add data-layer verification script and guide
+- [Swing-Driven Options Corpus] 102-124_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 124
 - [Add Company Overview Data to Symbol Manager] 88-97_BE-IMPL-SYMBOL-MANAGER: Add numeric marketCap/beta to companyInfo write-back
 - [Add Company Overview Data to Symbol Manager] 88-97_BE-DOCS-SYMBOL-MANAGER: Add verification script and guide for companyInfo write-back
 - [Add Company Overview Data to Symbol Manager] 88-97_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 97
