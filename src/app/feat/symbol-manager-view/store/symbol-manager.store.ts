@@ -30,6 +30,7 @@ interface SymbolManagerState {
 
     v2SearchResults: TrackedSymbolV2[] | undefined;
     v2Symbols: TrackedSymbolV2[];
+    v2Total: number;
     v2SymbolSearchResult: TrackedSymbolV2 | null;
 }
 
@@ -49,6 +50,7 @@ const initialState: SymbolManagerState = {
 
     v2SearchResults: undefined,
     v2Symbols: [],
+    v2Total: 0,
     v2SymbolSearchResult: null,
 };
 
@@ -364,10 +366,8 @@ export const SymbolManagerStore = signalStore(
                             v2SearchResults: undefined
                         });
                         snackBar.open(`Symbol "${symbol.symbol}" added!`, 'Close', { duration: 3000, panelClass: 'success-snackbar' });
-                        // Reason: can't call store methods from within the methods object; inline the refresh
-                        symbolService.listSymbolsV2().pipe(
-                            tap(r => patchState(store, { v2Symbols: r.symbols || [], symbols: (r.symbols as any) || [] }))
-                        ).subscribe();
+                        // Reason: refresh the list so the new symbol appears
+                        this.listSymbolsV2();
                     } else {
                         patchState(store, { loading: false, error: response.error || 'Failed to add symbol' });
                         snackBar.open(response.error || 'Failed to add symbol', 'Close', { duration: 5000, panelClass: 'error-snackbar' });
@@ -392,7 +392,8 @@ export const SymbolManagerStore = signalStore(
                             loading: false,
                             // Keep legacy symbols state in sync for any consumers still reading it
                             symbols: (response.symbols as any) || [],
-                            v2Symbols: response.symbols || []
+                            v2Symbols: response.symbols || [],
+                            v2Total: response.total ?? 0
                         });
                     },
                     error: (error) => {

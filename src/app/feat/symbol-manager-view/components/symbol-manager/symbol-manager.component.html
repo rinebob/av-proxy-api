@@ -1,4 +1,4 @@
-<section class="symbol-manager">
+﻿<section class="symbol-manager">
     <!-- Single compact header row -->
     <div class="header-bar">
         <h2>Symbol Manager V2</h2>
@@ -27,6 +27,7 @@
     }
 
         <!-- V2 Symbols Table -->
+        <div #tableTop></div>
         <mat-card class="symbol-table-container">
 
             <mat-card-content>
@@ -36,57 +37,74 @@
                         <button mat-button (click)="store.clearSyncResults()">Clear</button>
                     </div>
                 }
+                @if (fetchCapHit()) {
+                    <div class="fetch-cap-banner">
+                        Sorting covers only the first {{ store.v2Symbols().length }} of {{ store.v2Total() }} symbols.
+                    </div>
+                }
                 @if (displayedSymbols().length > 0) {
-                    <table mat-table [dataSource]="displayedSymbols()" class="mat-elevation-z8">
+                    <!-- Custom clickable headers — mat-sort-header only supports single-column sort; onSortClick maintains a multi-level stack --><table mat-table [dataSource]="displayedSymbols()" class="mat-elevation-z8"
+                           >
                         <!-- Symbol -->
                         <ng-container matColumnDef="symbol">
-                            <th mat-header-cell *matHeaderCellDef>Symbol</th>
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('symbol')" [attr.aria-sort]="ariaSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
                             <td mat-cell *matCellDef="let symbol">{{ symbol.symbol }}</td>
                         </ng-container>
                         <!-- Name -->
                         <ng-container matColumnDef="name">
-                            <th mat-header-cell *matHeaderCellDef>Name</th>
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('name')" [attr.aria-sort]="ariaSort('name')">Name {{ sortIndicator('name') }}</th>
                             <td mat-cell *matCellDef="let symbol">{{ symbol.name }}</td>
                         </ng-container>
                         <!-- Sector -->
                         <ng-container matColumnDef="sector">
-                            <th mat-header-cell *matHeaderCellDef>Sector</th>
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('sector')" [attr.aria-sort]="ariaSort('sector')">Sector {{ sortIndicator('sector') }}</th>
                             <td mat-cell *matCellDef="let symbol">{{ orDash(symbol.companyInfo?.Sector) }}</td>
                         </ng-container>
                         <!-- Industry -->
                         <ng-container matColumnDef="industry">
-                            <th mat-header-cell *matHeaderCellDef>Industry</th>
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('industry')" [attr.aria-sort]="ariaSort('industry')">Industry {{ sortIndicator('industry') }}</th>
                             <td mat-cell *matCellDef="let symbol">{{ orDash(symbol.companyInfo?.Industry) }}</td>
                         </ng-container>
                         <!-- Market Cap -->
                         <ng-container matColumnDef="marketCap">
-                            <th mat-header-cell *matHeaderCellDef>Market Cap</th>
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('marketCap')" [attr.aria-sort]="ariaSort('marketCap')">Market Cap {{ sortIndicator('marketCap') }}</th>
                             <td mat-cell *matCellDef="let symbol">{{ formatMarketCap(symbol.companyInfo?.marketCap) }}</td>
                         </ng-container>
                         <!-- Beta -->
                         <ng-container matColumnDef="beta">
-                            <th mat-header-cell *matHeaderCellDef>Beta</th>
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('beta')" [attr.aria-sort]="ariaSort('beta')">Beta {{ sortIndicator('beta') }}</th>
                             <td mat-cell *matCellDef="let symbol">{{ formatBeta(symbol.companyInfo?.beta) }}</td>
                         </ng-container>
                         <!-- Type -->
                         <ng-container matColumnDef="type">
-                            <th mat-header-cell *matHeaderCellDef>Type</th>
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('type')" [attr.aria-sort]="ariaSort('type')">Type {{ sortIndicator('type') }}</th>
                             <td mat-cell *matCellDef="let symbol">{{ symbol.type }}</td>
                         </ng-container>
                         <!-- _createdAt -->
                         <ng-container matColumnDef="_createdAt">
-                            <th mat-header-cell *matHeaderCellDef>Created At</th>
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('_createdAt')" [attr.aria-sort]="ariaSort('_createdAt')">Created At {{ sortIndicator('_createdAt') }}</th>
                             <td mat-cell *matCellDef="let symbol">{{ symbol._createdAt | date:'short' }}</td>
                         </ng-container>
                         <!-- _lastUpdated -->
                         <ng-container matColumnDef="_lastUpdated">
-                            <th mat-header-cell *matHeaderCellDef>Last Updated</th>
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('_lastUpdated')" [attr.aria-sort]="ariaSort('_lastUpdated')">Last Updated {{ sortIndicator('_lastUpdated') }}</th>
                             <td mat-cell *matCellDef="let symbol">{{ symbol._lastUpdated | date:'short' }}</td>
                         </ng-container>
-                        <!-- _isActive -->
-                        <ng-container matColumnDef="_isActive">
-                            <th mat-header-cell *matHeaderCellDef>Active</th>
-                            <td mat-cell *matCellDef="let symbol">{{ symbol._isActive ? 'Yes' : 'No' }}</td>
+                        <!-- optionable — system-probed, read-only (— until Thread #105 lands) -->
+                        <ng-container matColumnDef="optionable">
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('optionable')" [attr.aria-sort]="ariaSort('optionable')">Optionable {{ sortIndicator('optionable') }}</th>
+                            <td mat-cell *matCellDef="let symbol">
+                                @if (symbol.optionable === true) { Yes }
+                                @else if (symbol.optionable === false) { No }
+                                @else { — }
+                            </td>
+                        </ng-container>
+                        <!-- optionsEnabled — curated flag; UI stub until Thread #105 wiring lands -->
+                        <ng-container matColumnDef="optionsEnabled">
+                            <th mat-header-cell *matHeaderCellDef class="sortable" (click)="onSortClick('optionsEnabled')" [attr.aria-sort]="ariaSort('optionsEnabled')">Options Enabled {{ sortIndicator('optionsEnabled') }}</th>
+                            <td mat-cell *matCellDef="let symbol">
+                                <mat-checkbox [checked]="!!symbol.optionsEnabled" disabled></mat-checkbox>
+                            </td>
                         </ng-container>
                         <tr mat-header-row *matHeaderRowDef="displayedV2Columns"></tr>
                         <tr mat-row *matRowDef="let row; columns: displayedV2Columns;"></tr>

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, ViewChild, effect, DestroyRef } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, ViewChild, ElementRef, effect, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,9 +8,9 @@ import { MatListModule } from '@angular/material/list';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTabGroup } from '@angular/material/tabs';
 import { MatTableModule } from '@angular/material/table';
-import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatPaginatorModule, MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -18,6 +18,7 @@ import { SymbolManagerStore } from '../../store/symbol-manager.store';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SymbolInputFormComponent } from '../symbols-dialog/symbol-input-form/symbol-input-form.component';
 import { formatBeta, formatMarketCap, orDash } from '../../utils/company-info.format';
+import { sortTrackedSymbolsMulti, SortLevel } from '../../utils/symbol-sort';
 
 @Component({
   selector: 'app-symbol-manager',
@@ -32,8 +33,8 @@ import { formatBeta, formatMarketCap, orDash } from '../../utils/company-info.fo
     MatProgressSpinnerModule,
     MatSnackBarModule,
     MatChipsModule,
+    MatCheckboxModule,
     MatTableModule,
-    MatSortModule,
     MatPaginatorModule,
     MatMenuModule,
     MatTooltipModule,
@@ -49,16 +50,18 @@ export class SymbolManagerComponent implements OnInit {
 
   @ViewChild(MatTabGroup) tabGroup!: MatTabGroup;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
+  @ViewChild('tableTop') tableTop?: ElementRef<HTMLElement>;
 
   // Table configuration
   displayedV2Columns = [
     'symbol', 'name', 'sector', 'industry', 'marketCap', 'beta',
-    'type', '_createdAt', '_lastUpdated', '_isActive'
+    'type', '_createdAt', '_lastUpdated', 'optionable', 'optionsEnabled'
   ];
-  readonly pageSize = signal(25);
+  readonly pageSize = signal(100);
   readonly pageIndex = signal(0);
-  sortField = 'symbol';
-  sortDirection: 'asc' | 'desc' = 'asc';
+  // Multi-level sort stack: first clicked column is primary; later clicks add
+  // secondary levels. Clicking a sorted column cycles asc → desc → remove.
+  readonly sortLevels = signal<SortLevel[]>([]);
 
   // companyInfo column formatters (exposed for the template)
   readonly formatMarketCap = formatMarketCap;
@@ -87,11 +90,24 @@ export class SymbolManagerComponent implements OnInit {
 
   readonly totalFiltered = computed(() => this.filteredSymbols().length);
 
-  // Reason: slice filtered list to current page
+  // Reason: sort the whole filtered set BEFORE slicing — global ordering across
+  // the loaded list, not just the visible page. Client-side; no refetch.
+  private readonly sortedSymbols = computed(() =>
+    sortTrackedSymbolsMulti(this.filteredSymbols(), this.sortLevels())
+  );
+
+  // Reason: slice sorted list to current page
   readonly displayedSymbols = computed(() => {
-    const all = this.filteredSymbols();
+    const all = this.sortedSymbols();
     const start = this.pageIndex() * this.pageSize();
     return all.slice(start, start + this.pageSize());
+  });
+
+  // Fetch-cap guard: sorting covers only the loaded subset when it exists
+  readonly fetchCapHit = computed(() => {
+    const total = this.store.v2Total();
+    const loaded = this.store.v2Symbols().length;
+    return total > 0 && loaded > 0 && loaded < total;
   });
 
   readonly hasActiveSearch = computed(() => this.store.v2SymbolSearchResult() !== null);
@@ -100,9 +116,13 @@ export class SymbolManagerComponent implements OnInit {
     // Reason: reset to page 0 whenever the filter changes so user doesn't land on empty page
     effect(() => {
       this.filterText();
-      this.pageIndex.set(0);
-      if (this.paginator) this.paginator.firstPage();
+      this.resetToFirstPage();
     });
+  }
+
+  private resetToFirstPage(): void {
+    this.pageIndex.set(0);
+    if (this.paginator) this.paginator.firstPage();
   }
 
   ngOnInit(): void {
@@ -181,11 +201,42 @@ export class SymbolManagerComponent implements OnInit {
   onPageChange(event: PageEvent): void {
     this.pageSize.set(event.pageSize);
     this.pageIndex.set(event.pageIndex);
+    // Page change leaves the user at the bottom — scroll back to the table top
+    this.tableTop?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   
-  onSortChange(sort: Sort): void {
-    this.sortField = sort.active;
-    this.sortDirection = sort.direction as 'asc' | 'desc';
+  /**
+   * Multi-level sort: clicking an unsorted column appends it as the last
+   * sort level; clicking a sorted column cycles asc → desc → removes it.
+   */
+  onSortClick(field: string): void {
+    this.sortLevels.update(levels => {
+      const idx = levels.findIndex(l => l.field === field);
+      if (idx === -1) return [...levels, { field, direction: 'asc' }];
+      if (levels[idx].direction === 'asc') {
+        const next = [...levels];
+        next[idx] = { field, direction: 'desc' };
+        return next;
+      }
+      return levels.filter(l => l.field !== field);
+    });
+    // Re-sorting changes global order — land back on page 1
+    this.resetToFirstPage();
+  }
+
+  /** Header indicator: ▲/▼ plus stack position when multiple levels active. */
+  sortIndicator(field: string): string {
+    const levels = this.sortLevels();
+    const idx = levels.findIndex(l => l.field === field);
+    if (idx === -1) return '';
+    const arrow = levels[idx].direction === 'asc' ? '▲' : '▼';
+    return levels.length > 1 ? `${arrow}${idx + 1}` : arrow;
+  }
+
+  /** aria-sort value for a header cell. */
+  ariaSort(field: string): 'ascending' | 'descending' | 'none' {
+    const level = this.sortLevels().find(l => l.field === field);
+    return level ? (level.direction === 'asc' ? 'ascending' : 'descending') : 'none';
   }
 
 }
