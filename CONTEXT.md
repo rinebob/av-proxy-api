@@ -89,3 +89,24 @@ The subset of Alpha Vantage company overview fields denormalized onto each `trac
 ### Earnings Event Calendar
 
 A planned system that ties options trading strategies to earnings dates. For each tracked symbol, the earnings timeline is synthesized from three Alpha Vantage endpoints: EARNINGS (historical actuals), EARNINGS_ESTIMATES (forward estimates), and EARNINGS_CALENDAR (upcoming dates). Options strategies around earnings have specific timing windows (e.g., 60-45 days before earnings, 1 day before, day-of, post-earnings volatility crush). Since earnings dates are known 3 months out from EARNINGS_CALENDAR, the event calendar can compute all strategy start dates upfront and schedule timed triggers for each phase. Repeats every quarter for each tracked symbol. The three AV endpoints are the data layer; the event calendar and strategy triggers are a future phase that consumes this data. See Topic #33.
+
+### Swing File
+
+A Firestore document that stores the output of a ZigZag indicator run for one `(symbol, paramsId)` pair. Contains the sequence of swing pivots (local price extrema) plus confirmation metadata. Swing files are the canonical input used by ST's swing-analysis page and by the options-corpus seeding pipeline to determine which dates are analytically interesting. See Topic #102.
+
+### ZigZag Pivot
+
+A local maximum or minimum in price that the ZigZag algorithm identifies after a configurable percentage reversal (`devThreshold`) and confirmation window (`rightDepth`). A pivot first *paints* at bar `t` and only becomes *confirmed* `rightDepth` bars later. Corpus seeding must react to confirmed pivots, not painted ones, to avoid phantom dates. See Topic #102.
+
+### Canonical ZigZag Config
+
+One of four fixed parameter sets used by SA to generate swing files for every tracked symbol: `(devThreshold/leftDepth/rightDepth) = 10/10/10, 5/5/5, 3/3/3, 2/2/2`. Custom configs may be previewed in ST but are never persisted in SA. The `paramsId` is derived deterministically from these parameters so doc keys match across ST and SA. See Topic #102.
+
+### Options-Enabled Symbol
+
+A tracked symbol that has been curated for options analysis. Defined by an `optionsEnabled` boolean on the `tracked_symbols` document. Flipping the flag on triggers corpus seeding for that symbol's historical pivot dates; flipping it off stops new corpus growth. Distinct from `optionable`, which is the factual property of having listed options. See Topic #102.
+
+### Current Swing Extreme
+
+The latest interim high or low observed while the current swing is still unfolding. A confirmed pivot is only established when price reverses by the configured threshold and the swing completes. Until then, the current swing extreme may advance each trading day. The swing file exposes this value so the options-corpus pipeline can fetch the latest extreme's chain snapshot, update per-contract time series, and remove prior interim snapshots from GCS. See Topic #102.
+
