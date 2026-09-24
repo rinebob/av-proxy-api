@@ -1,4 +1,7 @@
-import { buildTrackedSymbolCompanyInfo } from '../../../../src/v2/alpha-vantage/logic/company-info.builder';
+﻿import {
+  buildTrackedSymbolCompanyInfo,
+  diffCompanyInfoForWrite,
+} from '../../../../src/v2/alpha-vantage/logic/company-info.builder';
 import type { AvCompanyOverview } from '@shared/alpha-vantage';
 
 function overview(overrides: Partial<AvCompanyOverview> = {}): Partial<AvCompanyOverview> {
@@ -77,5 +80,47 @@ describe('buildTrackedSymbolCompanyInfo', () => {
     );
     expect(info.marketCap).toBeUndefined();
     expect(info.beta).toBeUndefined();
+  });
+});
+
+describe('diffCompanyInfoForWrite', () => {
+  const built = buildTrackedSymbolCompanyInfo(
+    overview({ MarketCapitalization: '1000000', Beta: '1.5', Sector: 'TECHNOLOGY' })
+  );
+
+  it('returns all built fields when existing companyInfo is absent', () => {
+    const delta = diffCompanyInfoForWrite(undefined, built);
+    expect(delta).not.toBeNull();
+    expect(delta!['companyInfo.marketCap']).toBe(1000000);
+    expect(delta!['companyInfo.beta']).toBe(1.5);
+    expect(delta!['companyInfo.Sector']).toBe('TECHNOLOGY');
+  });
+
+  it('returns null when existing matches built (idempotent re-run)', () => {
+    const existing = { ...built };
+    expect(diffCompanyInfoForWrite(existing, built)).toBeNull();
+  });
+
+  it('returns only the fields that differ', () => {
+    const existing = { ...built, marketCap: 999 };
+    const delta = diffCompanyInfoForWrite(existing, built);
+    expect(delta).toEqual({ 'companyInfo.marketCap': 1000000 });
+  });
+
+  it('includes fields missing from existing', () => {
+    const { beta: _drop, ...noBeta } = built;
+    const delta = diffCompanyInfoForWrite(noBeta, built);
+    expect(delta).toEqual({ 'companyInfo.beta': 1.5 });
+  });
+
+  it('never emits a delta containing NaN or undefined', () => {
+    const sparse = buildTrackedSymbolCompanyInfo(overview({ MarketCapitalization: 'None', Beta: 'abc' }));
+    const delta = diffCompanyInfoForWrite({}, sparse);
+    if (delta) {
+      for (const v of Object.values(delta)) {
+        expect(v).not.toBeUndefined();
+        expect(Number.isNaN(v)).toBe(false);
+      }
+    }
   });
 });

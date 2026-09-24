@@ -39,3 +39,23 @@ export function buildTrackedSymbolCompanyInfo(
 
   return companyInfo;
 }
+
+/**
+ * Diffs a freshly-built companyInfo against the stored one and returns the
+ * minimal dotted-field-path update payload for Firestore (`companyInfo.X`),
+ * or null when nothing changed (idempotent re-runs write nothing).
+ * Only emits keys present in `built` — fields stored but absent from `built`
+ * are left untouched. Pure — no I/O.
+ */
+export function diffCompanyInfoForWrite(
+  existing: Partial<TrackedSymbolCompanyInfo> | undefined | null,
+  built: Partial<TrackedSymbolCompanyInfo>
+): Record<string, string | number> | null {
+  const delta: Record<string, string | number> = {};
+  for (const [key, value] of Object.entries(built)) {
+    if (value !== undefined && existing?.[key as keyof TrackedSymbolCompanyInfo] !== value) {
+      delta[`companyInfo.${key}`] = value;
+    }
+  }
+  return Object.keys(delta).length > 0 ? delta : null;
+}
