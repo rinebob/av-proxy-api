@@ -72,7 +72,7 @@ describe('ContractSummaryAggregator.aggregateAndWriteSummary', () => {
       makeContractDoc({ contractLengthBucket: '1yr' }),
     ];
     const db = createMockFirestore(docs);
-    const { ContractSummaryAggregator } = require('../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
+    const { ContractSummaryAggregator } = require('../../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
     const aggregator = new ContractSummaryAggregator(db, jest.fn());
 
     const summary: ContractSummaryDoc = await aggregator.aggregateAndWriteSummary('QQQ');
@@ -94,7 +94,7 @@ describe('ContractSummaryAggregator.aggregateAndWriteSummary', () => {
       makeContractDoc({ contractLengthBucket: '3mo' }),
     ];
     const db = createMockFirestore(docs);
-    const { ContractSummaryAggregator } = require('../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
+    const { ContractSummaryAggregator } = require('../../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
     const aggregator = new ContractSummaryAggregator(db, jest.fn());
 
     const summary = await aggregator.aggregateAndWriteSummary('QQQ');
@@ -113,7 +113,7 @@ describe('ContractSummaryAggregator.aggregateAndWriteSummary', () => {
       makeContractDoc({ contractLengthBucket: '3mo' }),
     ];
     const db = createMockFirestore(docs);
-    const { ContractSummaryAggregator } = require('../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
+    const { ContractSummaryAggregator } = require('../../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
     const aggregator = new ContractSummaryAggregator(db, jest.fn());
 
     const summary = await aggregator.aggregateAndWriteSummary('QQQ');
@@ -125,7 +125,7 @@ describe('ContractSummaryAggregator.aggregateAndWriteSummary', () => {
 
   it('handles empty collection (failure case)', async () => {
     const db = createMockFirestore([]);
-    const { ContractSummaryAggregator } = require('../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
+    const { ContractSummaryAggregator } = require('../../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
     const aggregator = new ContractSummaryAggregator(db, jest.fn());
 
     const summary = await aggregator.aggregateAndWriteSummary('QQQ');
@@ -143,7 +143,7 @@ describe('ContractSummaryAggregator.aggregateAndWriteSummary', () => {
       makeContractDoc({ expiration: '2027-01-15', contractLengthBucket: '1yr' }),
     ];
     const db = createMockFirestore(docs);
-    const { ContractSummaryAggregator } = require('../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
+    const { ContractSummaryAggregator } = require('../../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
     const aggregator = new ContractSummaryAggregator(db, jest.fn());
 
     const summary = await aggregator.aggregateAndWriteSummary('QQQ');
@@ -155,7 +155,7 @@ describe('ContractSummaryAggregator.aggregateAndWriteSummary', () => {
   it('writes summary doc to Firestore with merge:true', async () => {
     const docs = [makeContractDoc({ contractLengthBucket: '3mo' })];
     const db = createMockFirestore(docs);
-    const { ContractSummaryAggregator } = require('../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
+    const { ContractSummaryAggregator } = require('../../../../src/v2/historical-options-corpus/services/contract-summary-aggregator.service');
     const aggregator = new ContractSummaryAggregator(db, jest.fn());
 
     await aggregator.aggregateAndWriteSummary('QQQ');
