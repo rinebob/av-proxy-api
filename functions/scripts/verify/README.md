@@ -140,7 +140,9 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #44 | `earnings-44-factory-registration.ts` | BE: Factory registration + isGlobalEndpoint helper verification | [earnings-44-factory-registration.md](earnings-44-factory-registration.md) |
 | #97 | `symbol-manager-97-companyinfo-writeback.ts` | BE: companyInfo marketCap/beta write-back (transform + persistence) | [symbol-manager-97-companyinfo-writeback.md](symbol-manager-97-companyinfo-writeback.md) |
 | #98 | `symbol-manager-98-sortable-fields.ts` | BE: sortBy whitelist + composite index + ordering verification | [symbol-manager-98-sortable-fields.md](symbol-manager-98-sortable-fields.md) |
+| #99 | `backfill/backfill-companyinfo-numbers.ts` (mutating, not in run-all) | BE: one-time marketCap/beta backfill — dry-run/re-run idempotency | [symbol-manager-99-backfill.md](symbol-manager-99-backfill.md) |
 | #122 | `options-data-122-zigzag-engine.ts` | SHARED: compiled zigzag engine on real daily bars (transform) | [options-data-122-zigzag-engine.md](options-data-122-zigzag-engine.md) |
+| #123 | `options-data-123-swing-set-types.ts` | SHARED: paramsId + canonical configs + SwingSetDoc assembly (transform) | [options-data-123-swing-set-types.md](options-data-123-swing-set-types.md) |
 
 ## Execution order
 
@@ -158,10 +160,12 @@ Topic #88 (Symbol Manager company overview):
 
 1. **#97** (BE: companyInfo write-back) — no dependencies
 2. **#98** (BE: sortBy whitelist + indexes) — blocked by #97 (needs the numeric fields); also requires the composite indexes to be deployed and built
+3. **#99** (BE: backfill) — mutating one-time script; run once, then re-verify via #98's script. Not in run-all.
 
 Topic #102 (Swing-driven options corpus):
 
 1. **#122** (SHARED: zigzag engine port) — no dependencies
+2. **#123** (SHARED: swing-set types + paramsId + canonical configs) — blocked by #122 (consumes the engine)
 
 Run all scripts for a task after the task's implementation is complete and unit tests pass. The run-all script handles ordering automatically.
 
