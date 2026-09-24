@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-23]
 
 ### Added
+- [Swing-Driven Options Corpus] 102-122_SHARED-IMPL-OPTIONS-DATA: Port ZigZag engine into shared/zigzag
+- [Swing-Driven Options Corpus] 102-122_SHARED-DOCS-OPTIONS-DATA: Add zigzag engine verification script and guide
+- [Swing-Driven Options Corpus] 102-122_DOCS-OPTIONS-DATA: Add Topic 102 planning docs and terminology
 - [Add Company Overview Data to Symbol Manager] 88-97_BE-IMPL-SYMBOL-MANAGER: Add numeric marketCap/beta to companyInfo write-back
 - [Add Company Overview Data to Symbol Manager] 88-97_BE-DOCS-SYMBOL-MANAGER: Add verification script and guide for companyInfo write-back
 - [Add Company Overview Data to Symbol Manager] 88-97_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 97
