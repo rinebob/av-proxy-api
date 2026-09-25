@@ -144,3 +144,6 @@ export { generateSwingSetsTask } from './v2/swing-set/handlers/generate-swing-se
 export { sweepSwingSets } from './v2/swing-set/handlers/sweep-swing-sets.scheduler';
 export { backfillSwingSets } from './v2/swing-set/handlers/backfill-swing-sets.http';
 export { partnerSwingSetsV2 } from './v2/partner/swing-sets-partner';
+
+// Symbol-flags curation (Topic #102 / Thread #105, Task #139)
+export { onSymbolReady } from './v2/symbol-flags/triggers/on-symbol-ready.function';

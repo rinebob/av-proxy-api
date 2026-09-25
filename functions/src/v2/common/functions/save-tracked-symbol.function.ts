@@ -7,6 +7,7 @@ import { FirestoreCollection } from '@shared/firestore';
 import { TrackedSymbolV2 } from '@shared/alpha-vantage';
 import { SaveTrackedSymbolResponse } from '@shared/alpha-vantage';
 import { enqueueSwingSetGeneration } from '../../swing-set/handlers/generate-swing-sets.core';
+import { withOptionsFlagDefaults } from '../../symbol-flags/utils/options-flag-defaults';
 
 /**
  * HTTP Cloud Function to save a tracked symbol to Firestore.
@@ -59,13 +60,22 @@ export const saveTrackedSymbol = onCall<Omit<TrackedSymbolV2, '_createdAt' | '_l
         .collection(FirestoreCollection.TRACKED_SYMBOLS)
         .doc(symbolData.symbol.toUpperCase());
 
-      // Create the document to save with data and metadata
-      const documentToSave: TrackedSymbolV2 = {
-        ...symbolData,
-        _createdAt: now,
-        _lastUpdated: now,
-        _isActive: true
-      };
+      // Create the document to save with data and metadata.
+      // §76: apply optionsEnabled=false + optionsEnabledHistory=[] defaults
+      // when neither the payload nor the existing doc carries them.
+      // +1 doc read per save; the get()→set() window could clobber a
+      // concurrent curator toggle — narrow, same accepted risk as
+      // OptionableProbeService.persist().
+      const existingSnap = await docRef.get();
+      const documentToSave: TrackedSymbolV2 = withOptionsFlagDefaults(
+        {
+          ...symbolData,
+          _createdAt: now,
+          _lastUpdated: now,
+          _isActive: true
+        },
+        existingSnap.exists ? existingSnap.data() : undefined,
+      );
 
       // Save to Firestore
       await docRef.set(documentToSave, { merge: true });
