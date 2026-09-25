@@ -139,5 +139,7 @@ export { processOptionsIndexWriteTask } from './v2/historical-options-corpus/han
 export { refreshHistoricalOptionsCorpusNightly } from './v2/historical-options-corpus/jobs/historical-options-nightly.scheduler';
 export { processHistoricalOptionsTsBuildTask } from './v2/historical-options-corpus/handlers/ts-build.task';
 
-// Swing-set generation task worker (Topic #102 / Thread #103)
+// Swing-set generation + maintenance (Topic #102 / Thread #103, Tasks #126/#127)
 export { generateSwingSetsTask } from './v2/swing-set/handlers/generate-swing-sets.task';
+export { sweepSwingSets } from './v2/swing-set/handlers/sweep-swing-sets.scheduler';
+export { backfillSwingSets } from './v2/swing-set/handlers/backfill-swing-sets.http';

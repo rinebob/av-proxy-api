@@ -30,7 +30,14 @@ export function createFakeFirestore(seed: Record<string, unknown> = {}): Firesto
               calls.push({ method: 'set', path: `${path}/${id}`, payload, opts });
               const merge = (opts as { merge?: boolean } | undefined)?.merge === true;
               const existing = merge ? (store.get(`${path}/${id}`) ?? {}) : {};
-              store.set(`${path}/${id}`, { ...(existing as object), ...(payload as object) });
+              // FieldValue.delete() arrives as a DeleteTransform sentinel —
+              // drop those keys instead of storing the sentinel object.
+              const next: Record<string, unknown> = { ...(existing as object) };
+              for (const [k, v] of Object.entries(payload as object)) {
+                if (v?.constructor?.name === 'DeleteTransform') delete next[k];
+                else next[k] = v;
+              }
+              store.set(`${path}/${id}`, next);
             },
             async get() {
               const data = store.get(`${path}/${id}`);

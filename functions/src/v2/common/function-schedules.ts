@@ -85,6 +85,19 @@ export const TS_DAILY_POST_MORNING_CATCHUP_0700 = '0 4 * * 1-5';
  */
 export const HISTORICAL_OPTIONS_NIGHTLY_SCHEDULE = '0 19 * * 1-5';
 
+// for sweepSwingSets
+// functions/src/v2/swing-set/handlers/sweep-swing-sets.scheduler.ts
+/**
+ * Swing-set sweep schedule.
+ *
+ * Purpose: regenerate stale/missing swing sets for options-enabled symbols
+ * after the daily-adjusted post-close run (1:35 PM PT) and evening retry
+ * (6:00 PM PT) have settled.
+ * Cron: 0 20 * * 1-5 (8:00 PM PT, weekdays)
+ * Timezone: America/Los_Angeles (set at function registration).
+ */
+export const SWING_SET_SWEEP_SCHEDULE = '0 20 * * 1-5';
+
 // for refreshBenzingaCalendarDataV2
 // functions/src/benzinga/data-refresher/bz-calendar-refresh-manager.ts
 /**

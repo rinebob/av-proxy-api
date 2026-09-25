@@ -14,3 +14,8 @@ export {
   SWING_SET_FRESHNESS_TTL_MS,
 } from './handlers/generate-swing-sets.core';
 export type { GenerateSwingSetsPayload } from './handlers/generate-swing-sets.core';
+export { runSwingSetSweep } from './handlers/swing-set-sweep.core';
+export type { SwingSetSweepResult, SweepDeps } from './handlers/swing-set-sweep.core';
+// The onSchedule/onRequest wrappers (sweep-swing-sets.scheduler.ts,
+// backfill-swing-sets.http.ts) load firebase-admin-init — same caution as
+// generate-swing-sets.task.ts.
