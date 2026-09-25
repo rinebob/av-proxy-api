@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-25]
 
 ### Added
+- [Swing-Driven Options Corpus] 102-144_FE-IMPL-OPTIONS-DATA: Wire Options Enabled checkbox to setOptionsEnabledV2 (optionable-gated, confirm dialog, store patch on success, revert + snackbar on error)
+- [Swing-Driven Options Corpus] 102-144_DOCS-OPTIONS-DATA: Add code review doc for task 144
 - [Swing-Driven Options Corpus] 102-142_BE-IMPL-OPTIONS-DATA: Add optionable/optionsEnabled filters to symbol list endpoints (in-memory sort under flag filters; no composite index)
 - [Swing-Driven Options Corpus] 102-148_BE-IMPL-OPTIONS-DATA: Add post-deploy smoke script for swing-set platform (OIDC + admin-secret, read-only)
 - [Swing-Driven Options Corpus] 102-141_BE-IMPL-OPTIONS-DATA: Add batch-enable admin script routing through the governed set-options-enabled core
