@@ -39,6 +39,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Swing-Driven Options Corpus] 102-128_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 128
 - [Swing-Driven Options Corpus] 102-138_BE-IMPL-OPTIONS-DATA: Add OptionableProbeService + refactor backfill-optionable onto it
 - [Swing-Driven Options Corpus] 102-138_DOCS-OPTIONS-DATA: Add code review doc, IMPL/TEST plans, verify script guide + changelog for task 138
+- [Swing-Driven Options Corpus] 102-139_BE-IMPL-OPTIONS-DATA: Add ingestion flag defaults (saveTrackedSymbol) + onSymbolReady probe trigger
+- [Swing-Driven Options Corpus] 102-139_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 139
 - [Add Company Overview Data to Symbol Manager] 88-97_BE-IMPL-SYMBOL-MANAGER: Add numeric marketCap/beta to companyInfo write-back
 - [Add Company Overview Data to Symbol Manager] 88-97_BE-DOCS-SYMBOL-MANAGER: Add verification script and guide for companyInfo write-back
 - [Add Company Overview Data to Symbol Manager] 88-97_DOCS-SYMBOL-MANAGER: Add code review doc and changelog for task 97
