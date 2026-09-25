@@ -11,6 +11,7 @@ import { CorpusMetadataService } from '../services/corpus-metadata.service';
 import { GcsCorpusAdapter } from '../services/gcs-corpus-adapter.service';
 import { HistoricalOptionsRetrievalService } from '../services/historical-options-retrieval.service';
 import { MAX_CORPUS_SEED_ATTEMPTS, seedCorpusItem } from '../services/corpus-seed.worker';
+import { createOptionsEnabledChecker } from '../services/options-enabled-gate';
 import type { CorpusSeedPayload } from '../types';
 import { OPTIONS_TS_BUILD_TASK_QUEUE, type TsBuildPayload } from './ts-build.task';
 
@@ -38,8 +39,8 @@ function createRetrievalService(): HistoricalOptionsRetrievalService {
 }
 
 /**
- * Cloud Task worker that seeds a single symbol+date into the QQQ/TQQQ
- * historical-options GCS corpus.
+ * Cloud Task worker that seeds a single symbol+date into the
+ * historical-options GCS corpus (options-enabled symbols only).
  *
  * Exported as `processHistoricalOptionsCorpusSeedTask`; re-exported from
  * `functions/src/index.ts` for deployment.
@@ -59,6 +60,7 @@ export const processHistoricalOptionsCorpusSeedTask = onTaskDispatched<CorpusSee
     const payload = req.data;
 
     await seedCorpusItem(payload, {
+      isOptionsEnabled: createOptionsEnabledChecker(),
       retrieval: createRetrievalService(),
       gcs: new GcsCorpusAdapter(getBucket()),
       metadata: new CorpusMetadataService(),

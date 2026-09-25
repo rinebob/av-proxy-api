@@ -34,6 +34,7 @@ function createService(overrides: any = {}) {
 
   return {
     service: new NightlyCorpusService({
+      listOptionsEnabledSymbols: overrides.listOptionsEnabledSymbols ?? jest.fn().mockResolvedValue(['QQQ', 'TQQQ']),
       calendar: calendar as any,
       metadata: metadata as any,
       gcs: gcs as any,

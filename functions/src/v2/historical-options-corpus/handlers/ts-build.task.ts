@@ -1,6 +1,7 @@
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 
 import { createTimeSeriesBuilderService } from '../services/time-series-builder.service';
+import { createOptionsEnabledChecker } from '../services/options-enabled-gate';
 
 /**
  * Payload for a single-symbol, single-date time-series build task.
@@ -37,6 +38,12 @@ export const processHistoricalOptionsTsBuildTask = onTaskDispatched<TsBuildPaylo
     const { symbol, date } = req.data;
 
     console.log('[ts-build-task] start', { symbol, date });
+
+    // Curation gate (Task #150): a disabled symbol never builds time series.
+    if (!(await createOptionsEnabledChecker()(symbol))) {
+      console.log('[ts-build-task] skip options-disabled', { symbol, date });
+      return;
+    }
 
     const service = createTimeSeriesBuilderService();
 

@@ -13,6 +13,12 @@ export type SeedWorkerResult =
   | { status: 'permanent_failure'; error: string };
 
 export interface SeedWorkerDependencies {
+  /**
+   * Curation gate (Task #150): resolves true only when the symbol's
+   * tracked-symbol doc has `optionsEnabled === true`. Checked first so a
+   * disabled or unknown symbol consumes zero AV calls and writes no metadata.
+   */
+  isOptionsEnabled: (symbol: string) => Promise<boolean>;
   retrieval: HistoricalOptionsRetrievalService;
   gcs: GcsCorpusAdapter;
   metadata: CorpusMetadataService;
@@ -44,6 +50,16 @@ export async function seedCorpusItem(
   const key = itemKey({ symbol, date });
 
   deps.logger('seed.start', { runId, symbol, date, attempt });
+
+  if (!(await deps.isOptionsEnabled(symbol))) {
+    deps.logger('seed.skip.options-disabled', { runId, symbol, date });
+    // Terminal status + completion increment so planned runs can't wedge
+    // with permanently 'pending' items when a symbol is disabled mid-run
+    // (or a stale/manual task arrives for a disabled symbol).
+    await deps.metadata.setItemFailure(runId, key, 'options-disabled', 'skipped');
+    await deps.metadata.incrementCompleted(runId, 0);
+    return { status: 'skipped', reason: 'options-disabled' };
+  }
 
   const existing = await deps.metadata.getItemDoc(runId, key);
   if (existing?.status === 'success') {

@@ -1,8 +1,10 @@
 import {
   DEFAULT_PILOT_MAX_TRADING_DATES,
-  DEFAULT_PILOT_SYMBOLS,
   HistoricalOptionsPilotService,
 } from '../../../src/v2/historical-options-corpus/services/pilot.service';
+
+// Task #150 removed DEFAULT_PILOT_SYMBOLS — tests simulate the enabled set.
+const DEFAULT_PILOT_SYMBOLS_FOR_TEST = ['QQQ', 'TQQQ'];
 
 function createPilotService(overrides: any = {}) {
   const items = new Map<string, any>();
@@ -25,6 +27,7 @@ function createPilotService(overrides: any = {}) {
   const enqueueTask = jest.fn();
 
   const service = new HistoricalOptionsPilotService({
+    listOptionsEnabledSymbols: overrides.listOptionsEnabledSymbols ?? jest.fn().mockResolvedValue([...DEFAULT_PILOT_SYMBOLS_FOR_TEST]),
     metadata: metadata as any,
     gcs: gcs as any,
     calendar: new (require('../../../src/v2/historical-options-corpus/services/trading-calendar.service').TradingCalendarService)(),
@@ -47,8 +50,8 @@ describe('HistoricalOptionsPilotService', () => {
 
     const report = await service.run({ referenceDate: '2019-01-30' });
 
-    expect(report.symbols).toEqual([...DEFAULT_PILOT_SYMBOLS]);
-    expect(report.totalItems).toBe(DEFAULT_PILOT_MAX_TRADING_DATES * DEFAULT_PILOT_SYMBOLS.length);
+    expect(report.symbols).toEqual([...DEFAULT_PILOT_SYMBOLS_FOR_TEST]);
+    expect(report.totalItems).toBe(DEFAULT_PILOT_MAX_TRADING_DATES * DEFAULT_PILOT_SYMBOLS_FOR_TEST.length);
     expect(report.manifest[0]).toMatchObject({ symbol: 'QQQ', date: '2019-01-02' });
     expect(report.manifest[DEFAULT_PILOT_MAX_TRADING_DATES - 1]).toMatchObject({
       symbol: 'QQQ',

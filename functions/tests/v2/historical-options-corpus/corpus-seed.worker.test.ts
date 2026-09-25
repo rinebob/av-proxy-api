@@ -33,6 +33,7 @@ const responsePayload = {
 
 function createDependencies(overrides: Partial<SeedWorkerDependencies> = {}): SeedWorkerDependencies {
   return {
+    isOptionsEnabled: jest.fn().mockResolvedValue(true),
     retrieval: {
       fetch: jest.fn().mockResolvedValue(responsePayload),
     } as unknown as HistoricalOptionsRetrievalService,

@@ -1,8 +1,9 @@
 import type { AvHistoricalOptionsResponse, SvtOptionsAnalysis } from '@shared/alpha-vantage';
 import type { Timestamp } from 'firebase-admin/firestore';
 
-/** Supported symbols for the internal QQQ/TQQQ historical options corpus. */
-export type CorpusSymbol = 'QQQ' | 'TQQQ';
+// Note: the former CorpusSymbol ('QQQ' | 'TQQQ') restriction was lifted in
+// Task #150 — any tracked symbol with optionsEnabled === true is processable;
+// the curation gate lives in services/options-enabled-gate.ts.
 
 /** Versioned envelope stored as the gzipped object payload in GCS. */
 export interface HistoricalOptionsCorpusEnvelope {
@@ -26,7 +27,9 @@ export type CorpusItemStatus =
   | 'success'
   | 'failure'
   | 'permanent_failure'
-  | 'not_found';
+  | 'not_found'
+  /** Terminal: curation gate dropped the item (optionsEnabled !== true). */
+  | 'skipped';
 
 /** Firestore document stored under `options_corpus_runs/{runId}/items/{symbol}_{date}`. */
 export interface CorpusItemDoc {

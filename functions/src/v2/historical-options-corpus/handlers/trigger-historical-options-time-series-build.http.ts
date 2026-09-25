@@ -5,6 +5,7 @@ import type { Request, Response } from 'express';
 import { createLogger } from '../../utils/utils';
 import { withCors } from '../../utils/cors-middleware';
 import { createTimeSeriesBuilderService } from '../services/time-series-builder.service';
+import { createOptionsEnabledChecker } from '../services/options-enabled-gate';
 import { TradingCalendarService } from '../services/trading-calendar.service';
 import { getYesterdayEt, isValidIsoDate } from '../../common/utils/date-time.utils';
 
@@ -94,6 +95,12 @@ export const triggerHistoricalOptionsTimeSeriesBuild = onRequest(
 
       if (startDate > endDate) {
         res.status(400).json({ ok: false, error: 'startDate must be before or equal to endDate' });
+        return;
+      }
+
+      // Curation gate (Task #150): corpus work drops for non-enabled symbols.
+      if (!(await createOptionsEnabledChecker()(symbol))) {
+        res.status(200).json({ ok: false, skipped: true, reason: 'options-disabled', symbol });
         return;
       }
 

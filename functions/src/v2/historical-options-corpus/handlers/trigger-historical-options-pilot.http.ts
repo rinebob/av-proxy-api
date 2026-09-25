@@ -8,7 +8,6 @@ import {
   createHistoricalOptionsPilotService,
   DEFAULT_PILOT_MAX_TRADING_DATES,
   DEFAULT_PILOT_START_DATE,
-  DEFAULT_PILOT_SYMBOLS,
   type PilotOptions,
 } from '../services/pilot.service';
 
@@ -58,10 +57,11 @@ function isAdmin(req: Request, res: Response): boolean {
 }
 
 /**
- * Admin HTTP trigger for the QQQ/TQQQ historical-options corpus pilot/backfill.
+ * Admin HTTP trigger for the historical-options corpus pilot/backfill.
  *
  * POST body (all optional):
- * - symbols: string[] or comma-separated string; defaults to ['QQQ', 'TQQQ']
+ * - symbols: string[] or comma-separated string; defaults to the live
+ *   options-enabled set (non-enabled symbols are dropped and reported)
  * - startDate: 'YYYY-MM-DD'; defaults to '2019-01-01'
  * - referenceDate: 'YYYY-MM-DD'; defaults to yesterday in America/New_York
  * - maxTradingDatesPerSymbol: number; defaults to 20
@@ -90,7 +90,8 @@ export const triggerHistoricalOptionsPilot = onRequest(
 
       const body = (req.body || {}) as TriggerHistoricalOptionsPilotBody;
 
-      const symbols = normalizeSymbols(body.symbols) ?? [...DEFAULT_PILOT_SYMBOLS];
+      // Undefined → the pilot service defaults to the options-enabled set.
+      const symbols = normalizeSymbols(body.symbols);
       const startDate = isValidIsoDate(body.startDate) ? body.startDate : DEFAULT_PILOT_START_DATE;
       const referenceDate = isValidIsoDate(body.referenceDate) ? body.referenceDate : undefined;
       const maxTradingDatesPerSymbol =

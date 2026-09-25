@@ -1,5 +1,5 @@
 /**
- * US equity trading calendar used to plan the QQQ/TQQQ historical options corpus.
+ * US equity trading calendar used to plan the historical options corpus.
  *
  * The calendar is rule-based and covers 2019-2026. It treats the major NYSE
  * closure rules (New Year's, MLK, Presidents, Good Friday, Memorial,

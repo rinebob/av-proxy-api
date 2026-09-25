@@ -6,8 +6,10 @@ import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import { OPTIONS_CORPUS_SEED_TASK_QUEUE } from '../handlers/corpus-seed.task';
 import type { HistoricalOptionsRetrievalService } from './historical-options-retrieval.service';
 import { TradingCalendarService } from './trading-calendar.service';
+import { listOptionsEnabledSymbols } from './options-enabled-gate';
 
-export const DEFAULT_PILOT_SYMBOLS = ['QQQ', 'TQQQ'] as const;
+// Task #150: no hardcoded pilot symbols — an omitted `symbols` request
+// defaults to the live options-enabled set (see options-enabled-gate).
 export const DEFAULT_PILOT_START_DATE = '2019-01-01';
 export const DEFAULT_PILOT_MAX_TRADING_DATES = 20;
 
@@ -36,6 +38,8 @@ export interface PilotReport {
   runId: string;
   runPlan: CorpusRunPlan;
   symbols: string[];
+  /** Requested symbols dropped because optionsEnabled !== true (Task #150). */
+  skippedSymbols: string[];
   startDate: string;
   endDate: string;
   maxTradingDatesPerSymbol: number;
@@ -49,6 +53,9 @@ export interface PilotReport {
 }
 
 export interface PilotDependencies {
+  /** Curation gate (Task #150): returns the live options-enabled universe —
+   *  the default symbol set and the filter for explicit requests. */
+  listOptionsEnabledSymbols: () => Promise<string[]>;
   metadata: CorpusMetadataService;
   gcs: GcsCorpusAdapter;
   calendar: TradingCalendarService;
@@ -59,7 +66,7 @@ export interface PilotDependencies {
 }
 
 /**
- * Bounded pilot runner for the QQQ/TQQQ historical options corpus.
+ * Bounded pilot runner for the options-enabled historical options corpus.
  *
  * By default it operates in dry-run mode: it plans a manifest of the earliest
  * N trading dates per symbol, checks GCS for existing coverage, and
@@ -70,12 +77,47 @@ export class HistoricalOptionsPilotService {
   constructor(private readonly deps: PilotDependencies) {}
 
   async run(options: PilotOptions = {}): Promise<PilotReport> {
-    const symbols = (options.symbols ?? DEFAULT_PILOT_SYMBOLS).map((s) => s.toUpperCase());
+    const enabledSet = new Set((await this.deps.listOptionsEnabledSymbols()).map((s) => s.toUpperCase()));
+    const requested = (options.symbols ?? [...enabledSet]).map((s) => s.toUpperCase());
+    const symbols = requested.filter((s) => enabledSet.has(s));
+    const skippedSymbols = requested.filter((s) => !enabledSet.has(s));
+    if (skippedSymbols.length > 0) {
+      console.warn('[pilot] dropped non-options-enabled symbols', { skippedSymbols });
+    }
     const startDate = options.startDate ?? DEFAULT_PILOT_START_DATE;
-    const referenceDate = options.referenceDate ?? this.yesterday();
+    const referenceDate = options.referenceDate ?? options.endDate ?? this.yesterday();
     const maxTradingDatesPerSymbol = options.maxTradingDatesPerSymbol ?? DEFAULT_PILOT_MAX_TRADING_DATES;
     const dryRun = options.dryRun ?? true;
     const execute = options.execute ?? false;
+
+    if (symbols.length === 0) {
+      const emptyPlan: CorpusRunPlan = {
+        runId: options.runId ?? 'no-enabled-symbols',
+        symbols: [],
+        startDate,
+        endDate: referenceDate,
+        totalItems: 0,
+        items: [],
+        dryRun,
+        pilot: true,
+      };
+      return {
+        runId: emptyPlan.runId,
+        runPlan: emptyPlan,
+        symbols: [],
+        skippedSymbols,
+        startDate,
+        endDate: referenceDate,
+        maxTradingDatesPerSymbol,
+        totalItems: 0,
+        presentItems: 0,
+        missingItems: 0,
+        estimatedApiCalls: 0,
+        dryRun,
+        executed: false,
+        manifest: [],
+      };
+    }
 
     if (execute && dryRun) {
       throw new Error('Cannot execute a dry-run pilot; set dryRun=false to dispatch tasks.');
@@ -140,6 +182,7 @@ export class HistoricalOptionsPilotService {
       runId: runPlan.runId,
       runPlan,
       symbols: runPlan.symbols,
+      skippedSymbols,
       startDate: runPlan.startDate,
       endDate: runPlan.endDate,
       maxTradingDatesPerSymbol,
@@ -192,6 +235,7 @@ export function createHistoricalOptionsPilotService(
   const bucket = getStorage().bucket(bucketName ?? process.env.OPTIONS_CORPUS_BUCKET);
 
   return new HistoricalOptionsPilotService({
+    listOptionsEnabledSymbols,
     metadata: new CorpusMetadataService(),
     gcs: new GcsCorpusAdapter(bucket),
     calendar: new TradingCalendarService(),

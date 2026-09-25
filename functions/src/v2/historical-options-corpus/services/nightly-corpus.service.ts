@@ -7,10 +7,12 @@ import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import { planCorpusRun, type PlanCorpusRunOptions } from './corpus-planner.service';
 import { TradingCalendarService } from './trading-calendar.service';
 import { OPTIONS_CORPUS_SEED_TASK_QUEUE } from '../handlers/corpus-seed.task';
-
-export const NIGHTLY_CORPUS_SYMBOLS = ['QQQ', 'TQQQ'] as const;
+import { listOptionsEnabledSymbols } from './options-enabled-gate';
 
 export interface NightlyCorpusDependencies {
+  /** Curation gate (Task #150): nightly iterates the live enabled set —
+   *  the QQQ/TQQQ pilot constant was replaced by this lister. */
+  listOptionsEnabledSymbols: () => Promise<string[]>;
   calendar: Pick<TradingCalendarService, 'isTradingDay'>;
   metadata: CorpusMetadataService;
   gcs: Pick<GcsCorpusAdapter, 'getMetadata'>;
@@ -41,8 +43,13 @@ export class NightlyCorpusService {
       };
     }
 
+    const symbols = (await this.deps.listOptionsEnabledSymbols()).map((s) => s.toUpperCase());
+    if (symbols.length === 0) {
+      return { targetDate, skippedMarketClosed: false, queuedItems: 0, skippedExistingItems: 0 };
+    }
+
     const runPlan = await this.deps.planRun({
-      symbols: [...NIGHTLY_CORPUS_SYMBOLS],
+      symbols,
       startDate: targetDate,
       endDate: targetDate,
       dryRun: false,
@@ -114,6 +121,7 @@ export function createNightlyCorpusService(bucketName?: string): NightlyCorpusSe
   }
 
   return new NightlyCorpusService({
+    listOptionsEnabledSymbols,
     calendar: new TradingCalendarService(),
     metadata: new CorpusMetadataService(),
     gcs: new GcsCorpusAdapter(getStorage().bucket(resolvedBucketName)),

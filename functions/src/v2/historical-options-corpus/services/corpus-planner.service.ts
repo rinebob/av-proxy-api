@@ -23,7 +23,7 @@ export interface PlanCorpusRunOptions {
 }
 
 /**
- * Idempotent planner for QQQ/TQQQ historical-options corpus runs.
+ * Idempotent planner for historical-options corpus runs.
  *
  * Builds a manifest of symbol+date pairs using a verified US trading calendar,
  * optionally bounded per symbol. If `metadata` and `runId` are provided and the
