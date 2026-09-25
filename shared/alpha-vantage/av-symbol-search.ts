@@ -86,6 +86,8 @@ export interface TrackedSymbolV2 extends AvSymbol {
     /** Count of distinct expiration dates in the probed chain. */
     expirations?: number;
   };
+  /** Why a probe marked optionable=false (PRD §88 — never block ingestion on probe failure). */
+  optionableProbeError?: string;
   /** Audit trail of optionsEnabled toggles (Thread #105 §70). */
   optionsEnabledHistory?: {
     enabled: boolean;
@@ -137,6 +139,7 @@ export const TRACKED_SYMBOL_V2_FIELDS = {
   OPTIONS_ENABLED: 'optionsEnabled',
   OPTIONABLE_CHECKED_AT: 'optionableCheckedAt',
   OPTIONABLE_PROBE_SUMMARY: 'optionableProbeSummary',
+  OPTIONABLE_PROBE_ERROR: 'optionableProbeError',
   OPTIONS_ENABLED_HISTORY: 'optionsEnabledHistory',
 };
 

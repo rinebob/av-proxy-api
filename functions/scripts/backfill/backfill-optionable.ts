@@ -5,13 +5,10 @@
  * Unlike the other backfills this DOES make provider calls — one AV
  * HISTORICAL_OPTIONS request per symbol — so it is throttled, resumable
  * (skips already-probed symbols unless --force), and aborts the whole run on
- * RATE_LIMITED rather than burning quota.
+ * quota/rate-limit errors rather than burning quota.
  *
- * Writes to tracked-symbols/{SYM} (field names per Thread #105 PRD §75/§80):
- *   optionable: boolean             — response.data.length > 0
- *   optionableCheckedAt: Timestamp  — probe time
- *   optionableProbeSummary: object  — liquidity metrics from analyzeOptions
- *   optionsEnabled / optionsEnabledHistory — default false / [] when absent
+ * All probe + persist logic lives in OptionableProbeService (#138) — this
+ * script is a thin CLI loop over service.probeAndPersist().
  *
  * Usage (from functions/):
  *   npx ts-node -r tsconfig-paths/register -P scripts/tsconfig.json scripts/backfill/backfill-optionable.ts [--dry-run] [--symbols A,MSFT] [--delay 850] [--limit 50] [--force]
@@ -28,9 +25,13 @@ const { db } = require('../../src/firebase-admin-init');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { createHistoricalOptionsRetrievalService } = require('../../src/v2/historical-options-corpus/services/historical-options-retrieval.service');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { AlphaVantageUpstreamError, AlphaVantageUpstreamErrorCategory } = require('../../src/v2/alpha-vantage/utils/av-upstream-error.utils');
+const { OptionableProbeService, isQuotaError } = require('../../src/v2/symbol-flags/services/optionable-probe.service');
 
-const COLLECTION = 'tracked-symbols';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { FirestoreCollection } = require('@shared/firestore');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { TRACKED_SYMBOL_V2_FIELDS: F } = require('@shared/alpha-vantage');
+const COLLECTION = FirestoreCollection.TRACKED_SYMBOLS;
 
 interface Args { dryRun: boolean; symbols?: string[]; delayMs: number; limit?: number; force: boolean; }
 
@@ -54,25 +55,7 @@ function parseArgs(): Args {
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const log = (m: string) => console.log(`[backfill-optionable] ${m}`);
 
-function toSummaryFields(analysis: any): Record<string, number> {
-  const out: Record<string, number> = {};
-  const s = analysis?.summary;
-  for (const k of ['totalContracts', 'totalVolume', 'totalOpenInterest', 'uniqueStrikes'] as const) {
-    const v = s?.[k];
-    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
-  }
-  if (Array.isArray(analysis?.expirations)) out.expirations = analysis.expirations.length;
-  return out;
-}
 
-/** AV returns 'Information' (not 'Note') for premium-gating and some quota messages. */
-const QUOTA_MESSAGE = /rate limit|call frequency|premium|quota|daily/i;
-
-function isAbortable(e: any): boolean {
-  if (!(e instanceof AlphaVantageUpstreamError)) return false;
-  return e.category === AlphaVantageUpstreamErrorCategory.RATE_LIMITED ||
-    (e.category === AlphaVantageUpstreamErrorCategory.UPSTREAM_ERROR && QUOTA_MESSAGE.test(e.providerMessage ?? ''));
-}
 
 async function main(): Promise<void> {
   const args = parseArgs();
@@ -80,8 +63,12 @@ async function main(): Promise<void> {
 
   // Lazily constructed — a fully-skipped run (all symbols already probed)
   // should not require ALPHAVANTAGE_API_KEY at all.
-  let service: any;
-  const getService = () => (service ??= createHistoricalOptionsRetrievalService());
+  let probeService: any;
+  const getProbe = () => (probeService ??= new OptionableProbeService({
+    retrieval: createHistoricalOptionsRetrievalService(),
+    db,
+    logger: console,
+  }));
 
   let ids: string[];
   if (args.symbols?.length) {
@@ -102,36 +89,32 @@ async function main(): Promise<void> {
       const snap = await ref.get();
       if (!snap.exists) { missingDoc++; continue; }
 
-      // §76 default: every tracked symbol carries optionsEnabled=false until curated.
+      // §76 default: every tracked symbol carries optionsEnabled=false until
+      // curated. The service's persist() applies the same defaults on the
+      // probe path — this block covers the already-probed skip path only.
       const defaults: Record<string, unknown> = {};
-      if (snap.get('optionsEnabled') === undefined || snap.get('optionsEnabled') === null) defaults.optionsEnabled = false;
-      if (snap.get('optionsEnabledHistory') === undefined || snap.get('optionsEnabledHistory') === null) defaults.optionsEnabledHistory = [];
+      if (snap.get(F.OPTIONS_ENABLED) === undefined || snap.get(F.OPTIONS_ENABLED) === null) defaults[F.OPTIONS_ENABLED] = false;
+      if (snap.get(F.OPTIONS_ENABLED_HISTORY) === undefined || snap.get(F.OPTIONS_ENABLED_HISTORY) === null) defaults[F.OPTIONS_ENABLED_HISTORY] = [];
       if (!args.dryRun && Object.keys(defaults).length) await ref.update(defaults);
 
-      const existing = snap.get('optionable');
+      const existing = snap.get(F.OPTIONABLE);
       if (!args.force && existing !== undefined && existing !== null) {
         alreadyProbed++;
         continue;
       }
 
-      const { response, analysis } = await getService().fetch({ symbol });
-      const hasOptions = Array.isArray(response.data) && response.data.length > 0;
-      const summaryFields = toSummaryFields(analysis);
+      const result = args.dryRun
+        ? await getProbe().probe(symbol)
+        : await getProbe().probeAndPersist(symbol);
 
-      if (args.dryRun) {
-        log(`${symbol}: would write optionable=${hasOptions} contracts=${summaryFields.totalContracts ?? '?'}`);
-      } else {
-        await ref.update({
-          optionable: hasOptions,
-          optionableCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
-          optionableProbeSummary: summaryFields,
-        });
-        log(`${symbol}: optionable=${hasOptions} contracts=${summaryFields.totalContracts ?? 0}`);
-      }
-      hasOptions ? optionable++ : notOptionable++;
+      log(
+        `${symbol}: ${args.dryRun ? 'would write' : 'wrote'} optionable=${result.optionable}` +
+          (result.error ? ` error=${result.error}` : ` contracts=${result.summary?.totalContracts ?? 0}`),
+      );
+      result.optionable ? optionable++ : notOptionable++;
     } catch (e: any) {
-      if (isAbortable(e)) {
-        log(`Quota/rate-limit abort at ${symbol} — re-run later (already-probed symbols are skipped). ${e.providerMessage ?? ''}`);
+      if (isQuotaError(e)) {
+        log(`Quota/rate-limit abort at ${symbol} — re-run later (already-probed symbols are skipped). ${e.providerMessage ?? e.message ?? ''}`);
         aborted = true;
         break;
       }
