@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-24]
 
 ### Fixed
-- [Repo & Deploy Hygiene] 118-119_CONFIG-CONFIG-OPS: Reconcile firestore.indexes.json with prod Ã¢â‚¬â€ file now tracks all 78 deployed indexes in CLI-export format
+- [Repo & Deploy Hygiene] 118-119_CONFIG-CONFIG-OPS: Reconcile firestore.indexes.json with prod ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â file now tracks all 78 deployed indexes in CLI-export format
 - [Repo & Deploy Hygiene] 118-119_TESTS-BUG-OPS: Fix relative path depth in contract-summary-aggregator test (pre-existing failure)
 
 ### Added
@@ -34,6 +34,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Swing-Driven Options Corpus] 102-127_BE-IMPL-OPTIONS-DATA: Add sweepSwingSets scheduler + backfillSwingSets
 - [Swing-Driven Options Corpus] 102-127_BE-DOCS-OPTIONS-DATA: Add sweep verification script and guide
 - [Swing-Driven Options Corpus] 102-127_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 127
+- [Swing-Driven Options Corpus] 102-128_BE-IMPL-OPTIONS-DATA: Add partnerSwingSetsV2 partner endpoint
+- [Swing-Driven Options Corpus] 102-128_BE-DOCS-OPTIONS-DATA: Add endpoint verify script + register partnerSwingSetsV2 in partner docs
+- [Swing-Driven Options Corpus] 102-128_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 128
 - [Swing-Driven Options Corpus] 102-138_BE-IMPL-OPTIONS-DATA: Add OptionableProbeService + refactor backfill-optionable onto it
 - [Swing-Driven Options Corpus] 102-138_DOCS-OPTIONS-DATA: Add code review doc, IMPL/TEST plans, verify script guide + changelog for task 138
 - [Add Company Overview Data to Symbol Manager] 88-97_BE-IMPL-SYMBOL-MANAGER: Add numeric marketCap/beta to companyInfo write-back
