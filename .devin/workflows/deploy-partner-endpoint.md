@@ -156,3 +156,4 @@ For the full list of deployed partner endpoints, see `docs/partner/partner-endpo
 | `partnerSpreadTimeSeries` | `partnerspreadtimeseries` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerSpreadTimeSeries` |
 | `partnerSpreadTimeSeriesBatch` | `partnerspreadtimeseriesbatch` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerSpreadTimeSeriesBatch` |
 | `partnerDataReadyPublishV2` | `partnerdatareadypublishv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerDataReadyPublishV2` |
+| `partnerSwingSetsV2` | `partnerswingsetsv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerSwingSetsV2` |

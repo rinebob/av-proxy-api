@@ -112,7 +112,7 @@ firebase functions:secrets:set EXPECTED_GOOGLE_AUDIENCE
 2. __Deploy functions__
 ```bash
 # Deploy all partner endpoints (see docs/partner/partner-endpoint-inventory.md for the full list)
-firebase deploy --only "functions:partnerTimeSeriesV2,functions:partnerIntradaySnapshotV2,functions:partnerCompanyOverviewV2,functions:partnerListTrackedSymbolsV2,functions:partnerMarketHolidays,functions:partnerHistoricalOptionsV2,functions:partnerHistoricalOptionsContractV2,functions:partnerListContractsV2,functions:partnerContractCatalogV2,functions:partnerSpreadTimeSeries,functions:partnerSpreadTimeSeriesBatch,functions:partnerDataReadyPublishV2" --project "alpha-vantage-proxy-api"
+firebase deploy --only "functions:partnerTimeSeriesV2,functions:partnerIntradaySnapshotV2,functions:partnerCompanyOverviewV2,functions:partnerListTrackedSymbolsV2,functions:partnerMarketHolidays,functions:partnerHistoricalOptionsV2,functions:partnerHistoricalOptionsContractV2,functions:partnerListContractsV2,functions:partnerContractCatalogV2,functions:partnerSpreadTimeSeries,functions:partnerSpreadTimeSeriesBatch,functions:partnerDataReadyPublishV2,functions:partnerSwingSetsV2" --project "alpha-vantage-proxy-api"
 ```
 3. __Grant invoker on Cloud Run services__
 ```bash

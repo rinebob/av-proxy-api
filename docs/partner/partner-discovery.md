@@ -41,6 +41,7 @@ Key data-serving endpoints:
 - `partnerContractCatalogV2` — Query contract catalog with filtering (QQQ/TQQQ only)
 - `partnerSpreadTimeSeries` — Single options spread time series (QQQ/TQQQ only)
 - `partnerSpreadTimeSeriesBatch` — Batch spread time series, up to 200 per request (QQQ/TQQQ only)
+- `partnerSwingSetsV2` — Canonical ZigZag swing sets per symbol (`optionsEnabled` symbols; service account required)
 
 Earnings endpoints (browser-facing, origin-restricted — see `docs/partner/partner-earnings.md`):
 - `alphaVantageApiV2/EARNINGS` — Historical annual & quarterly EPS (per-symbol, 7-day TTL)

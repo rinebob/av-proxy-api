@@ -2,7 +2,7 @@
 
 Single source of truth for all deployed partner HTTPS Cloud Function endpoints. Other docs should link here instead of maintaining their own lists.
 
-Last updated: 2026-08-15
+Last updated: 2026-09-25
 
 ---
 
@@ -24,6 +24,7 @@ These endpoints serve data to partner applications (read-only from Firestore or 
 | `partnerSpreadTimeSeries` | `partnerspreadtimeseries` | POST | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Historical time series for a single options spread | `docs/partner/options-data/spread-time-series-discovery.md` |
 | `partnerSpreadTimeSeriesBatch` | `partnerspreadtimeseriesbatch` | POST | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Batch spread time series (up to 200 spreads per request) | `docs/partner/options-data/spread-time-series-discovery.md` |
 | `partnerTechnicalIndicatorsV2` | `partnertechnicalindicatorsv2` | GET | None (any tracked symbol) | Dual-auth (OIDC/Firebase) | On-demand AV technical indicators (Hilbert Transform family) — config-driven, calls AV directly | `docs/PRD-av-endpoints-hilbert.md` |
+| `partnerSwingSetsV2` | `partnerswingsetsv2` | GET | None (tracked + `optionsEnabled` symbols) | Dual-auth (OIDC/Firebase) — **service account required** | Canonical ZigZag swing sets from `options-swing-sets` (single `paramsId` or all four keyed by paramsId) | `docs/topics/102-options-data/102-103-113-IMPL-options-data-be-swing-driven-options-corpus-swing-set-platform.md` §5 |
 
 ## Internal / Operational Endpoints
 

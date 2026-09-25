@@ -28,6 +28,8 @@ const scripts = [
   // tracked-symbols/ZZTEST + ZZTEST_* docs in prod), run manually
   // options-data-127-swing-set-sweep.ts — mutating (same ZZTEST pattern +
   // baseline sweep can regenerate real enabled symbols), run manually
+  // options-data-128-partner-swing-sets.ts — mutating (writes + deletes
+  // tracked-symbols/ZZTEST + ZZTEST_* docs in prod), run manually
 ];
 
 let passed = 0;

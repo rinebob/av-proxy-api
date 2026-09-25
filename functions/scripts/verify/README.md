@@ -147,7 +147,9 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #125 | `options-data-125-swing-set-generation.ts` *(mutating, not in run-all)* | BE: SwingSetGenerationService end-to-end (writes + deletes four canonical docs) | [options-data-125-swing-set-generation.md](options-data-125-swing-set-generation.md) |
 | #126 | `options-data-126-swing-set-task.ts` *(mutating, not in run-all)* | BE: generateSwingSetsTask internals — optionsEnabled enqueue gate, freshness skip, invalid-payload ack | [options-data-126-swing-set-task.md](options-data-126-swing-set-task.md) |
 | #127 | `options-data-127-swing-set-sweep.ts` *(mutating, not in run-all)* | BE: runSwingSetSweep — optionsEnabled enumeration, freshness skip, force/subset gating, per-symbol isolation | [options-data-127-swing-set-sweep.md](options-data-127-swing-set-sweep.md) |
+| #128 | `options-data-128-partner-swing-sets.ts` *(mutating, not in run-all)* | BE: partnerSwingSetsV2 handler — tracked/enabled gates, single + all-docs responses, envelope, error codes | [options-data-128-partner-swing-sets.md](options-data-128-partner-swing-sets.md) |
 | #138 | `options-data-138-optionable-probe.ts` *(mutating, not in run-all)* | BE: OptionableProbeService — probe + persist round-trip on an already-probed symbol | [options-data-138-optionable-probe.md](options-data-138-optionable-probe.md) |
+| #139 | `options-data-139-on-add-probe.ts` *(mutating, not in run-all)* | BE: ingestion defaults + on-add probe transition core gates (no-transition/already-probed/probed) | [options-data-139-on-add-probe.md](options-data-139-on-add-probe.md) |
 | #119 | `ops-119-firestore-indexes.ts` | OPS: firestore.indexes.json ↔ prod drift check | [ops-119-firestore-indexes.md](ops-119-firestore-indexes.md) |
 
 ## Execution order
@@ -176,6 +178,7 @@ Topic #102 (Swing-driven options corpus):
 4. **#125** (BE: generation service) — blocked by #124; **mutating** — writes + deletes `{SYMBOL}_{paramsId}` docs (not in run-all)
 5. **#126** (BE: task handler) — blocked by #125; **mutating** — writes + deletes `tracked-symbols/ZZTEST` + `ZZTEST_*` docs (not in run-all)
 6. **#127** (BE: sweep/backfill) — blocked by #126; **mutating** — same ZZTEST pattern; baseline sweep regenerates real stale enabled symbols (not in run-all)
+7. **#128** (BE: partner read endpoint) — blocked by #125; **mutating** — same ZZTEST pattern (not in run-all)
 
 Topic #118 (Repo & deploy hygiene):
 
