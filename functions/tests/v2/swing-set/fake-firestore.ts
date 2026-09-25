@@ -10,7 +10,20 @@
  * full replace). Real Firestore deep-merges map fields — irrelevant for
  * full-doc writes. `where()` only implements `==`.
  */
+import { Timestamp } from 'firebase-admin/firestore';
 import type { FirestoreLike } from '../../../src/v2/common/firestore/firestore-like';
+
+function resolveArrayUnionElement(value: unknown): unknown {
+  if (value?.constructor?.name === 'ServerTimestampTransform') {
+    throw new Error('serverTimestamp() cannot be used inside an arrayUnion element');
+  }
+  if (value instanceof Timestamp || value instanceof Date) return value;
+  if (Array.isArray(value)) return value.map(resolveArrayUnionElement);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, resolveArrayUnionElement(item)]));
+  }
+  return value;
+}
 
 export function createFakeFirestore(seed: Record<string, unknown> = {}): FirestoreLike & {
   calls: { method: string; path: string; payload?: unknown; opts?: unknown }[];
@@ -30,12 +43,21 @@ export function createFakeFirestore(seed: Record<string, unknown> = {}): Firesto
               calls.push({ method: 'set', path: `${path}/${id}`, payload, opts });
               const merge = (opts as { merge?: boolean } | undefined)?.merge === true;
               const existing = merge ? (store.get(`${path}/${id}`) ?? {}) : {};
-              // FieldValue.delete() arrives as a DeleteTransform sentinel —
-              // drop those keys instead of storing the sentinel object.
               const next: Record<string, unknown> = { ...(existing as object) };
               for (const [k, v] of Object.entries(payload as object)) {
-                if (v?.constructor?.name === 'DeleteTransform') delete next[k];
-                else next[k] = v;
+                if (v?.constructor?.name === 'DeleteTransform') {
+                  delete next[k];
+                } else if (v?.constructor?.name === 'ServerTimestampTransform') {
+                  next[k] = Timestamp.now();
+                } else if (v?.constructor?.name === 'ArrayUnionTransform') {
+                  const elements = (v as { elements: unknown[] }).elements.map(resolveArrayUnionElement);
+                  const current = Array.isArray(next[k]) ? (next[k] as unknown[]) : [];
+                  next[k] = [...current, ...elements.filter((element) =>
+                    !current.some((item) => JSON.stringify(item) === JSON.stringify(element)),
+                  )];
+                } else {
+                  next[k] = v;
+                }
               }
               store.set(`${path}/${id}`, next);
             },

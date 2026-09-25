@@ -2,7 +2,8 @@
  * generateSwingSetsTask — Cloud Task worker.
  *
  * Fires when `optionsEnabled` flips to true on a tracked symbol (wired in
- * saveTrackedSymbol; Thread #105 owns the full flag lifecycle). Payload
+ * setOptionsEnabledV2 — the governed toggle path; Thread #105 owns the
+ * full flag lifecycle). Payload
  * `{ symbol }` → SwingSetGenerationService. All logic lives in
  * generate-swing-sets.core.ts (side-effect-free for tests); this file only
  * wires prod deps. Queue name must match the exported function id.

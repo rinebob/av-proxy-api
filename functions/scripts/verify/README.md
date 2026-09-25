@@ -150,6 +150,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #128 | `options-data-128-partner-swing-sets.ts` *(mutating, not in run-all)* | BE: partnerSwingSetsV2 handler — tracked/enabled gates, single + all-docs responses, envelope, error codes | [options-data-128-partner-swing-sets.md](options-data-128-partner-swing-sets.md) |
 | #138 | `options-data-138-optionable-probe.ts` *(mutating, not in run-all)* | BE: OptionableProbeService — probe + persist round-trip on an already-probed symbol | [options-data-138-optionable-probe.md](options-data-138-optionable-probe.md) |
 | #139 | `options-data-139-on-add-probe.ts` *(mutating, not in run-all)* | BE: ingestion defaults + on-add probe transition core gates (no-transition/already-probed/probed) | [options-data-139-on-add-probe.md](options-data-139-on-add-probe.md) |
+| #140 | `options-data-140-set-options-enabled.ts` *(mutating, not in run-all)* | BE: curation core — not-found gate, enable→enqueue, idempotent re-enable, disable | [options-data-140-set-options-enabled.md](options-data-140-set-options-enabled.md) |
 | #119 | `ops-119-firestore-indexes.ts` | OPS: firestore.indexes.json ↔ prod drift check | [ops-119-firestore-indexes.md](ops-119-firestore-indexes.md) |
 
 ## Execution order

@@ -1,0 +1,111 @@
+/**
+ * Core of the setOptionsEnabledV2 curation callable (Thread #105 §70).
+ *
+ * The guarded toggle: enabling requires `optionable===true` (else
+ * OPTIONS_NOT_OPTIONABLE — you can't enable what doesn't have options).
+ * Every transition appends an audit entry {enabled, changedBy, changedAt,
+ * reason?} to optionsEnabledHistory and bumps _lastUpdated. Swing-set
+ * generation enqueues ONLY on false→true — the downstream of the flag —
+ * and an enqueue failure warns rather than failing the write (the sweep
+ * covers missed signals).
+ *
+ * Idempotent: setting the flag to its current value is a no-op — no
+ * history entry, no enqueue.
+ */
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+
+import { FirestoreCollection } from '@shared/firestore';
+import {
+  TRACKED_SYMBOL_V2_FIELDS as F,
+  SetOptionsEnabledErrorCode,
+  type SetOptionsEnabledRequest,
+  type SetOptionsEnabledResult,
+} from '@shared/alpha-vantage';
+import type { FirestoreLike } from '../../common/firestore/firestore-like';
+
+export { SetOptionsEnabledErrorCode };
+export type { SetOptionsEnabledRequest, SetOptionsEnabledResult };
+
+/** Internal request — the callable request plus the authenticated uid. */
+export interface SetOptionsEnabledInternalRequest extends SetOptionsEnabledRequest {
+  /** Authenticated caller uid (from request.auth) — recorded as changedBy. */
+  uid: string;
+}
+
+export interface SetOptionsEnabledDeps {
+  db: FirestoreLike;
+  /** enqueueSwingSetGeneration bound to its deps — called only on false→true. */
+  enqueue(symbol: string): Promise<unknown>;
+  logger: { info(m: string): void; warn(m: string): void };
+}
+
+export async function handleSetOptionsEnabled(
+  req: SetOptionsEnabledInternalRequest,
+  deps: SetOptionsEnabledDeps,
+): Promise<SetOptionsEnabledResult> {
+  const symbol = String(req.symbol ?? '').trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9.-]{0,31}$/.test(symbol)) {
+    return {
+      ok: false,
+      symbol,
+      transitioned: false,
+      errorCode: SetOptionsEnabledErrorCode.INVALID_ARGUMENT,
+      error: 'Symbol is required and must be valid.',
+    };
+  }
+  const ref = deps.db.collection(FirestoreCollection.TRACKED_SYMBOLS).doc(symbol);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    return { ok: false, symbol, transitioned: false, errorCode: SetOptionsEnabledErrorCode.SYMBOL_NOT_FOUND, error: `Symbol ${symbol} is not tracked.` };
+  }
+
+  const doc = snap.data() as Record<string, unknown>;
+  const current = doc[F.OPTIONS_ENABLED] === true;
+
+  if (req.enabled === current) {
+    return { ok: true, symbol, transitioned: false, optionsEnabled: current };
+  }
+
+  // Enabling a symbol that doesn't have a listed options chain is a
+  // precondition failure — the corpus pipeline would find nothing.
+  if (req.enabled && doc[F.OPTIONABLE] !== true) {
+    // Distinguish "genuinely no options" from "the probe itself failed" —
+    // a failed probe also leaves optionable=false, with optionableProbeError
+    // recording why.
+    const probeError = typeof doc[F.OPTIONABLE_PROBE_ERROR] === 'string' ? ` (probe error: ${doc[F.OPTIONABLE_PROBE_ERROR]})` : '';
+    return {
+      ok: false, symbol, transitioned: false,
+      errorCode: SetOptionsEnabledErrorCode.OPTIONS_NOT_OPTIONABLE,
+      error: `Symbol ${symbol} is not optionable (optionable=${doc[F.OPTIONABLE] ?? 'absent'})${probeError}.`,
+    };
+  }
+
+  const entry: Record<string, unknown> = {
+    enabled: req.enabled,
+    changedBy: req.uid,
+    changedAt: Timestamp.now(),
+  };
+  if (req.reason !== undefined) entry.reason = req.reason;
+
+  await ref.set(
+    {
+      [F.OPTIONS_ENABLED]: req.enabled,
+      [F.OPTIONS_ENABLED_HISTORY]: FieldValue.arrayUnion(entry),
+      [F.LAST_UPDATED]: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+  deps.logger.info(`setOptionsEnabledV2: ${symbol} ${current}→${req.enabled} by ${req.uid}`);
+
+  // Downstream of the flag: kick swing-set generation only on the enabling
+  // transition. Failure warns — sweep catches missed signals.
+  if (req.enabled === true && current === false) {
+    try {
+      await deps.enqueue(symbol);
+    } catch (e) {
+      deps.logger.warn(`setOptionsEnabledV2: swing-set enqueue failed for ${symbol} — ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return { ok: true, symbol, transitioned: true, optionsEnabled: req.enabled };
+}

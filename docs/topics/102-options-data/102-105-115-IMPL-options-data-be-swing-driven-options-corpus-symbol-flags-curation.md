@@ -46,7 +46,7 @@ export class OptionableProbeService {
 
 ### 2. Ingestion defaults — `saveTrackedSymbol`
 
-`saveTrackedSymbol` (v2/common/functions) currently `set(merge:true)`s the payload. Add: read the doc first; when the doc is new or the fields are absent, include `optionsEnabled:false` + `optionsEnabledHistory:[]` in the saved document. One extra read per save — acceptable at symbol-add rates. Existing enqueue-on-`optionsEnabled===true` (#126) stays — that's the enable-at-ingestion path.
+`saveTrackedSymbol` (v2/common/functions) `set(merge:true)`s the payload. Now: reads the doc first; when the doc is new or the fields are absent, includes `optionsEnabled:false` + `optionsEnabledHistory:[]`. One extra read per save — acceptable at symbol-add rates. Client-supplied flag fields are stripped from the payload — `setOptionsEnabledV2` (§4) is the only governed toggle path (optionable gate + audit); the #126-era enqueue-on-payload-flag was removed when it became unreachable.
 
 ### 3. On-add probe — `onDocumentUpdated` trigger
 
@@ -58,7 +58,7 @@ New callable (`functions/src/v2/symbol-flags/functions/set-options-enabled.funct
 
 - Auth required (`request.auth`), consistent with `saveTrackedSymbol`.
 - Args `{symbol, enabled, reason?}`; read doc; `enabled=true` requires `optionable===true` → else `failed-precondition` (`OPTIONS_NOT_OPTIONABLE`).
-- On transition: `update()` sets `optionsEnabled`, appends `optionsEnabledHistory` entry `{enabled, changedBy: uid, changedAt: serverTimestamp, reason?}` via `FieldValue.arrayUnion`, bumps `_lastUpdated`.
+- On transition: `set(merge:true)` updates `optionsEnabled`, atomically appends `optionsEnabledHistory` via `FieldValue.arrayUnion` with entry `{enabled, changedBy: uid, changedAt: Timestamp.now(), reason?}`, and bumps `_lastUpdated` with `FieldValue.serverTimestamp()`. A server-timestamp transform cannot be nested in an array element; `changedAt` uses the function runtime clock.
 - On `false→true`: `enqueueSwingSetGeneration(db, symbol)` (existing helper re-checks the flag; enqueue failure → warn, don't fail the call — sweep covers misses).
 - No-op when flag already equals `enabled` (idempotent, still returns success).
 

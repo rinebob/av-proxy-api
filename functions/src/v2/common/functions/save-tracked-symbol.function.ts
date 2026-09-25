@@ -6,8 +6,10 @@ import { onCall } from 'firebase-functions/v2/https';
 import { FirestoreCollection } from '@shared/firestore';
 import { TrackedSymbolV2 } from '@shared/alpha-vantage';
 import { SaveTrackedSymbolResponse } from '@shared/alpha-vantage';
-import { enqueueSwingSetGeneration } from '../../swing-set/handlers/generate-swing-sets.core';
-import { withOptionsFlagDefaults } from '../../symbol-flags/utils/options-flag-defaults';
+import {
+  stripClientManagedFlagFields,
+  withOptionsFlagDefaults,
+} from '../../symbol-flags/utils/options-flag-defaults';
 
 /**
  * HTTP Cloud Function to save a tracked symbol to Firestore.
@@ -66,10 +68,14 @@ export const saveTrackedSymbol = onCall<Omit<TrackedSymbolV2, '_createdAt' | '_l
       // +1 doc read per save; the get()→set() window could clobber a
       // concurrent curator toggle — narrow, same accepted risk as
       // OptionableProbeService.persist().
+      //
+      // Client-supplied curation and probe fields are stripped so the
+      // dedicated toggle and system probe remain authoritative.
+      const rest = stripClientManagedFlagFields(symbolData);
       const existingSnap = await docRef.get();
-      const documentToSave: TrackedSymbolV2 = withOptionsFlagDefaults(
+      const documentToSave: TrackedSymbolV2 = withOptionsFlagDefaults<TrackedSymbolV2>(
         {
-          ...symbolData,
+          ...rest,
           _createdAt: now,
           _lastUpdated: now,
           _isActive: true
@@ -79,22 +85,6 @@ export const saveTrackedSymbol = onCall<Omit<TrackedSymbolV2, '_createdAt' | '_l
 
       // Save to Firestore
       await docRef.set(documentToSave, { merge: true });
-
-      // Enqueue swing-set generation when the saved payload enables options
-      // (Task #126; Thread #105 owns the full flag lifecycle). The helper
-      // re-checks the persisted flag and the task freshness-gates repeated
-      // saves, so this is safe on every write. Enqueue failure must not fail
-      // the save — the sweep (#127) covers any missed signal.
-      if (symbolData.optionsEnabled === true) {
-        try {
-          await enqueueSwingSetGeneration(db, symbolData.symbol);
-        } catch (e) {
-          console.warn(`[${functionName}] [${requestId}] swing-set generation enqueue failed`, {
-            symbol: symbolData.symbol,
-            error: e instanceof Error ? e.message : String(e),
-          });
-        }
-      }
 
       console.log(`[${functionName}] [${requestId}] Symbol saved successfully`, {
         symbol: symbolData.symbol,

@@ -175,6 +175,32 @@ export interface SaveTrackedSymbolResponse {
     error?: string;
 }
 
+/** Error codes surfaced by the setOptionsEnabledV2 callable (Thread #105). */
+export enum SetOptionsEnabledErrorCode {
+    UNAUTHENTICATED = 'UNAUTHENTICATED',
+    INVALID_ARGUMENT = 'INVALID_ARGUMENT',
+    SYMBOL_NOT_FOUND = 'SYMBOL_NOT_FOUND',
+    OPTIONS_NOT_OPTIONABLE = 'OPTIONS_NOT_OPTIONABLE',
+}
+
+/** Callable request payload for setOptionsEnabledV2. */
+export interface SetOptionsEnabledRequest {
+    symbol: string;
+    enabled: boolean;
+    reason?: string;
+}
+
+/** Callable response from setOptionsEnabledV2. */
+export interface SetOptionsEnabledResult {
+    ok: boolean;
+    symbol: string;
+    /** True when the flag actually changed. */
+    transitioned: boolean;
+    optionsEnabled?: boolean;
+    errorCode?: SetOptionsEnabledErrorCode;
+    error?: string;
+}
+
 /**
  * Options for listing symbols
  */

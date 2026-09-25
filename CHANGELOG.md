@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-09-25]
+
+### Added
+- [Swing-Driven Options Corpus] 102-140_BE-IMPL-OPTIONS-DATA: Add setOptionsEnabledV2 guarded curation callable + audit history and swing-set enqueue
+- [Swing-Driven Options Corpus] 102-140_DOCS-OPTIONS-DATA: Add callable verification guide and code review doc
+
 ## [2026-09-24]
 
 ### Fixed

@@ -4,7 +4,10 @@
  * - handleSymbolReadyTransition (on-add optionable probe trigger core)
  */
 import { TRACKED_SYMBOL_V2_FIELDS as F, TrackedSymbolOnboardingStatus } from '@shared/alpha-vantage';
-import { withOptionsFlagDefaults } from '../../../src/v2/symbol-flags/utils/options-flag-defaults';
+import {
+  stripClientManagedFlagFields,
+  withOptionsFlagDefaults,
+} from '../../../src/v2/symbol-flags/utils/options-flag-defaults';
 import { handleSymbolReadyTransition } from '../../../src/v2/symbol-flags/triggers/symbol-ready.core';
 
 describe('withOptionsFlagDefaults', () => {
@@ -36,10 +39,29 @@ describe('withOptionsFlagDefaults', () => {
     expect(out.optionsEnabled).toBeUndefined();
   });
 
-  it('honors a caller-provided optionsEnabled=true (enable at ingestion)', () => {
+  it('honors an explicit flag for trusted internal callers', () => {
     const out = withOptionsFlagDefaults({ ...base, optionsEnabled: true }, undefined);
     expect(out.optionsEnabled).toBe(true);
     expect(out.optionsEnabledHistory).toEqual([]);
+  });
+
+  it('strips all client-supplied curation and probe-owned fields before save', () => {
+    const out = stripClientManagedFlagFields({
+      ...base,
+      optionable: true,
+      optionableCheckedAt: new Date(),
+      optionableProbeSummary: { totalContracts: 50 },
+      optionableProbeError: 'forged',
+      optionsEnabled: true,
+      optionsEnabledHistory: [{ enabled: true, changedAt: new Date() }],
+    } as any);
+    expect(out).toMatchObject({ symbol: 'AAPL', name: 'Apple', type: 'Equity' });
+    expect(out).not.toHaveProperty('optionable');
+    expect(out).not.toHaveProperty('optionableCheckedAt');
+    expect(out).not.toHaveProperty('optionableProbeSummary');
+    expect(out).not.toHaveProperty('optionableProbeError');
+    expect(out).not.toHaveProperty('optionsEnabled');
+    expect(out).not.toHaveProperty('optionsEnabledHistory');
   });
 });
 
