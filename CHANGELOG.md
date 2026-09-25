@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-25]
 
 ### Added
+- [Swing-Driven Options Corpus] 102-151_BE-IMPL-OPTIONS-DATA: Add swing-doc pivot planner (deduped confirmed + interim work items from 4 canonical swing docs)
 - [Swing-Driven Options Corpus] 102-150_BE-IMPL-OPTIONS-DATA: Lift CorpusSymbol restriction + optionsEnabled gate on every corpus ingest entry point (seed/ts-build/nightly/pilot; gated items terminate 'skipped'; live enabled-set listing)
 - [Swing-Driven Options Corpus] 102-144_FE-IMPL-OPTIONS-DATA: Wire Options Enabled checkbox to setOptionsEnabledV2 (optionable-gated, confirm dialog, store patch on success, revert + snackbar on error)
 - [Swing-Driven Options Corpus] 102-144_DOCS-OPTIONS-DATA: Add code review doc for task 144
