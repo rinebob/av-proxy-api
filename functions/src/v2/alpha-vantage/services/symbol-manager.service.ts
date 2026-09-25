@@ -13,6 +13,32 @@ import {
 import { toTrackedSymbolV2 } from '../../common/common-dm';
 
 /**
+ * In-memory comparator for flag-filtered list queries (Task #142). Handles
+ * dotted field paths (e.g. 'companyInfo.Sector'), Firestore Timestamps and
+ * Dates; docs lacking the sort field go last in either direction.
+ */
+export function compareTrackedSymbolsByField(
+  sortField: string,
+  direction: 'asc' | 'desc',
+): (a: TrackedSymbolV2, b: TrackedSymbolV2) => number {
+  const path = sortField.split('.');
+  const read = (obj: any): any => path.reduce((o: any, k) => o?.[k], obj);
+  const sign = direction === 'desc' ? -1 : 1;
+  const num = (v: any): number =>
+    v?.toMillis ? v.toMillis() : v instanceof Date ? v.getTime() : v;
+  return (a, b) => {
+    const va = num(read(a));
+    const vb = num(read(b));
+    if (va === undefined || va === null) return vb === undefined || vb === null ? 0 : 1;
+    if (vb === undefined || vb === null) return -1;
+    if (va < vb) return -sign;
+    if (va > vb) return sign;
+    // Deterministic tie-break so pagination is stable.
+    return String(a.symbol ?? '').localeCompare(String(b.symbol ?? ''));
+  };
+}
+
+/**
  * Service for managing symbols in the system
  */
 export class SymbolManagerService {
@@ -187,6 +213,8 @@ export class SymbolManagerService {
         offset = 0,
         sortBy = TRACKED_SYMBOL_V2_FIELDS.SYMBOL,
         sortDirection = 'asc',
+        optionable,
+        optionsEnabled,
       } = options;
 
         console.log('sMSvc lSV2 begin listSymbolsV2.options: ', options);
@@ -199,9 +227,38 @@ export class SymbolManagerService {
           query = query.where(TRACKED_SYMBOL_V2_FIELDS.IS_ACTIVE, '==', true);
         }
 
+        // Opt-in flag filters (Task #142) — boolean equality.
+        if (optionable !== undefined) {
+          query = query.where(TRACKED_SYMBOL_V2_FIELDS.OPTIONABLE, '==', optionable);
+        }
+        if (optionsEnabled !== undefined) {
+          query = query.where(TRACKED_SYMBOL_V2_FIELDS.OPTIONS_ENABLED, '==', optionsEnabled);
+        }
+
         // Map sortBy (from UI or API) to a whitelisted Firestore field path
         const sortField = resolveTrackedSymbolSortField(sortBy);
         const direction = sortDirection === 'desc' ? 'desc' : 'asc';
+
+        // Flag-filtered requests sort/paginate in memory instead of adding
+        // orderBy to the query: equality filters + orderBy on a different
+        // field would require a composite index per (flag × sortable field ×
+        // direction) combination. Equality-only queries use zigzag merge —
+        // no index needed. The tracked-symbols set is small (~1k docs), so
+        // fetching all matches then sorting client-side is cheap. NOTE: docs
+        // lacking the sort field are included here (sorted last) and counted
+        // in total — the unfiltered path below excludes them via orderBy, so
+        // `total` semantics differ slightly between paths.
+        if (optionable !== undefined || optionsEnabled !== undefined) {
+          const snapshot = await query.get();
+          const all = snapshot.docs.map(doc => toTrackedSymbolV2(doc.data()));
+          all.sort(compareTrackedSymbolsByField(sortField, direction));
+          return {
+            symbols: all.slice(offset, offset + limit),
+            total: all.length,
+            limit,
+            offset,
+          };
+        }
 
         // Get total count matching the sorted query — orderBy on a field also
         // filters out docs lacking it (sparse companyInfo.* fields), so the count

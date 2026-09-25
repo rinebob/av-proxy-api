@@ -64,6 +64,15 @@ export function toTrackedSymbolV2(doc: FirebaseFirestore.DocumentData): TrackedS
       _createdAt: doc[TRACKED_SYMBOL_V2_FIELDS.CREATED_AT] ?? null,
       _lastUpdated: doc[TRACKED_SYMBOL_V2_FIELDS.LAST_UPDATED] ?? null,
       _isActive: doc[TRACKED_SYMBOL_V2_FIELDS.IS_ACTIVE] ?? false,
+      // Options-corpus flags (Task #142): optionable/probe fields copied only
+      // when present — absent must not collapse into false (un-probed tri-state).
+      // optionsEnabled defaults to false per ingestion defaults (#139).
+      optionsEnabled: doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONS_ENABLED] ?? false,
+      ...(doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONABLE] !== undefined && { optionable: doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONABLE] }),
+      ...(doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONABLE_CHECKED_AT] && { optionableCheckedAt: doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONABLE_CHECKED_AT] }),
+      ...(doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONABLE_PROBE_SUMMARY] && { optionableProbeSummary: doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONABLE_PROBE_SUMMARY] }),
+      ...(doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONABLE_PROBE_ERROR] && { optionableProbeError: doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONABLE_PROBE_ERROR] }),
+      ...(doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONS_ENABLED_HISTORY] && { optionsEnabledHistory: doc[TRACKED_SYMBOL_V2_FIELDS.OPTIONS_ENABLED_HISTORY] }),
       ...(doc[TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO] && { companyInfo: doc[TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO] }),
       ...(doc[TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO_LAST_UPDATED] && { _companyInfoLastUpdated: doc[TRACKED_SYMBOL_V2_FIELDS.COMPANY_INFO_LAST_UPDATED] }),
     };
@@ -73,13 +82,15 @@ export function toTrackedSymbolV2(doc: FirebaseFirestore.DocumentData): TrackedS
  * Converts Firestore Timestamp fields in TrackedSymbolV2 objects to ISO strings for serialization.
  */
 export function serializeTrackedSymbols(symbols: any[]): any[] {
+  const iso = (v: any) => (v && typeof v.toDate === 'function' ? v.toDate().toISOString() : v);
   return (symbols || []).map(symbol => ({
     ...symbol,
-    _createdAt: symbol._createdAt && typeof symbol._createdAt.toDate === 'function'
-      ? symbol._createdAt.toDate().toISOString()
-      : symbol._createdAt,
-    _lastUpdated: symbol._lastUpdated && typeof symbol._lastUpdated.toDate === 'function'
-      ? symbol._lastUpdated.toDate().toISOString()
-      : symbol._lastUpdated,
+    _createdAt: iso(symbol._createdAt),
+    _lastUpdated: iso(symbol._lastUpdated),
+    // Flag fields (Task #142) — nested Timestamps serialize the same way.
+    ...(symbol.optionableCheckedAt && { optionableCheckedAt: iso(symbol.optionableCheckedAt) }),
+    ...(symbol.optionsEnabledHistory && {
+      optionsEnabledHistory: symbol.optionsEnabledHistory.map((h: any) => ({ ...h, changedAt: iso(h?.changedAt) })),
+    }),
   }));
 }

@@ -211,5 +211,17 @@ export interface ListSymbolsOptions {
     offset?: number;
     sortBy?: string; // validated via resolveTrackedSymbolSortField; non-whitelisted falls back to 'symbol'
     sortDirection?: 'asc' | 'desc';
-  
+    optionable?: boolean; // opt-in equality filter on the doc field; absent = unfiltered
+    optionsEnabled?: boolean; // opt-in equality filter on the doc field; absent = unfiltered
+}
+
+/**
+ * Parses a `?optionable=` / `?optionsEnabled=` query param into a boolean
+ * equality filter. Only literal 'true'/'false' bind — absent, malformed, or
+ * repeated (array) params are ignored so filtering stays opt-in.
+ */
+export function parseSymbolFlagFilterParam(value: unknown): boolean | undefined {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return undefined;
 }

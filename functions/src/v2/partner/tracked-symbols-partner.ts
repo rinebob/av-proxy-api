@@ -6,6 +6,7 @@ import { authenticateRequestEither } from '../utils/utils';
 import { symbolManagerService } from '../alpha-vantage/services/symbol-manager.service';
 import { serializeTrackedSymbols } from '../common/common-dm';
 import type { ListSymbolsOptions } from '@shared/alpha-vantage';
+import { parseSymbolFlagFilterParam } from '@shared/alpha-vantage';
 import {
   allowedServiceAccounts,
   expectedGoogleAudience,
@@ -31,6 +32,9 @@ const functionOptions: HttpsOptions = {
  *   'companyInfo.Country', 'companyInfo.marketCap', 'companyInfo.beta'. Invalid values fall back to 'symbol'.
  *   Note: orderBy on a companyInfo.* field omits docs lacking that field (e.g. ETFs).
  * - sortDirection: 'asc' | 'desc' (default 'asc')
+ * - optionable / optionsEnabled: 'true' | 'false' — opt-in equality filters on
+ *   the doc fields; any other value is ignored. Docs lacking a flag field do
+ *   not match either value (unprobed optionable docs won't match =false).
  *
  * Response:
  * { ok: boolean, symbols: TrackedSymbolV2[], total: number, limit: number, offset: number, timestamp: string, processingTimeMs: number }
@@ -56,6 +60,8 @@ async function handler(req: Request, res: Response) {
       offset: q.offset != null ? Math.max(Number(q.offset), 0) : 0,
       sortBy: (q.sortBy as string) || 'symbol',
       sortDirection: (q.sortDirection as 'asc' | 'desc') || 'asc',
+      optionable: parseSymbolFlagFilterParam(q.optionable),
+      optionsEnabled: parseSymbolFlagFilterParam(q.optionsEnabled),
     };
 
     const result = await symbolManagerService.listSymbolsV2(parsed);

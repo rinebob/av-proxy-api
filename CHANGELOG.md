@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-25]
 
 ### Added
+- [Swing-Driven Options Corpus] 102-142_BE-IMPL-OPTIONS-DATA: Add optionable/optionsEnabled filters to symbol list endpoints (in-memory sort under flag filters; no composite index)
 - [Swing-Driven Options Corpus] 102-148_BE-IMPL-OPTIONS-DATA: Add post-deploy smoke script for swing-set platform (OIDC + admin-secret, read-only)
 - [Swing-Driven Options Corpus] 102-141_BE-IMPL-OPTIONS-DATA: Add batch-enable admin script routing through the governed set-options-enabled core
 - [Swing-Driven Options Corpus] 102-141_DOCS-OPTIONS-DATA: Add admin scripts README and code review doc

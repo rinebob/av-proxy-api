@@ -1,5 +1,5 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { ListSymbolsOptions } from "@shared/alpha-vantage";
+import { ListSymbolsOptions, parseSymbolFlagFilterParam } from "@shared/alpha-vantage";
 import { serializeTrackedSymbols } from "../common-dm";
 import { symbolManagerService } from "../../alpha-vantage/services/symbol-manager.service";
 import { withCors } from "../../utils/cors-middleware";
@@ -8,6 +8,8 @@ import { authenticateRequest } from "../../utils/utils";
 /**
  * HTTP endpoint for listing tracked symbols
  * GET /listSymbols?activeOnly=true&limit=100&offset=0&sortBy=symbol&sortDirection=asc
+ * Optional opt-in filters: &optionable=true|false &optionsEnabled=true|false
+ * (any other value is ignored — filters stay opt-in)
  */
 export const listSymbolsV2 = onRequest({ }, withCors(async (req, res) => {
   try {
@@ -26,7 +28,9 @@ export const listSymbolsV2 = onRequest({ }, withCors(async (req, res) => {
       limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 100,
       offset: req.query.offset ? parseInt(req.query.offset as string, 10) : 0,
       sortBy: (req.query.sortBy as 'symbol' | 'lastUpdated') || 'symbol',
-      sortDirection: (req.query.sortDirection as 'asc' | 'desc') || 'asc'
+      sortDirection: (req.query.sortDirection as 'asc' | 'desc') || 'asc',
+      optionable: parseSymbolFlagFilterParam(req.query.optionable),
+      optionsEnabled: parseSymbolFlagFilterParam(req.query.optionsEnabled)
     };
 
     console.log('lSV2 Calling symbolManagerService.listSymbolsV2 with options:', options);

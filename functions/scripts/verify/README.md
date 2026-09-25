@@ -152,6 +152,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #139 | `options-data-139-on-add-probe.ts` *(mutating, not in run-all)* | BE: ingestion defaults + on-add probe transition core gates (no-transition/already-probed/probed) | [options-data-139-on-add-probe.md](options-data-139-on-add-probe.md) |
 | #148 | `options-data-148-swing-set-smoke.ts` *(read-only, not in run-all)* | Post-deploy smoke: deployed partnerSwingSetsV2 + backfillSwingSets via real OIDC/x-admin-secret | [options-data-148-swing-set-smoke.md](options-data-148-swing-set-smoke.md) |
 | #140 | `options-data-140-set-options-enabled.ts` *(mutating, not in run-all)* | BE: curation core — not-found gate, enable→enqueue, idempotent re-enable, disable | [options-data-140-set-options-enabled.md](options-data-140-set-options-enabled.md) |
+| #142 | `options-data-142-list-flag-filtering.ts` *(read-only, not in run-all)* | Post-deploy: partnerListTrackedSymbolsV2 ?optionable=/?optionsEnabled= filtering via real OIDC | [options-data-142-list-flag-filtering.md](options-data-142-list-flag-filtering.md) |
 | #119 | `ops-119-firestore-indexes.ts` | OPS: firestore.indexes.json ↔ prod drift check | [ops-119-firestore-indexes.md](ops-119-firestore-indexes.md) |
 
 ## Execution order
