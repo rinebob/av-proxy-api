@@ -146,6 +146,8 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #124 | `options-data-124-swing-set-data-layer.ts` *(mutating, not in run-all)* | BE: DailyAdjustedReader + SwingSetRepository (ingestion + persistence; writes + deletes temp ZZTEST doc) | [options-data-124-swing-set-data-layer.md](options-data-124-swing-set-data-layer.md) |
 | #125 | `options-data-125-swing-set-generation.ts` *(mutating, not in run-all)* | BE: SwingSetGenerationService end-to-end (writes + deletes four canonical docs) | [options-data-125-swing-set-generation.md](options-data-125-swing-set-generation.md) |
 | #126 | `options-data-126-swing-set-task.ts` *(mutating, not in run-all)* | BE: generateSwingSetsTask internals — optionsEnabled enqueue gate, freshness skip, invalid-payload ack | [options-data-126-swing-set-task.md](options-data-126-swing-set-task.md) |
+| #127 | `options-data-127-swing-set-sweep.ts` *(mutating, not in run-all)* | BE: runSwingSetSweep — optionsEnabled enumeration, freshness skip, force/subset gating, per-symbol isolation | [options-data-127-swing-set-sweep.md](options-data-127-swing-set-sweep.md) |
+| #138 | `options-data-138-optionable-probe.ts` *(mutating, not in run-all)* | BE: OptionableProbeService — probe + persist round-trip on an already-probed symbol | [options-data-138-optionable-probe.md](options-data-138-optionable-probe.md) |
 | #119 | `ops-119-firestore-indexes.ts` | OPS: firestore.indexes.json ↔ prod drift check | [ops-119-firestore-indexes.md](ops-119-firestore-indexes.md) |
 
 ## Execution order
@@ -173,6 +175,7 @@ Topic #102 (Swing-driven options corpus):
 3. **#124** (BE: data layer) — blocked by #122, #123; **mutating** — writes a temporary `ZZTEST_*` probe doc and deletes it (not in run-all)
 4. **#125** (BE: generation service) — blocked by #124; **mutating** — writes + deletes `{SYMBOL}_{paramsId}` docs (not in run-all)
 5. **#126** (BE: task handler) — blocked by #125; **mutating** — writes + deletes `tracked-symbols/ZZTEST` + `ZZTEST_*` docs (not in run-all)
+6. **#127** (BE: sweep/backfill) — blocked by #126; **mutating** — same ZZTEST pattern; baseline sweep regenerates real stale enabled symbols (not in run-all)
 
 Topic #118 (Repo & deploy hygiene):
 

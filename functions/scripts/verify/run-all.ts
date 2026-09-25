@@ -26,6 +26,8 @@ const scripts = [
   // four options-swing-sets docs in prod), run manually
   // options-data-126-swing-set-task.ts — mutating (writes + deletes
   // tracked-symbols/ZZTEST + ZZTEST_* docs in prod), run manually
+  // options-data-127-swing-set-sweep.ts — mutating (same ZZTEST pattern +
+  // baseline sweep can regenerate real enabled symbols), run manually
 ];
 
 let passed = 0;
