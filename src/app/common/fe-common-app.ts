@@ -23,6 +23,7 @@ const PROD_URLS = {
   [DataMaintainerFunctionName.SAVE_TRACKED_SYMBOL]: 'https://savetrackedsymbol-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.LIST_SYMBOLS_V2]: 'https://listsymbolsv2-lsluydmucq-uc.a.run.app',
   [DataMaintainerFunctionName.GET_SYMBOL_DETAILS_V2]: 'https://getsymboldetailsv2-lsluydmucq-uc.a.run.app',
+  [DataMaintainerFunctionName.SET_OPTIONS_ENABLED_V2]: 'https://setoptionsenabledv2-lsluydmucq-uc.a.run.app',
 
   // Partner (cloudfunctions.net URL — partner endpoints use this canonical URL, not run.app)
   [PartnerFunctionName.PARTNER_TECHNICAL_INDICATORS_V2]: 'https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerTechnicalIndicatorsV2',

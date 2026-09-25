@@ -7,6 +7,8 @@ import {
     AlphaVantageEndpoint,
     ListSymbolsV2Response, 
     SaveTrackedSymbolResponse,
+    SetOptionsEnabledRequest,
+    SetOptionsEnabledResult,
     SvtAvSymbolMatch,
     TrackedSymbolV2,
 } from '@shared/alpha-vantage';
@@ -53,6 +55,42 @@ export class SymbolManagerService {
     this.functions,
     DataMaintainerFunctionName.SAVE_TRACKED_SYMBOL
   );
+
+  private setOptionsEnabledFn = httpsCallable<SetOptionsEnabledRequest, SetOptionsEnabledResult>(
+    this.functions,
+    DataMaintainerFunctionName.SET_OPTIONS_ENABLED_V2
+  );
+
+  /**
+   * Curated toggle for the optionsEnabled flag (Thread #105). Routes through
+   * the governed setOptionsEnabledV2 callable — the optionable===true gate,
+   * audit history, and swing-set enqueue all live server-side. HttpsError
+   * details carry {errorCode, symbol}; mapped to the result's error shape so
+   * callers get a uniform SetOptionsEnabledResult.
+   */
+  setOptionsEnabled(symbol: string, enabled: boolean, reason?: string): Observable<SetOptionsEnabledResult> {
+    const request: SetOptionsEnabledRequest = {
+      symbol: symbol.trim().toUpperCase(),
+      enabled,
+      ...(reason !== undefined && { reason }),
+    };
+
+    console.log('FE sMS sOE setOptionsEnabled request:', request);
+
+    return from(this.setOptionsEnabledFn(request)).pipe(
+      map(({ data }) => data),
+      catchError(error => {
+        console.error('FE sMS sOE setOptionsEnabled error:', error);
+        return of({
+          ok: false,
+          symbol: request.symbol,
+          transitioned: false,
+          errorCode: error?.details?.errorCode,
+          error: error.message || 'Failed to update optionsEnabled',
+        } as SetOptionsEnabledResult);
+      })
+    );
+  }
 
   /**
    * Lists all tracked symbols with optional filtering and pagination

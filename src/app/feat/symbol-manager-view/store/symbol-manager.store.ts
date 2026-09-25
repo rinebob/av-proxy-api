@@ -6,7 +6,7 @@ import { tapResponse } from '@ngrx/operators';
 import { signalStore, withState, withMethods, patchState, withProps } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 
-import { TrackedSymbolV2 } from '@shared/alpha-vantage';
+import { SetOptionsEnabledResult, TrackedSymbolV2 } from '@shared/alpha-vantage';
 
 import { SymbolManagerService } from '../services/symbol-manager.service';
 // TODO: Remove support for legacy TrackedSymbol
@@ -453,6 +453,36 @@ export const SymbolManagerStore = signalStore(
                     });
                 }
             });
+        },
+
+        /**
+         * Patch one row's optionsEnabled in the loaded list + search result
+         * (Thread #105). Called only after the callable confirms the write.
+         */
+        updateSymbolFlag(symbol: string, optionsEnabled: boolean): void {
+            const patchRow = (s: TrackedSymbolV2) =>
+                s.symbol === symbol ? { ...s, optionsEnabled } : s;
+            const search = store.v2SymbolSearchResult();
+            patchState(store, {
+                v2Symbols: store.v2Symbols().map(patchRow),
+                v2SymbolSearchResult: search ? patchRow(search) : search,
+            });
+        },
+
+        /**
+         * Curated toggle via the governed setOptionsEnabledV2 callable
+         * (Task #144). The component owns the confirm dialog and revert;
+         * this patches the row only on a transitioned success. The
+         * optionable gate and audit history are enforced server-side.
+         */
+        setOptionsEnabled(symbol: string, enabled: boolean, reason?: string): Observable<SetOptionsEnabledResult> {
+            return symbolService.setOptionsEnabled(symbol, enabled, reason).pipe(
+                tap(result => {
+                    if (result.ok && result.transitioned) {
+                        this.updateSymbolFlag(result.symbol, result.optionsEnabled ?? enabled);
+                    }
+                }),
+            );
         },
 
         /**

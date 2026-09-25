@@ -3,6 +3,10 @@ import { signal } from '@angular/core';
 import { provideExperimentalZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatCheckboxChange } from '@angular/material/checkbox';
+import { of } from 'rxjs';
 
 import { SymbolManagerComponent } from './symbol-manager.component';
 import { SymbolManagerStore } from '../../store/symbol-manager.store';
@@ -107,5 +111,110 @@ describe('SymbolManagerComponent — sort + paginate pipeline', () => {
     expect(component.fetchCapHit()).toBe(false);
     v2Total.set(rows.length + 500);
     expect(component.fetchCapHit()).toBe(true);
+  });
+});
+
+describe('SymbolManagerComponent � Options Enabled toggle (Task #144)', () => {
+  let component: SymbolManagerComponent;
+  let dialogOpen: jasmine.Spy;
+  let setOptionsEnabled: jasmine.Spy;
+  let snackOpen: jasmine.Spy;
+
+  const optionableRow = { symbol: 'AAPL', optionable: true, optionsEnabled: false } as TrackedSymbolV2;
+  const nonOptionableRow = { symbol: 'BRK-B', optionable: false, optionsEnabled: false } as TrackedSymbolV2;
+  const unprobedRow = { symbol: 'NEWCO', optionsEnabled: false } as TrackedSymbolV2;
+
+  function checkbox(checked: boolean): MatCheckboxChange {
+    return { checked, source: { checked: undefined } } as unknown as MatCheckboxChange;
+  }
+
+  function setup(dialogResult: unknown) {
+    dialogOpen = jasmine.createSpy('open').and.returnValue({ afterClosed: () => of(dialogResult) } as any);
+    setOptionsEnabled = jasmine.createSpy('setOptionsEnabled').and.returnValue(of({ ok: true, symbol: 'AAPL', transitioned: true }));
+    snackOpen = jasmine.createSpy('open');
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideExperimentalZonelessChangeDetection(),
+        { provide: SymbolManagerService, useValue: {} },
+        { provide: MatSnackBar, useValue: { open: snackOpen } },
+        {
+          provide: SymbolManagerStore,
+          useValue: {
+            v2Symbols: signal<TrackedSymbolV2[]>([]),
+            v2Total: signal(0),
+            v2SymbolSearchResult: signal(null),
+            loading: signal(false),
+            error: signal(null),
+            setOptionsEnabled,
+          },
+        },
+      ],
+    });
+    component = TestBed.createComponent(SymbolManagerComponent).componentInstance;
+    // MatDialog/MatSnackBar come from the standalone component's own imports —
+    // provider overrides don't reach them, so swap the injected instances.
+    (component as any).dialog = { open: dialogOpen };
+    (component as any).snackBar = { open: snackOpen };
+  }
+
+  it('non-optionable row: no dialog, no call, checkbox reverts', () => {
+    setup(true);
+    const ev = checkbox(true);
+    component.onOptionsEnabledToggle(nonOptionableRow, ev);
+    expect(dialogOpen).not.toHaveBeenCalled();
+    expect(setOptionsEnabled).not.toHaveBeenCalled();
+    expect(ev.source.checked).toBe(false);
+  });
+
+  it('unprobed row (optionable absent): same non-optionable behavior', () => {
+    setup(true);
+    const ev = checkbox(true);
+    component.onOptionsEnabledToggle(unprobedRow, ev);
+    expect(dialogOpen).not.toHaveBeenCalled();
+    expect(ev.source.checked).toBe(false);
+  });
+
+  it('confirm: calls store.setOptionsEnabled with symbol + target state', () => {
+    setup(true);
+    component.onOptionsEnabledToggle(optionableRow, checkbox(true));
+    expect(dialogOpen).toHaveBeenCalled();
+    expect(setOptionsEnabled).toHaveBeenCalledWith('AAPL', true);
+    expect(snackOpen).toHaveBeenCalled();
+  });
+
+  it('idempotent no-op (ok, not transitioned): informational message, checkbox reverts', () => {
+    setup(true);
+    setOptionsEnabled.and.returnValue(of({ ok: true, symbol: 'AAPL', transitioned: false }));
+    const ev = checkbox(true);
+    component.onOptionsEnabledToggle(optionableRow, ev);
+    expect(ev.source.checked).toBe(false);
+    expect(snackOpen).toHaveBeenCalledWith('AAPL was already enabled', 'Close', jasmine.anything());
+  });
+
+  it('cancel: no call, checkbox reverts', () => {
+    setup(undefined);
+    const ev = checkbox(true);
+    component.onOptionsEnabledToggle(optionableRow, ev);
+    expect(setOptionsEnabled).not.toHaveBeenCalled();
+    expect(ev.source.checked).toBe(false);
+  });
+
+  it('callable failure: checkbox reverts + error snackbar', () => {
+    setup(true);
+    setOptionsEnabled.and.returnValue(of({ ok: false, symbol: 'AAPL', transitioned: false, error: 'nope' }));
+    const ev = checkbox(true);
+    component.onOptionsEnabledToggle(optionableRow, ev);
+    expect(ev.source.checked).toBe(false);
+    expect(snackOpen).toHaveBeenCalledWith('nope', 'Dismiss', jasmine.anything());
+  });
+
+  it('tooltip explains the disabled states', () => {
+    setup(undefined);
+    expect(component.optionsEnabledTooltip(optionableRow)).toBe('');
+    expect(component.optionsEnabledTooltip(nonOptionableRow)).toContain('No listed options');
+    expect(component.optionsEnabledTooltip(unprobedRow)).toContain('not probed');
   });
 });

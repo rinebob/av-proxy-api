@@ -17,6 +17,7 @@ export enum DataMaintainerFunctionName {
   SAVE_TRACKED_SYMBOL = 'saveTrackedSymbol',
   LIST_SYMBOLS_V2 = 'listSymbolsV2',
   GET_SYMBOL_DETAILS_V2 = 'getSymbolDetailsV2',
+  SET_OPTIONS_ENABLED_V2 = 'setOptionsEnabledV2',
 }
 
 // Deprecated: legacy base/url constants. Prefer API_BASES.dm.

@@ -8,7 +8,8 @@ import { MatListModule } from '@angular/material/list';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatCheckboxModule, MatCheckboxChange } from '@angular/material/checkbox';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTabGroup } from '@angular/material/tabs';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, MatPaginator, PageEvent } from '@angular/material/paginator';
@@ -19,6 +20,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SymbolInputFormComponent } from '../symbols-dialog/symbol-input-form/symbol-input-form.component';
 import { formatBeta, formatMarketCap, orDash } from '../../utils/company-info.format';
 import { sortTrackedSymbolsMulti, SortLevel } from '../../utils/symbol-sort';
+import { TrackedSymbolV2 } from '@shared/alpha-vantage';
+import { OptionsEnabledDialogComponent } from '../options-enabled-dialog/options-enabled-dialog.component';
 
 @Component({
   selector: 'app-symbol-manager',
@@ -34,6 +37,7 @@ import { sortTrackedSymbolsMulti, SortLevel } from '../../utils/symbol-sort';
     MatSnackBarModule,
     MatChipsModule,
     MatCheckboxModule,
+    MatDialogModule,
     MatTableModule,
     MatPaginatorModule,
     MatMenuModule,
@@ -46,6 +50,7 @@ import { sortTrackedSymbolsMulti, SortLevel } from '../../utils/symbol-sort';
 export class SymbolManagerComponent implements OnInit {
   readonly store = inject(SymbolManagerStore);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
   private readonly destroyRef = inject(DestroyRef);
 
   @ViewChild(MatTabGroup) tabGroup!: MatTabGroup;
@@ -196,6 +201,48 @@ export class SymbolManagerComponent implements OnInit {
         error: (error) => this.showError(`Failed to remove symbol: ${error.message}`)
       });
     }
+  }
+
+  /**
+   * Options Enabled toggle (Task #144). Enabled only when optionable===true;
+   * confirm dialog → governed setOptionsEnabledV2 callable → store patches the
+   * row on transition. Cancel/error reverts the checkbox visual.
+   */
+  onOptionsEnabledToggle(symbol: TrackedSymbolV2, event: MatCheckboxChange): void {
+    const revert = () => { event.source.checked = !!symbol.optionsEnabled; };
+
+    if (symbol.optionable !== true) { revert(); return; }
+
+    const enabled = event.checked;
+    const ref = this.dialog.open(OptionsEnabledDialogComponent, {
+      data: { symbol: symbol.symbol, enabled },
+    });
+
+    ref.afterClosed().subscribe((confirmed?: boolean) => {
+      if (confirmed !== true) { revert(); return; }
+
+      this.store.setOptionsEnabled(symbol.symbol, enabled).subscribe(r => {
+        if (r.ok && r.transitioned) {
+          this.showResult(`Options corpus ${enabled ? 'enabled' : 'disabled'} for ${symbol.symbol}`);
+        } else if (r.ok) {
+          // Idempotent no-op — the flag was already at the target; the row is
+          // stale, so revert the visual to what the server reports.
+          revert();
+          this.showResult(`${symbol.symbol} was already ${enabled ? 'enabled' : 'disabled'}`);
+        } else {
+          revert();
+          this.showError(r.error || `Failed to update optionsEnabled for ${symbol.symbol}`);
+        }
+      });
+    });
+  }
+
+  /** Tooltip text for the disabled Options Enabled checkbox. */
+  optionsEnabledTooltip(symbol: TrackedSymbolV2): string {
+    if (symbol.optionable === true) return '';
+    return symbol.optionable === false
+      ? 'No listed options — cannot enable'
+      : 'Optionability not probed yet';
   }
 
   onPageChange(event: PageEvent): void {
