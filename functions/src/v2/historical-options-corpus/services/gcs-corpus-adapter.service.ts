@@ -9,6 +9,7 @@ import type {
 
 import {
   HISTORICAL_OPTIONS_CORPUS_PREFIX,
+  type CorpusItemKind,
   type CorpusReadResult,
   type HistoricalOptionsCorpusEnvelope,
 } from '../types';
@@ -19,6 +20,13 @@ export interface GcsWriteResult {
   sha256: string;
   generation: string;
   alreadyExists: boolean;
+}
+
+/** Lightweight listing entry for a stored corpus object. */
+export interface GcsCorpusObjectRef {
+  date: string;
+  /** Seed provenance stamp, absent for objects written without a kind. */
+  kind?: CorpusItemKind;
 }
 
 export interface GcsCorpusMetadata {
@@ -90,15 +98,51 @@ export class GcsCorpusAdapter {
   }
 
   /**
+   * Lists stored corpus objects for a symbol as `{date, kind}` refs — used by
+   * the sweep to diff coverage and find superseded interim snapshots.
+   */
+  async listItems(symbol: string): Promise<GcsCorpusObjectRef[]> {
+    const prefix = `${this.prefix}/${symbol.toUpperCase()}/`;
+    const [files] = await this.bucket.getFiles({ prefix });
+    const refs: GcsCorpusObjectRef[] = [];
+    for (const file of files) {
+      const match = /\/(\d{4}-\d{2}-\d{2})\.json\.gz$/.exec(file.name);
+      if (!match) continue;
+      refs.push({
+        date: match[1],
+        kind: (file.metadata?.metadata as Record<string, string> | undefined)?.kind as CorpusItemKind | undefined,
+      });
+    }
+    return refs;
+  }
+
+  /**
+   * Deletes a stored corpus object. Used to retire superseded interim
+   * snapshots — returns false when the object doesn't exist.
+   */
+  async deleteItem(symbol: string, date: string): Promise<boolean> {
+    const file = this.getFile(symbol, date);
+    try {
+      await file.delete();
+      return true;
+    } catch (error: any) {
+      if (error?.code === 404) return false;
+      throw error;
+    }
+  }
+
+  /**
    * Serializes and uploads a corpus item. Returns the stored object path,
    * size, and checksum. `alreadyExists` is true when the conditional write
-   * failed because the object was already present.
+   * failed because the object was already present. `kind` stamps the object's
+   * provenance metadata (pivot fanout 'confirmed'/'interim' — Task #154).
    */
   async writeItem(
     symbol: string,
     date: string,
     response: AvHistoricalOptionsResponse,
     analysis: SvtOptionsAnalysis,
+    kind?: CorpusItemKind,
   ): Promise<GcsWriteResult> {
     const envelope = this.buildEnvelope(symbol, date, response, analysis);
     const serialized = JSON.stringify(envelope);
@@ -118,6 +162,7 @@ export class GcsCorpusAdapter {
             version: envelope.version,
             schema: envelope.schema,
             sha256: envelope.checksum.value,
+            ...(kind ? { kind } : {}),
           },
         },
         ifGenerationMatch: 0,

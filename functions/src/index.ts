@@ -137,6 +137,7 @@ export { triggerHistoricalOptionsTimeSeriesBuild } from './v2/historical-options
 export { storageFileViewer } from './v2/historical-options-corpus/handlers/storage-file-viewer.http';
 export { processOptionsIndexWriteTask } from './v2/historical-options-corpus/handlers/options-index-write.task';
 export { refreshHistoricalOptionsCorpusNightly } from './v2/historical-options-corpus/jobs/historical-options-nightly.scheduler';
+export { sweepHistoricalOptionsCorpus } from './v2/historical-options-corpus/jobs/corpus-sweep.scheduler';
 export { processHistoricalOptionsTsBuildTask } from './v2/historical-options-corpus/handlers/ts-build.task';
 
 // Swing-set generation + maintenance (Topic #102 / Thread #103, Tasks #126/#127)

@@ -65,6 +65,17 @@ function createDependencies(overrides: Partial<SeedWorkerDependencies> = {}): Se
 }
 
 describe('seedCorpusItem', () => {
+  it('stamps the payload kind onto the stored object metadata (Task #154)', async () => {
+    const deps = createDependencies();
+    await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1, kind: 'interim' },
+      deps,
+    );
+    expect(deps.gcs.writeItem).toHaveBeenCalledWith(
+      'QQQ', '2026-01-02', responsePayload.response, responsePayload.analysis, 'interim',
+    );
+  });
+
   it('fetches, stores, and records a new item', async () => {
     const deps = createDependencies();
 
@@ -204,6 +215,24 @@ describe('seedCorpusItem', () => {
     expect(result.status).toBe('permanent_failure');
     expect(deps.metadata.incrementFailed).toHaveBeenCalledWith('run-1');
     expect(deps.enqueueTask).not.toHaveBeenCalled();
+  });
+
+  it('preserves kind on the retry re-enqueue (Task #154 — unstamped interims would escape supersede)', async () => {
+    const deps = createDependencies({
+      retrieval: {
+        fetch: jest.fn().mockRejectedValue(
+          new AlphaVantageUpstreamError(AlphaVantageUpstreamErrorCategory.RATE_LIMITED),
+        ),
+      } as any,
+    });
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1, kind: 'interim' },
+      deps,
+    );
+    expect(result.status).toBe('retry_enqueued');
+    expect(deps.enqueueTask).toHaveBeenCalledWith(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 2, kind: 'interim' },
+    );
   });
 
   describe('isCorpusSeedRetryable', () => {

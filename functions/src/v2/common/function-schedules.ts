@@ -98,6 +98,19 @@ export const HISTORICAL_OPTIONS_NIGHTLY_SCHEDULE = '0 19 * * 1-5';
  */
 export const SWING_SET_SWEEP_SCHEDULE = '0 20 * * 1-5';
 
+// for sweepHistoricalOptionsCorpus
+// functions/src/v2/historical-options-corpus/jobs/corpus-sweep.scheduler.ts
+/**
+ * Corpus reconcile sweep schedule.
+ *
+ * Purpose: after the swing-set sweep (8:00 PM PT) has regenerated stale
+ * corpus swing docs, diff each options-enabled symbol's planned pivot dates
+ * vs GCS coverage — seed gaps and delete superseded interim snapshots.
+ * Cron: 0 21 * * 1-5 (9:00 PM PT, weekdays)
+ * Timezone: America/Los_Angeles (set at function registration).
+ */
+export const CORPUS_SWEEP_SCHEDULE = '0 21 * * 1-5';
+
 // for refreshBenzingaCalendarDataV2
 // functions/src/benzinga/data-refresher/bz-calendar-refresh-manager.ts
 /**

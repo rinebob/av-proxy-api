@@ -82,12 +82,21 @@ export interface CorpusItemKey {
   date: string;
 }
 
+/** Provenance of a corpus seed item — stamped onto the GCS object metadata. */
+export type CorpusItemKind = 'confirmed' | 'interim';
+
 /** Payload for a single corpus seed Cloud Task. */
 export interface CorpusSeedPayload {
   runId: string;
   symbol: string;
   date: string;
   attempt: number;
+  /**
+   * Pivot provenance (Task #154): 'interim' objects are deleted when the
+   * swing doc's extreme advances past their date; 'confirmed' snapshots are
+   * permanent. Undefined for non-pivot producers (nightly/pilot).
+   */
+  kind?: CorpusItemKind;
 }
 
 /** Queue name for Stage-1 corpus seed tasks (matches the exported function id). */

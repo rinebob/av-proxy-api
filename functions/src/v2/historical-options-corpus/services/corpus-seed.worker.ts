@@ -94,7 +94,7 @@ export async function seedCorpusItem(
     // Throttling is owned by the retrieval service; the worker does not add a
     // second wait so a shared throttle instance paces the AV request rate.
     const { response, analysis } = await deps.retrieval.fetch({ symbol, date });
-    const writeResult = await deps.gcs.writeItem(symbol, date, response, analysis);
+    const writeResult = await deps.gcs.writeItem(symbol, date, response, analysis, payload.kind);
 
     await deps.metadata.setItemSuccess(runId, key, {
       gcsPath: writeResult.gcsPath,
@@ -137,7 +137,7 @@ export async function seedCorpusItem(
 
     const nextAttempt = attempt + 1;
     await deps.metadata.setItemFailure(runId, key, message, 'failure');
-    await deps.enqueueTask({ runId, symbol, date, attempt: nextAttempt });
+    await deps.enqueueTask({ runId, symbol, date, attempt: nextAttempt, kind: payload.kind });
     return { status: 'retry_enqueued', nextAttempt };
   }
 }
