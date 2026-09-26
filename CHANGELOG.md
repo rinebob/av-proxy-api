@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [2026-09-26]
 
+### Added
+- [Swing-Driven Options Corpus] 102-153_BE-IMPL-OPTIONS-DATA: Pivot-seed fanout on optionsEnabled false→true + swing regeneration — Stage-1 seed tasks per pivot date via options_corpus_runs, warn-not-fail on all three hook seams, chunked dispatch/batch writes
+- [Swing-Driven Options Corpus] 102-153_DOCS-OPTIONS-DATA: Code review doc + enable-seed-fanout verify guide
+
 ### Changed
 - [Swing-Driven Options Corpus] 102-161_BE-IMPL-OPTIONS-DATA: Dates-only corpus swing doc + single dev2 config — SwingSetDoc stores pivotDates/currentExtreme (not pivot objects), one doc per symbol under CORPUS_ZIGZAG_CONFIG, planner reads it directly
 - [Swing-Driven Options Corpus] 102-161_DOCS-OPTIONS-DATA: Slim-shape decision doc + backfill runbook; superseded notices on obsolete swing-set platform docs
