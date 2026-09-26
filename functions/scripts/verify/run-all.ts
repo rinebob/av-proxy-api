@@ -19,6 +19,7 @@ const scripts = [
   'symbol-manager-98-sortable-fields.ts',
   'options-data-122-zigzag-engine.ts',
   'options-data-123-swing-set-types.ts',
+  'options-data-168-symbol-metric-types.ts',
   'ops-119-firestore-indexes.ts',
   // options-data-124-swing-set-data-layer.ts — mutating (writes + deletes a
   // ZZTEST probe doc in prod), run manually
