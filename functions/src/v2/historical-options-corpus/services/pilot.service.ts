@@ -3,8 +3,14 @@ import { getFunctions } from 'firebase-admin/functions';
 import { CorpusMetadataService, type CorpusRunPlan } from './corpus-metadata.service';
 import { planCorpusRun, type PlanCorpusRunOptions } from './corpus-planner.service';
 import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
+import {
+  OPTIONS_CORPUS_RUNS_COLLECTION,
+  type CorpusItemKey,
+  type CorpusSeedPayload,
+} from '../types';
 import { OPTIONS_CORPUS_SEED_TASK_QUEUE } from '../handlers/corpus-seed.task';
 import type { HistoricalOptionsRetrievalService } from './historical-options-retrieval.service';
+import { createPivotPlannerDeps, planPivotSeeds, type PivotWorkItem } from './pivot-work-planner';
 import { TradingCalendarService } from './trading-calendar.service';
 import { listOptionsEnabledSymbols } from './options-enabled-gate';
 
@@ -20,6 +26,12 @@ export interface PilotOptions {
   maxTradingDatesPerSymbol?: number;
   referenceDate?: string;
   runId?: string;
+  /**
+   * 'calendar' (default): bounded trading-date window per symbol.
+   * 'pivots' (Task #155): each symbol's corpus pivot dates via the swing-doc
+   * planner — the operator backfill path; startDate/maxTradingDates ignored.
+   */
+  dateSource?: 'calendar' | 'pivots';
   /** When true, only plan and report; no AV calls or GCS writes. */
   dryRun?: boolean;
   /** When true and dryRun is false, dispatches Cloud Tasks to seed missing items. */
@@ -34,6 +46,20 @@ export interface PilotManifestItem {
   sha256?: string;
 }
 
+/** Per-symbol backfill result row (Task #155 AC). */
+export interface PilotSymbolReport {
+  symbol: string;
+  planned: number;
+  /** Already covered in GCS. */
+  present: number;
+  /** Not covered — enqueued (or would-enqueue in dryRun). */
+  missing: number;
+  /** Seed tasks dispatched for this symbol (execute mode). */
+  enqueued: number;
+  /** Planner failure, if the symbol errored mid-run. */
+  error?: string;
+}
+
 export interface PilotReport {
   runId: string;
   runPlan: CorpusRunPlan;
@@ -43,6 +69,8 @@ export interface PilotReport {
   startDate: string;
   endDate: string;
   maxTradingDatesPerSymbol: number;
+  dateSource: 'calendar' | 'pivots';
+  perSymbol: PilotSymbolReport[];
   totalItems: number;
   presentItems: number;
   missingItems: number;
@@ -59,7 +87,12 @@ export interface PilotDependencies {
   metadata: CorpusMetadataService;
   gcs: GcsCorpusAdapter;
   calendar: TradingCalendarService;
-  enqueueTask: (payload: { runId: string; symbol: string; date: string; attempt: number }) => Promise<void>;
+  enqueueTask: (payload: CorpusSeedPayload) => Promise<void>;
+  /**
+   * Pivot planner seam (Task #155): returns the symbol's corpus work items
+   * (confirmed + interim). Required for dateSource='pivots'.
+   */
+  planPivots?: (symbol: string) => Promise<PivotWorkItem[]>;
   retrieval?: HistoricalOptionsRetrievalService;
   /** Clock override for testing date math. */
   now?: () => Date;
@@ -87,6 +120,7 @@ export class HistoricalOptionsPilotService {
     const startDate = options.startDate ?? DEFAULT_PILOT_START_DATE;
     const referenceDate = options.referenceDate ?? options.endDate ?? this.yesterday();
     const maxTradingDatesPerSymbol = options.maxTradingDatesPerSymbol ?? DEFAULT_PILOT_MAX_TRADING_DATES;
+    const dateSource = options.dateSource ?? 'calendar';
     const dryRun = options.dryRun ?? true;
     const execute = options.execute ?? false;
 
@@ -109,6 +143,8 @@ export class HistoricalOptionsPilotService {
         startDate,
         endDate: referenceDate,
         maxTradingDatesPerSymbol,
+        dateSource,
+        perSymbol: [],
         totalItems: 0,
         presentItems: 0,
         missingItems: 0,
@@ -123,59 +159,140 @@ export class HistoricalOptionsPilotService {
       throw new Error('Cannot execute a dry-run pilot; set dryRun=false to dispatch tasks.');
     }
 
-    const planOptions: PlanCorpusRunOptions = {
-      symbols,
-      startDate,
-      endDate: referenceDate,
-      maxTradingDatesPerSymbol,
-      dryRun,
-      pilot: true,
-      calendar: this.deps.calendar,
-      metadata: this.deps.metadata,
-      runId: options.runId,
-    };
+    // Pivot-source date list: per-symbol planner output, kind kept for the
+    // seed payload so interim snapshots carry their provenance stamp.
+    const kindByKey = new Map<string, CorpusSeedPayload['kind']>();
+    const perSymbol: PilotSymbolReport[] = [];
 
-    const runPlan = await planCorpusRun(planOptions);
+    let runPlan: CorpusRunPlan;
+    if (dateSource === 'pivots') {
+      if (!this.deps.planPivots) {
+        throw new Error('dateSource=pivots requires a planPivots dependency');
+      }
+      const items: CorpusItemKey[] = [];
+      const seen = new Set<string>();
+      for (const symbol of symbols) {
+        try {
+          const planned = await this.deps.planPivots(symbol);
+          let plannedCount = 0;
+          for (const item of planned) {
+            const key = `${item.symbol}_${item.date}`;
+            if (seen.has(key)) continue; // defensive: planner already dedupes
+            seen.add(key);
+            items.push({ symbol: item.symbol, date: item.date });
+            kindByKey.set(key, item.kind);
+            plannedCount++;
+          }
+          perSymbol.push({ symbol, planned: plannedCount, present: 0, missing: 0, enqueued: 0 });
+        } catch (e) {
+          const error = e instanceof Error ? e.message : String(e);
+          console.warn(`[pilot] pivot plan failed for ${symbol} — ${error}`);
+          perSymbol.push({ symbol, planned: 0, present: 0, missing: 0, enqueued: 0, error });
+        }
+      }
+      const dates = items.map((i) => i.date).sort();
+      runPlan = {
+        runId: options.runId ?? `${OPTIONS_CORPUS_RUNS_COLLECTION}-pivots-${Date.now()}`,
+        symbols,
+        startDate: dates[0] ?? startDate,
+        endDate: dates[dates.length - 1] ?? referenceDate,
+        totalItems: items.length,
+        items,
+        dryRun,
+        pilot: false,
+      };
+      // Run plan is persisted only when actually executing — dryRun is
+      // zero-writes (Task #155 AC) and dryRun+execute=false would leave a
+      // 'planned' run with pending items and no dispatch.
+      if (execute) {
+        await this.deps.metadata.createRunPlan(runPlan);
+      }
+    } else {
+      const planOptions: PlanCorpusRunOptions = {
+        symbols,
+        startDate,
+        endDate: referenceDate,
+        maxTradingDatesPerSymbol,
+        dryRun,
+        pilot: true,
+        calendar: this.deps.calendar,
+        metadata: this.deps.metadata,
+        runId: options.runId,
+      };
+      runPlan = await planCorpusRun(planOptions);
+      for (const symbol of symbols) {
+        perSymbol.push({ symbol, planned: 0, present: 0, missing: 0, enqueued: 0 });
+      }
+    }
 
     const manifest: PilotManifestItem[] = [];
     let presentItems = 0;
     let missingItems = 0;
+    const symbolRow = (s: string) => perSymbol.find((p) => p.symbol === s);
+    const itemKey = (s: string, d: string) => `${s}_${d}`;
+    // Pivots mode removes the 20-dates/symbol bound — chunked parallel scans
+    // keep the coverage diff inside the callable timeout (same as fanout).
+    const CHUNK = 20;
 
-    for (const item of runPlan.items) {
-      const storedMetadata = await this.deps.gcs.getMetadata(item.symbol, item.date);
-      const present = !!storedMetadata;
-      if (present) {
-        presentItems += 1;
-        manifest.push({
-          symbol: item.symbol,
-          date: item.date,
-          present: true,
-          bytes: storedMetadata.bytes,
-          sha256: storedMetadata.sha256,
-        });
-      } else {
-        missingItems += 1;
-        manifest.push({ symbol: item.symbol, date: item.date, present: false });
+    for (let i = 0; i < runPlan.items.length; i += CHUNK) {
+      const results = await Promise.all(
+        runPlan.items.slice(i, i + CHUNK).map(async (item) => ({
+          item,
+          storedMetadata: await this.deps.gcs.getMetadata(item.symbol, item.date),
+        })),
+      );
+      for (const { item, storedMetadata } of results) {
+        const row = symbolRow(item.symbol);
+        if (row && dateSource === 'calendar') row.planned += 1;
+        if (storedMetadata) {
+          presentItems += 1;
+          if (row) row.present += 1;
+          manifest.push({
+            symbol: item.symbol,
+            date: item.date,
+            present: true,
+            bytes: storedMetadata.bytes,
+            sha256: storedMetadata.sha256,
+          });
+        } else {
+          missingItems += 1;
+          if (row) row.missing += 1;
+          manifest.push({ symbol: item.symbol, date: item.date, present: false });
+        }
       }
     }
 
     let executed = false;
     if (execute) {
-      for (const item of runPlan.items) {
-        const manifestItem = manifest.find(
-          (m) => m.symbol === item.symbol && m.date === item.date,
+      const manifestByKey = new Map(manifest.map((m) => [itemKey(m.symbol, m.date), m]));
+      const missing = runPlan.items.filter(
+        (item) => manifestByKey.get(itemKey(item.symbol, item.date))?.present === false,
+      );
+      // Status BEFORE dispatch (fanout convention): a mid-dispatch failure
+      // leaves a 'in_progress' run, not an orphaned 'planned' one. All-covered
+      // → 'completed', nothing will drive it further.
+      await this.deps.metadata.markRunStatus(
+        runPlan.runId,
+        missing.length === 0 ? 'completed' : 'in_progress',
+      );
+      for (let i = 0; i < missing.length; i += CHUNK) {
+        await Promise.all(
+          missing.slice(i, i + CHUNK).map((item) =>
+            this.deps.enqueueTask({
+              runId: runPlan.runId,
+              symbol: item.symbol,
+              date: item.date,
+              attempt: 1,
+              kind: kindByKey.get(itemKey(item.symbol, item.date)),
+            }),
+          ),
         );
-        if (manifestItem && !manifestItem.present) {
-          await this.deps.enqueueTask({
-            runId: runPlan.runId,
-            symbol: item.symbol,
-            date: item.date,
-            attempt: 1,
-          });
-        }
+      }
+      for (const item of missing) {
+        const row = symbolRow(item.symbol);
+        if (row) row.enqueued += 1;
       }
       executed = true;
-      await this.deps.metadata.markRunStatus(runPlan.runId, 'in_progress');
     }
 
     return {
@@ -186,6 +303,8 @@ export class HistoricalOptionsPilotService {
       startDate: runPlan.startDate,
       endDate: runPlan.endDate,
       maxTradingDatesPerSymbol,
+      dateSource,
+      perSymbol,
       totalItems: runPlan.totalItems,
       presentItems,
       missingItems,
@@ -234,11 +353,13 @@ export function createHistoricalOptionsPilotService(
   const { getStorage } = require('firebase-admin/storage');
   const bucket = getStorage().bucket(bucketName ?? process.env.OPTIONS_CORPUS_BUCKET);
 
+  const pivotDeps = createPivotPlannerDeps();
   return new HistoricalOptionsPilotService({
     listOptionsEnabledSymbols,
     metadata: new CorpusMetadataService(),
     gcs: new GcsCorpusAdapter(bucket),
     calendar: new TradingCalendarService(),
+    planPivots: (symbol) => planPivotSeeds(symbol, pivotDeps),
     enqueueTask: async (payload) => {
       const queue = getFunctions().taskQueue(OPTIONS_CORPUS_SEED_TASK_QUEUE);
       await queue.enqueue(payload);

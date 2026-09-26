@@ -19,6 +19,8 @@ interface TriggerHistoricalOptionsPilotBody {
   startDate?: string;
   referenceDate?: string;
   maxTradingDatesPerSymbol?: number;
+  /** 'calendar' (default) or 'pivots' — swing-doc pivot dates per symbol (Task #155). */
+  dateSource?: string;
   dryRun?: boolean;
   execute?: boolean;
 }
@@ -64,7 +66,11 @@ function isAdmin(req: Request, res: Response): boolean {
  *   options-enabled set (non-enabled symbols are dropped and reported)
  * - startDate: 'YYYY-MM-DD'; defaults to '2019-01-01'
  * - referenceDate: 'YYYY-MM-DD'; defaults to yesterday in America/New_York
- * - maxTradingDatesPerSymbol: number; defaults to 20
+ * - maxTradingDatesPerSymbol: number; defaults to 20 (calendar mode only)
+ * - dateSource: 'calendar' (default) or 'pivots' — pivot mode plans each
+ *   symbol's corpus dates from its swing doc (backfill path; startDate and
+ *   maxTradingDatesPerSymbol are ignored) and stamps seed tasks with the
+ *   pivot kind
  * - dryRun: boolean; defaults to true (plan/report only, no tasks enqueued)
  * - execute: boolean; defaults to false; must be true with dryRun=false to enqueue seed tasks
  *
@@ -73,7 +79,7 @@ function isAdmin(req: Request, res: Response): boolean {
  */
 export const triggerHistoricalOptionsPilot = onRequest(
   {
-    timeoutSeconds: 120,
+    timeoutSeconds: 540,
     memory: '512MiB',
     secrets: [historicalOptionsPilotAdminSecret],
   },
@@ -98,6 +104,11 @@ export const triggerHistoricalOptionsPilot = onRequest(
         typeof body.maxTradingDatesPerSymbol === 'number' && body.maxTradingDatesPerSymbol > 0
           ? body.maxTradingDatesPerSymbol
           : DEFAULT_PILOT_MAX_TRADING_DATES;
+      if (body.dateSource !== undefined && body.dateSource !== 'calendar' && body.dateSource !== 'pivots') {
+        res.status(400).json({ ok: false, error: `Invalid dateSource '${body.dateSource}'; expected 'calendar' or 'pivots'` });
+        return;
+      }
+      const dateSource = body.dateSource === 'pivots' ? 'pivots' : 'calendar';
       const dryRun = typeof body.dryRun === 'boolean' ? body.dryRun : true;
       const execute = typeof body.execute === 'boolean' ? body.execute : false;
 
@@ -114,6 +125,7 @@ export const triggerHistoricalOptionsPilot = onRequest(
         startDate,
         referenceDate,
         maxTradingDatesPerSymbol,
+        dateSource,
         dryRun,
         execute,
       });
@@ -124,6 +136,7 @@ export const triggerHistoricalOptionsPilot = onRequest(
         startDate,
         referenceDate,
         maxTradingDatesPerSymbol,
+        dateSource,
         dryRun,
         execute,
       } as PilotOptions);
