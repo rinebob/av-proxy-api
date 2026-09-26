@@ -1,4 +1,4 @@
-﻿**Topic:** Swing-driven options corpus platform  
+**Topic:** Swing-driven options corpus platform  
 **Topic Slug:** swing-driven-options-corpus  
 **Thread:** Swing-set generation platform  
 **Thread Slug:** swing-set-platform  
@@ -12,14 +12,13 @@
 **Last Updated:** 2026-09-23  
 
 ---
+> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and `partnerSwingSetsV2` was removed. See `102-107-DECISION-swing-doc-slim-shape.md`. This doc remains as the historical record of the shipped implementation.
 
-> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and partnerSwingSetsV2 was removed. See 102-107-DECISION-swing-doc-slim-shape.md. This doc remains as the historical record of the shipped implementation.
 
+# Implementation Plan — BE: Swing-set generation, persistence, and availability
 
-# Implementation Plan â€” BE: Swing-set generation, persistence, and availability
-
-- **SA** â€” SavantApi, this backend project.
-- **ST** â€” SavantTrader, the consumer client application that calls SA endpoints and reads SA data.
+- **SA** — SavantApi, this backend project.
+- **ST** — SavantTrader, the consumer client application that calls SA endpoints and reads SA data.
 
 ## Goal
 
@@ -46,7 +45,7 @@ export class SwingSetGenerationService {
 
 - `generateForSymbol` reads the symbol's bars once, then iterates `CANONICAL_ZIGZAG_CONFIGS` building+upserting one `SwingSetDoc` per config (it does not delegate to `generateForConfig`, which would re-read bars per config).
 - `generateForConfig` is the standalone single-doc variant: reads bars, maps to `PriceBar`, calls `computeZigZagPivots` + `deriveSwings` + `computeSwingStats`, builds a `SwingSetDoc`, and writes it via the repository. Returns `null` when the symbol has no daily-adjusted data.
-- `generatedAt` is `Timestamp.now()` â€” docs are idempotent modulo that field.
+- `generatedAt` is `Timestamp.now()` — docs are idempotent modulo that field.
 
 ### 2. Firestore repository
 
@@ -79,7 +78,7 @@ export interface DailyAdjustedReader {
 }
 ```
 
-- Implementation reads from the existing SA daily-adjusted store (`symbol-data/{SYMBOL}/sa-time-series/av-daily-adjusted/...` or `market_data/{symbol}/data_points/...` â€” exact path TBD in blueprint).
+- Implementation reads from the existing SA daily-adjusted store (`symbol-data/{SYMBOL}/sa-time-series/av-daily-adjusted/...` or `market_data/{symbol}/data_points/...` — exact path TBD in blueprint).
 - Returns bars sorted ascending by date.
 
 ### 4. Triggers
@@ -113,10 +112,10 @@ Create `partnerSwingSetsV2` in `functions/src/v2/partner/`:
 - **Endpoint:** `GET /partnerSwingSetsV2?symbol={symbol}&paramsId={paramsId}`
 - **Auth:** same service-account / Firebase dual-auth as `partnerHistoricalOptionsV2`.
 - **Behavior:**
-  - If `symbol` is not tracked â†’ `404`.
-  - If `symbol` is tracked but `optionsEnabled=false` â†’ `OPTIONS_NOT_ENABLED`.
-  - If `paramsId` omitted â†’ return all four canonical swing files for the symbol.
-  - If `paramsId` provided â†’ return that swing file or `NOT_FOUND`.
+  - If `symbol` is not tracked → `404`.
+  - If `symbol` is tracked but `optionsEnabled=false` → `OPTIONS_NOT_ENABLED`.
+  - If `paramsId` omitted → return all four canonical swing files for the symbol.
+  - If `paramsId` provided → return that swing file or `NOT_FOUND`.
 - **Response shape:** `{ ok: true, symbol, paramsId, source: 'sa', data: SwingSetDoc, timestamp, processingTimeMs }`.
 
 This endpoint is the only external read path; external direct Firestore reads are not allowed.
@@ -129,16 +128,16 @@ The options-corpus ingest pipeline reads `options-swing-sets` directly (same pro
 
 ```text
 functions/src/v2/swing-set/
-â”œâ”€â”€ services/
-â”‚   â”œâ”€â”€ swing-set-generation.service.ts
-â”‚   â”œâ”€â”€ swing-set.repository.ts
-â”‚   â””â”€â”€ daily-adjusted-reader.service.ts
-â”œâ”€â”€ handlers/
-â”‚   â”œâ”€â”€ generate-swing-sets.task.ts
-â”‚   â”œâ”€â”€ sweep-swing-sets.scheduler.ts
-â”‚   â””â”€â”€ backfill-swing-sets.http.ts
-â”œâ”€â”€ types.ts
-â””â”€â”€ index.ts
+├── services/
+│   ├── swing-set-generation.service.ts
+│   ├── swing-set.repository.ts
+│   └── daily-adjusted-reader.service.ts
+├── handlers/
+│   ├── generate-swing-sets.task.ts
+│   ├── sweep-swing-sets.scheduler.ts
+│   └── backfill-swing-sets.http.ts
+├── types.ts
+└── index.ts
 ```
 
 ## Data flow
@@ -161,7 +160,7 @@ flowchart LR
 | Risk | Mitigation |
 |------|------------|
 | Daily-adjusted store schema/location unknown | Add a dedicated `DailyAdjustedReader` seam; confirm exact path in blueprint or first task |
-| Swing files could be large | Store only confirmed pivots, projection, swings, stats â€” no raw bars |
+| Swing files could be large | Store only confirmed pivots, projection, swings, stats — no raw bars |
 | Concurrent generation for same symbol | Doc-id key `{symbol}_{paramsId}` + `set(merge)` makes writes idempotent |
 | Scheduled sweep runs too early (daily data not ready) | Schedule after the daily-adjusted refresh window; add freshness check in sweep |
 

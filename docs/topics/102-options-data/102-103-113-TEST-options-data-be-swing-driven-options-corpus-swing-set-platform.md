@@ -1,4 +1,4 @@
-﻿**Topic:** Swing-driven options corpus platform  
+**Topic:** Swing-driven options corpus platform  
 **Topic Slug:** swing-driven-options-corpus  
 **Thread:** Swing-set generation platform  
 **Thread Slug:** swing-set-platform  
@@ -12,18 +12,17 @@
 **Last Updated:** 2026-09-23  
 
 ---
+> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and `partnerSwingSetsV2` was removed. See `102-107-DECISION-swing-doc-slim-shape.md`. This doc remains as the historical record of the shipped implementation.
 
-> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and partnerSwingSetsV2 was removed. See 102-107-DECISION-swing-doc-slim-shape.md. This doc remains as the historical record of the shipped implementation.
 
-
-# Test Plan â€” BE: Swing-set generation, persistence, and availability
+# Test Plan — BE: Swing-set generation, persistence, and availability
 
 ## E2E User Journeys
 
-- Operator enables options for a symbol â†’ swing files appear in `options-swing-sets` for all four canonical configs.
-- Scheduled sweep runs â†’ missing/stale swing files are regenerated.
-- Backfill script runs â†’ all options-enabled symbols have swing files.
-- ST consumer calls `partnerSwingSetsV2` â†’ receives swing file data.
+- Operator enables options for a symbol → swing files appear in `options-swing-sets` for all four canonical configs.
+- Scheduled sweep runs → missing/stale swing files are regenerated.
+- Backfill script runs → all options-enabled symbols have swing files.
+- ST consumer calls `partnerSwingSetsV2` → receives swing file data.
 
 ## Integration Tests
 
@@ -52,8 +51,8 @@
 
 ## Edge Cases
 
-- Symbol with no daily-adjusted data â†’ generation fails gracefully and is logged.
-- Daily-adjusted data updated after generation â†’ sweep detects staleness and regenerates.
-- `optionsEnabled=false` â†’ endpoint rejects; sweep skips.
-- Concurrent generation for the same symbol â†’ idempotent upserts.
-- Invalid `paramsId` requested via endpoint â†’ `NOT_FOUND`.
+- Symbol with no daily-adjusted data → generation fails gracefully and is logged.
+- Daily-adjusted data updated after generation → sweep detects staleness and regenerates.
+- `optionsEnabled=false` → endpoint rejects; sweep skips.
+- Concurrent generation for the same symbol → idempotent upserts.
+- Invalid `paramsId` requested via endpoint → `NOT_FOUND`.

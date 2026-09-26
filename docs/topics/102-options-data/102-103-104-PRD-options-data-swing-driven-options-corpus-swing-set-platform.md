@@ -1,4 +1,4 @@
-﻿**Topic:** Swing-driven options corpus platform  
+**Topic:** Swing-driven options corpus platform  
 **Topic Slug:** swing-driven-options-corpus  
 **Thread:** Swing-set generation platform  
 **Thread Slug:** swing-set-platform  
@@ -12,14 +12,13 @@
 **Last Updated:** 2026-09-23  
 
 ---
-
-> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and partnerSwingSetsV2 was removed. See 102-107-DECISION-swing-doc-slim-shape.md. This doc remains as the historical record of the shipped implementation.
+> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and `partnerSwingSetsV2` was removed. See `102-107-DECISION-swing-doc-slim-shape.md`. This doc remains as the historical record of the shipped implementation.
 
 
 # PRD: Swing-set generation platform
 
-- **SA** â€” SavantApi, this backend project.
-- **ST** â€” SavantTrader, the consumer client application that calls SA endpoints and reads SA data.
+- **SA** — SavantApi, this backend project.
+- **ST** — SavantTrader, the consumer client application that calls SA endpoints and reads SA data.
 
 ## Problem Statement
 
@@ -34,8 +33,8 @@ Port ST's ZigZag engine into SA and run it as a backend service. For every **opt
 
 The options-corpus pipeline (Thread #106) will read these swing files to obtain:
 
-1. **Confirmed pivot dates** â€” endpoints of completed swings. These are immutable and retained as GCS corpus snapshots.
-2. **Current ongoing swing + latest extreme date** â€” while a swing is unfolding, the latest extreme date may advance. Thread #106 owns fetching that day's snapshot, updating per-contract time-series docs, and deleting the prior interim snapshot for that swing to avoid corpus bloat.
+1. **Confirmed pivot dates** — endpoints of completed swings. These are immutable and retained as GCS corpus snapshots.
+2. **Current ongoing swing + latest extreme date** — while a swing is unfolding, the latest extreme date may advance. Thread #106 owns fetching that day's snapshot, updating per-contract time-series docs, and deleting the prior interim snapshot for that swing to avoid corpus bloat.
 
 Thread #103 is responsible for producing a swing file that exposes both pieces of state.
 
@@ -45,7 +44,7 @@ Thread #103 is responsible for producing a swing file that exposes both pieces o
 
 1. **As an SA operator**, I want swing files generated for every **options-enabled** symbol under 4 canonical configs, so that ST consumers have a consistent, canonical dataset.
    - *Acceptance:* All options-enabled symbols have swing files for configs 10/10/10, 5/5/5, 3/3/3, 2/2/2.
-   - *Verification:* Query the swing-set collection and assert each options-enabled symbol Ã— config combination exists.
+   - *Verification:* Query the swing-set collection and assert each options-enabled symbol × config combination exists.
 
 2. **As an ST consumer**, I want to read SA-generated swing files that match ST's existing `{symbol}_{paramsId}` doc keys, so that I can retire ST's swing-set engine without changing my document lookups.
    - *Acceptance:* Doc keys and payload shape match the ported ST format.
@@ -75,8 +74,8 @@ Thread #103 is responsible for producing a swing file that exposes both pieces o
   1. **Backfill:** one-time run over all currently options-enabled symbols.
   2. **Ongoing:** when `optionsEnabled` flips to `true` (including at symbol ingestion, covered in Thread #105), enqueue generation for that symbol. A scheduled sweep keeps existing options-enabled symbols current and skips symbols that are tracked but not options-enabled.
 - **Confirmation semantics:** The engine must preserve ST's paint-vs-confirm semantics. The swing file records:
-  - **Confirmed pivots** â€” endpoints of completed swings (immutable).
-  - **Current ongoing swing** â€” direction, start pivot, and latest extreme date. This is exposed so the options-corpus pipeline (Thread #106) can fetch/update the latest extreme snapshot and delete prior interim snapshots; ST UI can also render the unfolding swing.
+  - **Confirmed pivots** — endpoints of completed swings (immutable).
+  - **Current ongoing swing** — direction, start pivot, and latest extreme date. This is exposed so the options-corpus pipeline (Thread #106) can fetch/update the latest extreme snapshot and delete prior interim snapshots; ST UI can also render the unfolding swing.
 - **No migration:** ST's existing `st-swing-sets` docs are abandoned. SA generates fresh from canonical configs. ST verifies cutover coverage separately under Topic #261.
 
 ## Testing Decisions
@@ -122,7 +121,7 @@ flowchart LR
 ## Further Notes
 
 - The exact Firestore collection name, Cloud Function trigger shape, and sweep schedule will be decided in blueprint.
-- Backfill strategy: initial run over all currently options-enabled symbols Ã— 4 configs.
+- Backfill strategy: initial run over all currently options-enabled symbols × 4 configs.
 - Ongoing generation: whenever a symbol becomes options-enabled (including new symbol ingestion), generate its 4 swing files.
 - Dependency: This Thread cannot start implementation until Thread #105 (`Symbol flags curation`) exposes and populates the `optionsEnabled` flag in Symbol Manager.
 - Open question: Should swing files be versioned by the daily-adjusted data generation timestamp, or by the swing-file generation timestamp?

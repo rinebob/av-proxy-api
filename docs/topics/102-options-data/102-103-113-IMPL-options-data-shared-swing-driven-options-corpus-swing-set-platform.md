@@ -1,4 +1,4 @@
-﻿**Topic:** Swing-driven options corpus platform  
+**Topic:** Swing-driven options corpus platform  
 **Topic Slug:** swing-driven-options-corpus  
 **Thread:** Swing-set generation platform  
 **Thread Slug:** swing-set-platform  
@@ -12,14 +12,13 @@
 **Last Updated:** 2026-09-23  
 
 ---
+> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and `partnerSwingSetsV2` was removed. See `102-107-DECISION-swing-doc-slim-shape.md`. This doc remains as the historical record of the shipped implementation.
 
-> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and partnerSwingSetsV2 was removed. See 102-107-DECISION-swing-doc-slim-shape.md. This doc remains as the historical record of the shipped implementation.
 
+# Implementation Plan — SHARED: ZigZag engine + swing-file types
 
-# Implementation Plan â€” SHARED: ZigZag engine + swing-file types
-
-- **SA** â€” SavantApi, this backend project.
-- **ST** â€” SavantTrader, the consumer client application that calls SA endpoints and reads SA data.
+- **SA** — SavantApi, this backend project.
+- **ST** — SavantTrader, the consumer client application that calls SA endpoints and reads SA data.
 
 ## Goal
 
@@ -31,15 +30,15 @@ Port ST's ZigZag engine into SA's `shared/` package so both the SA backend and S
 
 Copy the following modules into `shared/zigzag/` and strip Angular imports:
 
-- `st-zigzag.types.ts` â†’ `shared/zigzag/zigzag.types.ts`
+- `st-zigzag.types.ts` → `shared/zigzag/zigzag.types.ts`
   - `ZigZagConfig`, `Pivot`, `ZigZagResult`, `Swing`, `SwingStats`, `DistributionSummary`, `Histogram`, `DirectionStats`, `PriceBar`
-- `st-zigzag.utils.ts` â†’ `shared/zigzag/zigzag.utils.ts`
+- `st-zigzag.utils.ts` → `shared/zigzag/zigzag.utils.ts`
   - `isFiniteNum`, `calcDev`
-- `st-zigzag.pivots.ts` â†’ `shared/zigzag/zigzag.pivots.ts`
+- `st-zigzag.pivots.ts` → `shared/zigzag/zigzag.pivots.ts`
   - `computeZigZagPivots`
-- `st-zigzag.swings.ts` â†’ `shared/zigzag/zigzag.swings.ts`
+- `st-zigzag.swings.ts` → `shared/zigzag/zigzag.swings.ts`
   - `deriveSwings`
-- `st-zigzag.stats.ts` â†’ `shared/zigzag/zigzag.stats.ts`
+- `st-zigzag.stats.ts` → `shared/zigzag/zigzag.stats.ts`
   - `computeSwingStats`
 
 Replace `PriceBar` import from `flex-chart.types` with a local definition in `zigzag.types.ts`.
@@ -105,14 +104,14 @@ The adapter maps `adjustedClose` to `close` and `date` to `x`/`date` fields used
 
 ```text
 shared/zigzag/
-â”œâ”€â”€ zigzag.types.ts          # types + PriceBar
-â”œâ”€â”€ zigzag.utils.ts          # math helpers
-â”œâ”€â”€ zigzag.pivots.ts         # computeZigZagPivots
-â”œâ”€â”€ zigzag.swings.ts         # deriveSwings
-â”œâ”€â”€ zigzag.stats.ts          # computeSwingStats
-â”œâ”€â”€ swing-set.types.ts       # SwingSetDoc, deriveParamsId, DailyAdjustedBar
-â”œâ”€â”€ canonical-configs.ts     # CANONICAL_ZIGZAG_CONFIGS
-â””â”€â”€ index.ts                 # public exports
+├── zigzag.types.ts          # types + PriceBar
+├── zigzag.utils.ts          # math helpers
+├── zigzag.pivots.ts         # computeZigZagPivots
+├── zigzag.swings.ts         # deriveSwings
+├── zigzag.stats.ts          # computeSwingStats
+├── swing-set.types.ts       # SwingSetDoc, deriveParamsId, DailyAdjustedBar
+├── canonical-configs.ts     # CANONICAL_ZIGZAG_CONFIGS
+└── index.ts                 # public exports
 ```
 
 ## Dependencies

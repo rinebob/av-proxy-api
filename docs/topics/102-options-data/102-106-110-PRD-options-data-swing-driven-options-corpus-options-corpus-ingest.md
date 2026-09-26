@@ -1,4 +1,4 @@
-﻿**Topic:** Swing-driven options corpus platform  
+**Topic:** Swing-driven options corpus platform  
 **Topic Slug:** swing-driven-options-corpus  
 **Thread:** Options corpus ingest  
 **Thread Slug:** options-corpus-ingest  
@@ -12,14 +12,13 @@
 **Last Updated:** 2026-09-23  
 
 ---
-
-> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and partnerSwingSetsV2 was removed. See 102-107-DECISION-swing-doc-slim-shape.md. This doc remains as the historical record of the shipped implementation.
+> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and `partnerSwingSetsV2` was removed. See `102-107-DECISION-swing-doc-slim-shape.md`. This doc remains as the historical record of the shipped implementation.
 
 
 # PRD: Options corpus ingest
 
-- **SA** â€” SavantApi, this backend project.
-- **ST** â€” SavantTrader, the consumer client application that calls SA endpoints and reads SA data.
+- **SA** — SavantApi, this backend project.
+- **ST** — SavantTrader, the consumer client application that calls SA endpoints and reads SA data.
 
 ## Problem Statement
 
@@ -29,15 +28,15 @@ ST's option-chain percent-change grid and swing-analysis surfaces need historica
 
 Build on the existing QQQ/TQQQ historical-options-corpus infrastructure and extend it to all options-enabled symbols. The pipeline has two stages:
 
-1. **Stage 1 â€” GCS chain snapshots:** One immutable, gzipped JSON envelope per `(symbol, pivot date)` stored in GCS.
-2. **Stage 2 â€” Per-contract time series:** Firestore documents (or GCS JSONL files consumed by the chart viewer) that accumulate observations from each pivot-date snapshot for each contract seen across the snapshots. We do not fetch on a daily basis; every observation comes from a confirmed or current-extreme pivot date.
+1. **Stage 1 — GCS chain snapshots:** One immutable, gzipped JSON envelope per `(symbol, pivot date)` stored in GCS.
+2. **Stage 2 — Per-contract time series:** Firestore documents (or GCS JSONL files consumed by the chart viewer) that accumulate observations from each pivot-date snapshot for each contract seen across the snapshots. We do not fetch on a daily basis; every observation comes from a confirmed or current-extreme pivot date.
 
 The overall pipeline runs in two phases:
 
 1. **Batch backfill:** After Thread #103 batch-generates swing files, this Thread batch-fetches every historical confirmed pivot date for every options-enabled symbol into GCS and generates all per-contract time series.
 2. **Ongoing maintenance:** A function consumes new confirmed pivots (and current-swing extreme advances), fetches the corresponding snapshots, and updates the time series. Prior interim snapshots are deleted when superseded.
 
-The pipeline is triggered when a symbol becomes options-enabled and whenever a new pivot is confirmed for that symbol. Historical backfills run once per enabled symbol Ã— canonical ZigZag config. No fetch-on-miss is allowed.
+The pipeline is triggered when a symbol becomes options-enabled and whenever a new pivot is confirmed for that symbol. Historical backfills run once per enabled symbol × canonical ZigZag config. No fetch-on-miss is allowed.
 
 ## User Stories
 
@@ -73,9 +72,9 @@ The pipeline is triggered when a symbol becomes options-enabled and whenever a n
 
 - **Extend existing pilot:** Re-use the `HistoricalOptionsRetrievalService`, `GcsCorpusAdapter`, `CorpusMetadataService`, and `TimeSeriesBuilderService` from the QQQ/TQQQ pilot. Remove the `CorpusSymbol` restriction so any symbol can be processed.
 - **Trigger sources:**
-  - Symbol becomes `optionsEnabled=true` (from Thread #105) â†’ enqueue Stage 1 seeds for all historical confirmed pivots across all canonical configs.
-  - New confirmed pivot appears in a swing file (from Thread #103) â†’ enqueue Stage 1 seed for that `(symbol, date)`.
-  - Current swing extreme advances (from Thread #103) â†’ fetch new date, run Stage 2, delete prior interim snapshot.
+  - Symbol becomes `optionsEnabled=true` (from Thread #105) → enqueue Stage 1 seeds for all historical confirmed pivots across all canonical configs.
+  - New confirmed pivot appears in a swing file (from Thread #103) → enqueue Stage 1 seed for that `(symbol, date)`.
+  - Current swing extreme advances (from Thread #103) → fetch new date, run Stage 2, delete prior interim snapshot.
 - **Stage 1 storage:** One gzipped JSON envelope per `(symbol, date)` at `historical-options/v1/{SYMBOL}/{YYYY-MM-DD}.json.gz`. The envelope contains the full AV response, analysis, and SHA-256 checksum.
 - **Stage 2 storage:** Per-contract JSONL files at `time-series/v1/{SYMBOL}/{CONTRACT_ID}.jsonl` plus the existing Firestore contract index. The builder merges new observations and deduplicates by date.
 - **Idempotency:** Stage 1 checks GCS metadata before calling AV. Stage 2 merges observations and deduplicates by date, so reprocessing a snapshot is a no-op.

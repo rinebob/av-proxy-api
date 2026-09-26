@@ -1,4 +1,4 @@
-﻿**Topic:** Swing-driven options corpus platform  
+**Topic:** Swing-driven options corpus platform  
 **Topic Slug:** swing-driven-options-corpus  
 **Thread:** Swing-set generation platform  
 **Thread Slug:** swing-set-platform  
@@ -12,11 +12,10 @@
 **Last Updated:** 2026-09-23  
 
 ---
+> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and `partnerSwingSetsV2` was removed. See `102-107-DECISION-swing-doc-slim-shape.md`. This doc remains as the historical record of the shipped implementation.
 
-> **SUPERSEDED (2026-09-26):** The multi-config + served-swing design in this document was replaced: SA stores one dev2/L2/R2 dates-only swing doc per enabled symbol — a corpus-internal date sampler, not a served artifact — and partnerSwingSetsV2 was removed. See 102-107-DECISION-swing-doc-slim-shape.md. This doc remains as the historical record of the shipped implementation.
 
-
-# Test Plan â€” SHARED: ZigZag engine + swing-file types
+# Test Plan — SHARED: ZigZag engine + swing-file types
 
 ## E2E User Journeys
 
@@ -47,8 +46,8 @@
 
 ## Edge Cases
 
-- Empty bar array â†’ no pivots.
-- All bars same price â†’ no pivots.
-- Insufficient bars for `rightDepth` â†’ no confirmed pivots.
-- Non-finite prices â†’ skipped.
-- Projection pivot when `projectionPivots=false` â†’ none returned.
+- Empty bar array → no pivots.
+- All bars same price → no pivots.
+- Insufficient bars for `rightDepth` → no confirmed pivots.
+- Non-finite prices → skipped.
+- Projection pivot when `projectionPivots=false` → none returned.
