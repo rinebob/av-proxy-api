@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-26]
 
 ### Added
+- [Swing-Driven Options Corpus] 102-154_BE-IMPL-OPTIONS-DATA: Coverage-aware corpus reconcile — seed only missing pivot dates (kind-stamped), delete superseded interim GCS snapshots, scheduled sweepHistoricalOptionsCorpus (9PM PT) reconciles enabled set
+- [Swing-Driven Options Corpus] 102-154_DOCS-OPTIONS-DATA: Code review doc + corpus sweep verify guide
 - [Swing-Driven Options Corpus] 102-153_BE-IMPL-OPTIONS-DATA: Pivot-seed fanout on optionsEnabled false→true + swing regeneration — Stage-1 seed tasks per pivot date via options_corpus_runs, warn-not-fail on all three hook seams, chunked dispatch/batch writes
 - [Swing-Driven Options Corpus] 102-153_DOCS-OPTIONS-DATA: Code review doc + enable-seed-fanout verify guide
 
