@@ -7,10 +7,10 @@
  * engine-computed pivots/swings/stats — not canned data.
  */
 import type { DailyAdjustedBar, SwingSetDoc, ZigZagConfig } from '@shared/zigzag';
-import { CANONICAL_ZIGZAG_CONFIGS, deriveParamsId } from '@shared/zigzag';
+import { CORPUS_ZIGZAG_CONFIG, deriveParamsId } from '@shared/zigzag';
 import { createFakeFirestore } from '../fake-firestore';
 
-/** Synthetic daily bars — four ~30% legs so even the 10/10/10 config produces confirmed pivots. */
+/** Synthetic daily bars — four ~30% monotonic legs. */
 function makeBars(): DailyAdjustedBar[] {
   const prices: number[] = [];
   let p = 100;
@@ -58,53 +58,53 @@ function makeService(bars: DailyAdjustedBar[] | null = makeBars()) {
 }
 
 describe('SwingSetGenerationService', () => {
-  it('generateForSymbol writes all four canonical docs keyed {symbol}_{paramsId}', async () => {
+  it('generateForSymbol writes the corpus doc keyed {symbol}_{paramsId}', async () => {
     const { service, fake } = makeService();
     const result = await service.generateForSymbol('AAPL');
 
     expect(result.skipped).toBe(false);
-    expect(result.generated).toEqual(CANONICAL_ZIGZAG_CONFIGS.map(deriveParamsId));
+    const paramsId = deriveParamsId(CORPUS_ZIGZAG_CONFIG);
+    expect(result.generated).toEqual([paramsId]);
 
-    for (const config of CANONICAL_ZIGZAG_CONFIGS) {
-      const paramsId = deriveParamsId(config);
-      const doc = fake.store.get(`options-swing-sets/AAPL_${paramsId}`) as SwingSetDoc;
-      expect(doc).toBeDefined();
-      expect(doc.symbol).toBe('AAPL');
-      expect(doc.paramsId).toBe(paramsId);
-      expect(doc.source).toBe('sa');
-      expect(doc.config.devThreshold).toBe(config.devThreshold);
-      // Engine actually ran — the 4-leg fixture produces exactly 3 confirmed
-      // pivots (at the internal leg turns: bar indices 14, 29, 44) plus one
-      // projection at the final extreme — for EVERY canonical config, since
-      // the legs are monotonic and ≥26% in magnitude.
-      expect(doc.pivots).toHaveLength(3);
-      expect(doc.pivots.map((p) => p.barIndex)).toEqual([14, 29, 44]);
-      expect(doc.pivots.every((p) => Number.isFinite(p.time))).toBe(true);
-      expect(doc.projection).not.toBeNull();
-      expect(doc.stats.up.count + doc.stats.down.count).toBeGreaterThan(0);
-      expect(typeof doc.generatedAt.seconds).toBe('number');
-    }
+    const doc = fake.store.get(`options-swing-sets/AAPL_${paramsId}`) as SwingSetDoc;
+    expect(doc).toBeDefined();
+    expect(doc.symbol).toBe('AAPL');
+    expect(doc.paramsId).toBe(paramsId);
+    expect(doc.source).toBe('sa');
+    expect(doc.config.devThreshold).toBe(CORPUS_ZIGZAG_CONFIG.devThreshold);
+    // Engine actually ran — the 4-leg fixture produces confirmed pivots at
+    // the internal leg turns (bar indices 14, 29, 44) plus a projection at
+    // the final extreme. Monotonic legs → no intra-leg pivots.
+    expect(doc.pivotDates).toEqual([
+      new Date(Date.UTC(2026, 0, 1) + 14 * 86_400_000).toISOString().slice(0, 10),
+      new Date(Date.UTC(2026, 0, 1) + 29 * 86_400_000).toISOString().slice(0, 10),
+      new Date(Date.UTC(2026, 0, 1) + 44 * 86_400_000).toISOString().slice(0, 10),
+    ]);
+    expect(doc.currentExtremeDate).not.toBeNull();
+    expect(doc.currentDirection).not.toBeNull();
+    expect(typeof doc.generatedAt.seconds).toBe('number');
+    expect([...fake.store.keys()].filter((k) => k.startsWith('options-swing-sets/'))).toHaveLength(1);
   });
 
   it('generateForConfig writes exactly one doc and returns it', async () => {
     const { service, fake } = makeService();
-    const config: ZigZagConfig = CANONICAL_ZIGZAG_CONFIGS[1];
+    const config: ZigZagConfig = CORPUS_ZIGZAG_CONFIG;
     const doc = await service.generateForConfig('AAPL', config);
 
     expect(doc).not.toBeNull();
-    expect(doc!.paramsId).toBe('dev5_L5_R5_1barY_projY');
+    expect(doc!.paramsId).toBe('dev2_L2_R2_1barY_projY');
     const keys = [...fake.store.keys()];
-    expect(keys).toEqual(['options-swing-sets/AAPL_dev5_L5_R5_1barY_projY']);
+    expect(keys).toEqual(['options-swing-sets/AAPL_dev2_L2_R2_1barY_projY']);
   });
 
-  it('is idempotent — repeated generation overwrites the same docs', async () => {
+  it('is idempotent — repeated generation overwrites the same doc', async () => {
     const { service, repo } = makeService();
     await service.generateForSymbol('AAPL');
-    const first = await repo.get('AAPL', 'dev5_L5_R5_1barY_projY');
+    const first = await repo.get('AAPL', 'dev2_L2_R2_1barY_projY');
     await service.generateForSymbol('AAPL');
-    const second = await repo.get('AAPL', 'dev5_L5_R5_1barY_projY');
+    const second = await repo.get('AAPL', 'dev2_L2_R2_1barY_projY');
 
-    // Same pivots/swings/stats — only generatedAt may differ
+    // Same dates/extreme — only generatedAt may differ
     const { generatedAt: _a, ...restA } = first!;
     const { generatedAt: _b, ...restB } = second!;
     expect(restB).toEqual(restA);
@@ -122,11 +122,11 @@ describe('SwingSetGenerationService', () => {
 
   it('generateForConfig returns null when there is no data', async () => {
     const { service } = makeService(null);
-    const doc = await service.generateForConfig('MSFT', CANONICAL_ZIGZAG_CONFIGS[0]);
+    const doc = await service.generateForConfig('MSFT', CORPUS_ZIGZAG_CONFIG);
     expect(doc).toBeNull();
   });
 
-  it('reads bars once per symbol (not once per config)', async () => {
+  it('reads bars once per symbol', async () => {
     const { service, reader } = makeService();
     await service.generateForSymbol('AAPL');
     expect(reader.read).toHaveBeenCalledTimes(1);

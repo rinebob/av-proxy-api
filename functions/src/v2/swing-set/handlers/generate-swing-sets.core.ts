@@ -3,11 +3,11 @@
  * this module is side-effect-free (jest can require it without initializing
  * admin). The Cloud Tasks wrapper lives in generate-swing-sets.task.ts.
  *
- * Freshness: if all four canonical swing-set docs exist and their oldest
- * `generatedAt` is within SWING_SET_FRESHNESS_TTL_MS, the task skips. The TTL
- * is shorter than the daily-adjusted refresh cadence (~24h) so a duplicate
- * delivery or repeated enable-trigger is a no-op while a new trading day
- * always regenerates. #127's sweep can refine this to a data-timestamp check.
+ * Freshness: if the corpus swing-set doc exists and its `generatedAt` is
+ * within SWING_SET_FRESHNESS_TTL_MS, the task skips. The TTL is shorter than
+ * the daily-adjusted refresh cadence (~24h) so a duplicate delivery or
+ * repeated enable-trigger is a no-op while a new trading day always
+ * regenerates. #127's sweep can refine this to a data-timestamp check.
  *
  * Retry: transient failures (service throws) propagate → Cloud Tasks retries.
  * Permanent failures (invalid payload, non-string symbol) log warn and return
@@ -16,7 +16,7 @@
 import { getFunctions } from 'firebase-admin/functions';
 
 import { FirestoreCollection } from '@shared/firestore';
-import { CANONICAL_ZIGZAG_CONFIGS, deriveParamsId } from '@shared/zigzag';
+import { CORPUS_ZIGZAG_CONFIG, deriveParamsId } from '@shared/zigzag';
 import type { SwingSetDoc } from '@shared/zigzag';
 
 import type { FirestoreLike } from '../../common/firestore/firestore-like';
@@ -45,17 +45,14 @@ interface HandleDeps {
   nowMs?: number;
 }
 
-/** True when every canonical config has a doc and none is older than the TTL. */
+const CORPUS_PARAMS_ID = deriveParamsId(CORPUS_ZIGZAG_CONFIG);
+
+/** True when the corpus doc exists and its generatedAt is within the TTL. */
 export function swingSetsAreFresh(docs: SwingSetDoc[], nowMs: number): boolean {
-  const canonicalIds = new Set(CANONICAL_ZIGZAG_CONFIGS.map(deriveParamsId));
-  const byParamsId = new Map(docs.map((d) => [d.paramsId, d]));
-  for (const paramsId of canonicalIds) {
-    const doc = byParamsId.get(paramsId);
-    if (!doc || !doc.generatedAt || typeof doc.generatedAt.seconds !== 'number') return false;
-    const ageMs = nowMs - doc.generatedAt.seconds * 1000;
-    if (ageMs > SWING_SET_FRESHNESS_TTL_MS || ageMs < -FUTURE_SKEW_MS) return false;
-  }
-  return true;
+  const doc = docs.find((d) => d.paramsId === CORPUS_PARAMS_ID);
+  if (!doc?.generatedAt || typeof doc.generatedAt.seconds !== 'number') return false;
+  const ageMs = nowMs - doc.generatedAt.seconds * 1000;
+  return ageMs <= SWING_SET_FRESHNESS_TTL_MS && ageMs >= -FUTURE_SKEW_MS;
 }
 
 /**

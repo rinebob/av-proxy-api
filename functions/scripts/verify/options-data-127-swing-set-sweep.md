@@ -7,7 +7,7 @@ Topic: #102 (Swing-driven options corpus) · Thread: #103 (Swing-set generation 
 `runSwingSetSweep` — the shared core behind the `sweepSwingSets` scheduler and the `backfillSwingSets` operator endpoint — against prod Firestore:
 
 - Enumerates only `tracked-symbols` with `optionsEnabled === true`
-- Freshness skip when all four canonical docs are within the TTL; stale/missing → generation runs
+- Freshness skip when the corpus doc is within the TTL; stale/missing → generation runs
 - `force` bypasses freshness; `symbols` subset still gates on optionsEnabled
 - Per-symbol failure isolation and graceful no-data skip
 

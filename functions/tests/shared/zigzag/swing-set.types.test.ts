@@ -2,25 +2,19 @@
  * Tests for shared/zigzag swing-set types and helpers (Task #123).
  *
  * Verifies:
- * - deriveParamsId produces ST-compatible paramsIds for the canonical configs
- * - CANONICAL_ZIGZAG_CONFIGS matches the four documented parameter sets
+ * - deriveParamsId produces the corpus paramsId
+ * - CORPUS_ZIGZAG_CONFIG is the finest-grained (2/2/2) config
  * - SwingSetDoc serializes to a plain object (Firestore-writeable shape)
  * - DailyAdjustedBar carries the fields the BE adapter needs
  */
-import { CANONICAL_ZIGZAG_CONFIGS } from '@shared/zigzag/canonical-configs';
+import { CORPUS_ZIGZAG_CONFIG } from '@shared/zigzag/canonical-configs';
 import { deriveParamsId } from '@shared/zigzag/swing-set.types';
 import type { SwingSetDoc, DailyAdjustedBar } from '@shared/zigzag/swing-set.types';
-import type { ZigZagConfig, SwingStats, DistributionSummary, Histogram } from '@shared/zigzag/zigzag.types';
+import type { ZigZagConfig } from '@shared/zigzag/zigzag.types';
 
 describe('deriveParamsId', () => {
-  it('produces ST-compatible ids for the four canonical configs', () => {
-    const ids = CANONICAL_ZIGZAG_CONFIGS.map(deriveParamsId);
-    expect(ids).toEqual([
-      'dev10_L10_R10_1barY_projY',
-      'dev5_L5_R5_1barY_projY',
-      'dev3_L3_R3_1barY_projY',
-      'dev2_L2_R2_1barY_projY',
-    ]);
+  it('produces the corpus paramsId for the corpus config', () => {
+    expect(deriveParamsId(CORPUS_ZIGZAG_CONFIG)).toBe('dev2_L2_R2_1barY_projY');
   });
 
   it('encodes allowZigZagOnOneBar and projectionPivots flags', () => {
@@ -48,42 +42,26 @@ describe('deriveParamsId', () => {
   });
 });
 
-describe('CANONICAL_ZIGZAG_CONFIGS', () => {
-  it('contains exactly the four documented parameter sets', () => {
-    expect(CANONICAL_ZIGZAG_CONFIGS).toHaveLength(4);
-    const triples = CANONICAL_ZIGZAG_CONFIGS.map(
-      (c) => `${c.devThreshold}/${c.leftDepth}/${c.rightDepth}`,
-    );
-    expect(triples).toEqual(['10/10/10', '5/5/5', '3/3/3', '2/2/2']);
+describe('CORPUS_ZIGZAG_CONFIG', () => {
+  it('is the finest-grained config — its pivot dates cover every larger swing', () => {
+    expect(`${CORPUS_ZIGZAG_CONFIG.devThreshold}/${CORPUS_ZIGZAG_CONFIG.leftDepth}/${CORPUS_ZIGZAG_CONFIG.rightDepth}`).toBe('2/2/2');
   });
 
-  it('enables one-bar pivots and projections in every config', () => {
-    for (const cfg of CANONICAL_ZIGZAG_CONFIGS) {
-      expect(cfg.allowZigZagOnOneBar).toBe(true);
-      expect(cfg.projectionPivots).toBe(true);
-    }
+  it('enables one-bar pivots and projections', () => {
+    expect(CORPUS_ZIGZAG_CONFIG.allowZigZagOnOneBar).toBe(true);
+    expect(CORPUS_ZIGZAG_CONFIG.projectionPivots).toBe(true);
   });
 });
 
-describe('SwingSetDoc', () => {
-  const emptySummary: DistributionSummary = {
-    mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0,
-  };
-  const emptyHistogram: Histogram = { bins: [] };
-  const emptyStats: SwingStats = {
-    up: { count: 0, magnitudePercent: emptySummary, magnitudeAbsolute: emptySummary, duration: emptySummary, magnitudeHistogram: emptyHistogram, durationHistogram: emptyHistogram },
-    down: { count: 0, magnitudePercent: emptySummary, magnitudeAbsolute: emptySummary, duration: emptySummary, magnitudeHistogram: emptyHistogram, durationHistogram: emptyHistogram },
-  };
-
+describe('SwingSetDoc (slim shape — dates only)', () => {
   it('survives JSON round-trip with all fields preserved', () => {
     const doc: SwingSetDoc = {
       symbol: 'AAPL',
-      paramsId: 'dev5_L5_R5_1barY_projY',
-      config: CANONICAL_ZIGZAG_CONFIGS[1],
-      pivots: [{ barIndex: 5, time: 1_700_000_000_000, price: 150, isHigh: true, confirmed: true }],
-      projection: null,
-      swings: [],
-      stats: emptyStats,
+      paramsId: 'dev2_L2_R2_1barY_projY',
+      config: CORPUS_ZIGZAG_CONFIG,
+      pivotDates: ['2023-11-14'],
+      currentExtremeDate: '2024-01-02',
+      currentDirection: 'up',
       generatedAt: { seconds: 1_700_000_000, nanoseconds: 0 },
       source: 'sa',
     };
@@ -93,19 +71,17 @@ describe('SwingSetDoc', () => {
   });
 
   it('doc.paramsId is consistent with deriveParamsId(config)', () => {
-    for (const config of CANONICAL_ZIGZAG_CONFIGS) {
-      const doc: SwingSetDoc = {
-        symbol: 'AAPL',
-        paramsId: deriveParamsId(config),
-        config,
-        pivots: [],
-        swings: [],
-        stats: emptyStats,
-        generatedAt: { seconds: 0, nanoseconds: 0 },
-        source: 'sa',
-      };
-      expect(doc.paramsId).toBe(deriveParamsId(doc.config));
-    }
+    const doc: SwingSetDoc = {
+      symbol: 'AAPL',
+      paramsId: deriveParamsId(CORPUS_ZIGZAG_CONFIG),
+      config: CORPUS_ZIGZAG_CONFIG,
+      pivotDates: [],
+      currentExtremeDate: null,
+      currentDirection: null,
+      generatedAt: { seconds: 0, nanoseconds: 0 },
+      source: 'sa',
+    };
+    expect(doc.paramsId).toBe(deriveParamsId(doc.config));
   });
 });
 

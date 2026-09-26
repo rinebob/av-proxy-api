@@ -5,32 +5,20 @@
  * Seams: fake Firestore (tracked-symbols where-query + swing docs), mocked
  * generation service. The scheduler/HTTP wrappers are thin.
  */
-import type { SwingSetDoc, SwingStats, ZigZagConfig } from '@shared/zigzag';
-import { CANONICAL_ZIGZAG_CONFIGS, deriveParamsId } from '@shared/zigzag';
+import type { SwingSetDoc } from '@shared/zigzag';
+import { CORPUS_ZIGZAG_CONFIG, deriveParamsId } from '@shared/zigzag';
 import { createFakeFirestore } from '../fake-firestore';
 
 const TTL_MS = 20 * 60 * 60 * 1000;
 
-const ZERO_DIST = { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 };
-const ZERO_DIR: SwingStats['up'] = {
-  count: 0,
-  magnitudePercent: ZERO_DIST,
-  magnitudeAbsolute: ZERO_DIST,
-  duration: ZERO_DIST,
-  magnitudeHistogram: { bins: [] },
-  durationHistogram: { bins: [] },
-};
-const EMPTY_STATS: SwingStats = { up: ZERO_DIR, down: ZERO_DIR };
-
-function makeDoc(symbol: string, config: ZigZagConfig, ageMs: number): SwingSetDoc {
+function makeDoc(symbol: string, ageMs: number): SwingSetDoc {
   return {
     symbol,
-    paramsId: deriveParamsId(config),
-    config,
-    pivots: [],
-    projection: null,
-    swings: [],
-    stats: EMPTY_STATS,
+    paramsId: deriveParamsId(CORPUS_ZIGZAG_CONFIG),
+    config: CORPUS_ZIGZAG_CONFIG,
+    pivotDates: [],
+    currentExtremeDate: null,
+    currentDirection: null,
     generatedAt: { seconds: Math.floor((Date.now() - ageMs) / 1000), nanoseconds: 0 },
     source: 'sa',
   };
@@ -44,10 +32,8 @@ function makeFakeDb(opts: {
   const seed: Record<string, unknown> = {};
   for (const [sym, data] of Object.entries(opts.tracked ?? {})) seed[`tracked-symbols/${sym}`] = data;
   for (const [sym, age] of Object.entries(opts.swingAgeMs ?? {})) {
-    for (const c of CANONICAL_ZIGZAG_CONFIGS) {
-      const d = makeDoc(sym, c, age);
-      seed[`options-swing-sets/${sym}_${d.paramsId}`] = d;
-    }
+    const d = makeDoc(sym, age);
+    seed[`options-swing-sets/${sym}_${d.paramsId}`] = d;
   }
   return createFakeFirestore(seed);
 }
@@ -103,7 +89,7 @@ describe('runSwingSetSweep', () => {
     expect(result.generated.sort()).toEqual(['AAPL', 'TSLA']);
   });
 
-  it('skips generation for symbols whose four canonical docs are fresh', async () => {
+  it('skips generation for symbols whose corpus doc is fresh', async () => {
     const fake = makeFakeDb({
       tracked: { AAPL: { optionsEnabled: true }, TSLA: { optionsEnabled: true } },
       swingAgeMs: { AAPL: 60 * 60 * 1000 }, // 1h old → fresh

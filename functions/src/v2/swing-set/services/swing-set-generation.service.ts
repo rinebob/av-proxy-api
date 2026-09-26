@@ -1,22 +1,21 @@
 /**
- * SwingSetGenerationService — generates canonical swing sets for a symbol.
+ * SwingSetGenerationService — generates the corpus swing set for a symbol.
  *
- * For each config: read daily-adjusted bars → map to PriceBar →
- * computeZigZagPivots + deriveSwings + computeSwingStats → upsert a
- * SwingSetDoc at options-swing-sets/{symbol}_{paramsId}. Idempotent —
- * repeated runs overwrite the same docs with equivalent payloads.
+ * Read daily-adjusted bars → map to PriceBar → computeZigZagPivots → reduce
+ * to pivot dates + current extreme → upsert a SwingSetDoc at
+ * options-swing-sets/{symbol}_{paramsId}. Idempotent — repeated runs
+ * overwrite the same doc with equivalent payloads.
  * Consumers: generateSwingSetsTask (#126), sweep/backfill (#127).
  */
 import { Timestamp } from 'firebase-admin/firestore';
 import {
-  CANONICAL_ZIGZAG_CONFIGS,
+  CORPUS_ZIGZAG_CONFIG,
   computeZigZagPivots,
   deriveParamsId,
-  deriveSwings,
-  computeSwingStats,
 } from '@shared/zigzag';
 import type {
   DailyAdjustedBar,
+  Pivot,
   PriceBar,
   SwingSetDoc,
   ZigZagConfig,
@@ -44,7 +43,7 @@ export class SwingSetGenerationService {
     private readonly logger: LoggerLike = console,
   ) {}
 
-  /** Generate all four canonical swing sets for a symbol. */
+  /** Generate the corpus swing set for a symbol. */
   async generateForSymbol(symbol: string): Promise<SwingSetGenerationResult> {
     const normalized = symbol.trim().toUpperCase();
     const priceBars = await this.loadPriceBars(normalized);
@@ -52,13 +51,9 @@ export class SwingSetGenerationService {
       return { symbol: normalized, generated: [], skipped: true, reason: 'no-daily-adjusted-data' };
     }
 
-    const generated: string[] = [];
-    for (const config of CANONICAL_ZIGZAG_CONFIGS) {
-      const doc = await this.persistDoc(normalized, config, priceBars);
-      generated.push(doc.paramsId);
-    }
-    this.logger.info(`swing-set: generated ${generated.length} sets for ${normalized}`);
-    return { symbol: normalized, generated, skipped: false };
+    const doc = await this.persistDoc(normalized, CORPUS_ZIGZAG_CONFIG, priceBars);
+    this.logger.info(`swing-set: generated ${normalized} (${doc.paramsId})`);
+    return { symbol: normalized, generated: [doc.paramsId], skipped: false };
   }
 
   /** Generate a single swing set for a symbol/config pair. */
@@ -86,19 +81,34 @@ export class SwingSetGenerationService {
 
   private buildDoc(symbol: string, config: ZigZagConfig, priceBars: PriceBar[]): SwingSetDoc {
     const result = computeZigZagPivots(priceBars, config);
-    const swings = deriveSwings(result.pivots, priceBars, result.projection);
-    const stats = computeSwingStats(swings);
     const generatedAt: TimestampLike = Timestamp.now();
     return {
       symbol,
       paramsId: deriveParamsId(config),
       config,
-      pivots: result.pivots,
-      projection: result.projection ?? null,
-      swings,
-      stats,
+      pivotDates: result.pivots.map((p) => toDay(p)),
+      ...currentExtreme(result.pivots, result.projection),
       generatedAt,
       source: 'sa',
     };
   }
+}
+
+const toDay = (p: Pivot): string => new Date(p.time).toISOString().slice(0, 10);
+
+/**
+ * The developing swing's extreme, matching the old getCurrentSwing
+ * derivation: projection (unconfirmed) when present — direction isHigh→'up';
+ * otherwise the last confirmed pivot itself, direction pointing away from it.
+ */
+function currentExtreme(
+  pivots: Pivot[],
+  projection: Pivot | undefined,
+): Pick<SwingSetDoc, 'currentExtremeDate' | 'currentDirection'> {
+  if (projection) {
+    return { currentExtremeDate: toDay(projection), currentDirection: projection.isHigh ? 'up' : 'down' };
+  }
+  const last = pivots[pivots.length - 1];
+  if (!last) return { currentExtremeDate: null, currentDirection: null };
+  return { currentExtremeDate: toDay(last), currentDirection: last.isHigh ? 'down' : 'up' };
 }

@@ -6,7 +6,7 @@
  * Consumers: SwingSetGenerationService (#125), Thread #106 corpus ingest.
  */
 import { FirestoreCollection } from '@shared/firestore';
-import type { Pivot, SwingSetDoc } from '@shared/zigzag';
+import type { SwingSetDoc } from '@shared/zigzag';
 import type { FirestoreLike } from '../../common/firestore/firestore-like';
 import type { CurrentSwing } from '../types';
 
@@ -22,8 +22,9 @@ export class SwingSetRepository {
       .collection(FirestoreCollection.OPTIONS_SWING_SETS)
       .doc(this.docId(doc.symbol, doc.paramsId))
       // Normalize symbol so the stored field always matches the uppercase
-      // keying + listBySymbol filter semantics.
-      .set({ ...doc, symbol: doc.symbol.toUpperCase() }, { merge: true });
+      // keying + listBySymbol filter semantics. Full (non-merge) write so a
+      // regenerate also wipes fields dropped by the slim doc shape.
+      .set({ ...doc, symbol: doc.symbol.toUpperCase() });
   }
 
   async get(symbol: string, paramsId: string): Promise<SwingSetDoc | null> {
@@ -42,36 +43,20 @@ export class SwingSetRepository {
     return snap.docs.map((d) => d.data() as SwingSetDoc);
   }
 
-  async listConfirmedPivots(symbol: string, paramsId: string): Promise<Pivot[]> {
+  /** Confirmed pivot dates for a symbol/config (empty when no doc). */
+  async listConfirmedPivotDates(symbol: string, paramsId: string): Promise<string[]> {
     const doc = await this.get(symbol, paramsId);
-    const pivots = Array.isArray(doc?.pivots) ? doc.pivots : [];
-    return pivots.filter((p) => p.confirmed);
+    return Array.isArray(doc?.pivotDates) ? doc.pivotDates : [];
   }
 
   /**
-   * The developing swing's direction and latest extreme.
-   *
-   * With a projection present, the projection IS the current extreme and its
-   * direction is the developing swing's direction (isHigh → 'up'). Without a
-   * projection (swing hasn't advanced enough to paint one), the current
-   * extreme is the last confirmed pivot itself — its date is returned as the
-   * extreme, with direction pointing away from it.
+   * The developing swing's direction and latest extreme — a straight read of
+   * the `currentDirection`/`currentExtremeDate` fields stamped at generation
+   * time (see SwingSetGenerationService.currentExtreme).
    */
   async getCurrentSwing(symbol: string, paramsId: string): Promise<CurrentSwing | null> {
     const doc = await this.get(symbol, paramsId);
-    const pivots = Array.isArray(doc?.pivots) ? doc.pivots : [];
-    const lastPivot = pivots[pivots.length - 1];
-    if (!doc || !lastPivot) return null;
-
-    if (doc.projection) {
-      return {
-        direction: doc.projection.isHigh ? 'up' : 'down',
-        extremeDate: new Date(doc.projection.time).toISOString().slice(0, 10),
-      };
-    }
-    return {
-      direction: lastPivot.isHigh ? 'down' : 'up',
-      extremeDate: new Date(lastPivot.time).toISOString().slice(0, 10),
-    };
+    if (!doc || !doc.currentExtremeDate || !doc.currentDirection) return null;
+    return { direction: doc.currentDirection, extremeDate: doc.currentExtremeDate };
   }
 }

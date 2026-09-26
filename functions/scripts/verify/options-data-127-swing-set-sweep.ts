@@ -3,7 +3,7 @@
  *
  * Exercises runSwingSetSweep against prod Firestore:
  * - Enumerates only tracked-symbols with optionsEnabled === true
- * - Freshness skip when all four canonical docs are within the TTL
+ * - Freshness skip when the corpus doc is within the TTL
  * - Stale/missing docs → generation runs (ZZTEST has no daily-adjusted data
  *   → graceful no-data skip proves the path)
  * - force regenerates past freshness; symbols subset still gates on enabled
@@ -20,7 +20,7 @@
  */
 import * as admin from 'firebase-admin';
 import { FirestoreCollection } from '@shared/firestore';
-import { CANONICAL_ZIGZAG_CONFIGS, deriveParamsId } from '@shared/zigzag';
+import { CORPUS_ZIGZAG_CONFIG, deriveParamsId } from '@shared/zigzag';
 import type { SwingSetDoc } from '@shared/zigzag';
 
 if (!admin.apps.length) {
@@ -55,38 +55,27 @@ const TRACKED_PATH = `${FirestoreCollection.TRACKED_SYMBOLS}/${SYMBOL}`;
 // — delete those too so the probe leaves no residue.
 const SYMBOL_DATA_PATH = `symbol-data/${SYMBOL}`;
 
-function zeroDist() {
-  return { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 };
-}
-
-function seedDoc(paramsId: string, config: (typeof CANONICAL_ZIGZAG_CONFIGS)[number], ageMs: number): SwingSetDoc {
-  const dir = { count: 0, magnitudePercent: zeroDist(), magnitudeAbsolute: zeroDist(), duration: zeroDist(), magnitudeHistogram: { bins: [] }, durationHistogram: { bins: [] } };
+function seedDoc(ageMs: number): SwingSetDoc {
   return {
     symbol: SYMBOL,
-    paramsId,
-    config,
-    pivots: [],
-    projection: null,
-    swings: [],
-    stats: { up: dir, down: dir },
+    paramsId: deriveParamsId(CORPUS_ZIGZAG_CONFIG),
+    config: CORPUS_ZIGZAG_CONFIG,
+    pivotDates: [],
+    currentExtremeDate: null,
+    currentDirection: null,
     generatedAt: { seconds: Math.floor((Date.now() - ageMs) / 1000), nanoseconds: 0 },
     source: 'sa',
   };
 }
 
 async function seedSwingDocs(ageMs: number): Promise<void> {
-  const repo = new SwingSetRepository(db);
-  for (const c of CANONICAL_ZIGZAG_CONFIGS) {
-    await repo.upsert(seedDoc(deriveParamsId(c), c, ageMs));
-  }
+  await new SwingSetRepository(db).upsert(seedDoc(ageMs));
 }
 
 async function cleanup(): Promise<void> {
   await db.doc(TRACKED_PATH).delete().catch(() => undefined);
   await db.doc(SYMBOL_DATA_PATH).delete().catch(() => undefined);
-  for (const c of CANONICAL_ZIGZAG_CONFIGS) {
-    await db.doc(`${FirestoreCollection.OPTIONS_SWING_SETS}/${SYMBOL}_${deriveParamsId(c)}`).delete().catch(() => undefined);
-  }
+  await db.doc(`${FirestoreCollection.OPTIONS_SWING_SETS}/${SYMBOL}_${deriveParamsId(CORPUS_ZIGZAG_CONFIG)}`).delete().catch(() => undefined);
   // onSymbolAdded recreates tracked-symbols/ZZTEST asynchronously after three
   // AV fetches — poll-delete until it stays absent across two ~15s checks.
   let absentStreak = 0;
@@ -128,7 +117,7 @@ async function main(): Promise<void> {
     assert(r1.checked === baseline.checked + 1, 'sweep: ZZTEST counted when optionsEnabled=true');
     assert(r1.skippedNoData.includes(SYMBOL), 'sweep: ZZTEST → no-data skip (graceful, not a failure)');
 
-    // --- freshness: seed all four docs fresh → sweep skips ---
+    // --- freshness: seed the corpus doc fresh → sweep skips ---
     await seedSwingDocs(60_000);
     const r2 = await runSwingSetSweep(db, deps);
     assert(r2.fresh.includes(SYMBOL) && !r2.generated.includes(SYMBOL), 'sweep: fresh ZZTEST docs → skipped');

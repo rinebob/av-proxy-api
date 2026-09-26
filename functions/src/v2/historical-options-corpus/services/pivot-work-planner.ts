@@ -1,4 +1,4 @@
-import { CANONICAL_ZIGZAG_CONFIGS, deriveParamsId } from '@shared/zigzag';
+import { CORPUS_ZIGZAG_CONFIG, deriveParamsId } from '@shared/zigzag';
 import type { SwingSetDoc } from '@shared/zigzag';
 import { db } from '../../../firebase-admin-init';
 import { SwingSetRepository } from '../../swing-set/services/swing-set.repository';
@@ -22,20 +22,21 @@ export interface PivotPlannerDeps {
   listSwingSetDocs: (symbol: string) => Promise<SwingSetDoc[]>;
 }
 
-const CANONICAL_PARAMS_IDS = new Set(CANONICAL_ZIGZAG_CONFIGS.map(deriveParamsId));
-
-const toDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+const CORPUS_PARAMS_ID = deriveParamsId(CORPUS_ZIGZAG_CONFIG);
 
 /**
  * Task #151 — swing-doc pivot planner.
  *
- * Reads the symbol's four canonical swing-set docs and emits the deduped work
- * list for the options corpus: every confirmed pivot date (kind 'confirmed')
- * plus each config's current projected extreme (kind 'interim'). Confirmed
- * wins when a projection date coincides with a confirmed pivot in another
- * config. Missing/partial docs are tolerated — the planner emits whatever
- * coverage exists. Non-canonical paramsIds are ignored so ad-hoc sets never
- * drive corpus spend.
+ * Reads the symbol's corpus swing-set doc (dev2/2/2 — its pivot dates cover
+ * every ≥2% extreme) and emits the deduped work list for the options corpus:
+ * every confirmed pivot date (kind 'confirmed') plus the current projected
+ * extreme (kind 'interim'). Confirmed wins when the projection date coincides
+ * with a confirmed pivot. A missing doc yields no items — generation is the
+ * sweep's job, not the planner's.
+ *
+ * `currentExtremeDate` is an interim only when it isn't already a confirmed
+ * pivot — when no projection exists the field equals the last confirmed pivot
+ * date, which dedupes out naturally.
  */
 export async function planPivotSeeds(
   symbol: string,
@@ -43,19 +44,16 @@ export async function planPivotSeeds(
 ): Promise<PivotWorkItem[]> {
   const upper = symbol.toUpperCase();
   const docs = (await deps.listSwingSetDocs(upper)).filter(
-    (d) => CANONICAL_PARAMS_IDS.has(d.paramsId) && d.source !== 'st',
+    (d) => d.paramsId === CORPUS_PARAMS_ID && d.source !== 'st',
   );
 
   const confirmed = new Set<string>();
   const interim = new Set<string>();
   for (const doc of docs) {
-    for (const p of doc.pivots ?? []) {
-      if (p.confirmed) confirmed.add(toDay(p.time));
+    for (const date of doc.pivotDates ?? []) confirmed.add(date);
+    if (doc.currentExtremeDate && !confirmed.has(doc.currentExtremeDate)) {
+      interim.add(doc.currentExtremeDate);
     }
-    const projection = doc.projection;
-    // Engine always writes projections with confirmed:false; the extra guard
-    // keeps a malformed doc from emitting a bogus interim.
-    if (projection && !projection.confirmed) interim.add(toDay(projection.time));
   }
 
   const items: PivotWorkItem[] = [

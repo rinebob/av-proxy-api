@@ -21,7 +21,7 @@ export { computeZigZagPivots } from './zigzag.pivots';
 export { calcDev, isFiniteNum } from './zigzag.utils';
 export { deriveSwings } from './zigzag.swings';
 export { computeSwingStats } from './zigzag.stats';
-export { CANONICAL_ZIGZAG_CONFIGS } from './canonical-configs';
+export { CORPUS_ZIGZAG_CONFIG } from './canonical-configs';
 export { deriveParamsId } from './swing-set.types';
 export type { SwingSetDoc, DailyAdjustedBar } from './swing-set.types';
 export {

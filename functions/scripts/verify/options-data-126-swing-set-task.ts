@@ -18,7 +18,7 @@
  */
 import * as admin from 'firebase-admin';
 import { FirestoreCollection } from '@shared/firestore';
-import { CANONICAL_ZIGZAG_CONFIGS, deriveParamsId } from '@shared/zigzag';
+import { CORPUS_ZIGZAG_CONFIG, deriveParamsId } from '@shared/zigzag';
 import type { SwingSetDoc } from '@shared/zigzag';
 
 if (!admin.apps.length) {
@@ -50,38 +50,26 @@ function assert(condition: boolean, message: string): void {
 const SYMBOL = 'ZZTEST';
 const TRACKED_PATH = `${FirestoreCollection.TRACKED_SYMBOLS}/${SYMBOL}`;
 
-function seedDoc(paramsId: string, ageMs: number): SwingSetDoc {
+function seedDoc(ageMs: number): SwingSetDoc {
   return {
     symbol: SYMBOL,
-    paramsId,
-    config: CANONICAL_ZIGZAG_CONFIGS[0],
-    pivots: [],
-    projection: null,
-    swings: [],
-    stats: {
-      up: { count: 0, magnitudePercent: z(), magnitudeAbsolute: z(), duration: z(), magnitudeHistogram: { bins: [] }, durationHistogram: { bins: [] } },
-      down: { count: 0, magnitudePercent: z(), magnitudeAbsolute: z(), duration: z(), magnitudeHistogram: { bins: [] }, durationHistogram: { bins: [] } },
-    },
+    paramsId: deriveParamsId(CORPUS_ZIGZAG_CONFIG),
+    config: CORPUS_ZIGZAG_CONFIG,
+    pivotDates: [],
+    currentExtremeDate: null,
+    currentDirection: null,
     generatedAt: { seconds: Math.floor((Date.now() - ageMs) / 1000), nanoseconds: 0 },
     source: 'sa',
   };
 }
-function z() {
-  return { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 };
-}
 
-async function seedSwingDocs(ageMs: number, count = 4): Promise<void> {
-  const repo = new SwingSetRepository(db);
-  for (const c of CANONICAL_ZIGZAG_CONFIGS.slice(0, count)) {
-    await repo.upsert(seedDoc(deriveParamsId(c), ageMs));
-  }
+async function seedSwingDocs(ageMs: number): Promise<void> {
+  await new SwingSetRepository(db).upsert(seedDoc(ageMs));
 }
 
 async function cleanup(): Promise<void> {
   await db.doc(TRACKED_PATH).delete().catch(() => undefined);
-  for (const c of CANONICAL_ZIGZAG_CONFIGS) {
-    await db.doc(`${FirestoreCollection.OPTIONS_SWING_SETS}/${SYMBOL}_${deriveParamsId(c)}`).delete().catch(() => undefined);
-  }
+  await db.doc(`${FirestoreCollection.OPTIONS_SWING_SETS}/${SYMBOL}_${deriveParamsId(CORPUS_ZIGZAG_CONFIG)}`).delete().catch(() => undefined);
   // Writing tracked-symbols/ZZTEST fires the onSymbolAdded trigger, which
   // recreates the doc asynchronously — and only after it finishes three AV
   // fetches (daily/weekly/monthly full-history), so it can take 30-90s.
@@ -153,7 +141,7 @@ async function main(): Promise<void> {
     // --- handler: freshness gate ---
     await seedSwingDocs(60 * 1000); // 1 minute old → fresh
     const fresh = await handleGenerateSwingSets({ symbol: SYMBOL }, deps);
-    assert(fresh === 'skipped-fresh', 'handler: all four fresh docs → skipped-fresh');
+    assert(fresh === 'skipped-fresh', 'handler: fresh doc → skipped-fresh');
 
     await seedSwingDocs(SWING_SET_FRESHNESS_TTL_MS + 60_000); // stale
     const stale = await handleGenerateSwingSets({ symbol: SYMBOL }, deps);
@@ -162,13 +150,12 @@ async function main(): Promise<void> {
       'handler: stale docs → generation ran (skipped only because ZZTEST has no bars)',
     );
 
-    // --- handler: partial docs → regenerate ---
+    // --- handler: missing doc → regenerate ---
     await cleanup();
-    await seedSwingDocs(0, 2); // only 2 of 4
-    const partial = await handleGenerateSwingSets({ symbol: SYMBOL }, deps);
+    const missing = await handleGenerateSwingSets({ symbol: SYMBOL }, deps);
     assert(
-      typeof partial === 'object' && partial.skipped === true,
-      'handler: partial canonical set → generation ran',
+      typeof missing === 'object' && missing.skipped === true,
+      'handler: no corpus doc → generation ran',
     );
   } finally {
     await cleanup();

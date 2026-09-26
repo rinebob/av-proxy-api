@@ -5,38 +5,26 @@
  * testable seam is generate-swing-sets.core.ts — side-effect-free, so no
  * firebase-admin init happens in jest.
  */
-import type { SwingSetDoc, SwingStats, ZigZagConfig } from '@shared/zigzag';
-import { CANONICAL_ZIGZAG_CONFIGS, deriveParamsId } from '@shared/zigzag';
+import type { SwingSetDoc } from '@shared/zigzag';
+import { CORPUS_ZIGZAG_CONFIG, deriveParamsId } from '@shared/zigzag';
 import { createFakeFirestore } from '../fake-firestore';
 
 const TTL_MS = 20 * 60 * 60 * 1000;
 
-const ZERO_DIST = { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 };
-const ZERO_DIR: SwingStats['up'] = {
-  count: 0,
-  magnitudePercent: ZERO_DIST,
-  magnitudeAbsolute: ZERO_DIST,
-  duration: ZERO_DIST,
-  magnitudeHistogram: { bins: [] },
-  durationHistogram: { bins: [] },
-};
-const EMPTY_STATS: SwingStats = { up: ZERO_DIR, down: ZERO_DIR };
-
-function makeDoc(symbol: string, config: ZigZagConfig, ageMs: number): SwingSetDoc {
+function makeDoc(symbol: string, ageMs: number): SwingSetDoc {
   return {
     symbol,
-    paramsId: deriveParamsId(config),
-    config,
-    pivots: [],
-    projection: null,
-    swings: [],
-    stats: EMPTY_STATS,
+    paramsId: deriveParamsId(CORPUS_ZIGZAG_CONFIG),
+    config: CORPUS_ZIGZAG_CONFIG,
+    pivotDates: [],
+    currentExtremeDate: null,
+    currentDirection: null,
     generatedAt: { seconds: Math.floor((Date.now() - ageMs) / 1000), nanoseconds: 0 },
     source: 'sa',
   };
 }
 
-/** Seed the fake store: swing docs (all canonical, `ageMs` old) + optional tracked-symbol flags. */
+/** Seed the fake store: swing docs + optional tracked-symbol flags. */
 function makeFakeDb(swingDocs: SwingSetDoc[], trackedFlags: Record<string, unknown> = {}) {
   const seed: Record<string, unknown> = {};
   for (const d of swingDocs) seed[`options-swing-sets/${d.symbol}_${d.paramsId}`] = d;
@@ -44,8 +32,8 @@ function makeFakeDb(swingDocs: SwingSetDoc[], trackedFlags: Record<string, unkno
   return createFakeFirestore(seed);
 }
 
-function allCanonicalDocs(symbol: string, ageMs: number): SwingSetDoc[] {
-  return CANONICAL_ZIGZAG_CONFIGS.map((c) => makeDoc(symbol, c, ageMs));
+function corpusDoc(symbol: string, ageMs: number): SwingSetDoc {
+  return makeDoc(symbol, ageMs);
 }
 
 function makeLogs() {
@@ -98,8 +86,8 @@ describe('handleGenerateSwingSets', () => {
     },
   );
 
-  it('skips generation when all four canonical docs are fresh', async () => {
-    const fake = makeFakeDb(allCanonicalDocs('AAPL', 60 * 60 * 1000)); // 1h old
+  it('skips generation when the corpus doc is fresh', async () => {
+    const fake = makeFakeDb([corpusDoc('AAPL', 60 * 60 * 1000)]); // 1h old
     const generateForSymbol = jest.fn();
     const { logger, logs } = makeLogs();
     await handleGenerateSwingSets({ symbol: 'AAPL' }, {
@@ -111,8 +99,8 @@ describe('handleGenerateSwingSets', () => {
     expect(logs.some((l) => l.level === 'info' && /fresh|skip/i.test(l.msg))).toBe(true);
   });
 
-  it('regenerates when docs are stale', async () => {
-    const fake = makeFakeDb(allCanonicalDocs('AAPL', TTL_MS + 60_000)); // older than TTL
+  it('regenerates when the doc is stale', async () => {
+    const fake = makeFakeDb([corpusDoc('AAPL', TTL_MS + 60_000)]); // older than TTL
     const generateForSymbol = jest.fn(async () => ({ symbol: 'AAPL', generated: [], skipped: false }));
     const { logger } = makeLogs();
     await handleGenerateSwingSets({ symbol: 'AAPL' }, {
@@ -124,7 +112,7 @@ describe('handleGenerateSwingSets', () => {
   });
 
   it('treats future-dated generatedAt (clock skew) as stale', async () => {
-    const fake = makeFakeDb(allCanonicalDocs('AAPL', -30 * 60 * 1000)); // 30min in the future
+    const fake = makeFakeDb([corpusDoc('AAPL', -30 * 60 * 1000)]); // 30min in the future
     const generateForSymbol = jest.fn(async () => ({ symbol: 'AAPL', generated: [], skipped: false }));
     const { logger } = makeLogs();
     await handleGenerateSwingSets({ symbol: 'AAPL' }, {
@@ -135,8 +123,8 @@ describe('handleGenerateSwingSets', () => {
     expect(generateForSymbol).toHaveBeenCalledWith('AAPL');
   });
 
-  it('regenerates when only some canonical docs exist', async () => {
-    const fake = makeFakeDb(allCanonicalDocs('AAPL', 0).slice(0, 2)); // 2 of 4
+  it('regenerates when no corpus doc exists', async () => {
+    const fake = makeFakeDb([]);
     const generateForSymbol = jest.fn(async () => ({ symbol: 'AAPL', generated: [], skipped: false }));
     const { logger } = makeLogs();
     await handleGenerateSwingSets({ symbol: 'AAPL' }, {

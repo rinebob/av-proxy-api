@@ -5,8 +5,9 @@
  * - DailyAdjustedReader: reads real year-sharded daily bars, returns
  *   DailyAdjustedBar[] ascending, maps to PriceBar for the engine.
  * - SwingSetRepository: writes a probe doc to options-swing-sets/ZZTEST_*,
- *   reads it back via get/listBySymbol/listConfirmedPivots/getCurrentSwing,
+ *   reads it back via get/listBySymbol/listConfirmedPivotDates/getCurrentSwing,
  *   then DELETES the probe doc (setup/teardown built in).
+ *   Slim doc shape (post-#152): pivotDates + currentExtremeDate only.
  *
  * Writes exactly one temporary doc (`ZZTEST_...`) and removes it on success
  * or failure.
@@ -17,8 +18,8 @@
  */
 import * as admin from 'firebase-admin';
 import { FirestoreCollection } from '@shared/firestore';
-import { deriveParamsId, CANONICAL_ZIGZAG_CONFIGS } from '@shared/zigzag';
-import type { SwingSetDoc, Pivot } from '@shared/zigzag';
+import { deriveParamsId, CORPUS_ZIGZAG_CONFIG } from '@shared/zigzag';
+import type { SwingSetDoc } from '@shared/zigzag';
 
 if (!admin.apps.length) {
   admin.initializeApp({ projectId: 'alpha-vantage-proxy-api' });
@@ -39,12 +40,8 @@ function assert(condition: boolean, message: string): void {
 }
 
 const PROBE_SYMBOL = 'ZZTEST';
-const PROBE_PARAMS_ID = deriveParamsId(CANONICAL_ZIGZAG_CONFIGS[1]);
+const PROBE_PARAMS_ID = deriveParamsId(CORPUS_ZIGZAG_CONFIG);
 const PROBE_DOC_ID = `${PROBE_SYMBOL}_${PROBE_PARAMS_ID}`;
-
-function makeProbePivot(barIndex: number, time: number, price: number, isHigh: boolean): Pivot {
-  return { barIndex, time, price, isHigh, confirmed: true };
-}
 
 async function main(): Promise<void> {
   const symbol = (process.argv[2] ?? 'AAPL').toUpperCase();
@@ -70,21 +67,16 @@ async function main(): Promise<void> {
     'toPriceBar maps date → x (UTC midnight)',
   );
 
-  // Stage 2: SwingSetRepository — write probe doc, read back, delete
+  // Stage 2: SwingSetRepository — write probe doc, read back, delete.
+  // Slim shape: confirmed pivot dates + current developing extreme (a
+  // projected low on 2026-01-16 → 'down').
   const probeDoc: SwingSetDoc = {
     symbol: PROBE_SYMBOL,
     paramsId: PROBE_PARAMS_ID,
-    config: CANONICAL_ZIGZAG_CONFIGS[1],
-    pivots: [
-      makeProbePivot(0, Date.parse('2026-01-02T00:00:00Z'), 100, false),
-      makeProbePivot(5, Date.parse('2026-01-09T00:00:00Z'), 120, true),
-    ],
-    projection: makeProbePivot(9, Date.parse('2026-01-16T00:00:00Z'), 90, false),
-    swings: [],
-    stats: {
-      up: { count: 0, magnitudePercent: { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 }, magnitudeAbsolute: { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 }, duration: { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 }, magnitudeHistogram: { bins: [] }, durationHistogram: { bins: [] } },
-      down: { count: 0, magnitudePercent: { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 }, magnitudeAbsolute: { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 }, duration: { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 }, magnitudeHistogram: { bins: [] }, durationHistogram: { bins: [] } },
-    },
+    config: CORPUS_ZIGZAG_CONFIG,
+    pivotDates: ['2026-01-02', '2026-01-09'],
+    currentExtremeDate: '2026-01-16',
+    currentDirection: 'down',
     generatedAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
     source: 'sa',
   };
@@ -101,12 +93,11 @@ async function main(): Promise<void> {
     assert(listed.some((d: SwingSetDoc) => d.paramsId === PROBE_PARAMS_ID),
       `listBySymbol('${PROBE_SYMBOL}') includes the probe doc`);
 
-    const pivots = await repo.listConfirmedPivots(PROBE_SYMBOL, PROBE_PARAMS_ID);
-    assert(pivots.length === 2 && pivots.every((p: Pivot) => p.confirmed),
-      `listConfirmedPivots returns ${pivots.length} confirmed pivots (excludes projection)`);
+    const pivotDates = await repo.listConfirmedPivotDates(PROBE_SYMBOL, PROBE_PARAMS_ID);
+    assert(pivotDates.length === 2,
+      `listConfirmedPivotDates returns ${pivotDates.length} confirmed pivot dates`);
 
     const cur = await repo.getCurrentSwing(PROBE_SYMBOL, PROBE_PARAMS_ID);
-    // Last pivot high, projection is a low → developing 'down' swing, extreme = projection date
     assert(cur !== null && cur.direction === 'down' && cur.extremeDate === '2026-01-16',
       `getCurrentSwing → direction=${cur?.direction}, extremeDate=${cur?.extremeDate}`);
 

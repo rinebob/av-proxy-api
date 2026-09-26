@@ -2,12 +2,12 @@
  * Verification script for Task #125 — SwingSetGenerationService.
  *
  * Runs the real generation pipeline end-to-end against prod:
- * DailyAdjustedReader → zigzag engine → SwingSetRepository.upsert for all
- * four canonical configs on a real symbol, then verifies each persisted
- * doc (paramsId, source='sa', pivots/swings/stats consistency), re-runs to
- * confirm idempotency, and DELETES the generated docs on exit.
+ * DailyAdjustedReader → zigzag engine → SwingSetRepository.upsert for the
+ * corpus config on a real symbol, then verifies the persisted doc
+ * (paramsId, source='sa', pivotDates/currentExtreme), re-runs to
+ * confirm idempotency, and DELETES the generated doc on exit.
  *
- * Mutating — writes then deletes options-swing-sets/{SYMBOL}_{paramsId} ×4.
+ * Mutating — writes then deletes options-swing-sets/{SYMBOL}_{paramsId}.
  * Not in run-all.
  *
  * Usage:
@@ -16,7 +16,7 @@
  */
 import * as admin from 'firebase-admin';
 import { FirestoreCollection } from '@shared/firestore';
-import { CANONICAL_ZIGZAG_CONFIGS, deriveParamsId } from '@shared/zigzag';
+import { CORPUS_ZIGZAG_CONFIG, deriveParamsId } from '@shared/zigzag';
 import type { SwingSetDoc } from '@shared/zigzag';
 
 if (!admin.apps.length) {
@@ -43,10 +43,10 @@ async function main(): Promise<void> {
   const symbol = (process.argv[2] ?? 'AAPL').toUpperCase();
   const repo = new SwingSetRepository(db);
   const service = new SwingSetGenerationService(new DailyAdjustedReader(db), repo, console);
-  const paramsIds = CANONICAL_ZIGZAG_CONFIGS.map(deriveParamsId);
+  const paramsId = deriveParamsId(CORPUS_ZIGZAG_CONFIG);
   console.log(`--- Verifying SwingSetGenerationService against prod (${symbol}) ---\n`);
 
-  const writtenIds = paramsIds.map((p) => `${symbol}_${p}`);
+  const docId = `${symbol}_${paramsId}`;
 
   // Pre-flight: refuse to clobber existing docs — this script overwrites then
   // deletes, so running it against real generated data would destroy it.
@@ -61,33 +61,24 @@ async function main(): Promise<void> {
   }
 
   try {
-    // Stage 1: generate all four canonical docs
+    // Stage 1: generate the corpus doc
     const result = await service.generateForSymbol(symbol);
     assert(!result.skipped, `${symbol}: generation not skipped`);
-    assert(JSON.stringify(result.generated) === JSON.stringify(paramsIds),
-      `generated paramsIds = ${result.generated.join(', ')}`);
+    assert(result.generated.length === 1 && result.generated[0] === paramsId,
+      `generated paramsId = ${result.generated.join(', ')}`);
 
-    for (const paramsId of paramsIds) {
-      const doc = await repo.get(symbol, paramsId);
-      assert(doc !== null, `${paramsId}: doc persisted`);
-      assert(doc!.symbol === symbol && doc!.source === 'sa', `${paramsId}: symbol/source fields correct`);
-      assert(doc!.pivots.length > 0, `${paramsId}: ${doc!.pivots.length} confirmed pivots`);
-      assert(
-        doc!.swings.length === doc!.pivots.length - 1 + (doc!.projection ? 1 : 0),
-        `${paramsId}: swings count consistent`,
-      );
-      assert(
-        doc!.stats.up.count + doc!.stats.down.count === doc!.swings.filter((s: { confirmed: boolean }) => s.confirmed).length,
-        `${paramsId}: stats counts match confirmed swings`,
-      );
-      assert(doc!.generatedAt.seconds > 0, `${paramsId}: generatedAt set`);
-      console.log(`  → ${symbol}_${paramsId}: ${doc!.pivots.length} pivots, ${doc!.swings.length} swings`);
-    }
+    const doc = await repo.get(symbol, paramsId);
+    assert(doc !== null, `${paramsId}: doc persisted`);
+    assert(doc!.symbol === symbol && doc!.source === 'sa', `${paramsId}: symbol/source fields correct`);
+    assert(doc!.pivotDates.length > 0, `${paramsId}: ${doc!.pivotDates.length} confirmed pivot dates`);
+    assert(doc!.currentExtremeDate !== null, `${paramsId}: currentExtremeDate set`);
+    assert(doc!.generatedAt.seconds > 0, `${paramsId}: generatedAt set`);
+    console.log(`  → ${docId}: ${doc!.pivotDates.length} pivot dates, extreme=${doc!.currentExtremeDate}`);
 
-    // Stage 2: idempotency — re-run produces identical docs except generatedAt
-    const before = await repo.get(symbol, paramsIds[1]);
+    // Stage 2: idempotency — re-run produces identical doc except generatedAt
+    const before = await repo.get(symbol, paramsId);
     await service.generateForSymbol(symbol);
-    const after = await repo.get(symbol, paramsIds[1]);
+    const after = await repo.get(symbol, paramsId);
     const strip = (d: SwingSetDoc | null) => {
       const { generatedAt: _g, ...rest } = d!;
       return rest;
@@ -98,18 +89,16 @@ async function main(): Promise<void> {
     );
     const all = await repo.listBySymbol(symbol);
     assert(
-      all.length === 4 && paramsIds.every((p) => all.some((d: SwingSetDoc) => d.paramsId === p)),
-      'listBySymbol returns exactly the four canonical docs (no duplicates)',
+      all.length === 1 && all[0].paramsId === paramsId,
+      'listBySymbol returns exactly the corpus doc (no duplicates)',
     );
   } finally {
-    for (const id of writtenIds) {
-      await db.doc(`${FirestoreCollection.OPTIONS_SWING_SETS}/${id}`).delete();
-    }
-    console.log(`cleanup: deleted ${writtenIds.length} ${symbol} docs`);
+    await db.doc(`${FirestoreCollection.OPTIONS_SWING_SETS}/${docId}`).delete();
+    console.log(`cleanup: deleted ${docId}`);
   }
 
   const leftover = await repo.listBySymbol(symbol);
-  assert(leftover.length === 0, 'all generated docs deleted');
+  assert(leftover.length === 0, 'generated doc deleted');
 
   console.log('\n=== All verification checks passed ===');
   process.exit(0);
