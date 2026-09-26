@@ -1,4 +1,4 @@
-**Topic:** IV time series  
+﻿**Topic:** IV time series  
 **Topic Slug:** iv-time-series  
 **Thread:** IV history for all tracked symbols  
 **Thread Slug:** iv-history-tracked-symbols  
@@ -8,26 +8,26 @@
 **Domain:** OPTIONS-DATA  
 **Area:** SHARED  
 **Type:** Implementation Plan  
-**Status:** Draft  
+**Status:** Complete  
 **Created:** 2026-09-26  
 **Last Updated:** 2026-09-26  
 
-# Implementation Plan — SHARED: symbol-metrics contract types
+# Implementation Plan â€” SHARED: symbol-metrics contract types
 
 ## Goal
 
-Define the wire + storage contract for symbol-level IV metrics in `shared/` so `partnerIvMetricsV2` (BE) and ST consume identical shapes — matching the convention of `@shared/alpha-vantage` partner contracts.
+Define the wire + storage contract for symbol-level IV metrics in `shared/` so `partnerIvMetricsV2` (BE) and ST consume identical shapes â€” matching the convention of `@shared/alpha-vantage` partner contracts.
 
 ## Approach
 
-### 1. Types (new `shared/symbol-metrics/` or under `shared/alpha-vantage` — match existing partner-type placement)
+### 1. Types (new `shared/symbol-metrics/` or under `shared/alpha-vantage` â€” match existing partner-type placement)
 
 ```ts
 export interface SymbolMetricDayEntry {
   iv30?: number;                          // constant-maturity ATM IV, decimal
   iv30Method?: 'interpolated' | 'nearest';
   iv30Contracts?: number;                 // contracts used (quality signal)
-  // reserved: iv60, iv90, mfiv30, ivRank{W}, ivPct{W}, …
+  // reserved: iv60, iv90, mfiv30, ivRank{W}, ivPct{W}, â€¦
 }
 
 export interface SymbolMetricsYearDoc {    // symbol-metrics/{SYM}/years/{YYYY}
@@ -39,13 +39,13 @@ export interface SymbolMetricsYearDoc {    // symbol-metrics/{SYM}/years/{YYYY}
 
 export interface IvMetricsRow { date: string; [k: string]: unknown }
 // GET /partnerIvMetricsV2?symbol=&from=&to=&metrics=
-// → { ok: true, symbol, source: 'sa', data: IvMetricsRow[], processingTimeMs }
+// â†’ { ok: true, symbol, source: 'sa', data: IvMetricsRow[], processingTimeMs }
 // errors: 404 untracked | OPTIONS_NOT_ENABLED | same auth failures as partner*V2
 ```
 
 ### 2. Field-name registry
 
-`SYMBOL_METRIC_FIELDS` constant — the `metrics=` whitelist for the endpoint. New metrics append fields; the endpoint never hardcodes.
+`SYMBOL_METRIC_FIELDS` constant â€” the `metrics=` whitelist for the endpoint. New metrics append fields; the endpoint never hardcodes.
 
 ## Acceptance criteria
 

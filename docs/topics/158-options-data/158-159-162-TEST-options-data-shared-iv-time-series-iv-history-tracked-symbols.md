@@ -1,4 +1,4 @@
-**Topic:** IV time series  
+﻿**Topic:** IV time series  
 **Topic Slug:** iv-time-series  
 **Thread:** IV history for all tracked symbols  
 **Thread Slug:** iv-history-tracked-symbols  
@@ -8,11 +8,11 @@
 **Domain:** OPTIONS-DATA  
 **Area:** SHARED  
 **Type:** Test Plan  
-**Status:** Draft  
+**Status:** Complete  
 **Created:** 2026-09-26  
 **Last Updated:** 2026-09-26  
 
-# Test Plan — SHARED: symbol-metrics contract types
+# Test Plan â€” SHARED: symbol-metrics contract types
 
 ## Compile-time
 
@@ -21,9 +21,9 @@
 
 ## Behavior
 
-- Field registry round-trip: every field a computer emits is in the whitelist (cross-check against `MetricComputer.fields` — a shared-side constant consumed by the BE registry).
+- Field registry round-trip: every field a computer emits is in the whitelist (cross-check against `MetricComputer.fields` â€” a shared-side constant consumed by the BE registry).
 - Wire shape: `IvMetricsRow` serializes a `days` map slice without transform loss.
 
 ## Seams
 
-- The BE endpoint test-suite asserts the response conforms to the shared types — single seam at the partner response envelope.
+- The BE endpoint test-suite asserts the response conforms to the shared types â€” single seam at the partner response envelope.
