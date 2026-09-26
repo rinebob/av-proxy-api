@@ -2,6 +2,7 @@ import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 
 import { createTimeSeriesBuilderService } from '../services/time-series-builder.service';
 import { createOptionsEnabledChecker } from '../services/options-enabled-gate';
+import { handleTsBuildTask } from './ts-build.core';
 
 /**
  * Payload for a single-symbol, single-date time-series build task.
@@ -35,40 +36,13 @@ export const processHistoricalOptionsTsBuildTask = onTaskDispatched<TsBuildPaylo
     timeoutSeconds: 1200,
   },
   async (req) => {
-    const { symbol, date } = req.data;
-
-    console.log('[ts-build-task] start', { symbol, date });
-
-    // Curation gate (Task #150): a disabled symbol never builds time series.
-    if (!(await createOptionsEnabledChecker()(symbol))) {
-      console.log('[ts-build-task] skip options-disabled', { symbol, date });
-      return;
-    }
-
     const service = createTimeSeriesBuilderService();
-
-    try {
-      const report = await service.buildSymbol(symbol, date, date);
-
-      console.log('[ts-build-task] done', {
-        symbol: report.symbol,
-        foundDates: report.foundDates,
-        missingDates: report.missingDates,
-        processedContracts: report.processedContracts,
-        failedContracts: report.failedContracts,
-      });
-
-      if (report.missingDates > 0) {
-        console.warn('[ts-build-task] missing dates — corpus may not be ready', {
-          symbol,
-          date,
-          missingDates: report.missingDates,
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('[ts-build-task] failed', { symbol, date, error: message });
-      throw error;
-    }
+    await handleTsBuildTask(req.data, {
+      isOptionsEnabled: createOptionsEnabledChecker(),
+      buildSymbol: (symbol, startDate, endDate) => service.buildSymbol(symbol, startDate, endDate),
+      logger: (m, meta) => console.log(`[ts-build-task] ${m}`, meta ?? {}),
+      warn: (m, meta) => console.warn(`[ts-build-task] ${m}`, meta ?? {}),
+      error: (m, meta) => console.error(`[ts-build-task] ${m}`, meta ?? {}),
+    });
   },
 );
