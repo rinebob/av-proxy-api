@@ -54,10 +54,11 @@ export class CorpusMetadataService {
   }
 
   /**
-   * Creates a run document and its pending item documents in a single batch.
+   * Creates a run document and its pending item documents. Items are written
+   * in chunks — a single batch caps at 500 writes and pivot-driven fanouts
+   * can exceed that on volatile symbols.
    */
   async createRunPlan(plan: CorpusRunPlan): Promise<void> {
-    const batch = this.firestore.batch();
     const now = FieldValue.serverTimestamp();
 
     const runDoc: Omit<CorpusRunDoc, 'createdAt' | 'updatedAt'> & {
@@ -79,22 +80,27 @@ export class CorpusMetadataService {
       pilot: plan.pilot,
     };
 
-    batch.set(this.runRef(plan.runId), runDoc);
+    const runBatch = this.firestore.batch();
+    runBatch.set(this.runRef(plan.runId), runDoc);
+    await runBatch.commit();
 
-    for (const item of plan.items) {
-      const key = this.itemKey(item);
-      const itemDoc: Omit<CorpusItemDoc, 'attemptedAt'> & {
-        attemptedAt?: FirebaseFirestore.FieldValue;
-      } = {
-        symbol: item.symbol,
-        date: item.date,
-        status: 'pending',
-        attempts: 0,
-      };
-      batch.set(this.itemRef(plan.runId, key), itemDoc);
+    const ITEM_BATCH_SIZE = 450;
+    for (let i = 0; i < plan.items.length; i += ITEM_BATCH_SIZE) {
+      const batch = this.firestore.batch();
+      for (const item of plan.items.slice(i, i + ITEM_BATCH_SIZE)) {
+        const key = this.itemKey(item);
+        const itemDoc: Omit<CorpusItemDoc, 'attemptedAt'> & {
+          attemptedAt?: FirebaseFirestore.FieldValue;
+        } = {
+          symbol: item.symbol,
+          date: item.date,
+          status: 'pending',
+          attempts: 0,
+        };
+        batch.set(this.itemRef(plan.runId, key), itemDoc);
+      }
+      await batch.commit();
     }
-
-    await batch.commit();
   }
 
   /**

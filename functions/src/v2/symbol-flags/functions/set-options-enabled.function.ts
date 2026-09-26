@@ -14,6 +14,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { SetOptionsEnabledErrorCode, type SetOptionsEnabledResult } from '@shared/alpha-vantage';
 import { enqueueSwingSetGeneration } from '../../swing-set/handlers/generate-swing-sets.core';
+import { fanoutPivotSeedsForSymbol } from '../../historical-options-corpus/services/pivot-seed-fanout';
 import { ALLOWED_ORIGINS } from '../../utils/cors-middleware';
 import { handleSetOptionsEnabled } from './set-options-enabled.core';
 import { toSetOptionsEnabledHttpsError } from './set-options-enabled.errors';
@@ -49,6 +50,7 @@ export const setOptionsEnabledV2 = onCall<{ symbol?: string; enabled?: boolean; 
       {
         db,
         enqueue: (s) => enqueueSwingSetGeneration(db, s),
+        seedCorpus: fanoutPivotSeedsForSymbol,
         logger: console,
       },
     );

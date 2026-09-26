@@ -20,10 +20,12 @@ const seed = (flags: Record<string, unknown> = {}) => ({
 
 function makeDeps(db: any, overrides: Record<string, unknown> = {}) {
   const enqueue = jest.fn(async () => true);
+  const seedCorpus = jest.fn(async () => ({}));
   const logs: { level: string; msg: string }[] = [];
   return {
     db,
     enqueue,
+    seedCorpus,
     logger: {
       info: (m: string) => logs.push({ level: 'info', msg: m }),
       warn: (m: string) => logs.push({ level: 'warn', msg: m }),
@@ -107,6 +109,33 @@ describe('handleSetOptionsEnabled', () => {
     expect(out.ok).toBe(true);
     expect((db.store.get('tracked-symbols/AAPL') as any).optionsEnabled).toBe(true);
     expect(deps.logs.some((l) => l.level === 'warn')).toBe(true);
+  });
+
+  it('false→true fires the corpus seed fanout (Task #153)', async () => {
+    const db = createFakeFirestore(seed({ optionable: true, optionsEnabled: false }));
+    const deps = makeDeps(db);
+    deps.seedCorpus.mockResolvedValue({ runId: 'r', enqueued: 5 });
+    const out = await handleSetOptionsEnabled({ symbol: 'AAPL', enabled: true, uid: UID }, deps);
+    expect(out.ok).toBe(true);
+    expect(deps.seedCorpus).toHaveBeenCalledWith('AAPL');
+  });
+
+  it('warns-but-succeeds when the corpus seed fanout fails', async () => {
+    const db = createFakeFirestore(seed({ optionable: true, optionsEnabled: false }));
+    const deps = makeDeps(db);
+    deps.seedCorpus.mockRejectedValue(new Error('planner blew up'));
+    const out = await handleSetOptionsEnabled({ symbol: 'AAPL', enabled: true, uid: UID }, deps);
+    expect(out.ok).toBe(true);
+    expect((db.store.get('tracked-symbols/AAPL') as any).optionsEnabled).toBe(true);
+    expect(deps.logs.some((l) => l.level === 'warn' && /corpus seed fanout/.test(l.msg))).toBe(true);
+  });
+
+  it('does not fire the seed fanout on same-value no-op or true→false', async () => {
+    const db = createFakeFirestore(seed({ optionable: true, optionsEnabled: true }));
+    const deps = makeDeps(db);
+    await handleSetOptionsEnabled({ symbol: 'AAPL', enabled: true, uid: UID }, deps); // no-op
+    await handleSetOptionsEnabled({ symbol: 'AAPL', enabled: false, uid: UID }, deps); // disable
+    expect(deps.seedCorpus).not.toHaveBeenCalled();
   });
 
   it('normalizes the symbol (trim + uppercase)', async () => {

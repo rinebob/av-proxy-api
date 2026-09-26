@@ -90,6 +90,9 @@ export interface CorpusSeedPayload {
   attempt: number;
 }
 
+/** Queue name for Stage-1 corpus seed tasks (matches the exported function id). */
+export const OPTIONS_CORPUS_SEED_TASK_QUEUE = 'processHistoricalOptionsCorpusSeedTask';
+
 /** Canonical GCS object prefix for the corpus. */
 export const HISTORICAL_OPTIONS_CORPUS_PREFIX = 'historical-options/v1';
 

@@ -55,6 +55,12 @@ export interface SweepDeps {
    * stale/missing target in `wouldGenerate` instead of generating.
    */
   dryRun?: boolean;
+  /**
+   * Downstream hook (Task #153): pivot-seed fanout after each successful
+   * regeneration — newly confirmed pivot dates get corpus seed tasks.
+   * Failures warn, never fail the symbol.
+   */
+  onGenerated?(symbol: string): Promise<unknown>;
 }
 
 export async function runSwingSetSweep(
@@ -93,8 +99,18 @@ export async function runSwingSetSweep(
         continue;
       }
       const gen = await deps.generation.generateForSymbol(symbol);
-      if (gen.skipped) result.skippedNoData.push(symbol);
-      else result.generated.push(symbol);
+      if (gen.skipped) {
+        result.skippedNoData.push(symbol);
+      } else {
+        result.generated.push(symbol);
+        if (deps.onGenerated) {
+          try {
+            await deps.onGenerated(symbol);
+          } catch (fanoutErr) {
+            deps.logger.warn(`swing-set sweep: ${symbol} corpus seed fanout failed — ${fanoutErr instanceof Error ? fanoutErr.message : String(fanoutErr)}`);
+          }
+        }
+      }
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       deps.logger.warn(`swing-set sweep: ${symbol} failed — ${error}`);

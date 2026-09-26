@@ -143,6 +143,30 @@ describe('runSwingSetSweep', () => {
     expect(logs.some((l) => l.level === 'warn' && /TSLA/.test(l.msg))).toBe(true);
   });
 
+  it('fires onGenerated (corpus seed fanout) for each regenerated symbol only', async () => {
+    const fake = makeFakeDb({
+      tracked: { AAPL: { optionsEnabled: true }, TSLA: { optionsEnabled: true } },
+      swingAgeMs: { AAPL: 60 * 1000 }, // fresh → no regen → no fanout
+    });
+    const gen = jest.fn(async (s: string) => ({ symbol: s, generated: ['a'], skipped: false }));
+    const onGenerated = jest.fn(async () => ({}));
+    const { deps } = makeDeps(fake, gen);
+    await runSwingSetSweep(fake, { ...deps, onGenerated });
+    expect(onGenerated).toHaveBeenCalledTimes(1);
+    expect(onGenerated).toHaveBeenCalledWith('TSLA');
+  });
+
+  it('warns-but-continues when the seed fanout fails for a symbol', async () => {
+    const fake = makeFakeDb({ tracked: { AAPL: { optionsEnabled: true } } });
+    const gen = jest.fn(async (s: string) => ({ symbol: s, generated: ['a'], skipped: false }));
+    const onGenerated = jest.fn(async () => { throw new Error('planner blew up'); });
+    const { deps, logs } = makeDeps(fake, gen);
+    const result = await runSwingSetSweep(fake, { ...deps, onGenerated });
+    expect(result.generated).toEqual(['AAPL']);
+    expect(result.failed).toEqual([]);
+    expect(logs.some((l) => l.level === 'warn' && /fanout/.test(l.msg))).toBe(true);
+  });
+
   it('reports no-data skips distinctly', async () => {
     const fake = makeFakeDb({ tracked: { ZZTEST: { optionsEnabled: true } } });
     const gen = jest.fn(async (s: string) => ({ symbol: s, generated: [], skipped: true }));

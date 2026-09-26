@@ -14,6 +14,7 @@ import { admin } from '../../../firebase-admin-init';
 import { DailyAdjustedReader } from '../services/daily-adjusted-reader.service';
 import { SwingSetRepository } from '../services/swing-set.repository';
 import { SwingSetGenerationService } from '../services/swing-set-generation.service';
+import { fanoutPivotSeedsForSymbol } from '../../historical-options-corpus/services/pivot-seed-fanout';
 import {
   handleGenerateSwingSets,
   type GenerateSwingSetsPayload,
@@ -36,6 +37,7 @@ export const generateSwingSetsTask = onTaskDispatched<GenerateSwingSetsPayload>(
       repository,
       generation: new SwingSetGenerationService(new DailyAdjustedReader(db), repository, console),
       logger: console,
+      onGenerated: fanoutPivotSeedsForSymbol,
     });
   },
 );

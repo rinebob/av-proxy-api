@@ -13,6 +13,7 @@ import { SWING_SET_SWEEP_SCHEDULE } from '../../common/function-schedules';
 import { DailyAdjustedReader } from '../services/daily-adjusted-reader.service';
 import { SwingSetRepository } from '../services/swing-set.repository';
 import { SwingSetGenerationService } from '../services/swing-set-generation.service';
+import { fanoutPivotSeedsForSymbol } from '../../historical-options-corpus/services/pivot-seed-fanout';
 import { runSwingSetSweep } from './swing-set-sweep.core';
 
 export const sweepSwingSets = onSchedule(
@@ -30,6 +31,7 @@ export const sweepSwingSets = onSchedule(
       repository,
       generation: new SwingSetGenerationService(new DailyAdjustedReader(db), repository, console),
       logger: console,
+      onGenerated: fanoutPivotSeedsForSymbol,
     });
     console.log('[sweepSwingSets]', JSON.stringify(report));
   },

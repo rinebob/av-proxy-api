@@ -43,6 +43,12 @@ interface HandleDeps {
   generation: Pick<SwingSetGenerationService, 'generateForSymbol'>;
   logger: LoggerLike;
   nowMs?: number;
+  /**
+   * Downstream hook (Task #153): pivot-seed fanout — runs only after a
+   * successful generation, when the swing doc's pivot dates actually exist.
+   * Failures warn, never fail the task.
+   */
+  onGenerated?(symbol: string): Promise<unknown>;
 }
 
 const CORPUS_PARAMS_ID = deriveParamsId(CORPUS_ZIGZAG_CONFIG);
@@ -78,6 +84,13 @@ export async function handleGenerateSwingSets(
 
   const result = await deps.generation.generateForSymbol(symbol);
   deps.logger.info(`generateSwingSetsTask: ${symbol} done — generated=${result.generated.length} skipped=${result.skipped}`);
+  if (!result.skipped && deps.onGenerated) {
+    try {
+      await deps.onGenerated(symbol);
+    } catch (e) {
+      deps.logger.warn(`generateSwingSetsTask: ${symbol} corpus seed fanout failed — ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
   return result;
 }
 

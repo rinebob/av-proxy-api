@@ -12,10 +12,10 @@ import { GcsCorpusAdapter } from '../services/gcs-corpus-adapter.service';
 import { HistoricalOptionsRetrievalService } from '../services/historical-options-retrieval.service';
 import { MAX_CORPUS_SEED_ATTEMPTS, seedCorpusItem } from '../services/corpus-seed.worker';
 import { createOptionsEnabledChecker } from '../services/options-enabled-gate';
-import type { CorpusSeedPayload } from '../types';
+import { OPTIONS_CORPUS_SEED_TASK_QUEUE, type CorpusSeedPayload } from '../types';
 import { OPTIONS_TS_BUILD_TASK_QUEUE, type TsBuildPayload } from './ts-build.task';
 
-export const OPTIONS_CORPUS_SEED_TASK_QUEUE = 'processHistoricalOptionsCorpusSeedTask';
+export { OPTIONS_CORPUS_SEED_TASK_QUEUE };
 
 function getBucket() {
   const bucketName = process.env.OPTIONS_CORPUS_BUCKET;

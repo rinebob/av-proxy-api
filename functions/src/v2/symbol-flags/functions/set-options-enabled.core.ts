@@ -36,6 +36,13 @@ export interface SetOptionsEnabledDeps {
   db: FirestoreLike;
   /** enqueueSwingSetGeneration bound to its deps — called only on false→true. */
   enqueue(symbol: string): Promise<unknown>;
+  /**
+   * Pivot-seed fanout (Task #153) — enqueues Stage-1 corpus seed tasks for
+   * every planned pivot date. Called only on false→true; a no-op when the
+   * swing doc doesn't exist yet (first enable: generation fires the fanout
+   * on completion instead).
+   */
+  seedCorpus?(symbol: string): Promise<unknown>;
   logger: { info(m: string): void; warn(m: string): void };
 }
 
@@ -97,13 +104,21 @@ export async function handleSetOptionsEnabled(
   );
   deps.logger.info(`setOptionsEnabledV2: ${symbol} ${current}→${req.enabled} by ${req.uid}`);
 
-  // Downstream of the flag: kick swing-set generation only on the enabling
-  // transition. Failure warns — sweep catches missed signals.
+  // Downstream of the flag: kick swing-set generation + pivot-seed fanout
+  // only on the enabling transition. Failures warn — the sweep catches
+  // missed signals.
   if (req.enabled === true && current === false) {
     try {
       await deps.enqueue(symbol);
     } catch (e) {
       deps.logger.warn(`setOptionsEnabledV2: swing-set enqueue failed for ${symbol} — ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (deps.seedCorpus) {
+      try {
+        await deps.seedCorpus(symbol);
+      } catch (e) {
+        deps.logger.warn(`setOptionsEnabledV2: corpus seed fanout failed for ${symbol} — ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
   }
 

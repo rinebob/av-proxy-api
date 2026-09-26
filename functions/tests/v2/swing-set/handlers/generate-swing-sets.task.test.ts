@@ -147,6 +147,57 @@ describe('handleGenerateSwingSets', () => {
       }),
     ).rejects.toThrow('firestore unavailable');
   });
+
+  it('fires onGenerated (corpus seed fanout) after a successful generation', async () => {
+    const fake = makeFakeDb([]);
+    const generateForSymbol = jest.fn(async () => ({ symbol: 'AAPL', generated: ['dev2_L2_R2_1barY_projY'], skipped: false }));
+    const onGenerated = jest.fn(async () => ({}));
+    const { logger } = makeLogs();
+    await handleGenerateSwingSets({ symbol: 'AAPL' }, {
+      repository: new SwingSetRepository(fake),
+      generation: { generateForSymbol },
+      logger,
+      onGenerated,
+    });
+    expect(onGenerated).toHaveBeenCalledWith('AAPL');
+  });
+
+  it('does not fire onGenerated on fresh-skip or no-data skip', async () => {
+    const fresh = makeFakeDb([corpusDoc('AAPL', 60 * 1000)]);
+    const onGenerated = jest.fn(async () => ({}));
+    const { logger } = makeLogs();
+    await handleGenerateSwingSets({ symbol: 'AAPL' }, {
+      repository: new SwingSetRepository(fresh),
+      generation: { generateForSymbol: jest.fn() },
+      logger,
+      onGenerated,
+    });
+
+    const empty = makeFakeDb([]);
+    const generateForSymbol = jest.fn(async () => ({ symbol: 'AAPL', generated: [], skipped: true }));
+    await handleGenerateSwingSets({ symbol: 'AAPL' }, {
+      repository: new SwingSetRepository(empty),
+      generation: { generateForSymbol },
+      logger,
+      onGenerated,
+    });
+    expect(onGenerated).not.toHaveBeenCalled();
+  });
+
+  it('warns-but-succeeds when the corpus seed fanout fails', async () => {
+    const fake = makeFakeDb([]);
+    const generateForSymbol = jest.fn(async () => ({ symbol: 'AAPL', generated: ['dev2_L2_R2_1barY_projY'], skipped: false }));
+    const onGenerated = jest.fn(async () => { throw new Error('planner blew up'); });
+    const { logger, logs } = makeLogs();
+    const result = await handleGenerateSwingSets({ symbol: 'AAPL' }, {
+      repository: new SwingSetRepository(fake),
+      generation: { generateForSymbol },
+      logger,
+      onGenerated,
+    });
+    expect(result).toEqual({ symbol: 'AAPL', generated: ['dev2_L2_R2_1barY_projY'], skipped: false });
+    expect(logs.some((l) => l.level === 'warn' && /fanout/.test(l.msg))).toBe(true);
+  });
 });
 
 describe('enqueueSwingSetGeneration', () => {
