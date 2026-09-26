@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-09-26]
+
+### Added
+- [Swing-Driven Options Corpus] 102-152_BE-IMPL-OPTIONS-DATA: Extract testable ts-build task core — handler seam (handleTsBuildTask) over injected deps so the Cloud Tasks path is unit-testable
+- [Swing-Driven Options Corpus] 102-152_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 152
+
 ## [2026-09-25]
 
 ### Added
