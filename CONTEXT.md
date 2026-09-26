@@ -106,6 +106,14 @@ One of four fixed parameter sets used by SA to generate swing files for every tr
 
 A tracked symbol that has been curated for options analysis. Defined by an `optionsEnabled` boolean on the `tracked_symbols` document. Flipping the flag on triggers corpus seeding for that symbol's historical pivot dates; flipping it off stops new corpus growth. Distinct from `optionable`, which is the factual property of having listed options. See Topic #102.
 
+### Symbol IV Series
+
+A per-symbol time series of underlying-level implied volatility, synthesized from the daily option-chain snapshots in the Raw Corpus rather than fetched from any provider — no provider sells it. Each point is produced by a pluggable **metric computer** evaluated over one day's chain. History is sparse by design: it exists only for dates that have a corpus snapshot (pivot dates historically; every trading day going forward via the nightly fetch). See Topic #158.
+
+### IV30
+
+A constant-maturity implied volatility: the 30-day implied vol of the underlying as a single number per trading day. Computed per expiration by linear-interpolating the OTM-side IV (put below, call above) across the two strikes bracketing the underlying's daily-adjusted close, then interpolating the two expirations bracketing 30 days in total variance (σ²·T). When no expiration pair brackets the tenor, the nearest expiration is used and the observation is stamped with a fallback method rather than dropped. See Topic #158.
+
 ### Current Swing Extreme
 
 The latest interim high or low observed while the current swing is still unfolding. A confirmed pivot is only established when price reverses by the configured threshold and the swing completes. Until then, the current swing extreme may advance each trading day. The swing file exposes this value so the options-corpus pipeline can fetch the latest extreme's chain snapshot, update per-contract time series, and remove prior interim snapshots from GCS. See Topic #102.
