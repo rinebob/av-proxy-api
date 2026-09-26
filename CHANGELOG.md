@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [2026-09-26]
 
+### Changed
+- [Swing-Driven Options Corpus] 102-161_BE-IMPL-OPTIONS-DATA: Dates-only corpus swing doc + single dev2 config — SwingSetDoc stores pivotDates/currentExtreme (not pivot objects), one doc per symbol under CORPUS_ZIGZAG_CONFIG, planner reads it directly
+- [Swing-Driven Options Corpus] 102-161_DOCS-OPTIONS-DATA: Slim-shape decision doc + backfill runbook; superseded notices on obsolete swing-set platform docs
+
+### Removed
+- [Swing-Driven Options Corpus] 102-161_BE-IMPL-OPTIONS-DATA: partnerSwingSetsV2 + CANONICAL_ZIGZAG_CONFIGS (ST keeps client-side zigzag; SA swing docs are corpus-internal)
+
 ### Added
 - [Swing-Driven Options Corpus] 102-152_BE-IMPL-OPTIONS-DATA: Extract testable ts-build task core — handler seam (handleTsBuildTask) over injected deps so the Cloud Tasks path is unit-testable
 - [Swing-Driven Options Corpus] 102-152_DOCS-OPTIONS-DATA: Add code review doc and changelog for task 152

@@ -125,6 +125,7 @@ flowchart LR
 
 ## Further Notes
 
+- **Swing-set doc contract (decided 2026-09-25):** `options-swing-sets` docs are slimmed to pivot *dates* + current extreme — ST computes pivots/swings/stats locally via the shared engine; `partnerSwingSetsV2` no longer serves renderable pivot objects. See `102-107-DECISION-swing-doc-slim-shape.md`.
 - Final HTTP status for `OPTIONS_NOT_ENABLED` (400 vs 403) to be decided in blueprint.
 - Whether to extend the existing list endpoint or add a new one will be decided in blueprint.
 - Consider adding a response header or metadata that exposes the corpus snapshot generation timestamp in a future Thread; not required here.
