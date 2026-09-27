@@ -12,7 +12,9 @@ export interface DocSnapshotLike {
 
 export interface DocRefLike {
   get(): Promise<DocSnapshotLike>;
-  set(data: unknown, opts?: { merge?: boolean }): Promise<unknown>;
+  /** `merge` deep-merges maps; `mergeFields` sets only the listed dot-paths
+   *  (path segments may contain dashes but not dots). */
+  set(data: unknown, opts?: { merge?: boolean; mergeFields?: string[] }): Promise<unknown>;
   delete(): Promise<unknown>;
 }
 

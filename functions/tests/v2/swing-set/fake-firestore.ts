@@ -6,9 +6,11 @@
  * collection(path).get(). Seed docs via `seed` keyed by `collection/docId`.
  * `calls` records every set() for write-path/merge-option assertions.
  *
- * NOTE: set() honors opts.merge (merge → shallow top-level merge, absent →
- * full replace). Real Firestore deep-merges map fields — irrelevant for
- * full-doc writes. `where()` only implements `==`.
+ * NOTE: set() honors opts.merge — merge:true deep-merges nested plain-object
+ * maps recursively (matching real Firestore merge semantics); absent merge is
+ * a full replace. `mergeFields: string[]` applies each listed dot-path as a
+ * point write (the path's value replaces wholesale; unlisted fields
+ * untouched). `where()` only implements `==`.
  */
 import { Timestamp } from 'firebase-admin/firestore';
 import type { FirestoreLike } from '../../../src/v2/common/firestore/firestore-like';
@@ -23,6 +25,38 @@ function resolveArrayUnionElement(value: unknown): unknown {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, resolveArrayUnionElement(item)]));
   }
   return value;
+}
+
+/** Is this a plain JSON-shaped map (not a Firestore transform/Timestamp/array)? */
+function isPlainMap(v: unknown): v is Record<string, unknown> {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return false;
+  const name = v.constructor?.name;
+  return name === 'Object' || name === undefined;
+}
+
+/** Deep-merge payload into existing per real Firestore set(merge:true):
+ *  nested plain-object maps union recursively; transforms resolve;
+ *  non-map values replace. */
+function mergeInto(existing: Record<string, unknown>, payload: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...existing };
+  for (const [k, v] of Object.entries(payload)) {
+    if (v?.constructor?.name === 'DeleteTransform') {
+      delete next[k];
+    } else if (v?.constructor?.name === 'ServerTimestampTransform') {
+      next[k] = Timestamp.now();
+    } else if (v?.constructor?.name === 'ArrayUnionTransform') {
+      const elements = (v as { elements: unknown[] }).elements.map(resolveArrayUnionElement);
+      const current = Array.isArray(next[k]) ? (next[k] as unknown[]) : [];
+      next[k] = [...current, ...elements.filter((element) =>
+        !current.some((item) => JSON.stringify(item) === JSON.stringify(element)),
+      )];
+    } else if (isPlainMap(v) && isPlainMap(next[k])) {
+      next[k] = mergeInto(next[k] as Record<string, unknown>, v);
+    } else {
+      next[k] = v;
+    }
+  }
+  return next;
 }
 
 export function createFakeFirestore(seed: Record<string, unknown> = {}): FirestoreLike & {
@@ -41,25 +75,45 @@ export function createFakeFirestore(seed: Record<string, unknown> = {}): Firesto
           return {
             async set(payload: unknown, opts?: unknown) {
               calls.push({ method: 'set', path: `${path}/${id}`, payload, opts });
-              const merge = (opts as { merge?: boolean } | undefined)?.merge === true;
-              const existing = merge ? (store.get(`${path}/${id}`) ?? {}) : {};
-              const next: Record<string, unknown> = { ...(existing as object) };
-              for (const [k, v] of Object.entries(payload as object)) {
-                if (v?.constructor?.name === 'DeleteTransform') {
-                  delete next[k];
-                } else if (v?.constructor?.name === 'ServerTimestampTransform') {
-                  next[k] = Timestamp.now();
-                } else if (v?.constructor?.name === 'ArrayUnionTransform') {
-                  const elements = (v as { elements: unknown[] }).elements.map(resolveArrayUnionElement);
-                  const current = Array.isArray(next[k]) ? (next[k] as unknown[]) : [];
-                  next[k] = [...current, ...elements.filter((element) =>
-                    !current.some((item) => JSON.stringify(item) === JSON.stringify(element)),
-                  )];
-                } else {
-                  next[k] = v;
+              const key = `${path}/${id}`;
+              const options = opts as { merge?: boolean; mergeFields?: string[] } | undefined;
+              if (options?.mergeFields) {
+                // Point-writes at the listed dot-paths only — replaces each
+                // path's value wholesale, leaves unlisted fields untouched.
+                const next = { ...((store.get(key) ?? {}) as Record<string, unknown>) };
+                for (const fieldPath of options.mergeFields) {
+                  const segs = fieldPath.split('.');
+                  const value = segs.reduce<unknown>(
+                    (o, k) => (o as Record<string, unknown> | undefined)?.[k],
+                    payload,
+                  );
+                  // Real Firestore errors when a mergeField is absent from data
+                  if (value === undefined) {
+                    throw new Error(`fake-firestore: mergeField '${fieldPath}' absent from set() payload`);
+                  }
+                  let node = next;
+                  for (let i = 0; i < segs.length - 1; i++) {
+                    const k = segs[i];
+                    // copy-on-write each level so the stored object tree
+                    // isn't mutated in place (shared fixture safety)
+                    const child = isPlainMap(node[k]) ? { ...node[k] } : {};
+                    node[k] = child;
+                    node = child;
+                  }
+                  const leaf = segs[segs.length - 1];
+                  if (value?.constructor?.name === 'ServerTimestampTransform') {
+                    node[leaf] = Timestamp.now();
+                  } else {
+                    node[leaf] = value;
+                  }
                 }
+                store.set(key, next);
+              } else {
+                const existing = options?.merge === true
+                  ? ((store.get(key) ?? {}) as Record<string, unknown>)
+                  : {};
+                store.set(key, mergeInto(existing, payload as Record<string, unknown>));
               }
-              store.set(`${path}/${id}`, next);
             },
             async get() {
               const data = store.get(`${path}/${id}`);
