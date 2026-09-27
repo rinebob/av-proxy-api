@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-26]
 
 ### Added
+- [IV Time Series] 158-170_BE-IMPL-OPTIONS-DATA: Symbol-metrics repository + computeForDate — year-shard upsert via mergeFields (per-date replace, sibling-safe), MetricBuildService pipeline (corpus → close → registry → write), DailyAdjustedReader.readDate single-shard lookup, faithful deep-merge + mergeFields test fake, mutating prod verify script
+- [IV Time Series] 158-170_DOCS-OPTIONS-DATA: Code review (4 rounds, PASS) + UAT for the repository + computeForDate task
 - [IV Time Series] 158-169_BE-IMPL-OPTIONS-DATA: IV30 metric computer + registry — pure OTM-side strike bracketing + total-variance interpolation to the 30d tenor with nearest fallback; MetricComputer contract + METRIC_REGISTRY; read-only prod verify script
 - [IV Time Series] 158-169_SHARED-IMPL-OPTIONS-DATA: Deduped TimestampLike (canonical shared/firestore import); iv30Contracts docstring clarified to contributing-expiration depth signal
 - [IV Time Series] 158-169_DOCS-OPTIONS-DATA: Code review (4 rounds, PASS) + UAT + verify guide for the IV30 computer task; Thread-163 IV-rank PRD
