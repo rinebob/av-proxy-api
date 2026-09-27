@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-26]
 
 ### Added
+- [IV Time Series] 158-173_BE-IMPL-OPTIONS-DATA: IV metrics prod verify script — computeForDate → read-back → deployed endpoint range/point/filter/401/404/OPTIONS_NOT_ENABLED checks; 12/12 green in prod
 - [IV Time Series] 158-172_BE-IMPL-OPTIONS-DATA: partnerIvMetricsV2 read endpoint — year-sharded symbol-metrics range reads, metrics= whitelist filter, 404/OPTIONS_NOT_ENABLED gates, 10y span cap
 - [IV Time Series] 158-172_DOCS-OPTIONS-DATA: Code review (2 rounds, PASS) + UAT for the endpoint
 - [IV Time Series] 158-171_BE-IMPL-OPTIONS-DATA: Seed-worker metric compute hook — `metrics` seam on SeedWorkerDependencies runs computeForDate on every confirmed-present path (fresh write, 412 alreadyExists, gcs-hit, already-recorded) with warn-swallow + outcome logging; pre-floor (pre-2019) date gate
