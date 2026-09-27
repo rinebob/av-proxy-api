@@ -4,7 +4,7 @@ import {
 } from '../alpha-vantage/utils';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9.-]{0,31}$/;
+export const SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9.-]{0,31}$/;
 
 export enum HistoricalOptionsErrorCode {
   BAD_REQUEST = 'BAD_REQUEST',
@@ -16,6 +16,7 @@ export enum HistoricalOptionsErrorCode {
   UPSTREAM_ERROR = 'UPSTREAM_ERROR',
   UPSTREAM_TIMEOUT = 'UPSTREAM_TIMEOUT',
   NOT_FOUND = 'NOT_FOUND',
+  OPTIONS_NOT_ENABLED = 'OPTIONS_NOT_ENABLED',
 }
 
 export interface HistoricalOptionsRequest {
