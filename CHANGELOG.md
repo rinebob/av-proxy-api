@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-26]
 
 ### Added
+- [IV Time Series] 158-172_BE-IMPL-OPTIONS-DATA: partnerIvMetricsV2 read endpoint — year-sharded symbol-metrics range reads, metrics= whitelist filter, 404/OPTIONS_NOT_ENABLED gates, 10y span cap
+- [IV Time Series] 158-172_DOCS-OPTIONS-DATA: Code review (2 rounds, PASS) + UAT for the endpoint
 - [IV Time Series] 158-171_BE-IMPL-OPTIONS-DATA: Seed-worker metric compute hook — `metrics` seam on SeedWorkerDependencies runs computeForDate on every confirmed-present path (fresh write, 412 alreadyExists, gcs-hit, already-recorded) with warn-swallow + outcome logging; pre-floor (pre-2019) date gate
 - [IV Time Series] 158-171_DOCS-OPTIONS-DATA: Code review (3 rounds, PASS) + UAT for the seed-worker hook
 - [IV Time Series] 158-170_BE-IMPL-OPTIONS-DATA: Symbol-metrics repository + computeForDate — year-shard upsert via mergeFields (per-date replace, sibling-safe), MetricBuildService pipeline (corpus → close → registry → write), DailyAdjustedReader.readDate single-shard lookup, faithful deep-merge + mergeFields test fake, mutating prod verify script
