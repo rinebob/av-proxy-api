@@ -7,6 +7,8 @@
  * the storage + wire contract shared by BE writers/readers and partner apps.
  */
 
+import type { TimestampLike } from '../firestore/timestamp';
+
 // ---- Firestore path constants ----
 
 /** Root collection for symbol-level metrics. */
@@ -38,16 +40,10 @@ export interface SymbolMetricDayEntry {
   /** Constant-maturity ATM implied volatility, 30-day tenor, decimal. */
   iv30?: number;
   iv30Method?: Iv30Method;
-  /** Number of chain contracts that contributed (quality signal). */
+  /** Usable-IV contracts in the contributing expiration(s) — chain-depth
+   *  quality signal, not a count of the few contracts feeding the bracket. */
   iv30Contracts?: number;
   // reserved: iv60/iv90, mfiv30, ivRank{W}, ivPct{W}, …
-}
-
-/** Admin-SDK-Timestamp-shaped plain object (`{seconds, nanoseconds}`),
- *  the shape `SwingSetDoc.generatedAt` already uses across this codebase. */
-export interface TimestampLike {
-  seconds: number;
-  nanoseconds: number;
 }
 
 /** `symbol-metrics/{SYMBOL}/years/{YYYY}` document. */
