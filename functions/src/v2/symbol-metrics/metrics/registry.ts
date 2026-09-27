@@ -17,9 +17,13 @@ export const METRIC_REGISTRY: readonly MetricComputer[] = [iv30Computer];
 // registry.test.ts asserts every registered field ⊆ SYMBOL_METRIC_FIELDS —
 // no runtime assert here so module import is side-effect-free.
 export function computeDayMetrics(input: MetricInput): SymbolMetricDayEntry | null {
+  // Explicitly-undefined fields are stripped — Firestore rejects them on write.
   const entry = METRIC_REGISTRY
     .map((c) => c.compute(input))
     .filter((e): e is NonNullable<typeof e> => e != null)
     .reduce<SymbolMetricDayEntry>((acc, e) => ({ ...acc, ...e }), {});
-  return Object.keys(entry).length > 0 ? entry : null;
+  const clean = Object.fromEntries(
+    Object.entries(entry).filter(([, v]) => v !== undefined),
+  ) as SymbolMetricDayEntry;
+  return Object.keys(clean).length > 0 ? clean : null;
 }
