@@ -217,6 +217,93 @@ describe('seedCorpusItem', () => {
     expect(deps.enqueueTask).not.toHaveBeenCalled();
   });
 
+  it('computes metrics after a fresh write (Task #171)', async () => {
+    const computeForDate = jest.fn().mockResolvedValue({ symbol: 'QQQ', date: '2026-01-02', written: true, fields: [] });
+    const deps = createDependencies({ metrics: { computeForDate } });
+
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 },
+      deps,
+    );
+
+    expect(result.status).toBe('stored');
+    expect(computeForDate).toHaveBeenCalledWith('QQQ', '2026-01-02');
+  });
+
+  it('still computes metrics on the gcs-hit path (gap healing)', async () => {
+    const computeForDate = jest.fn().mockResolvedValue({ symbol: 'QQQ', date: '2026-01-02', written: true, fields: [] });
+    const deps = createDependencies({
+      metrics: { computeForDate },
+      gcs: {
+        getMetadata: jest.fn().mockResolvedValue({
+          gcsPath: 'historical-options/v1/QQQ/2026-01-02.json.gz',
+          bytes: 50, sha256: 'existing-sha', generation: '999',
+          version: 'v1', schema: 'historical-options', symbol: 'QQQ', date: '2026-01-02',
+        }),
+        readItem: jest.fn().mockResolvedValue({ status: 'NOT_FOUND' }),
+      } as any,
+    });
+
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 },
+      deps,
+    );
+
+    expect(result.status).toBe('skipped');
+    expect(computeForDate).toHaveBeenCalledWith('QQQ', '2026-01-02');
+  });
+
+  it('warns-not-fails when metric computation throws', async () => {
+    const computeForDate = jest.fn().mockRejectedValue(new Error('firestore down'));
+    const deps = createDependencies({ metrics: { computeForDate } });
+
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 },
+      deps,
+    );
+
+    expect(result.status).toBe('stored'); // seed result unchanged
+    expect(deps.logger).toHaveBeenCalledWith(
+      'seed.metrics.error',
+      expect.objectContaining({ symbol: 'QQQ', date: '2026-01-02' }),
+    );
+  });
+
+  it('computes metrics + re-fires onSeedSuccess on the already-recorded path (heals a prior failure)', async () => {
+    const computeForDate = jest.fn().mockResolvedValue({ symbol: 'QQQ', date: '2026-01-02', written: false, fields: [] });
+    const onSeedSuccess = jest.fn().mockResolvedValue(undefined);
+    const deps = createDependencies({
+      metrics: { computeForDate },
+      onSeedSuccess,
+      metadata: { getItemDoc: jest.fn().mockResolvedValue({ status: 'success' }) } as any,
+    });
+
+    const result = await seedCorpusItem({ runId: 'r', symbol: 'QQQ', date: '2026-01-02', attempt: 1 }, deps);
+
+    expect(result.status).toBe('skipped');
+    expect(computeForDate).toHaveBeenCalledWith('QQQ', '2026-01-02');
+    expect(onSeedSuccess).toHaveBeenCalledWith('QQQ', '2026-01-02');
+  });
+
+  it('skips pre-floor (pre-2019) dates with a terminal skipped status — no AV call', async () => {
+    const deps = createDependencies();
+    const result = await seedCorpusItem({ runId: 'r', symbol: 'QQQ', date: '2008-09-19', attempt: 1 }, deps);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'pre-floor' });
+    expect(deps.retrieval.fetch).not.toHaveBeenCalled();
+    expect(deps.gcs.writeItem).not.toHaveBeenCalled();
+    expect(deps.metadata.setItemFailure).toHaveBeenCalledWith('r', 'QQQ_2008-09-19', 'pre-floor', 'skipped');
+    expect(deps.metadata.incrementCompleted).toHaveBeenCalledWith('r', 0);
+  });
+
+  it('does not compute metrics on the options-disabled path', async () => {
+    const computeForDate = jest.fn();
+    const disabled = createDependencies({ metrics: { computeForDate }, isOptionsEnabled: jest.fn().mockResolvedValue(false) });
+    await seedCorpusItem({ runId: 'r', symbol: 'QQQ', date: '2026-01-02', attempt: 1 }, disabled);
+
+    expect(computeForDate).not.toHaveBeenCalled();
+  });
+
   it('preserves kind on the retry re-enqueue (Task #154 — unstamped interims would escape supersede)', async () => {
     const deps = createDependencies({
       retrieval: {

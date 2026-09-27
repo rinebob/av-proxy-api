@@ -1,5 +1,6 @@
 import { AlphaVantageUpstreamError, AlphaVantageUpstreamErrorCategory } from '../../alpha-vantage/utils';
-import type { CorpusItemKey, CorpusSeedPayload } from '../types';
+import { OPTIONS_CORPUS_FLOOR_DATE, type CorpusItemKey, type CorpusSeedPayload } from '../types';
+import type { MetricBuildResult } from '../../symbol-metrics/build.service';
 import type { CorpusMetadataService } from './corpus-metadata.service';
 import type { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import type { HistoricalOptionsRetrievalService } from './historical-options-retrieval.service';
@@ -31,6 +32,15 @@ export interface SeedWorkerDependencies {
    * without blocking the seed result. Errors are logged and swallowed.
    */
   onSeedSuccess?: (symbol: string, date: string) => Promise<void>;
+  /**
+   * Optional symbol-metrics build seam (Task #171): invoked wherever the
+   * corpus object is confirmed present — fresh write AND alreadyExists hits —
+   * so re-seeding a date recomputes its metrics. The service reads the chain
+   * back via gcs.readItem itself (the gcs-hit path skips the AV fetch, so the
+   * chain isn't in memory here). Errors are warn-logged and swallowed — a
+   * metric failure never retries or fails the seed.
+   */
+  metrics?: { computeForDate(symbol: string, date: string): Promise<MetricBuildResult> };
 }
 
 /**
@@ -51,6 +61,15 @@ export async function seedCorpusItem(
 
   deps.logger('seed.start', { runId, symbol, date, attempt });
 
+  if (date < OPTIONS_CORPUS_FLOOR_DATE) {
+    deps.logger('seed.skip.pre-floor', { runId, symbol, date });
+    // Terminal 'skipped' status + completion increment — same pattern as the
+    // options-disabled gate — so planned runs don't wedge on pending items.
+    await deps.metadata.setItemFailure(runId, key, 'pre-floor', 'skipped');
+    await deps.metadata.incrementCompleted(runId, 0);
+    return { status: 'skipped', reason: 'pre-floor' };
+  }
+
   if (!(await deps.isOptionsEnabled(symbol))) {
     deps.logger('seed.skip.options-disabled', { runId, symbol, date });
     // Terminal status + completion increment so planned runs can't wedge
@@ -64,6 +83,11 @@ export async function seedCorpusItem(
   const existing = await deps.metadata.getItemDoc(runId, key);
   if (existing?.status === 'success') {
     deps.logger('seed.skip.already-recorded', { runId, symbol, date });
+    // The object is confirmed present — a failed ts-build enqueue or metrics
+    // compute on the earlier dispatch would otherwise never heal within this
+    // run. Both callbacks are idempotent.
+    await notifySeedSuccess(deps, symbol, date);
+    await computeSymbolMetrics(deps, symbol, date);
     return { status: 'skipped', reason: 'already-recorded' };
   }
 
@@ -85,6 +109,7 @@ export async function seedCorpusItem(
     // produces the same output as a single run. This avoids a separate GCS
     // check for the time-series file.
     await notifySeedSuccess(deps, symbol, date);
+    await computeSymbolMetrics(deps, symbol, date);
     return { status: 'skipped', reason: 'gcs-hit' };
   }
 
@@ -115,6 +140,7 @@ export async function seedCorpusItem(
     });
 
     await notifySeedSuccess(deps, symbol, date);
+    await computeSymbolMetrics(deps, symbol, date);
 
     return {
       status: 'stored',
@@ -153,6 +179,28 @@ async function notifySeedSuccess(deps: SeedWorkerDependencies, symbol: string, d
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     deps.logger('seed.onSeedSuccess.error', { symbol, date, error: message });
+  }
+}
+
+/**
+ * Runs the symbol-metrics compute for the confirmed-present date. Errors are
+ * logged and swallowed so a metric failure never causes the seed to retry or
+ * report failure (metrics are healable on the next seed of the same date).
+ */
+async function computeSymbolMetrics(deps: SeedWorkerDependencies, symbol: string, date: string): Promise<void> {
+  if (!deps.metrics) return;
+  try {
+    // Surface the outcome — a systematically missing close would otherwise
+    // leave deterministic skips completely invisible.
+    const result = await deps.metrics.computeForDate(symbol, date);
+    deps.logger(result.written ? 'seed.metrics.written' : 'seed.metrics.skipped', {
+      symbol,
+      date,
+      fields: result.fields,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    deps.logger('seed.metrics.error', { symbol, date, error: message });
   }
 }
 
