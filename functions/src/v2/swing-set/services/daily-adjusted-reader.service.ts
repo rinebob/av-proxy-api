@@ -18,6 +18,28 @@ import type { FirestoreLike } from '../../common/firestore/firestore-like';
 export class DailyAdjustedReader {
   constructor(private readonly db: FirestoreLike) {}
 
+  /** CompactBar → DailyAdjustedBar, or null when the bar isn't usable engine
+   *  input (interim barStatus, missing/non-finite h/l/c). */
+  private static toBar(b: CompactBar): DailyAdjustedBar | null {
+    const { h, l, c } = b;
+    if (b.barStatus !== undefined && b.barStatus !== 1) return null;
+    if (h === undefined || l === undefined || c === undefined) return null;
+    if (!Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(c)) return null;
+    return {
+      date: b.d ?? new Date(b.t).toISOString().slice(0, 10),
+      open: b.o ?? c,
+      high: h,
+      low: l,
+      close: c,
+      // ac is dividend-adjusted close; fall back to split-adjusted c
+      // (the sa-time-series collection is already split-adjusted).
+      adjustedClose: b.ac ?? c,
+      volume: b.v ?? 0,
+      dividendAmount: b.dv ?? 0,
+      splitCoefficient: b.sc ?? 1,
+    };
+  }
+
   async read(symbol: string): Promise<DailyAdjustedBar[]> {
     const yearsPath = getSymbolTimeSeriesYearsCollectionPath(
       symbol,
@@ -30,29 +52,34 @@ export class DailyAdjustedReader {
     for (const yearDoc of snap.docs) {
       const compact = (yearDoc.data() as { bars?: CompactBar[] }).bars ?? [];
       for (const b of compact) {
-        const { h, l, c } = b;
-        // Skip interim (PRE/in-progress) bars and finalized bars with
-        // missing prices — neither is valid engine input.
-        if (b.barStatus !== undefined && b.barStatus !== 1) continue;
-        if (h === undefined || l === undefined || c === undefined) continue;
-        if (!Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(c)) continue;
-        bars.push({
-          date: b.d ?? new Date(b.t).toISOString().slice(0, 10),
-          open: b.o ?? c,
-          high: h,
-          low: l,
-          close: c,
-          // ac is dividend-adjusted close; fall back to split-adjusted c
-          // (the sa-time-series collection is already split-adjusted).
-          adjustedClose: b.ac ?? c,
-          volume: b.v ?? 0,
-          dividendAmount: b.dv ?? 0,
-          splitCoefficient: b.sc ?? 1,
-        });
+        const bar = DailyAdjustedReader.toBar(b);
+        if (bar != null) bars.push(bar);
       }
     }
     bars.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     return bars;
+  }
+
+  /**
+   * Single-date read — fetches only the target year shard (not the whole
+   * history) and applies the same interim/missing-field filters as `read`.
+   * Returns null when the date isn't present as a finalized bar.
+   */
+  async readDate(symbol: string, date: string): Promise<DailyAdjustedBar | null> {
+    const yearsPath = getSymbolTimeSeriesYearsCollectionPath(
+      symbol,
+      AlphaVantageEndpoint.TIME_SERIES_DAILY_ADJUSTED,
+      ApiProvider.ALPHA_VANTAGE,
+    );
+    const snap = await this.db.collection(yearsPath).doc(date.slice(0, 4)).get();
+    if (!snap.exists) return null;
+
+    const compact = ((snap.data() as { bars?: CompactBar[] } | undefined)?.bars) ?? [];
+    for (const b of compact) {
+      const bar = DailyAdjustedReader.toBar(b);
+      if (bar != null && bar.date === date) return bar;
+    }
+    return null;
   }
 
   /** Map a DailyAdjustedBar to the engine's PriceBar (adjustedClose → close). */

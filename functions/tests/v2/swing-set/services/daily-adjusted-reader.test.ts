@@ -150,3 +150,65 @@ describe('DailyAdjustedReader', () => {
     expect(await reader.read('AAPL')).toEqual([]);
   });
 });
+
+describe('DailyAdjustedReader.readDate', () => {
+  /** Minimal doc-level fake: collection().doc(year).get() → that doc's data. */
+  function docFakeFirestore(years: Record<string, CompactBar[]>): FirestoreLike {
+    return {
+      collection(_path: string) {
+        return {
+          doc: (id: string) => ({
+            get: async () => {
+              const bars = years[id];
+              return { exists: bars !== undefined, id, data: () => (bars === undefined ? undefined : { bars }) };
+            },
+            set: async () => undefined,
+            delete: async () => undefined,
+          }),
+          where: (_f: string, _o: string, _v: unknown) => ({ get: async () => ({ docs: [], empty: true, size: 0 }) }),
+          get: async () => ({ docs: [], empty: true, size: 0 }),
+        };
+      },
+    };
+  }
+
+  function readerWith(years: Record<string, CompactBar[]>) {
+    const { DailyAdjustedReader } = require('../../../../src/v2/swing-set/services/daily-adjusted-reader.service');
+    return new DailyAdjustedReader(docFakeFirestore(years));
+  }
+
+  it('returns the bar for the requested date', async () => {
+    const reader = readerWith({ '2024': [makeCompactBar('2024-01-04'), makeCompactBar('2024-01-05')] });
+    const bar = await reader.readDate('AAPL', '2024-01-05');
+    expect(bar?.date).toBe('2024-01-05');
+    expect(bar?.close).toBe(102);
+  });
+
+  it('returns null when the date or year doc is absent', async () => {
+    const reader = readerWith({ '2024': [makeCompactBar('2024-01-05')] });
+    expect(await reader.readDate('AAPL', '2024-01-06')).toBeNull();
+    expect(await reader.readDate('AAPL', '2025-01-06')).toBeNull();
+  });
+
+  it('skips interim bars (barStatus !== 1)', async () => {
+    const reader = readerWith({ '2024': [makeCompactBar('2024-01-05', { barStatus: 0 })] });
+    expect(await reader.readDate('AAPL', '2024-01-05')).toBeNull();
+  });
+
+  it('only touches the target year doc', async () => {
+    let askedFor = '';
+    const db: FirestoreLike = {
+      collection: () => ({
+        doc: (id: string) => {
+          askedFor = id;
+          return { get: async () => ({ exists: true, id, data: () => ({ bars: [makeCompactBar('2024-01-05')] }) }), set: async () => undefined, delete: async () => undefined };
+        },
+        where: () => ({ get: async () => ({ docs: [], empty: true, size: 0 }) }),
+        get: async () => ({ docs: [], empty: true, size: 0 }),
+      }),
+    };
+    const { DailyAdjustedReader } = require('../../../../src/v2/swing-set/services/daily-adjusted-reader.service');
+    await new DailyAdjustedReader(db).readDate('AAPL', '2024-01-05');
+    expect(askedFor).toBe('2024');
+  });
+});
