@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-26]
 
 ### Added
+- [IV Time Series] 158-171_BE-IMPL-OPTIONS-DATA: Seed-worker metric compute hook — `metrics` seam on SeedWorkerDependencies runs computeForDate on every confirmed-present path (fresh write, 412 alreadyExists, gcs-hit, already-recorded) with warn-swallow + outcome logging; pre-floor (pre-2019) date gate
+- [IV Time Series] 158-171_DOCS-OPTIONS-DATA: Code review (3 rounds, PASS) + UAT for the seed-worker hook
 - [IV Time Series] 158-170_BE-IMPL-OPTIONS-DATA: Symbol-metrics repository + computeForDate — year-shard upsert via mergeFields (per-date replace, sibling-safe), MetricBuildService pipeline (corpus → close → registry → write), DailyAdjustedReader.readDate single-shard lookup, faithful deep-merge + mergeFields test fake, mutating prod verify script
 - [IV Time Series] 158-170_DOCS-OPTIONS-DATA: Code review (4 rounds, PASS) + UAT for the repository + computeForDate task
 - [IV Time Series] 158-169_BE-IMPL-OPTIONS-DATA: IV30 metric computer + registry — pure OTM-side strike bracketing + total-variance interpolation to the 30d tenor with nearest fallback; MetricComputer contract + METRIC_REGISTRY; read-only prod verify script
