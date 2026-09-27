@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-26]
 
 ### Added
+- [IV Time Series] 158-169_BE-IMPL-OPTIONS-DATA: IV30 metric computer + registry — pure OTM-side strike bracketing + total-variance interpolation to the 30d tenor with nearest fallback; MetricComputer contract + METRIC_REGISTRY; read-only prod verify script
+- [IV Time Series] 158-169_SHARED-IMPL-OPTIONS-DATA: Deduped TimestampLike (canonical shared/firestore import); iv30Contracts docstring clarified to contributing-expiration depth signal
+- [IV Time Series] 158-169_DOCS-OPTIONS-DATA: Code review (4 rounds, PASS) + UAT + verify guide for the IV30 computer task; Thread-163 IV-rank PRD
 - [IV Time Series] 158-168_SHARED-IMPL-OPTIONS-DATA: Symbol-metrics contract types + field registry — SymbolMetricDayEntry/YearDoc/IvMetricsRow/TimestampLike, SYMBOL_METRIC_FIELDS whitelist, year-shard path constants; unit tests + verify script registered in run-all
 - [IV Time Series] 158-168_DOCS-OPTIONS-DATA: Thread-159 docs — PRD, IMPL/TEST pairs (BE+SHARED), code review, UAT; CONTEXT.md glossary (Symbol IV Series, IV30)
 - [Swing-Driven Options Corpus] 102-155_BE-IMPL-OPTIONS-DATA: Pivot-source corpus backfill — triggerHistoricalOptionsPilot dateSource:'pivots' plans per-symbol dates from swing docs, per-symbol report, chunked diff+dispatch, kind-stamped seeds
