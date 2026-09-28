@@ -208,38 +208,66 @@ export class OptionsIndexWriter {
    * Used by the time-series builder after each file write.
    */
   async upsertContract(symbol: string, contractId: string): Promise<void> {
-    const parsed = parseContractForIndex(symbol, contractId);
-    if (!parsed) return;
+    await this.upsertContracts(symbol, [contractId]);
+  }
 
+  /**
+   * Aggregated variant of {@link upsertContract}: groups contract IDs by
+   * expiration and strike and writes each index doc once per call. One write
+   * per distinct expiration/strike rather than three writes per contract.
+   */
+  async upsertContracts(symbol: string, contractIds: string[]): Promise<void> {
     const upperSymbol = symbol.toUpperCase();
+    const contracts: ParsedContract[] = [];
+    for (const id of contractIds) {
+      const parsed = parseContractForIndex(upperSymbol, id);
+      if (parsed) contracts.push(parsed);
+    }
+    if (contracts.length === 0) return;
+
+    const byExpiration = new Map<string, ParsedContract[]>();
+    const byStrike = new Map<number, ParsedContract[]>();
+    for (const c of contracts) {
+      const expList = byExpiration.get(c.expiration) ?? [];
+      expList.push(c);
+      byExpiration.set(c.expiration, expList);
+
+      const strikeList = byStrike.get(c.strike) ?? [];
+      strikeList.push(c);
+      byStrike.set(c.strike, strikeList);
+    }
+
     const symbolDocRef = this.db.collection(OPTIONS_FILE_INDEX_COLLECTION).doc(upperSymbol);
+    const writes: Promise<unknown>[] = [];
 
-    // arrayUnion is idempotent — no need to read-then-check-then-write.
-    await Promise.all([
-      symbolDocRef
-        .collection(TS_EXPIRATIONS_SUBCOLLECTION)
-        .doc(parsed.expiration)
-        .set({
-          strikes: FieldValue.arrayUnion(parsed.strike),
-          types: FieldValue.arrayUnion(parsed.type),
-          contractIds: FieldValue.arrayUnion(parsed.contractId),
+    for (const [date, list] of byExpiration) {
+      writes.push(
+        symbolDocRef.collection(TS_EXPIRATIONS_SUBCOLLECTION).doc(date).set({
+          strikes: FieldValue.arrayUnion(...new Set(list.map((c) => c.strike))),
+          types: FieldValue.arrayUnion(...new Set(list.map((c) => c.type))),
+          contractIds: FieldValue.arrayUnion(...list.map((c) => c.contractId)),
         }, { merge: true }),
+      );
+    }
 
-      symbolDocRef
-        .collection(TS_STRIKES_SUBCOLLECTION)
-        .doc(String(parsed.strike))
-        .set({
-          expirations: FieldValue.arrayUnion(parsed.expiration),
-          types: FieldValue.arrayUnion(parsed.type),
-          contractIds: FieldValue.arrayUnion(parsed.contractId),
+    for (const [strike, list] of byStrike) {
+      writes.push(
+        symbolDocRef.collection(TS_STRIKES_SUBCOLLECTION).doc(String(strike)).set({
+          expirations: FieldValue.arrayUnion(...new Set(list.map((c) => c.expiration))),
+          types: FieldValue.arrayUnion(...new Set(list.map((c) => c.type))),
+          contractIds: FieldValue.arrayUnion(...list.map((c) => c.contractId)),
         }, { merge: true }),
-    ]);
+      );
+    }
 
-    // Update metadata doc
-    await symbolDocRef.set({
-      symbol: upperSymbol,
-      lastUpdated: new Date().toISOString(),
-    }, { merge: true });
+    writes.push(
+      symbolDocRef.set({
+        symbol: upperSymbol,
+        lastUpdated: new Date().toISOString(),
+      }, { merge: true }),
+    );
+
+    await Promise.all(writes);
   }
 
   private buildExpirationDoc(date: string, contracts: ParsedContract[]): ExpirationIndexDoc {
