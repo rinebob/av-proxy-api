@@ -3,9 +3,11 @@
 ## What this verifies
 
 The compiled `@shared/options` package exposes the symbol-metrics contract:
-path constants (`symbol-metrics` / `years`), `SYMBOL_METRIC_FIELDS` whitelist
-(`iv30`, `iv30Method`, `iv30Contracts`), and that a `SymbolMetricsYearDoc` +
-`IvMetricsRow` assemble and survive JSON round-trip.
+path constants (`symbol-metrics` / `years`), the `SYMBOL_METRIC_FIELDS`
+whitelist (iv30 fields + the Thread #163 rank fields `ivRank{W}`/`ivPct{W}`/
+`ivN{W}` for W ∈ {30,60,180,360}), `IV_RANK_WINDOWS`, `IV_RANK_LATEST_COLLECTION`,
+and that `SymbolMetricsYearDoc` + `IvMetricsRow` + `IvRankLatestDoc` assemble
+and survive JSON round-trip.
 
 ## Scripts
 
@@ -23,7 +25,7 @@ npx ts-node -r tsconfig-paths/register -P scripts/tsconfig.json \
 
 ## Passing result
 
-Six `PASS` lines then `=== All verification checks passed ===` (exit 0).
+Nine `PASS` lines then `=== All verification checks passed ===` (exit 0).
 
 ## Failing result
 
