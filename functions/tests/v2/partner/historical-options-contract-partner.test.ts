@@ -47,6 +47,7 @@ function buildDeps(overrides: Partial<PartnerHistoricalOptionsContractDependenci
     getGcs: jest.fn().mockReturnValue({ adapter: { readLines }, bucket } as unknown as GcsAdapterPair) as unknown as PartnerHistoricalOptionsContractDependencies['getGcs'],
     randomUUID: jest.fn().mockReturnValue(FIXED_UUID) as unknown as PartnerHistoricalOptionsContractDependencies['randomUUID'],
     now: jest.fn().mockReturnValue(FIXED_NOW) as unknown as PartnerHistoricalOptionsContractDependencies['now'],
+    isOptionsEnabled: jest.fn().mockResolvedValue(true),
   };
   return { ...baseDeps, ...overrides };
 }
@@ -282,10 +283,10 @@ describe('partnerHistoricalOptionsContractHandler', () => {
     expect(res.json.mock.calls[0][0].code).toBe('INTERNAL_ERROR');
   });
 
-  it('returns 400 for a disallowed symbol', async () => {
+  it('returns 400 for a non-options-enabled symbol', async () => {
     const req = createRequest({ query: { symbol: 'MSFT', contractID: 'MSFT240719C00450000' } });
     const res = mockResponse();
-    const deps = buildDeps();
+    const deps = buildDeps({ isOptionsEnabled: jest.fn().mockResolvedValue(false) });
 
     await partnerHistoricalOptionsContractHandler(req as unknown as Request, res as unknown as Response, deps);
 

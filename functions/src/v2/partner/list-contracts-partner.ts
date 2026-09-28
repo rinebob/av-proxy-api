@@ -7,10 +7,10 @@ import { queryContractsByFilters } from '../historical-options-corpus/services/o
 import { authenticateRequestEither, createLogger, db } from '../utils/utils';
 import { HistoricalOptionsErrorCode } from './historical-options-request.utils';
 import {
-  ALLOWED_SYMBOLS,
   allowedServiceAccounts,
   expectedGoogleAudience,
 } from './partner-handler-base';
+import { createOptionsEnabledChecker } from '../historical-options-corpus/services/options-enabled-gate';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -26,6 +26,8 @@ const functionOptions: HttpsOptions = {
 export interface PartnerListContractsDependencies {
   authenticateRequest: typeof authenticateRequestEither;
   now: () => Date;
+  /** Override for testing. Defaults to the Firestore optionsEnabled gate. */
+  isOptionsEnabled?: (symbol: string) => Promise<boolean>;
 }
 
 function toFirstString(value: unknown): string {
@@ -114,11 +116,14 @@ export async function partnerListContractsHandler(
       return;
     }
 
-    if (!ALLOWED_SYMBOLS.has(symbol)) {
-      logger.warn('partnerListContracts.symbol_not_allowed', { requestId, symbol });
+    // Task #150 gate replaces the pilot-era ALLOWED_SYMBOLS list — the served
+    // universe is exactly the curated options-enabled set.
+    const isOptionsEnabled = dependencies.isOptionsEnabled ?? createOptionsEnabledChecker();
+    if (!(await isOptionsEnabled(symbol))) {
+      logger.warn('partnerListContracts.symbol_not_enabled', { requestId, symbol });
       res.status(400).json({
         ok: false,
-        error: `Symbol ${symbol} is not supported. Allowed symbols: ${[...ALLOWED_SYMBOLS].join(', ')}`,
+        error: `Symbol ${symbol} is not supported (optionsEnabled not set)`,
         code: HistoricalOptionsErrorCode.BAD_REQUEST,
         timestamp: dependencies.now().toISOString(),
       });

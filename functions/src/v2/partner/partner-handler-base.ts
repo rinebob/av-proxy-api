@@ -10,16 +10,12 @@ import { getStorage } from 'firebase-admin/storage';
 import { defineSecret } from 'firebase-functions/params';
 
 import { GcsTimeSeriesAdapter } from '../historical-options-corpus/services/gcs-time-series-adapter.service';
-import { ALLOWED_SYMBOLS } from '@shared/core';
+import { optionsTimeSeriesBucket } from '../historical-options-corpus/types';
 
 // ── Secrets ─────────────────────────────────────────────────────────────────
 
 export const allowedServiceAccounts = defineSecret('ALLOWED_SERVICE_ACCOUNT_EMAILS');
 export const expectedGoogleAudience = defineSecret('EXPECTED_GOOGLE_AUDIENCE');
-
-// ── Constants ───────────────────────────────────────────────────────────────
-
-export { ALLOWED_SYMBOLS };
 
 // ── GCS adapter factory ─────────────────────────────────────────────────────
 
@@ -29,14 +25,10 @@ export interface GcsAdapterPair {
 }
 
 /**
- * Creates a `GcsAdapterPair` from the `OPTIONS_TIME_SERIES_BUCKET` env var.
- * Throws if the env var is not configured.
+ * Creates a `GcsAdapterPair` for the time-series bucket — `OPTIONS_TIME_SERIES_BUCKET`
+ * env override or the fixed prod bucket default.
  */
 export function defaultGetGcs(): GcsAdapterPair {
-  const bucketName = process.env.OPTIONS_TIME_SERIES_BUCKET;
-  if (!bucketName) {
-    throw new Error('OPTIONS_TIME_SERIES_BUCKET environment variable is not configured');
-  }
-  const bucket = getStorage().bucket(bucketName);
+  const bucket = getStorage().bucket(optionsTimeSeriesBucket());
   return { adapter: new GcsTimeSeriesAdapter(bucket), bucket };
 }

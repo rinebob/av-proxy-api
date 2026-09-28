@@ -46,6 +46,7 @@ function buildDeps(overrides: Partial<PartnerContractCatalogDependencies> = {}):
     authenticateRequest: jest.fn().mockResolvedValue({ serviceAccountEmail: 'svc@example.com' }) as unknown as PartnerContractCatalogDependencies['authenticateRequest'],
     now: jest.fn().mockReturnValue(FIXED_NOW) as unknown as PartnerContractCatalogDependencies['now'],
     queryServiceFactory: () => createMockQueryService(),
+    isOptionsEnabled: jest.fn().mockResolvedValue(true),
   };
   return { ...baseDeps, ...overrides };
 }
