@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-27]
 
 ### Added
+- [IV time series] 158-185_SHARED-IMPL-OPTIONS-DATA: IV rank field contract — ivRank/ivPct/ivN per 30/60/180/360d windows + iv-rank-latest doc type; flows through partnerIvMetricsV2 metrics=
 - [Swing-driven options corpus platform] 102-181_BE-IMPL-OPTIONS-DATA: Range ts-build tasks + per-symbol lease + continuation (checkpoint)
 - [Swing-driven options corpus platform] 102-181_BE-IMPL-OPTIONS-DATA: Enforce 2019-01-01 corpus floor everywhere (checkpoint)
 - [Swing-driven options corpus platform] 102-181_BE-IMPL-OPTIONS-DATA: Gate options partner endpoints on optionsEnabled (checkpoint)
