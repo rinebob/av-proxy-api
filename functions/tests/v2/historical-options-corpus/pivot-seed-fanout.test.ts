@@ -155,7 +155,23 @@ describe('fanoutPivotSeeds', () => {
     expect(result.deleted).toBe(0);
     expect(result.enqueued).toBe(2); // 01-05 + 04-01 both missing; failed delete didn't block dispatch
     expect(tasks.map((t) => t.date)).toEqual(['2026-01-05', '2026-04-01']);
-    expect(deps.logger.warn).toHaveBeenCalledWith(expect.stringContaining('interim delete failed'));
+    expect(deps.logger.warn).toHaveBeenCalledWith(expect.stringContaining('delete failed'));
+  });
+
+  it('deletes pre-floor (pre-2019) objects regardless of provenance', async () => {
+    const { deps, deleted } = makeDeps(
+      [swingDoc(['2026-01-05'])],
+      [
+        { date: '2008-09-19', kind: 'confirmed' }, // pre-floor, confirmed → still deleted
+        { date: '2001-07-10', kind: undefined },   // pre-floor, no stamp → still deleted
+        { date: '2018-12-24', kind: 'interim' },   // pre-floor interim → deleted
+        { date: '2019-06-14', kind: undefined },   // post-floor unstamped → kept
+        { date: '2026-01-05', kind: 'confirmed' }, // covered → kept
+      ],
+    );
+    const result = await fanoutPivotSeeds('AAPL', deps);
+    expect(deleted.sort()).toEqual(['2001-07-10', '2008-09-19', '2018-12-24']);
+    expect(result.deleted).toBe(3);
   });
 
   it('normalizes the symbol', async () => {

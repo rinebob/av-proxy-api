@@ -10,6 +10,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { CORPUS_SWEEP_SCHEDULE } from '../../common/function-schedules';
 import { runCorpusSweep } from '../services/corpus-sweep.core';
+import { createNightlyCorpusService } from '../services/nightly-corpus.service';
 import { listOptionsEnabledSymbols } from '../services/options-enabled-gate';
 import { fanoutPivotSeedsForSymbol } from '../services/pivot-seed-fanout';
 
@@ -22,6 +23,17 @@ export const sweepHistoricalOptionsCorpus = onSchedule(
     maxInstances: 1,
   },
   async () => {
+    // Nightly-miss heal: the 19:00 nightly run is the only path that seeds
+    // today's chain for every enabled symbol (pivot-independent). Re-running
+    // it here is idempotent — covered items are skipped — so a failed nightly
+    // is repaired before the pivot reconcile pass below.
+    try {
+      const nightly = await createNightlyCorpusService().run();
+      console.log('[sweepHistoricalOptionsCorpus] nightly-heal', JSON.stringify(nightly));
+    } catch (e) {
+      console.warn(`[sweepHistoricalOptionsCorpus] nightly-heal failed — ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const report = await runCorpusSweep({
       listOptionsEnabledSymbols,
       reconcile: (symbol) => fanoutPivotSeedsForSymbol(symbol),

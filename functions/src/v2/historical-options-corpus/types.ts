@@ -105,6 +105,29 @@ export const OPTIONS_CORPUS_SEED_TASK_QUEUE = 'processHistoricalOptionsCorpusSee
 /** Canonical GCS object prefix for the corpus. */
 export const HISTORICAL_OPTIONS_CORPUS_PREFIX = 'historical-options/v1';
 
+/**
+ * Earliest date the options corpus seeds/builds. SA carries swing data back
+ * to ~1999, but the front-end only consumes 2019+ — pre-floor dates cost a
+ * rate-limited AV fetch and a GCS write nobody reads. Enforced at the pivot
+ * planner, the seed worker, and the ts-build task.
+ */
+export const OPTIONS_CORPUS_FLOOR_DATE = '2019-01-01';
+
+// Single fixed buckets — env override only for non-prod testing. The bucket
+// name is config, not a secret; it's already in firebase.json storage rules.
+export const DEFAULT_OPTIONS_CORPUS_BUCKET = 'av-hist-options-corpus-bucket';
+export const DEFAULT_OPTIONS_TIME_SERIES_BUCKET = 'av-options-time-series-bucket';
+
+/** Corpus bucket name — `OPTIONS_CORPUS_BUCKET` env override or the prod default. */
+export function optionsCorpusBucket(): string {
+  return process.env.OPTIONS_CORPUS_BUCKET ?? DEFAULT_OPTIONS_CORPUS_BUCKET;
+}
+
+/** Time-series bucket name — `OPTIONS_TIME_SERIES_BUCKET` env override or default. */
+export function optionsTimeSeriesBucket(): string {
+  return process.env.OPTIONS_TIME_SERIES_BUCKET ?? DEFAULT_OPTIONS_TIME_SERIES_BUCKET;
+}
+
 /** Firestore root collection for corpus runs. */
 export const OPTIONS_CORPUS_RUNS_COLLECTION = 'options_corpus_runs';
 

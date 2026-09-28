@@ -89,6 +89,16 @@ describe('planPivotSeeds', () => {
     expect(await planPivotSeeds('NODOC', planner([]))).toEqual([]);
   });
 
+  it('drops pre-floor (pre-2019) pivot dates — FE never consumes them', async () => {
+    const docs = [
+      doc({ pivotDates: ['1999-12-01', '2019-01-02', '2008-09-19'], currentExtremeDate: '2001-07-10' }),
+    ];
+    const items = await planPivotSeeds('AAPL', planner(docs));
+    expect(items).toEqual([
+      { symbol: 'AAPL', date: '2019-01-02', kind: 'confirmed' },
+    ] satisfies PivotWorkItem[]);
+  });
+
   it('uppercases the symbol', async () => {
     const deps = planner([]);
     await planPivotSeeds('aapl', deps);

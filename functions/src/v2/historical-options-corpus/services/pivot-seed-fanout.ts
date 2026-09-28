@@ -2,8 +2,10 @@ import { getFunctions } from 'firebase-admin/functions';
 import { getStorage } from 'firebase-admin/storage';
 
 import {
+  OPTIONS_CORPUS_FLOOR_DATE,
   OPTIONS_CORPUS_RUNS_COLLECTION,
   OPTIONS_CORPUS_SEED_TASK_QUEUE,
+  optionsCorpusBucket,
   type CorpusRunDoc,
   type CorpusSeedPayload,
 } from '../types';
@@ -54,7 +56,8 @@ export interface PivotSeedFanoutDeps {
  *    whose date is no longer in the planned set. Confirmed pivots never leave
  *    `pivotDates` (the array is unbounded), so a planned-set exit can only be
  *    a superseded interim; objects without a kind stamp (nightly/pilot
- *    provenance) are never touched.
+ *    provenance) are never touched — EXCEPT pre-floor objects, which are
+ *    deleted regardless of provenance (the 2019 corpus floor is absolute).
  *
  * Coverage-skipped items produce no task at all (previously the worker's
  * gcs-hit skip absorbed the dupe — now nothing is dispatched). Each
@@ -80,16 +83,22 @@ export async function fanoutPivotSeeds(
   const plannedDates = new Set(items.map((i) => i.date));
 
   const missing = items.filter((i) => !covered.has(i.date));
-  const superseded = objects.filter((o) => o.kind === 'interim' && !plannedDates.has(o.date));
+  // Delete set: pre-floor objects (any provenance — the floor is absolute) +
+  // superseded interims. A pre-floor interim satisfies both; it appears once.
+  const toDelete = objects.filter(
+    (o) => o.date < OPTIONS_CORPUS_FLOOR_DATE
+      || (o.kind === 'interim' && !plannedDates.has(o.date)),
+  );
 
   let deleted = 0;
-  for (const stale of superseded) {
+  for (const stale of toDelete) {
+    const reason = stale.date < OPTIONS_CORPUS_FLOOR_DATE ? 'pre-floor' : 'superseded interim';
     try {
       await deps.deleteObject(upper, stale.date);
       deleted++;
-      deps.logger.info(`pivot-seed-fanout: ${upper} deleted superseded interim ${stale.date}`);
+      deps.logger.info(`pivot-seed-fanout: ${upper} deleted ${reason} ${stale.date}`);
     } catch (e) {
-      deps.logger.warn(`pivot-seed-fanout: ${upper} interim delete failed for ${stale.date} — ${e instanceof Error ? e.message : String(e)}`);
+      deps.logger.warn(`pivot-seed-fanout: ${upper} delete failed for ${stale.date} (${reason}) — ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -135,7 +144,7 @@ export async function fanoutPivotSeeds(
 export function createPivotSeedFanoutDeps(): PivotSeedFanoutDeps {
   const metadata = new CorpusMetadataService();
   const gcs = new GcsCorpusAdapter(
-    getStorage().bucket(process.env.OPTIONS_CORPUS_BUCKET),
+    getStorage().bucket(optionsCorpusBucket()),
   );
   return {
     planner: createPivotPlannerDeps(),

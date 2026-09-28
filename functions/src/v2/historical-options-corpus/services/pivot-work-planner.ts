@@ -3,6 +3,7 @@ import type { SwingSetDoc } from '@shared/zigzag';
 import { db } from '../../../firebase-admin-init';
 import { SwingSetRepository } from '../../swing-set/services/swing-set.repository';
 import type { FirestoreLike } from '../../common/firestore/firestore-like';
+import { OPTIONS_CORPUS_FLOOR_DATE } from '../types';
 
 /**
  * One corpus work item: a (symbol, date) snapshot the options corpus should
@@ -50,8 +51,12 @@ export async function planPivotSeeds(
   const confirmed = new Set<string>();
   const interim = new Set<string>();
   for (const doc of docs) {
-    for (const date of doc.pivotDates ?? []) confirmed.add(date);
-    if (doc.currentExtremeDate && !confirmed.has(doc.currentExtremeDate)) {
+    for (const date of doc.pivotDates ?? []) {
+      // Corpus floor (2019-01-01): swing data reaches ~1999 but pre-floor
+      // pivots would only burn a rate-limited AV fetch — FE never reads them.
+      if (date >= OPTIONS_CORPUS_FLOOR_DATE) confirmed.add(date);
+    }
+    if (doc.currentExtremeDate && doc.currentExtremeDate >= OPTIONS_CORPUS_FLOOR_DATE && !confirmed.has(doc.currentExtremeDate)) {
       interim.add(doc.currentExtremeDate);
     }
   }

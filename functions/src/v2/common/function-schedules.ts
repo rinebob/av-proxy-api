@@ -78,8 +78,8 @@ export const TS_DAILY_POST_MORNING_CATCHUP_0700 = '0 4 * * 1-5';
 /**
  * Nightly historical-options corpus maintenance.
  *
- * Purpose: enqueue QQQ and TQQQ completed-trading-day corpus items after the
- * existing 6:00 PM Pacific Alpha Vantage run.
+ * Purpose: enqueue the completed-trading-day corpus item for every
+ * optionsEnabled symbol after the existing 6:00 PM Pacific Alpha Vantage run.
  * Cron: 0 19 * * 1-5 (7:00 PM Pacific, weekdays)
  * Timezone: America/Los_Angeles (set at function registration).
  */
