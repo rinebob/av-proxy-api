@@ -3,6 +3,20 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-09-27]
+
+### Added
+- [Swing-driven options corpus platform] 102-181_BE-IMPL-OPTIONS-DATA: Range ts-build tasks + per-symbol lease + continuation (checkpoint)
+- [Swing-driven options corpus platform] 102-181_BE-IMPL-OPTIONS-DATA: Enforce 2019-01-01 corpus floor everywhere (checkpoint)
+- [Swing-driven options corpus platform] 102-181_BE-IMPL-OPTIONS-DATA: Gate options partner endpoints on optionsEnabled (checkpoint)
+- [Swing-driven options corpus platform] 102-181_BE-IMPL-OPTIONS-DATA: Batch options-index upserts by expiration/strike (checkpoint)
+- [Swing-driven options corpus platform] 102-181_BE-IMPL-OPTIONS-DATA: ETF fallback in partnerCompanyOverview (checkpoint)
+- [Swing-driven options corpus platform] 102-181_DOCS-OPTIONS-DATA: Canonical docs + runbooks (checkpoint)
+
+### Changed
+- [Swing-driven options corpus platform] 102-181_SHARED-CHORE-OPTIONS-DATA: Re-scope ALLOWED_SYMBOLS doc + corpus bucket helpers (checkpoint)
+- [Swing-driven options corpus platform] 102-181_BE-CHORE-OPTIONS-DATA: Diagnostics scripts (checkpoint)
+
 ## [2026-09-26]
 
 ### Added
