@@ -54,17 +54,19 @@ History lands as fields on the existing `symbol-metrics` day entries; a flat top
 
 ## Implementation Decisions
 
-- **Metrics are second-order computers** in the Thread #159 registry: `ivRank{W}` and `ivPct{W}` for W ∈ {30, 60, 180, 360}, computed over the symbol's IV30 series — not over the raw chain. Distinct fields so both definitions are always available.
-- **Windows are calendar-day-based** back from the observation date, evaluated over corpus-covered dates (which are also the IV series' dates). Every windowed value carries `n` (sample count) — always emitted, flagged rather than suppressed when immature; the screener applies a min-`n` filter by default.
-- **Storage** (decided): rank/percentile fields ride on the same `symbol-metrics/{SYMBOL}/years/{YYYY}` day entries from Thread #159 — same write pass, same lifecycle. A flat top-level **`iv-rank-latest/{SYMBOL}`** doc per symbol (`{symbol, ivr30, ivr60, ivr180, ivr360, ivp30, ivp60, ivp180, ivp360, n*, updatedAt}`) supports the sortable cross-symbol table with a single `where`/`orderBy` query.
-- **Density** (decided): forward-only for enabled symbols — no dedicated IVR backfill. Ad-hoc densification (e.g., a year of chains per enabled symbol) reuses the existing corpus seed machinery; AV is the historical source (Robinhood's API is unofficial and believed current-only — verify before relying on it).
-- **Serving surface**: the screening table endpoint (sortable by any metric, min-`n` filter) plus series/point reads on the Thread #159 endpoint now carrying the IVR fields.
+- **Separate IVR pass** (decided 2026-09-27): IV30 lands via `MetricBuildService.computeForDate`; a second pass (`RankBuildService`) reads the symbol's trailing IV30 rows from the year-shard docs and writes rank fields onto the same day entry + updates `iv-rank-latest`. Two writes per day — keeps the Thread #159 metric-registry seam (chain → fields) untouched.
+- **IVR computers** are second-order: `ivRank{W}` and `ivPct{W}` for W ∈ {30, 60, 180, 360}, computed over the symbol's IV30 series — not over the raw chain. Distinct fields so both definitions are always available.
+- **Windows are calendar-day-based** (confirmed 2026-09-27) back from the observation date, evaluated over corpus-covered dates — i.e., over the IV30 rows present in the trailing W-day span. Every windowed value carries `n` (sample count) — always emitted, flagged rather than suppressed when immature; the screener applies a min-`n` filter by default.
+- **Storage** (decided): rank/percentile fields ride on the same `symbol-metrics/{SYMBOL}/years/{YYYY}` day entries from Thread #159 — same lifecycle. A flat top-level **`iv-rank-latest/{SYMBOL}`** doc per symbol (`{symbol, asOfDate, ivRank{W}, ivPct{W}, ivN{W} for W ∈ {30,60,180,360}, updatedAt}` — same field names as the day entries) supports the sortable cross-symbol table with a single `where`/`orderBy` query.
+- **Latest-only freshness** (decided 2026-09-27): a day entry's rank fields are frozen at write time ("rank-as-of-that-day under then-known coverage"). When the 360-day corpus backfill inserts older IV30 rows, historical ranks are NOT recomputed; only the newest day's rank and `iv-rank-latest` reflect full coverage. This keeps the pass stateless-per-date; an explicit recompute task can be added later if stale-window ranks prove to matter.
+- **Density** (decided): forward-only for enabled symbols — no dedicated IVR backfill. The inbound 360-day corpus backfill feeds both IV30 (via the #171 hook) and rank windows automatically as it lands.
+- **Serving surface**: new **`partnerIvRankV2`** table endpoint (decided 2026-09-27) — all enabled symbols' latest IVR/IVP per window, `?sort=`/`?minN=` params, reading `iv-rank-latest`. Series/point reads come free on `partnerIvMetricsV2` once `SYMBOL_METRIC_FIELDS` gains the rank fields.
 
 ## Testing Decisions
 
 - **Rank/percentile computers** — pure-function unit tests over synthetic IV series: known windows, boundary ties (IV ≤ vs <), constant series (rank 0/0-division guard), single-sample windows, immature windows with correct `n`.
-- **Builder integration** — fake-Firestore tests: day entries gain IVR fields in the same pass; `iv-rank-latest` doc written/updated; re-runs idempotent.
-- **Endpoint** — handler-seam tests: sort by each metric, min-`n` filtering, enabled-only membership, empty table.
+- **Rank pass integration** — fake-Firestore tests: the second pass reads trailing IV30 rows, day entries gain IVR fields, `iv-rank-latest` doc written/updated/deleted on disable; re-runs idempotent.
+- **Endpoints** — handler-seam tests: `partnerIvRankV2` sort-by-each-metric, min-`n` filtering, enabled-only membership, empty table; `partnerIvMetricsV2` carries the new rank fields in `metrics=` automatically.
 - **Verification script** — prod round-trip per `functions/scripts/verify/` convention.
 
 ## Technical Context
@@ -72,11 +74,13 @@ History lands as fields on the existing `symbol-metrics` day entries; a flat top
 - **Windows warm up over time.** A 30-day rank needs ~a month of coverage to be meaningful; a 360-day rank ~a year. `n` makes maturity explicit on every row.
 - **Sparse history skews windows** — pre-densification, a window's samples are pivot dates (vol-extreme dates), a biased sample; values remain computable but `n` and coverage honesty matter.
 - **Rank and percentile diverge by design** — rank is range-sensitive (one spike compresses later readings); percentile is outlier-robust. Both are stored so consumers choose.
+- **Historical ranks are point-in-time** — under latest-only freshness a stored `ivRank30` on an old date reflects the window known when it was written, not a recomputed window including later-backfilled data. The `iv-rank-latest` doc and today's day entry are always full-coverage.
 - Same end-of-day freshness as the IV series: a new point appears after the nightly corpus run.
 
 ## Out of Scope
 
 - Full dense history for arbitrary symbols (except via optional seed densification — existing machinery, operator action).
+- **Recompute of historical rank fields** after densification — latest-only by decision; an explicit recompute task is follow-on work if needed.
 - Alerting/notification on IVR thresholds — read-only table in v1.
 - IVR over metrics other than IV30 (e.g., per-tenor ranks) — registry-ready, follow-on.
 - Robinhood or other provider as a historical source.
