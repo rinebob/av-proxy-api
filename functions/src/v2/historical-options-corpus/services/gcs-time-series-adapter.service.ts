@@ -84,11 +84,6 @@ export class GcsTimeSeriesAdapter {
     const file = this.getFile(symbol, contractID);
 
     try {
-      const [exists] = await file.exists();
-      if (!exists) {
-        return undefined;
-      }
-
       const [buffer] = await file.download();
       return buffer
         .toString('utf8')
@@ -160,11 +155,10 @@ export class GcsTimeSeriesAdapter {
       );
     }
 
-    const [storedMetadata] = await file.getMetadata();
     return {
       gcsPath: path,
-      generation: String(storedMetadata?.generation ?? ''),
-      bytes: Number(storedMetadata?.size ?? 0),
+      generation: '',
+      bytes: Buffer.byteLength(content, 'utf8'),
     };
   }
 

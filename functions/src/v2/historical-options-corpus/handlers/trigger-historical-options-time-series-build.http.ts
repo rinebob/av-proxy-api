@@ -1,13 +1,15 @@
 import { defineSecret } from 'firebase-functions/params';
 import { onRequest } from 'firebase-functions/v2/https';
+import { getFunctions } from 'firebase-admin/functions';
 import type { Request, Response } from 'express';
 
 import { createLogger } from '../../utils/utils';
 import { withCors } from '../../utils/cors-middleware';
 import { createTimeSeriesBuilderService } from '../services/time-series-builder.service';
-import { createOptionsEnabledChecker } from '../services/options-enabled-gate';
+import { createOptionsEnabledChecker, listOptionsEnabledSymbols } from '../services/options-enabled-gate';
 import { TradingCalendarService } from '../services/trading-calendar.service';
 import { getYesterdayEt, isValidIsoDate } from '../../common/utils/date-time.utils';
+import { OPTIONS_TS_BUILD_TASK_QUEUE, type TsBuildPayload } from './ts-build.task';
 
 const logger = createLogger('historical-options-time-series-build-trigger');
 const timeSeriesBuildAdminSecret = defineSecret('HISTORICAL_OPTIONS_TIME_SERIES_ADMIN_SECRET');
@@ -18,6 +20,10 @@ interface TriggerTimeSeriesBuildBody {
   endDate?: string;
   execute?: boolean;
   contractID?: string;
+  /** Enqueue a per-symbol range task instead of building inline. */
+  enqueue?: boolean;
+  /** With enqueue: enqueue one range task for every options-enabled symbol. */
+  allSymbols?: boolean;
 }
 
 
@@ -87,14 +93,27 @@ export const triggerHistoricalOptionsTimeSeriesBuild = onRequest(
       const endDate = isValidIsoDate(body.endDate || '') ? body.endDate || '' : getYesterdayEt();
       const execute = typeof body.execute === 'boolean' ? body.execute : false;
       const contractID = typeof body.contractID === 'string' ? body.contractID.trim() || undefined : undefined;
+      const enqueue = body.enqueue === true;
+      const allSymbols = body.allSymbols === true;
 
-      if (!symbol) {
+      if (!symbol && !(enqueue && allSymbols)) {
         res.status(400).json({ ok: false, error: 'Missing required symbol' });
         return;
       }
 
       if (startDate > endDate) {
         res.status(400).json({ ok: false, error: 'startDate must be before or equal to endDate' });
+        return;
+      }
+
+      if (enqueue) {
+        const symbols = allSymbols ? await listOptionsEnabledSymbols() : [symbol];
+        const queue = getFunctions().taskQueue<TsBuildPayload>(OPTIONS_TS_BUILD_TASK_QUEUE);
+        await Promise.all(
+          symbols.map((s) => queue.enqueue({ symbol: s, startDate, endDate })),
+        );
+        logger.info('trigger_time_series_build.enqueued', { symbols, startDate, endDate });
+        res.status(200).json({ ok: true, enqueued: symbols.length, symbols, startDate, endDate });
         return;
       }
 

@@ -126,6 +126,62 @@ describe('TimeSeriesBuilderService', () => {
     expect(deps.logger).not.toHaveBeenCalledWith('builder.line.corrupt', expect.anything());
   });
 
+  it('skips the write entirely when all dates are already present', async () => {
+    const { deps } = createMockDeps();
+    deps.sourceGcs.readItem = jest.fn().mockResolvedValue({
+      status: 'FOUND',
+      response: makeResponse([{ ...contractA, date: '2026-01-02', last: '1.0' }]),
+    });
+    deps.targetGcs.readLines = jest.fn().mockResolvedValue([
+      JSON.stringify({ d: '2026-01-02', l: '1.0' }),
+    ]);
+
+    const service = new TimeSeriesBuilderService(deps);
+    const report = await service.buildSymbol('QQQ', '2026-01-02', '2026-01-02');
+
+    expect(report.foundDates).toBe(1);
+    expect(report.processedContracts).toBe(0);
+    expect((deps.targetGcs.writeLines as jest.Mock).mock.calls.length).toBe(0);
+  });
+
+  it('returns resumeDate and stops early when the deadline is exceeded', async () => {
+    const { deps } = createMockDeps();
+    deps.sourceGcs.readItem = jest.fn().mockResolvedValue({
+      status: 'FOUND',
+      response: makeResponse([contractA, contractB]),
+    });
+
+    const service = new TimeSeriesBuilderService(deps);
+    const report = await service.buildSymbol('QQQ', '2026-01-02', '2026-01-03', undefined, undefined, {
+      deadlineMs: Date.now() - 1,
+    });
+
+    expect(report.resumeDate).toBe('2026-01-02');
+    expect(report.foundDates).toBe(0);
+    expect((deps.targetGcs.writeLines as jest.Mock).mock.calls.length).toBe(0);
+  });
+
+  it('isolates a per-contract read failure — other contracts still write, task does not crash', async () => {
+    const { deps } = createMockDeps();
+    deps.sourceGcs.readItem = jest.fn().mockResolvedValue({
+      status: 'FOUND',
+      response: makeResponse([contractA, contractB]),
+    });
+    deps.targetGcs.readLines = jest.fn()
+      .mockRejectedValueOnce(new Error('socket hang up'))
+      .mockResolvedValue(undefined);
+
+    const service = new TimeSeriesBuilderService(deps);
+    const report = await service.buildSymbol('QQQ', '2026-01-02', '2026-01-02');
+
+    expect(report.failedContracts).toBe(1);
+    expect(report.processedContracts).toBe(1);
+    expect(report.errors[0].error).toContain('read:');
+    // Exactly one contract written — the read-failed one skipped, never
+    // written (that would discard its stored history).
+    expect((deps.targetGcs.writeLines as jest.Mock).mock.calls.length).toBe(1);
+  });
+
   it('logs and skips corrupt existing JSONL lines', async () => {
     const { deps } = createMockDeps();
     deps.sourceGcs.readItem = jest.fn().mockResolvedValue({

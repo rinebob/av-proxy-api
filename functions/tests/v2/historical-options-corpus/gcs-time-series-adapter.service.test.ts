@@ -93,7 +93,6 @@ describe('GcsTimeSeriesAdapter', () => {
     ]);
 
     expect(result.gcsPath).toBe('time-series/v1/QQQ/QQQ260116C00490000.jsonl');
-    expect(result.generation).toBe('1');
     expect(result.bytes).toBeGreaterThan(0);
   });
 
@@ -104,7 +103,7 @@ describe('GcsTimeSeriesAdapter', () => {
     await adapter.writeLines('QQQ', 'QQQ260116C00490000', ['{"d":"2026-01-02","l":"1.0"}']);
     const result = await adapter.writeLines('QQQ', 'QQQ260116C00490000', ['{"d":"2026-01-02","l":"2.0"}']);
 
-    expect(result.generation).toBe('2');
+    expect(result.bytes).toBeGreaterThan(0);
 
     const lines = await adapter.readLines('QQQ', 'QQQ260116C00490000');
     expect(lines).toEqual(['{"d":"2026-01-02","l":"2.0"}']);

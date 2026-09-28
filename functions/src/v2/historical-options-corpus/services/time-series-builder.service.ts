@@ -7,7 +7,7 @@ import { GcsTimeSeriesAdapter } from './gcs-time-series-adapter.service';
 import { OptionsIndexWriter } from './options-index.writer';
 import { ContractCatalogWriter } from './contract-catalog.writer';
 import { TradingCalendarService } from './trading-calendar.service';
-import type { CorpusReadResult } from '../types';
+import { optionsCorpusBucket, optionsTimeSeriesBucket, type CorpusReadResult } from '../types';
 import {
   parseStorageLine,
   toStorageLine,
@@ -44,6 +44,12 @@ export interface TimeSeriesBuildReport {
   processedContracts: number;
   failedContracts: number;
   errors: Array<{ contractID: string; error: string }>;
+  /**
+   * When the build stopped early on a deadline, the first trading date that
+   * was NOT processed — the caller should re-enqueue a task covering
+   * [resumeDate, endDate]. Undefined when the range finished.
+   */
+  resumeDate?: string;
 }
 
 interface ContractAccumulator {
@@ -56,8 +62,8 @@ interface ContractAccumulator {
 }
 
 const DEFAULT_CHUNK_DAYS = 90;
-const DEFAULT_WRITE_CONCURRENCY = 20;
-const DEFAULT_READ_CONCURRENCY = 5;
+const DEFAULT_WRITE_CONCURRENCY = 200;
+const DEFAULT_READ_CONCURRENCY = 10;
 
 /**
  * Builds per-contract historical options time series from the raw daily
@@ -82,6 +88,7 @@ export class TimeSeriesBuilderService {
     endDate: string,
     contractID?: string,
     contractIDs?: Set<string>,
+    options?: { deadlineMs?: number },
   ): Promise<TimeSeriesBuildReport> {
     const upperSymbol = symbol.toUpperCase();
     const targetContractID = contractID?.trim().toUpperCase() || undefined;
@@ -121,8 +128,16 @@ export class TimeSeriesBuilderService {
       readQueue.push(this.deps.sourceGcs.readItem(upperSymbol, tradingDates[i]));
     }
 
+    const deadlineMs = options?.deadlineMs;
+
     for (let i = 0; i < tradingDates.length; i++) {
       const date = tradingDates[i];
+
+      if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
+        report.resumeDate = date;
+        break;
+      }
+
       const nextRead = readQueue.shift();
       if (!nextRead) {
         break;
@@ -136,7 +151,6 @@ export class TimeSeriesBuilderService {
 
       if (readResult.status === 'NOT_FOUND') {
         report.missingDates += 1;
-        this.deps.logger('builder.date.missing', { symbol: upperSymbol, date });
         continue;
       }
 
@@ -194,9 +208,10 @@ export class TimeSeriesBuilderService {
       }
     }
 
-    // Reason: If the last trading date(s) are NOT_FOUND or CORRUPT, the `continue`
-    // skips the `isLastDate` flush check inside the loop, leaving accumulated records
-    // trapped in memory. This safety net ensures any residual chunk is always flushed.
+    // Reason: If the loop exits early (deadline break) or the last trading
+    // date(s) are NOT_FOUND/CORRUPT (the `continue` skips the `isLastDate`
+    // flush check), accumulated records would be trapped in memory. This
+    // safety net ensures any residual chunk is always flushed.
     if (chunk.size > 0) {
       await this.flushChunk(upperSymbol, chunk, report);
       chunk = new Map();
@@ -215,11 +230,24 @@ export class TimeSeriesBuilderService {
     const contractIDs = Array.from(chunk.keys());
     this.deps.logger('builder.flush.start', { symbol, contracts: contractIDs.length });
 
+    const succeeded: string[] = [];
     // Process write batches sequentially to keep GCS concurrency bounded and avoid
     // memory spikes from launching every per-contract write at once.
     for (let i = 0; i < contractIDs.length; i += this.writeConcurrency) {
       const batch = contractIDs.slice(i, i + this.writeConcurrency);
-      await this.flushBatch(symbol, batch, chunk, report);
+      succeeded.push(...(await this.flushBatch(symbol, batch, chunk, report)));
+    }
+
+    // One aggregated index write set per chunk instead of per contract —
+    // per-contract upserts were the dominant per-task cost and hammered the
+    // same expiration/strike docs thousands of times.
+    if (this.deps.indexWriter && succeeded.length > 0) {
+      try {
+        await this.deps.indexWriter.upsertContracts(symbol, succeeded);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.deps.logger('builder.index.upsert.error', { symbol, contracts: succeeded.length, error: message });
+      }
     }
 
     this.deps.logger('builder.flush.done', { symbol, contracts: contractIDs.length });
@@ -230,20 +258,38 @@ export class TimeSeriesBuilderService {
     batch: string[],
     chunk: Map<string, ContractAccumulator>,
     report: TimeSeriesBuildReport,
-  ): Promise<void> {
-    const existingLines = await Promise.all(
-      batch.map((contractID) => this.deps.targetGcs.readLines(symbol, contractID)),
+  ): Promise<string[]> {
+    // Per-contract read isolation: a transient GCS read failure (socket hang
+    // up at 200-wide concurrency) must fail only that contract — never treat
+    // it as "no existing file" or the subsequent write would silently discard
+    // the contract's stored history.
+    const readResults = await Promise.all(
+      batch.map((contractID) =>
+        this.deps.targetGcs.readLines(symbol, contractID).then(
+          (lines) => ({ ok: true as const, lines }),
+          (error: unknown) => {
+            const message = error instanceof Error ? error.message : String(error);
+            report.failedContracts += 1;
+            report.errors.push({ contractID, error: `read: ${message}` });
+            this.deps.logger('builder.read.error', { symbol, contractID, error: message });
+            return { ok: false as const };
+          },
+        ),
+      ),
     );
 
-    let batchSuccesses = 0;
+    const batchSuccesses: string[] = [];
     const writePromises = batch.map((contractID, index) => {
       const accumulator = chunk.get(contractID);
-      if (!accumulator) {
+      const read = readResults[index];
+      if (!accumulator || !read.ok) {
         return Promise.resolve();
       }
-      return this.writeMerged(symbol, contractID, accumulator, existingLines[index])
-        .then(() => {
-          batchSuccesses += 1;
+      return this.writeMerged(symbol, contractID, accumulator, read.lines)
+        .then((wrote) => {
+          if (wrote) {
+            batchSuccesses.push(contractID);
+          }
         })
         .catch((error) => {
           const message = error instanceof Error ? error.message : String(error);
@@ -254,15 +300,22 @@ export class TimeSeriesBuilderService {
     });
 
     await Promise.all(writePromises);
-    report.processedContracts += batchSuccesses;
+    report.processedContracts += batchSuccesses.length;
+    return batchSuccesses;
   }
 
+  /**
+   * Merges the accumulator's new observations into the contract's JSONL file.
+   * Returns false when nothing changed (all dates already present) — the
+   * write, catalog, and index updates are skipped entirely so re-processing
+   * a covered date costs a single GCS read per contract.
+   */
   private async writeMerged(
     symbol: string,
     contractID: string,
     accumulator: ContractAccumulator,
     existingLines: string[] | undefined,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const existingRecords: TimeSeriesStorageRecord[] = [];
     for (const line of existingLines ?? []) {
       const record = parseStorageLine(line);
@@ -281,10 +334,16 @@ export class TimeSeriesBuilderService {
     for (const record of existingRecords) {
       byDate.set(record.d, record);
     }
+    let added = 0;
     for (const record of accumulator.records) {
       if (!byDate.has(record.d)) {
         byDate.set(record.d, record);
+        added += 1;
       }
+    }
+
+    if (added === 0) {
+      return false;
     }
 
     const sorted = Array.from(byDate.values()).sort((a, b) => a.d.localeCompare(b.d));
@@ -304,15 +363,6 @@ export class TimeSeriesBuilderService {
 
     await this.deps.targetGcs.writeLines(symbol, contractID, lines, customMetadata);
 
-    if (this.deps.indexWriter) {
-      try {
-        await this.deps.indexWriter.upsertContract(symbol, contractID);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        this.deps.logger('builder.index.upsert.error', { symbol, contractID, error: message });
-      }
-    }
-
     if (this.deps.catalogWriter) {
       try {
         await this.deps.catalogWriter.upsertContractCatalog({
@@ -328,6 +378,8 @@ export class TimeSeriesBuilderService {
         this.deps.logger('builder.catalog.upsert.error', { symbol, contractID, error: message });
       }
     }
+
+    return true;
   }
 }
 
@@ -335,15 +387,8 @@ export function createTimeSeriesBuilderService(
   sourceBucketName?: string,
   targetBucketName?: string,
 ): TimeSeriesBuilderService {
-  const resolvedSource = sourceBucketName ?? process.env.OPTIONS_CORPUS_BUCKET;
-  if (!resolvedSource) {
-    throw new Error('OPTIONS_CORPUS_BUCKET environment variable is not configured');
-  }
-
-  const resolvedTarget = targetBucketName ?? process.env.OPTIONS_TIME_SERIES_BUCKET;
-  if (!resolvedTarget) {
-    throw new Error('OPTIONS_TIME_SERIES_BUCKET environment variable is not configured');
-  }
+  const resolvedSource = sourceBucketName ?? optionsCorpusBucket();
+  const resolvedTarget = targetBucketName ?? optionsTimeSeriesBucket();
 
   const logger = createLogger('time-series-builder');
 
@@ -353,6 +398,11 @@ export function createTimeSeriesBuilderService(
     calendar: new TradingCalendarService(),
     logger: (message, meta) => logger.info(message, meta ?? {}),
     indexWriter: new OptionsIndexWriter(db),
-    catalogWriter: new ContractCatalogWriter(db),
+    // Thousands of contracts per task — suppress the per-contract success log,
+    // keep skip/error lines.
+    catalogWriter: new ContractCatalogWriter(db, (m, meta) => {
+      if (m === 'catalog.upsert') return;
+      logger.info(m, meta ?? {});
+    }),
   });
 }
