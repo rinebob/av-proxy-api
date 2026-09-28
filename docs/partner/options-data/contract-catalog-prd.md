@@ -304,7 +304,7 @@ For `sortBy=delta`, the query orders by `latest.delta`. This requires a composit
 
 ### 6.6 Request Validation
 
-- `symbol` is trimmed, uppercased, and must be in `ALLOWED_SYMBOLS` (`QQQ`, `TQQQ`).
+- `symbol` is trimmed, uppercased, and must be `optionsEnabled` in `tracked_symbols` (the served universe is the curated enabled set — no static allowlist).
 - `expiration`, if supplied, must match `YYYY-MM-DD` and be a valid calendar date.
 - `expirationGte`/`expirationLte`, if supplied, must match `YYYY-MM-DD` and be valid calendar dates.
 - `expiration` (exact) and `expirationGte`/`expirationLte` (range) are mutually exclusive.

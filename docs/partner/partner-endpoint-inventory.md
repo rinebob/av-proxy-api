@@ -39,7 +39,7 @@ These endpoints are for internal operations and testing, not partner data consum
 ## Notes
 
 - **Dual-auth**: Accepts either Google OIDC ID token (preferred for partners) or Firebase ID token (internal). See `docs/partner/partner-auth-and-audience.md`.
-- **Symbol restriction**: Enforced in application code via `ALLOWED_SYMBOLS` set from `@shared/core` (currently `QQQ` and `TQQQ`).
+- **Symbol gating**: Options-data endpoints (`partnerHistoricalOptionsV2`, `partnerContractCatalogV2`, `partnerListContractsV2`, `partnerHistoricalOptionsContractV2`, `partnerIvMetricsV2`) serve exactly the `optionsEnabled` set in `tracked_symbols` — no static list. The spread-pricing endpoints (`partnerSpreadTimeSeries`, `partnerSpreadTimeSeriesBatch`) remain pilot-scoped to `ALLOWED_SYMBOLS` (`QQQ`, `TQQQ`) in `@shared/core`.
 - **Cloud Run service names** are all lowercase (see deploy workflow gotcha #1 in `.devin/workflows/deploy-partner-endpoint.md`).
 - **All partner endpoints** require `EXPECTED_GOOGLE_AUDIENCE` and `ALLOWED_SERVICE_ACCOUNT_EMAILS` secrets to be mounted.
 - For post-deployment steps, see `.devin/workflows/deploy-partner-endpoint.md`.

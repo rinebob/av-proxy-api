@@ -75,6 +75,7 @@ Add (or extend) a tracked-symbols endpoint so ST can retrieve the list of `optio
 - **Live fallback is read-only:** Responses from live AV are not written back to GCS or Firestore corpus metadata. This prevents fetch-on-miss corpus growth.
 - **Error code additions:** Add `OPTIONS_NOT_ENABLED` to `HistoricalOptionsErrorCode` and return an appropriate HTTP status (suggested 400 or 403; final status TBD in blueprint).
 - **Options-enabled universe endpoint:** Extend `partnerListTrackedSymbolsV2` with query params `optionsEnabled=true` and/or `optionable=true`, or add a dedicated lightweight endpoint. Decision TBD in blueprint; either way, the response is a flat list of symbols plus the flags.
+- **Uniform gating:** Every corpus/time-series-serving partner endpoint gates on the same `optionsEnabled` check — `partnerHistoricalOptionsV2`, `partnerContractCatalogV2`, `partnerListContractsV2`, `partnerHistoricalOptionsContractV2`, `partnerIvMetricsV2`. There is no static symbol allowlist; the served universe is exactly the curated enabled set.
 - **Backward compatibility:** Existing response envelope fields (`ok`, `symbol`, `date`, `data`, `analysis`, `timestamp`, `processingTimeMs`) are preserved. Only `source` is added.
 - **Auth/permissions:** No auth model changes. The existing service-account allowlist and Firebase token paths remain.
 

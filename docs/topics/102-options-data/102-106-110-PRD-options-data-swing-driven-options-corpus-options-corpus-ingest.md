@@ -28,8 +28,10 @@ ST's option-chain percent-change grid and swing-analysis surfaces need historica
 
 Build on the existing QQQ/TQQQ historical-options-corpus infrastructure and extend it to all options-enabled symbols. The pipeline has two stages:
 
-1. **Stage 1 — GCS chain snapshots:** One immutable, gzipped JSON envelope per `(symbol, pivot date)` stored in GCS.
-2. **Stage 2 — Per-contract time series:** Firestore documents (or GCS JSONL files consumed by the chart viewer) that accumulate observations from each pivot-date snapshot for each contract seen across the snapshots. We do not fetch on a daily basis; every observation comes from a confirmed or current-extreme pivot date.
+1. **Stage 1 — GCS chain snapshots:** One immutable, gzipped JSON envelope per `(symbol, date)` stored in GCS. Dates come from two sources: pivot dates (confirmed pivots + the current developing extreme) and a nightly daily snapshot for every enabled symbol.
+2. **Stage 2 — Per-contract time series:** GCS JSONL files that accumulate observations from each stored snapshot for each contract seen across the corpus, plus a Firestore contract index.
+
+**Coverage contract:** the corpus is bounded to `optionsEnabled` symbols and dates **on or after 2019-01-01**. SA's daily-adjusted/swing data may reach further back (to ~1999), but the FE-facing options corpus never plans, fetches, builds, or retains pre-2019 dates. The floor is enforced at every entry point: the pivot planner filters pre-floor dates, the seed worker skips them without an AV call, the time-series builder clamps or skips pre-floor ranges, and the reconcile sweep deletes any pre-floor object regardless of provenance.
 
 The overall pipeline runs in two phases:
 
@@ -52,9 +54,13 @@ The pipeline is triggered when a symbol becomes options-enabled and whenever a n
    - *Acceptance:* After a Stage 1 snapshot is stored, a Stage 2 builder merges its observations into existing per-contract series and writes new series for unseen contracts.
    - *Verification:* Ingest two snapshots for the same symbol on different dates and verify a contract's time series contains observations for both dates.
 
-4. **As an SA operator**, I want a one-time historical backfill for every options-enabled symbol and canonical config, so that the corpus is bootstrapped without waiting for new pivots.
-   - *Acceptance:* A backfill job enumerates all confirmed pivots across all four canonical configs for each enabled symbol and seeds missing snapshots.
-   - *Verification:* Run the backfill for a test symbol and verify all historical confirmed-pivot dates appear in the corpus.
+4. **As an SA operator**, I want a one-time historical backfill for every options-enabled symbol, so that the corpus is bootstrapped without waiting for new pivots.
+   - *Acceptance:* A backfill job enumerates all confirmed pivots in the canonical swing doc for each enabled symbol, restricted to dates on or after 2019-01-01, and seeds missing snapshots.
+   - *Verification:* Run the backfill for a test symbol and verify all post-2019 historical confirmed-pivot dates appear in the corpus and no pre-2019 objects are created.
+
+4a. **As an SA operator**, I want pre-2019 coverage to be structurally impossible, so that corpus spend stays inside the agreed window even if upstream data goes back decades.
+   - *Acceptance:* No planner output, seed task, or build range may carry a date before 2019-01-01; stored pre-2019 objects are deleted by the reconcile sweep.
+   - *Verification:* Enqueue a seed task for a pre-2019 date and confirm it exits without an AV call; place a pre-2019 object in GCS and confirm the sweep deletes it.
 
 5. **As the options-corpus pipeline**, I want to handle the current unfolding swing correctly, so that the latest extreme date is fetched and prior interim snapshots are deleted.
    - *Acceptance:* When the current swing extreme advances, fetch the new date's snapshot, merge it into per-contract time series, and delete the prior interim snapshot for that swing. When the swing completes, the final snapshot remains.
@@ -76,10 +82,12 @@ The pipeline is triggered when a symbol becomes options-enabled and whenever a n
   - New confirmed pivot appears in a swing file (from Thread #103) → enqueue Stage 1 seed for that `(symbol, date)`.
   - Current swing extreme advances (from Thread #103) → fetch new date, run Stage 2, delete prior interim snapshot.
 - **Stage 1 storage:** One gzipped JSON envelope per `(symbol, date)` at `historical-options/v1/{SYMBOL}/{YYYY-MM-DD}.json.gz`. The envelope contains the full AV response, analysis, and SHA-256 checksum.
-- **Stage 2 storage:** Per-contract JSONL files at `time-series/v1/{SYMBOL}/{CONTRACT_ID}.jsonl` plus the existing Firestore contract index. The builder merges new observations and deduplicates by date.
+- **Stage 2 storage:** Per-contract JSONL files at `time-series/v1/{SYMBOL}/{CONTRACT_ID}.jsonl` plus the Firestore contract index (`ts-contracts` / `options-contract-index`). The builder merges new observations and deduplicates by date; a fully-covered contract costs zero writes.
+- **Stage 2 execution model:** build tasks are range-capable (`{symbol, startDate, endDate}`; single-date payloads normalize to a one-day range). A per-symbol Firestore lease prevents concurrent same-symbol writes; contending tasks defer rather than race. A task that exhausts its ~15-minute budget re-enqueues a continuation at `resumeDate`, so a symbol's full history builds incrementally without losing progress. A per-contract GCS read failure marks only that contract failed — it never falls through to a write that would overwrite stored history.
 - **Idempotency:** Stage 1 checks GCS metadata before calling AV. Stage 2 merges observations and deduplicates by date, so reprocessing a snapshot is a no-op.
-- **Batch backfill:** A one-time Cloud Function / admin script that, for each options-enabled symbol, reads all four canonical swing files and seeds every confirmed pivot date. Skips existing snapshots.
-- **Ongoing maintenance:** A scheduled/event-driven function consumes new confirmed pivots and current-swing extreme advances from swing files. For each new date it runs Stage 1 + Stage 2; for advancing current extremes it also deletes the prior interim snapshot.
+- **Nightly daily snapshot:** A weekday 19:00 PT job stores the just-closed day's chain for every enabled symbol — the daily snapshot stream independent of pivots. Idempotent; covered items skip. The corpus sweep re-runs this service before reconciling so a failed nightly self-heals same day.
+- **Batch backfill:** The sweep and the enable-trigger fanout enumerate each enabled symbol's canonical swing doc and seed every missing ≥2019 pivot date; a range ts-build per symbol derives the time series. Idempotent — rerunnable, skips existing snapshots.
+- **Ongoing maintenance:** A weekday 21:00 PT sweep diffs each enabled symbol's planned pivot dates against GCS coverage: seeds missing dates, deletes interim snapshots superseded by a moving current extreme, deletes any pre-2019 object, and heals a missed nightly.
 - **Ongoing swing policy:** When the current swing extreme advances, Stage 1 fetches the new date's snapshot, Stage 2 merges it, and then deletes the prior interim snapshot for that swing. When the swing completes, the final snapshot is the confirmed end pivot and is retained.
 - **No fetch-on-miss:** The partner endpoint (Thread #107) may fall back to live AV for missing snapshots, but the corpus itself never grows because of a partner request.
 - **Failure handling:** Stage 1 retries transient AV failures up to a max. Permanent failures are recorded and do not block the pipeline. Stage 2 failures are logged and retried independently.
@@ -119,12 +127,14 @@ The pipeline is triggered when a symbol becomes options-enabled and whenever a n
 
 ```mermaid
 flowchart LR
-    A[Thread #103 Swing files] -->|confirmed pivot date| B[Stage 1 seed task]
-    C[Thread #105 optionsEnabled=true] -->|historical pivots| B
-    D[Current swing extreme advance] -->|new date + delete prior| B
+    A[Swing-set doc, corpus paramsId] -->|pivot dates >= 2019| B[Stage 1 seed task]
+    C[optionsEnabled=true] -->|full pivot backfill| B
+    D[Nightly 19:00 PT] -->|today's chain, all enabled| B
+    S[Sweep 21:00 PT] -->|missing dates, nightly heal| B
     B -->|fetch AV / GCS| E[GCS snapshot JSON.gz]
-    E -->|build / merge| F[Per-contract time series]
-    F -->|serves| G[Contract-chart viewer]
+    E -->|range build, leased, resumable| F[Per-contract JSONL time series]
+    F -->|serves| G[Partner endpoints + contract-chart viewer]
+    S -->|delete| X[superseded interims + pre-floor objects]
     H[Existing storage-file-viewer] -->|reads| E
 ```
 

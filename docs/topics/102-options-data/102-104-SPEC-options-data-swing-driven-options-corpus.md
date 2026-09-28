@@ -167,14 +167,18 @@ runs SA-side only; under this spec it must run for every ingested
 docs SA chooses to persist — so every enabled symbol's contracts get
 time-series coverage, not just QQQ/TQQQ.
 
+- **Coverage window:** the corpus covers dates **on or after 2019-01-01** —
+  every ≥2019 pivot date from the canonical swing doc, plus a nightly
+  daily chain snapshot per enabled symbol going forward. SA's price/swing
+  history may reach ~1999; the options corpus is deliberately bounded at
+  2019 and pre-2019 objects are removed by the maintenance sweep.
 - **Update trigger:** when the swing pipeline detects a newly-*confirmed*
   pivot for an enabled symbol (config × symbol), ingest that pivot date's
   chain (stage 1 + stage 2). Repaint semantics: the doc lands when the
   pivot confirms (rightDepth bars later), not when it first paints.
 - **One-time backfill:** after the `optionsEnabled` flag is populated,
-  seed the corpus with every enabled symbol's historical pivot dates
-  across all 4 configs — both stages. Idempotent — rerunnable, skips
-  existing docs.
+  seed the corpus with every enabled symbol's ≥2019 historical pivot
+  dates — both stages. Idempotent — rerunnable, skips existing docs.
 - The contract-chart viewer stays SA-side, unchanged.
 
 ## 4. Endpoint contract — what ST depends on

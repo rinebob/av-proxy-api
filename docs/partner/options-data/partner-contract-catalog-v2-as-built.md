@@ -41,7 +41,7 @@ The request follows this sequence:
 2. The handler rejects every non-`GET` method with `405 METHOD_NOT_ALLOWED`.
 3. The shared authentication middleware reads the bearer token, verifies it, checks the audience against `EXPECTED_GOOGLE_AUDIENCE`, and checks the email against `ALLOWED_SERVICE_ACCOUNT_EMAILS`.
 4. The handler checks that the authenticated identity is a service account (not a Firebase user). A Firebase identity is rejected with `403 FORBIDDEN`.
-5. The handler parses `symbol`, trims and uppercases it, and validates it against `ALLOWED_SYMBOLS` (`QQQ`, `TQQQ`).
+5. The handler parses `symbol`, trims and uppercases it, and validates it against the `optionsEnabled` flag on the symbol's `tracked_symbols` doc (served universe = curated enabled set; no static allowlist).
 6. The handler checks `summary=true` and enters summary mode.
 7. The query service reads the symbol summary doc at `options-file-index/{symbol}`. If it doesn't exist, returns `404 NOT_FOUND`.
 8. The handler builds the summary response with `totalContracts`, `expirationCount`, `lengthBuckets`, and `lastUpdated`.
@@ -60,7 +60,7 @@ A partner sends a `GET` request with:
 The request follows this sequence:
 
 1. Steps 1–4 are identical to summary mode (IAM, method, auth, service-account check).
-2. The handler parses `symbol` and validates it against `ALLOWED_SYMBOLS`.
+2. The handler parses `symbol` and validates it against the `optionsEnabled` flag.
 3. The handler parses all optional filter, sort, and pagination parameters using shared utilities. Each parameter is validated individually — invalid values return `400 BAD_REQUEST` with a descriptive message.
 4. The handler validates range pairs (`strikeGte <= strikeLte`, `deltaGte <= deltaLte`, `ivGte <= ivLte`).
 5. The handler logs the request with the parsed parameters.
@@ -400,7 +400,7 @@ The implementation is code-complete and deployed. Post-deployment steps are docu
 - **No scheduled summary refresh** — PRD §7.2 describes a daily scheduled job. Not yet implemented. Summary docs are currently updated by the backfill script and the builder.
 - **Cursor pagination uses document ID** — the `pageToken` is the raw contract ID. If sort parameters change between paginated requests, the cursor position is wrong relative to the new sort order. Standard cursor pagination limitation.
 - **No browser/CORS integration** — server-to-server only.
-- **Coverage limited to `QQQ` and `TQQQ`** — `ALLOWED_SYMBOLS` set restricts the endpoint to these two symbols.
+- **Coverage follows `optionsEnabled`** — the served universe is the curated enabled set in `tracked_symbols` (~129 symbols), not a hardcoded list.
 
 ### Related documents
 
