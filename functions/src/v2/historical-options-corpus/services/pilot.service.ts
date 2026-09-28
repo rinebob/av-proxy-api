@@ -5,6 +5,7 @@ import { planCorpusRun, type PlanCorpusRunOptions } from './corpus-planner.servi
 import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import {
   OPTIONS_CORPUS_RUNS_COLLECTION,
+  optionsCorpusBucket,
   type CorpusItemKey,
   type CorpusSeedPayload,
 } from '../types';
@@ -351,7 +352,7 @@ export function createHistoricalOptionsPilotService(
   bucketName?: string,
 ): HistoricalOptionsPilotService {
   const { getStorage } = require('firebase-admin/storage');
-  const bucket = getStorage().bucket(bucketName ?? process.env.OPTIONS_CORPUS_BUCKET);
+  const bucket = getStorage().bucket(bucketName ?? optionsCorpusBucket());
 
   const pivotDeps = createPivotPlannerDeps();
   return new HistoricalOptionsPilotService({

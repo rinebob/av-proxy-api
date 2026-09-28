@@ -1,7 +1,7 @@
 import { getFunctions } from 'firebase-admin/functions';
 import { getStorage } from 'firebase-admin/storage';
 
-import type { CorpusSeedPayload } from '../types';
+import { optionsCorpusBucket, type CorpusSeedPayload } from '../types';
 import { CorpusMetadataService, type CorpusRunPlan } from './corpus-metadata.service';
 import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import { planCorpusRun, type PlanCorpusRunOptions } from './corpus-planner.service';
@@ -115,10 +115,7 @@ export class NightlyCorpusService {
 }
 
 export function createNightlyCorpusService(bucketName?: string): NightlyCorpusService {
-  const resolvedBucketName = bucketName ?? process.env.OPTIONS_CORPUS_BUCKET;
-  if (!resolvedBucketName) {
-    throw new Error('OPTIONS_CORPUS_BUCKET environment variable is not configured');
-  }
+  const resolvedBucketName = bucketName ?? optionsCorpusBucket();
 
   return new NightlyCorpusService({
     listOptionsEnabledSymbols,

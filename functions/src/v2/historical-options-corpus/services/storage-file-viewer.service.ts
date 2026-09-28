@@ -16,7 +16,7 @@ import {
 } from '@shared/options';
 
 import { queryContractsByFilters } from './options-index-query.service';
-import { TIME_SERIES_PREFIX, HISTORICAL_OPTIONS_CORPUS_PREFIX } from '../types';
+import { TIME_SERIES_PREFIX, HISTORICAL_OPTIONS_CORPUS_PREFIX, optionsCorpusBucket, optionsTimeSeriesBucket } from '../types';
 import { GcsTimeSeriesAdapter } from './gcs-time-series-adapter.service';
 import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 
@@ -112,12 +112,7 @@ export class StorageFileViewerService {
 
   async listCorpus(symbol: string): Promise<ListCorpusResult> {
     const upperSymbol = symbol.toUpperCase();
-    const bucketName = process.env.OPTIONS_CORPUS_BUCKET;
-    if (!bucketName) {
-      throw new HttpsError('internal', 'OPTIONS_CORPUS_BUCKET not configured.');
-    }
-
-    const bucket = getStorage().bucket(bucketName);
+    const bucket = getStorage().bucket(optionsCorpusBucket());
     const prefix = `${HISTORICAL_OPTIONS_CORPUS_PREFIX}/${upperSymbol}/`;
 
     const files: CorpusFileEntry[] = [];
@@ -157,12 +152,7 @@ export class StorageFileViewerService {
   async readTimeSeries(symbol: string, contractId: string): Promise<ReadResult> {
     const upperSymbol = symbol.toUpperCase();
     const upperContractId = contractId.toUpperCase();
-    const bucketName = process.env.OPTIONS_TIME_SERIES_BUCKET;
-    if (!bucketName) {
-      throw new HttpsError('internal', 'OPTIONS_TIME_SERIES_BUCKET not configured.');
-    }
-
-    const bucket = getStorage().bucket(bucketName);
+    const bucket = getStorage().bucket(optionsTimeSeriesBucket());
     const adapter = new GcsTimeSeriesAdapter(bucket);
 
     const [lines, metadata] = await Promise.all([
@@ -181,12 +171,7 @@ export class StorageFileViewerService {
 
   async readCorpus(symbol: string, date: string): Promise<ReadResult> {
     const upperSymbol = symbol.toUpperCase();
-    const bucketName = process.env.OPTIONS_CORPUS_BUCKET;
-    if (!bucketName) {
-      throw new HttpsError('internal', 'OPTIONS_CORPUS_BUCKET not configured.');
-    }
-
-    const bucket = getStorage().bucket(bucketName);
+    const bucket = getStorage().bucket(optionsCorpusBucket());
     const adapter = new GcsCorpusAdapter(bucket);
 
     const result = await adapter.readItem(upperSymbol, date);
