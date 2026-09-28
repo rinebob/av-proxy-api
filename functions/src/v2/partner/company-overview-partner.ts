@@ -6,6 +6,7 @@ import { authenticateRequestEither, createLogger } from '../utils/utils';
 import { db } from '../../firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 import type { AvCompanyOverview } from '@shared/alpha-vantage';
+import { TRACKED_SYMBOL_V2_FIELDS } from '@shared/alpha-vantage';
 import {
   allowedServiceAccounts,
   expectedGoogleAudience,
@@ -45,7 +46,7 @@ interface CompanyOverviewDoc {
  * Data is read from Firestore at:
  *   symbol-data/{SYMBOL}/company-overview/av-company-overview
  * Populated by the internal AV refresh manager on a 7-day TTL.
- * Only equity symbols will have data; ETFs/indexes/crypto return 404.
+ * Equity symbols have full AV data; ETFs return a minimal payload from tracked-symbols metadata.
  */
 async function handler(req: Request, res: Response): Promise<void> {
   const start = Date.now();
@@ -88,6 +89,89 @@ async function handler(req: Request, res: Response): Promise<void> {
     const snap = await db.doc(docPath).get();
 
     if (!snap.exists) {
+      // Fallback: check tracked-symbols for ETF metadata
+      const tsSnap = await db.collection(FirestoreCollection.TRACKED_SYMBOLS).doc(symbol).get();
+      const tsData = tsSnap.data();
+
+      if (tsData && tsData[TRACKED_SYMBOL_V2_FIELDS.TYPE]?.toUpperCase() === 'ETF') {
+        const etfData: AvCompanyOverview = {
+          Symbol: symbol,
+          AssetType: 'ETF',
+          Name: tsData[TRACKED_SYMBOL_V2_FIELDS.NAME] ?? '',
+          Description: '',
+          CIK: '',
+          Exchange: '',
+          Currency: tsData[TRACKED_SYMBOL_V2_FIELDS.CURRENCY] ?? '',
+          Country: tsData[TRACKED_SYMBOL_V2_FIELDS.REGION] ?? '',
+          Sector: 'ETF',
+          Industry: 'Exchange Traded Fund',
+          Address: '',
+          OfficialSite: '',
+          FiscalYearEnd: '',
+          LatestQuarter: '',
+          MarketCapitalization: '',
+          EBITDA: '',
+          PERatio: '',
+          PEGRatio: '',
+          BookValue: '',
+          DividendPerShare: '',
+          DividendYield: '',
+          EPS: '',
+          RevenuePerShareTTM: '',
+          ProfitMargin: '',
+          OperatingMarginTTM: '',
+          ReturnOnAssetsTTM: '',
+          ReturnOnEquityTTM: '',
+          RevenueTTM: '',
+          GrossProfitTTM: '',
+          DilutedEPSTTM: '',
+          QuarterlyEarningsGrowthYOY: '',
+          QuarterlyRevenueGrowthYOY: '',
+          AnalystTargetPrice: '',
+          AnalystRatingStrongBuy: '',
+          AnalystRatingBuy: '',
+          AnalystRatingHold: '',
+          AnalystRatingSell: '',
+          AnalystRatingStrongSell: '',
+          TrailingPE: '',
+          ForwardPE: '',
+          PriceToSalesRatioTTM: '',
+          PriceToBookRatio: '',
+          EVToRevenue: '',
+          EVToEBITDA: '',
+          Beta: '',
+          '52WeekHigh': '',
+          '52WeekLow': '',
+          '50DayMovingAverage': '',
+          '200DayMovingAverage': '',
+          SharesOutstanding: '',
+          SharesFloat: '',
+          PercentInsiders: '',
+          PercentInstitutions: '',
+          DividendDate: '',
+          ExDividendDate: '',
+        };
+
+        const processingTimeMs = Date.now() - start;
+        logger.info('companyOverview.etf_fallback', { symbol, processingTimeMs });
+
+        res.status(200).json({
+          ok: true,
+          symbol,
+          data: etfData,
+          metadata: {
+            lastUpdated: tsData[TRACKED_SYMBOL_V2_FIELDS.LAST_UPDATED]?.toDate?.()?.toISOString() ?? null,
+            nextUpdate: null,
+            ttlSeconds: null,
+            vendor: 'tracked_symbols',
+            endpoint: 'ETF_FALLBACK',
+          },
+          timestamp: new Date().toISOString(),
+          processingTimeMs,
+        });
+        return;
+      }
+
       logger.info('companyOverview.not_found', { symbol, docPath });
       res.status(404).json({
         ok: false,
