@@ -9,6 +9,9 @@ import {
   type CorpusRunDoc,
 } from '../types';
 
+/** Cap on runs scanned by listItemsForSymbol — newest first by createdAt. */
+const LIST_ITEMS_FOR_SYMBOL_RECENT_RUNS = 50;
+
 export interface CorpusRunPlan {
   runId: string;
   symbols: string[];
@@ -196,6 +199,63 @@ export class CorpusMetadataService {
   async listItems(runId: string): Promise<Array<{ id: string; data: CorpusItemDoc }>> {
     const snap = await this.runRef(runId).collection(OPTIONS_CORPUS_ITEMS_SUBCOLLECTION).get();
     return snap.docs.map((doc) => ({ id: doc.id, data: doc.data() as CorpusItemDoc }));
+  }
+
+  /**
+   * Seed items for a symbol across its recent runs (Task #156 coverage
+   * report). Finds runs via `symbols array-contains` on the run docs
+   * (automatic single-field index — a collectionGroup scan on `items` would
+   * need a new COLLECTION_GROUP index deploy), keeps the newest
+   * `RECENT_RUN_LIMIT` by `createdAt` (latest-wins ordering means only the
+   * most recent attempt per date can win anyway), then fetches each run's
+   * matching items in bounded-parallel chunks.
+   *
+   * `touchedAtMs` is the item's latest touch (completedAt ?? attemptedAt),
+   * falling back to the run's `createdAt` — pending items carry neither
+   * timestamp, and without the fallback a newly-queued retry would lose
+   * latest-wins ordering to an older failure. `runState` is the owning run
+   * doc's status so callers can tell live queue entries from dead-run
+   * leftovers.
+   */
+  async listItemsForSymbol(
+    symbol: string,
+  ): Promise<Array<{ id: string; runId: string; runState: CorpusRunDoc['status']; data: CorpusItemDoc; touchedAtMs: number }>> {
+    const upper = symbol.trim().toUpperCase();
+    const runs = await this.firestore
+      .collection(OPTIONS_CORPUS_RUNS_COLLECTION)
+      .where('symbols', 'array-contains', upper)
+      .get();
+    const recent = runs.docs
+      .map((doc) => ({ id: doc.id, data: doc.data() as CorpusRunDoc }))
+      .sort((a, b) => (b.data.createdAt?.toMillis() ?? 0) - (a.data.createdAt?.toMillis() ?? 0))
+      .slice(0, LIST_ITEMS_FOR_SYMBOL_RECENT_RUNS);
+
+    const out: Array<{ id: string; runId: string; runState: CorpusRunDoc['status']; data: CorpusItemDoc; touchedAtMs: number }> = [];
+    const CHUNK = 10;
+    for (let i = 0; i < recent.length; i += CHUNK) {
+      const batch = await Promise.all(
+        recent.slice(i, i + CHUNK).map(async (run) => {
+          const runCreatedAtMs = run.data.createdAt?.toMillis() ?? 0;
+          const items = await this.runRef(run.id)
+            .collection(OPTIONS_CORPUS_ITEMS_SUBCOLLECTION)
+            .where('symbol', '==', upper)
+            .get();
+          return items.docs.map((doc) => {
+            const data = doc.data() as CorpusItemDoc;
+            const touched = data.completedAt ?? data.attemptedAt;
+            return {
+              id: doc.id,
+              runId: run.id,
+              runState: run.data.status,
+              data,
+              touchedAtMs: touched ? touched.toMillis() : runCreatedAtMs,
+            };
+          });
+        }),
+      );
+      out.push(...batch.flat());
+    }
+    return out;
   }
 
   itemKey(item: CorpusItemKey): string {
