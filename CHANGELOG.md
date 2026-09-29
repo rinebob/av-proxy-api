@@ -3,6 +3,16 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-09-28]
+
+### Added
+- [Swing-driven options corpus platform] 102-156_BE-IMPL-OPTIONS-DATA: listItemsForSymbol — per-symbol corpus run items query
+- [Swing-driven options corpus platform] 102-156_BE-IMPL-OPTIONS-DATA: Corpus coverage report service — live plan/GCS diff + run-item fold per symbol/date
+- [Swing-driven options corpus platform] 102-156_BE-IMPL-OPTIONS-DATA: getHistoricalOptionsCorpusCoverage admin endpoint (x-admin-secret gated, zero writes)
+- [Swing-driven options corpus platform] 102-156_BE-IMPL-OPTIONS-DATA: Corpus coverage verify script (read-only prod check)
+- [Swing-driven options corpus platform] 102-156_DOCS-OPTIONS-DATA: Code review + UAT for corpus coverage report
+- [Swing-driven options corpus platform] 102-156_DOCS-OPTIONS-DATA: CHANGELOG entry for corpus coverage report
+
 ## [2026-09-27]
 
 ### Added
