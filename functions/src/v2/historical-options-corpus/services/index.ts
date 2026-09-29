@@ -3,6 +3,7 @@ export * from './contract-catalog.writer';
 export * from './contract-catalog-query.service';
 export * from './contract-result.utils';
 export * from './contract-summary-aggregator.service';
+export * from './corpus-coverage.service';
 export * from './corpus-metadata.service';
 export * from './corpus-planner.service';
 export * from './corpus-seed.worker';
