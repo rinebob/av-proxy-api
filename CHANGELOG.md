@@ -16,6 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-27]
 
 ### Added
+- [IV time series] 158-188_BE-IMPL-OPTIONS-DATA: Seed-worker rank-pass hook + disable cleanup — rank pass after metrics on every confirmed-present date; iv-rank-latest delete on optionsEnabled true→false; mid-flight disable re-check
 - [IV time series] 158-186_BE-IMPL-OPTIONS-DATA: IV rank/percentile pure computers — calendar-day windows over IV30 rows, rank-in-range + iv≤cur percentile + sample count
 - [IV time series] 158-187_BE-IMPL-OPTIONS-DATA: RankBuildService + iv-rank-latest repository — second-order rank pass, day-entry merge write, latest-doc regress guard
 - [IV time series] 158-185_SHARED-IMPL-OPTIONS-DATA: IV rank field contract — ivRank/ivPct/ivN per 30/60/180/360d windows + iv-rank-latest doc type; flows through partnerIvMetricsV2 metrics=
