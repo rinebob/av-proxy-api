@@ -1,6 +1,7 @@
 import { AlphaVantageUpstreamError, AlphaVantageUpstreamErrorCategory } from '../../alpha-vantage/utils';
 import { OPTIONS_CORPUS_FLOOR_DATE, type CorpusItemKey, type CorpusSeedPayload } from '../types';
 import type { MetricBuildResult } from '../../symbol-metrics/build.service';
+import type { RankBuildResult } from '../../symbol-metrics/rank-build.service';
 import type { CorpusMetadataService } from './corpus-metadata.service';
 import type { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import type { HistoricalOptionsRetrievalService } from './historical-options-retrieval.service';
@@ -41,6 +42,14 @@ export interface SeedWorkerDependencies {
    * metric failure never retries or fails the seed.
    */
   metrics?: { computeForDate(symbol: string, date: string): Promise<MetricBuildResult> };
+  /**
+   * Optional second-order rank pass (Task #188, Thread #163): runs AFTER the
+   * metrics pass wherever the corpus object is confirmed present — it reads
+   * the symbol's trailing IV30 rows and merge-writes rank fields onto the
+   * same day entry plus iv-rank-latest when the date is newest. Warn-swallowed
+   * like the metrics seam; a rank failure never retries or fails the seed.
+   */
+  rankMetrics?: { computeRankForDate(symbol: string, date: string): Promise<RankBuildResult> };
 }
 
 /**
@@ -188,19 +197,42 @@ async function notifySeedSuccess(deps: SeedWorkerDependencies, symbol: string, d
  * report failure (metrics are healable on the next seed of the same date).
  */
 async function computeSymbolMetrics(deps: SeedWorkerDependencies, symbol: string, date: string): Promise<void> {
-  if (!deps.metrics) return;
-  try {
-    // Surface the outcome — a systematically missing close would otherwise
-    // leave deterministic skips completely invisible.
-    const result = await deps.metrics.computeForDate(symbol, date);
-    deps.logger(result.written ? 'seed.metrics.written' : 'seed.metrics.skipped', {
-      symbol,
-      date,
-      fields: result.fields,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    deps.logger('seed.metrics.error', { symbol, date, error: message });
+  if (!deps.metrics && !deps.rankMetrics) return;
+  // Re-check enabled — a mid-flight disable (iv-rank-latest delete) must not
+  // be followed by a metric/rank write that re-creates the screener doc;
+  // a re-disable is a no-op so nothing else would clean it up.
+  if (!(await deps.isOptionsEnabled(symbol))) {
+    deps.logger('seed.metrics.skip.disabled', { symbol, date });
+    return;
+  }
+  if (deps.metrics) {
+    try {
+      // Surface the outcome — a systematically missing close would otherwise
+      // leave deterministic skips completely invisible.
+      const result = await deps.metrics.computeForDate(symbol, date);
+      deps.logger(result.written ? 'seed.metrics.written' : 'seed.metrics.skipped', {
+        symbol,
+        date,
+        fields: result.fields,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      deps.logger('seed.metrics.error', { symbol, date, error: message });
+    }
+  }
+  if (deps.rankMetrics) {
+    try {
+      const result = await deps.rankMetrics.computeRankForDate(symbol, date);
+      deps.logger(result.written ? 'seed.rank.written' : 'seed.rank.skipped', {
+        symbol,
+        date,
+        fields: result.fields,
+        latestUpdated: result.latestUpdated,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      deps.logger('seed.rank.error', { symbol, date, error: message });
+    }
   }
 }
 

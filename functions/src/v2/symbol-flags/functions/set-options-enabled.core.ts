@@ -43,6 +43,12 @@ export interface SetOptionsEnabledDeps {
    * on completion instead).
    */
   seedCorpus?(symbol: string): Promise<unknown>;
+  /**
+   * Called only on true→false (Task #188): deletes `iv-rank-latest/{SYM}` so
+   * a disabled symbol never lingers in the partnerIvRankV2 screener table.
+   * Warn-swallowed like the enable-side callbacks.
+   */
+  onDisable?(symbol: string): Promise<unknown>;
   logger: { info(m: string): void; warn(m: string): void };
 }
 
@@ -119,6 +125,17 @@ export async function handleSetOptionsEnabled(
       } catch (e) {
         deps.logger.warn(`setOptionsEnabledV2: corpus seed fanout failed for ${symbol} — ${e instanceof Error ? e.message : String(e)}`);
       }
+    }
+  }
+
+  // Disabling: drop the symbol's screener doc — stale rows must never
+  // linger in iv-rank-latest (partnerIvRankV2 reads it wholesale).
+  if (req.enabled === false && current === true && deps.onDisable) {
+    try {
+      await deps.onDisable(symbol);
+      deps.logger.info(`setOptionsEnabledV2: disabled-symbol cleanup ran for ${symbol}`);
+    } catch (e) {
+      deps.logger.warn(`setOptionsEnabledV2: disabled-symbol cleanup failed for ${symbol} — ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

@@ -253,6 +253,83 @@ describe('seedCorpusItem', () => {
     expect(computeForDate).toHaveBeenCalledWith('QQQ', '2026-01-02');
   });
 
+  it('runs the rank pass after the metrics pass (Task #188)', async () => {
+    const order: string[] = [];
+    const computeForDate = jest.fn(async () => { order.push('metrics'); return { symbol: 'QQQ', date: '2026-01-02', written: true, fields: [] }; });
+    const computeRankForDate = jest.fn(async () => { order.push('rank'); return { symbol: 'QQQ', date: '2026-01-02', written: true, fields: [], latestUpdated: true }; });
+    const deps = createDependencies({ metrics: { computeForDate }, rankMetrics: { computeRankForDate } });
+
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 },
+      deps,
+    );
+
+    expect(result.status).toBe('stored');
+    expect(order).toEqual(['metrics', 'rank']); // second-order pass runs after
+    expect(deps.logger).toHaveBeenCalledWith(
+      'seed.rank.written',
+      expect.objectContaining({ symbol: 'QQQ', latestUpdated: true }),
+    );
+  });
+
+  it('runs the rank pass even when the metrics pass threw (independent passes)', async () => {
+    const computeForDate = jest.fn().mockRejectedValue(new Error('firestore down'));
+    const computeRankForDate = jest.fn().mockResolvedValue({ symbol: 'QQQ', date: '2026-01-02', written: true, fields: [], latestUpdated: false });
+    const deps = createDependencies({ metrics: { computeForDate }, rankMetrics: { computeRankForDate } });
+
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 },
+      deps,
+    );
+
+    expect(result.status).toBe('stored');
+    expect(computeRankForDate).toHaveBeenCalledWith('QQQ', '2026-01-02');
+  });
+
+  it('skips both passes when the symbol was disabled mid-flight', async () => {
+    const computeForDate = jest.fn();
+    const computeRankForDate = jest.fn();
+    // First call = the worker's entry gate (enabled); second = the metrics
+    // seam's re-check (now disabled — simulates a mid-flight disable).
+    const isOptionsEnabled = jest.fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const deps = createDependencies({
+      metrics: { computeForDate },
+      rankMetrics: { computeRankForDate },
+      isOptionsEnabled,
+    });
+
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 },
+      deps,
+    );
+
+    expect(result.status).toBe('stored'); // seed itself unaffected
+    expect(computeForDate).not.toHaveBeenCalled();
+    expect(computeRankForDate).not.toHaveBeenCalled();
+    expect(deps.logger).toHaveBeenCalledWith(
+      'seed.metrics.skip.disabled',
+      expect.objectContaining({ symbol: 'QQQ' }),
+    );
+  });
+
+  it('warns-not-fails when the rank pass throws; metrics still ran', async () => {
+    const computeRankForDate = jest.fn().mockRejectedValue(new Error('latest doc gone'));
+    const deps = createDependencies({ rankMetrics: { computeRankForDate } });
+
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 },
+      deps,
+    );
+
+    expect(result.status).toBe('stored');
+    expect(deps.logger).toHaveBeenCalledWith(
+      'seed.rank.error',
+      expect.objectContaining({ symbol: 'QQQ' }),
+    );
+  });
+
   it('warns-not-fails when metric computation throws', async () => {
     const computeForDate = jest.fn().mockRejectedValue(new Error('firestore down'));
     const deps = createDependencies({ metrics: { computeForDate } });

@@ -14,7 +14,9 @@ import { MAX_CORPUS_SEED_ATTEMPTS, seedCorpusItem } from '../services/corpus-see
 import { createOptionsEnabledChecker } from '../services/options-enabled-gate';
 import { isTsBuildLeaseHeld } from '../services/ts-build-lease.service';
 import { MetricBuildService } from '../../symbol-metrics/build.service';
+import { RankBuildService } from '../../symbol-metrics/rank-build.service';
 import { SymbolMetricsRepository } from '../../symbol-metrics/services/symbol-metrics.repository';
+import { IvRankLatestRepository } from '../../symbol-metrics/services/iv-rank-latest.repository';
 import { DailyAdjustedReader } from '../../swing-set/services/daily-adjusted-reader.service';
 import { optionsCorpusBucket } from '../types';
 import { OPTIONS_CORPUS_SEED_TASK_QUEUE, type CorpusSeedPayload } from '../types';
@@ -91,6 +93,11 @@ export const processHistoricalOptionsCorpusSeedTask = onTaskDispatched<CorpusSee
         gcs,
         bars: new DailyAdjustedReader(db),
         repo: new SymbolMetricsRepository(db),
+      }),
+      // Task #188 — second-order rank pass after the metrics write.
+      rankMetrics: new RankBuildService({
+        repo: new SymbolMetricsRepository(db),
+        latest: new IvRankLatestRepository(db),
       }),
     });
   },

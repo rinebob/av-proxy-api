@@ -94,6 +94,34 @@ describe('handleSetOptionsEnabled', () => {
     expect(deps.enqueue).not.toHaveBeenCalled(); // true→false does not enqueue
   });
 
+  it('fires onDisable on true→false (iv-rank-latest cleanup, Task #188)', async () => {
+    const db = createFakeFirestore(seed({ optionable: true, optionsEnabled: true, optionsEnabledHistory: [] }));
+    const onDisable = jest.fn(async () => ({}));
+    const deps = { ...makeDeps(db), onDisable };
+    const out = await handleSetOptionsEnabled({ symbol: 'AAPL', enabled: false, uid: UID }, deps);
+    expect(out.ok).toBe(true);
+    expect(onDisable).toHaveBeenCalledWith('AAPL');
+  });
+
+  it('does not fire onDisable on a no-op re-disable', async () => {
+    const enabledDb = createFakeFirestore(seed({ optionable: true, optionsEnabled: true }));
+    const onDisable = jest.fn(async () => ({}));
+    await handleSetOptionsEnabled({ symbol: 'AAPL', enabled: false, uid: UID }, { ...makeDeps(enabledDb), onDisable }); // true→false
+    onDisable.mockClear();
+    // Re-disable (now false→false): no transition, no cleanup
+    const again = await handleSetOptionsEnabled({ symbol: 'AAPL', enabled: false, uid: UID }, { ...makeDeps(enabledDb), onDisable });
+    expect(again.transitioned).toBe(false);
+    expect(onDisable).not.toHaveBeenCalled();
+  });
+
+  it('warns-but-succeeds when onDisable throws', async () => {
+    const db = createFakeFirestore(seed({ optionable: true, optionsEnabled: true, optionsEnabledHistory: [] }));
+    const onDisable = jest.fn().mockRejectedValue(new Error('firestore down'));
+    const out = await handleSetOptionsEnabled({ symbol: 'AAPL', enabled: false, uid: UID }, { ...makeDeps(db), onDisable });
+    expect(out.ok).toBe(true);
+    expect(out.optionsEnabled).toBe(false); // the flag write succeeded
+  });
+
   it('returns not-found for an untracked symbol', async () => {
     const db = createFakeFirestore();
     const out = await handleSetOptionsEnabled({ symbol: 'NOPE', enabled: true, uid: UID }, makeDeps(db));

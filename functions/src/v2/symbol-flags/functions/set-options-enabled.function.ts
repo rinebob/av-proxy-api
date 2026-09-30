@@ -16,6 +16,7 @@ import { SetOptionsEnabledErrorCode, type SetOptionsEnabledResult } from '@share
 import { enqueueSwingSetGeneration } from '../../swing-set/handlers/generate-swing-sets.core';
 import { fanoutPivotSeedsForSymbol } from '../../historical-options-corpus/services/pivot-seed-fanout';
 import { ALLOWED_ORIGINS } from '../../utils/cors-middleware';
+import { IvRankLatestRepository } from '../../symbol-metrics/services/iv-rank-latest.repository';
 import { handleSetOptionsEnabled } from './set-options-enabled.core';
 import { toSetOptionsEnabledHttpsError } from './set-options-enabled.errors';
 
@@ -51,6 +52,7 @@ export const setOptionsEnabledV2 = onCall<{ symbol?: string; enabled?: boolean; 
         db,
         enqueue: (s) => enqueueSwingSetGeneration(db, s),
         seedCorpus: fanoutPivotSeedsForSymbol,
+        onDisable: (s) => new IvRankLatestRepository(db).delete(s),
         logger: console,
       },
     );
