@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-10-18]
+
+### Added
+- [Savant Design System] 1024-1042_FE-IMPL-DESIGN-SYSTEM: vendored savant-ds consumption — vendor/savant-ds committed + file:vendor dep (App Hosting can't see sibling paths), includePaths entry, @use 'tokens' global emit + --mat-sys-* bridge (prebuilt theme emits none), bz-no-results on ds.state-block, sync:ds refresh script
+
 ## [2026-09-28]
 
 ### Added
