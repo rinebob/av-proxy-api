@@ -1,0 +1,139 @@
+// _dialog.scss — ds.* dialog mixins (#1037), graduated from
+// _pd-visual-language.scss (ST features/portfolio-dashboard/styles).
+//
+// Semantics match the source verbatim; literals are tokenized to --ds-*
+// where the token layer covers them. mat-sys values with no ds token
+// (tertiary, on-surface-variant, error-container, on-error-container) and
+// off-scale literals (icon pixel sizes, 13px copy, 6px/280px geometry)
+// stay as direct references — manifest candidates.
+//
+// Requires the token layer emitted globally (`@use 'tokens'` in the app's
+// global stylesheet) — these mixins emit var(--ds-*) references only.
+// Mixins are compile-time only: @use emits no CSS until @include.
+
+/// Compact dialog chrome — order-confirm-dialog convention (task #781).
+/// Apply inside `:host`. Emits: 16px title row with a small tertiary
+/// icon, a flex-column content body, dense form fields (spread-builder
+/// density tokens), 32px action buttons with 16px icons, a `.dim`
+/// muted-text utility, and a tokenized `.dialog-error` block. Per-dialog
+/// min-width stays with the component — dialogs legitimately differ.
+/// Secondary actions should be `mat-stroked-button`, the primary stays
+/// `mat-flat-button` (both get the 32px row height).
+@mixin dialog-chrome() {
+  // Spread-builder density convention — on :host so the custom props
+  // cascade into any mat-form-field rendered by a child component.
+  // Dynamic subscript sizing stays a per-field template attribute.
+  --mat-form-field-container-vertical-padding: var(--ds-space-1);
+  --mat-form-field-container-height: var(--ds-field-height);
+
+  h2[mat-dialog-title] {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    font-size: var(--ds-font-size-lg);
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: var(--mat-sys-tertiary);
+    }
+  }
+
+  mat-dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+
+    // Full-width fields are the dialog norm; pickers living in the title
+    // row (bucket-detail switcher) are deliberately excluded.
+    mat-form-field {
+      width: 100%;
+    }
+  }
+
+  .dim {
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  .dialog-error {
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border-radius: var(--ds-radius-md);
+    font-size: 13px;
+    background: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+
+  mat-dialog-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    height: var(--ds-row-height);
+    font-size: var(--ds-font-size-sm);
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    mat-spinner {
+      display: inline-block;
+      margin-right: 6px;
+    }
+  }
+}
+
+/// Dialog status states — the submitting/success/error presentation
+/// shared verbatim by the close-position and stop-loss dialogs (#781).
+/// Emits `.status-section` (+ success/error icon accents), `.result-row`
+/// label/value pairs, and `.error-message`. `.spinner` resolves the
+/// global `@keyframes spin` in src/styles.scss — do not redefine it.
+@mixin dialog-status() {
+  .status-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-5) 0;
+
+    mat-icon {
+      font-size: 48px;
+      width: 48px;
+      height: 48px;
+    }
+
+    &.success mat-icon {
+      color: var(--ds-up);
+    }
+
+    &.error mat-icon {
+      color: var(--ds-error);
+    }
+
+    .spinner {
+      animation: spin 1s linear infinite;
+    }
+  }
+
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 280px;
+    padding: var(--ds-space-1) 0;
+
+    .label {
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .value {
+      font-weight: var(--ds-font-weight-medium);
+    }
+  }
+
+  .error-message {
+    color: var(--ds-error);
+    text-align: center;
+  }
+}

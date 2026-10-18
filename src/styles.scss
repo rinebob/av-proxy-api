@@ -1,5 +1,7 @@
 /* You can add global styles to this file, and also import other style files */
 @use 'styles/variables' as v;
+// savant-ds token layer — emits :root --ds-* once (package contract).
+@use 'tokens';
 @import '../node_modules/@syncfusion/ej2-angular-base/styles/material.css';
 
 // Material Icons
@@ -31,6 +33,17 @@
     --sidenav-active-icon: var(--primary-color);
     --sidenav-border: #e0e0e0;
     --border-radius: 8px;
+
+    /* savant-ds bridge — the package's surface/feedback tokens alias
+       --mat-sys-*, which SA's prebuilt indigo-pink theme does not emit.
+       Map the handful the DS reads onto the app's own palette vars so the
+       aliases resolve until SA adopts a real Material sys theme. */
+    --mat-sys-surface: var(--card-background);
+    --mat-sys-on-surface: var(--text-primary);
+    --mat-sys-surface-variant: var(--background);
+    --mat-sys-on-surface-variant: var(--text-secondary);
+    --mat-sys-error: var(--warn-color);
+    --mat-sys-outline-variant: var(--divider);
 }
   
 * {

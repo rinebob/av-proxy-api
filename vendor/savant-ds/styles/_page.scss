@@ -1,0 +1,77 @@
+// _page.scss — ds.* page/layout mixins (#1036), graduated from
+// _pd-visual-language.scss (ST features/portfolio-dashboard/styles).
+//
+// Semantics match the source verbatim; literals are tokenized to --ds-*
+// where the token layer covers them (--ds-space-*, --ds-row-height,
+// --ds-font-size-sm, --ds-surface, --ds-on-surface, --ds-border-subtle).
+// --mat-sys-surface-container-high stays a direct alias — no ds token
+// exists for raised surfaces yet (candidate for the token manifest).
+//
+// Requires the token layer emitted globally (`@use 'tokens'` in the app's
+// global stylesheet) — these mixins emit var(--ds-*) references only.
+//
+// Mixins are compile-time only: @use emits no CSS until @include.
+
+/// Routed page host — apply inside `:host`. Routed components render as
+/// siblings of `rs-header` inside `mat-drawer-content` (display:block,
+/// height:100%, overflow:hidden), so a plain `height:100%` host overflows
+/// the visible area by exactly the header's height. Consume
+/// `--header-height` (set inline on mat-drawer-content; 0px in
+/// fullscreen) like every migrated page.
+@mixin page-host() {
+  display: block;
+  height: calc(100vh - var(--header-height, 0px));
+}
+
+/// Full-height page shell — the root container of a migrated page.
+@mixin page-shell() {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ds-surface);
+  color: var(--ds-on-surface);
+}
+
+/// Centered content column — same 1100px cap as run-dashboard.
+@mixin content-column() {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/// Compact page header bar — run-dashboard `.dashboard-header`.
+/// Emits the `.bar-actions` child rule plus a generic compact-button
+/// override inside `.bar-actions`. Title/icon children were removed in
+/// #854 — page identity now lives in the global rs-header.
+@mixin header-bar() {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--ds-space-2) var(--ds-space-4);
+  background: var(--mat-sys-surface-container-high);
+  border-bottom: 1px solid var(--ds-border-subtle);
+  flex-shrink: 0;
+  gap: var(--ds-space-2);
+
+  .bar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    // Right-anchor the action cluster — with the title node removed (#854)
+    // this can be the bar's only child, and space-between would drop it at
+    // the left edge.
+    margin-left: auto;
+
+    button[mat-stroked-button],
+    a[mat-stroked-button] {
+      height: var(--ds-row-height);
+      font-size: var(--ds-font-size-sm);
+    }
+  }
+}

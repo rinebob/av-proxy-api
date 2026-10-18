@@ -1,0 +1,32 @@
+// _feedback.scss — ds.* feedback mixins (#1037), graduated from
+// _pd-visual-language.scss (ST features/portfolio-dashboard/styles).
+//
+// Semantics match the source verbatim; literals are tokenized to --ds-*
+// where the token layer covers them. mat-sys error-container /
+// on-error-container and the off-scale 13px copy size stay as direct
+// references — manifest candidates.
+//
+// Requires the token layer emitted globally (`@use 'tokens'` in the app's
+// global stylesheet). Mixins are compile-time only: @use emits no CSS
+// until @include.
+
+/// Tokenized error banner — replaces the hard-coded `#fef0f0` red banner.
+@mixin error-banner() {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  background: var(--mat-sys-error-container);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-md);
+  color: var(--mat-sys-on-error-container);
+
+  mat-icon {
+    flex-shrink: 0;
+  }
+
+  .error-text {
+    flex: 1;
+    font-size: 13px;
+  }
+}

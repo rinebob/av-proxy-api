@@ -1,0 +1,154 @@
+// _data-display.scss — dense data-presentation patterns (#1052).
+//
+// Graduated verbatim from SavantTrader's `_pd-visual-language.scss`
+// (portfolio-dashboard visual language): the dense data-table spec, the
+// centered loading/empty state block, and the scoreboard stat strip.
+// `--mat-sys-*` reads below stay intentional — containers/variants that
+// have no `--ds-*` mirror yet; everything the token layer covers is
+// bound to `--ds-*`.
+//
+// The two tab-layout mixins (bounded-tab-group, tab-scroll-pane) were
+// deliberately NOT graduated: they are Material-coupled (::ng-deep into
+// mat-mdc-tab DOM) and only serve the two PD page shells — they remain
+// PD-local while Material is being exited.
+
+/// Dense table — signal-table spec. Apply to the table element's class:
+/// `.my-table { @include ds.dense-table; }`
+/// Emits nested thead/tbody rules; numeric columns opt in via `.num`
+/// (right-aligned + tabular-nums) matching the migrated components.
+@mixin dense-table() {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ds-font-size-sm);
+
+  thead {
+    position: sticky;
+    top: 0;
+    // Must exceed the z-index:1 MDC puts on `.mdc-button__label`/`.mat-icon`
+    // inside stroked/text buttons — `.mdc-button` roots are
+    // `position:relative; z-index:auto` (no stacking context), so cell
+    // buttons' internals compete directly with this header and win ties
+    // on DOM order. (mat-icon-button self-contains: its root is z-index:0.)
+    z-index: 2;
+    background: var(--mat-sys-surface-container);
+
+    th {
+      padding: 6px 10px;
+      text-align: left;
+      font-weight: var(--ds-font-weight-bold);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--mat-sys-on-surface-variant);
+      border-bottom: 1px solid var(--ds-border-subtle);
+
+      &.num {
+        text-align: right;
+      }
+    }
+  }
+
+  tbody {
+    tr {
+      border-bottom: 1px solid var(--ds-border-subtle);
+
+      &:hover {
+        background: var(--mat-sys-surface-container-low);
+      }
+    }
+
+    // NB: no `color` on td — at (0,1,2) it would beat single-class
+    // accents (.neg/.pos/.pd-positive) at (0,1,0); cells inherit
+    // on-surface from the page shell.
+    td {
+      padding: 5px 10px;
+
+      &.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+    }
+
+    .empty-row {
+      text-align: center;
+      padding: var(--ds-space-6);
+      color: var(--mat-sys-on-surface-variant);
+    }
+  }
+
+  // Totals rows (position tables, expando mini-table) — same density, a
+  // hairline separates them from the body. Pinning (sticky bottom) is
+  // table-specific and stays in the component styles.
+  tfoot {
+    td {
+      padding: 5px 10px;
+      font-weight: var(--ds-font-weight-bold);
+      border-top: 1px solid var(--ds-border-subtle);
+
+      &.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+    }
+  }
+}
+
+/// Centered state block — loading / empty / error presentation from
+/// signal-review's `.empty-state`.
+@mixin state-block() {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px var(--ds-space-5);
+  gap: var(--ds-space-2);
+  color: var(--mat-sys-on-surface-variant);
+
+  mat-icon {
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+    opacity: 0.4;
+  }
+
+  p {
+    margin: 0;
+    font-size: var(--ds-font-size-md);
+  }
+
+  .hint {
+    font-size: var(--ds-font-size-sm);
+    opacity: 0.6;
+  }
+}
+
+/// Stat strip — scoreboard convention: `.sb-item` label/value pairs
+/// separated by `.sb-sep` pipe hairlines. The host supplies outer layout
+/// (justify-content, padding, background, borders).
+@mixin stat-strip() {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ds-font-size-sm);
+  white-space: nowrap;
+
+  .sb-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+
+  .sb-label {
+    color: var(--mat-sys-on-surface-variant);
+    font-weight: var(--ds-font-weight-medium);
+  }
+
+  .sb-value {
+    font-weight: var(--ds-font-weight-bold);
+    font-family: monospace;
+    color: var(--ds-on-surface);
+  }
+
+  .sb-sep {
+    color: var(--ds-border-subtle);
+  }
+}

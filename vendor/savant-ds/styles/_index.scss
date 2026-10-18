@@ -1,0 +1,14 @@
+// savant-ds — mixin entry point. Consumers: @use 'index' as ds;
+//
+// This file forwards MIXINS ONLY — never `tokens`. _tokens.scss emits
+// top-level `:root` CSS, and a component-scoped `@use 'index'` would
+// re-emit that block into every Angular component's encapsulated style
+// chunk as dead CSS. Tokens are emitted once via `@use 'tokens'` in the
+// app's global stylesheet (see README).
+//
+// Forwards are added as each layer ships.
+
+@forward 'page';
+@forward 'dialog';
+@forward 'feedback';
+@forward 'data-display';

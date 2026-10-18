@@ -19,7 +19,8 @@
     "emulators:stop:fast": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$ports=@(4000,4200,4400,5001,8080,8086,9099); foreach($p in $ports){ $conns=Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue; if($conns){ ($conns | Select-Object -ExpandProperty OwningProcess | Sort-Object -Unique | Where-Object { $_ -gt 0 }) | ForEach-Object { try { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue; Write-Output ('Killed PID ' + $_ + ' on ' + $p) } catch { Write-Output ('Failed to kill PID ' + $_ + ' on ' + $p) } } } else { Write-Output ('No process on ' + $p) } }\"",
     "emulators:restart": "npm run emulators:stop && npm run emulators:start",
     "emulators:save": "npx firebase emulators:export .firebase/emulator-data --force",
-    "emulators:clean": "if exist .firebase\\emulator-data rmdir /s /q .firebase\\emulator-data && mkdir .firebase\\emulator-data"
+    "emulators:clean": "if exist .firebase\\emulator-data rmdir /s /q .firebase\\emulator-data && mkdir .firebase\\emulator-data",
+    "sync:ds": "node scripts/sync-savant-ds.mjs"
   },
   "private": true,
   "dependencies": {
@@ -49,7 +50,8 @@
     "tslib": "^2.3.0",
     "undici-types": "^6.21.0",
     "yahoo-finance2": "^3.11.2",
-    "zone.js": "~0.15.0"
+    "zone.js": "~0.15.0",
+    "savant-ds": "file:vendor/savant-ds"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^19.2.12",

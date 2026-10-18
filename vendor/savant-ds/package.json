@@ -1,0 +1,18 @@
+{
+  "name": "savant-ds",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Savant Design System — shared design tokens (--ds-*) and SCSS pattern mixins for Savant-* apps (ST, SA). SCSS/CSS-only; no build step, no Angular code.",
+  "type": "module",
+  "files": [
+    "styles",
+    "scripts",
+    "README.md"
+  ],
+  "scripts": {
+    "verify": "node scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "sass": "^1.80.0"
+  }
+}

@@ -40,7 +40,7 @@
             ],
             "inlineStyleLanguage": "scss",
             "stylePreprocessorOptions": {
-              "includePaths": ["src/styles"]
+              "includePaths": ["src/styles", "node_modules/savant-ds/styles"]
             },
             "scripts": []
           },

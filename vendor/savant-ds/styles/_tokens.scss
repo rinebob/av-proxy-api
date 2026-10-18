@@ -1,0 +1,74 @@
+// _tokens.scss — the --ds-* custom-property layer (#1035).
+//
+// Emit ONCE per app, from the global stylesheet:
+//   src/styles.scss:  @use 'tokens';
+// Custom properties are runtime values — Sass does not dedupe them, so
+// emitting per-component would bloat output. Mixins in this package are
+// compile-time only and carry no emission constraint.
+//
+// Theme swap: `[data-theme="dark"]` on a root element — same convention
+// as ST's _variables-global.scss.
+//
+// Surface/feedback colors alias var(--mat-sys-*) so DS-styled and
+// Material-styled elements stay in sync during the Material exit.
+// Contract: until Material is fully removed, the consuming app MUST emit
+// --mat-sys-* somewhere applicable to :root (a Material theme, or ST's
+// hand-rolled block). Source order is irrelevant — var() aliases bind at
+// computed time — but with no --mat-sys-* emitted anywhere, the aliases
+// resolve to nothing and dependent declarations are dropped.
+// Dark mode: the aliases self-flip only if the app emits a dark Material
+// theme under [data-theme="dark"] — ST does not today, so only pure-DS
+// values can override below until that theme exists. Pure-DS values
+// (P&L accents, spacing, density) are literals.
+
+:root {
+  // ── Color — Material mirrors ──────────────────────────────────────────
+  --ds-surface: var(--mat-sys-surface);
+  --ds-on-surface: var(--mat-sys-on-surface);
+  --ds-surface-variant: var(--mat-sys-surface-variant);
+  --ds-error: var(--mat-sys-error);
+  --ds-border-subtle: var(--mat-sys-outline-variant);
+
+  // ── Color — P&L / direction accents ───────────────────────────────────
+  // Signal-table badge convention ($up/$down in _pd-visual-language.scss).
+  --ds-up: #4caf50;
+  --ds-down: #f44336;
+
+  // ── Spacing — 4px base scale ──────────────────────────────────────────
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 24px;
+  --ds-space-6: 32px;
+
+  // ── Typography ────────────────────────────────────────────────────────
+  // Sizes from the dense-table / dialog conventions (12px body copy,
+  // 14px prose, 16px dialog titles). 'bold' is 600 — the codebase's
+  // de-facto emphasis weight (table headers, totals), not 700.
+  --ds-font-size-sm: 12px;
+  --ds-font-size-md: 14px;
+  --ds-font-size-lg: 16px;
+  --ds-font-weight-regular: 400;
+  --ds-font-weight-medium: 500;
+  --ds-font-weight-bold: 600;
+
+  // ── Density ───────────────────────────────────────────────────────────
+  // Spread-builder/dialog convention: 32px rows, 40px field containers.
+  --ds-row-height: 32px;
+  --ds-field-height: 40px;
+
+  // ── Elevation ─────────────────────────────────────────────────────────
+  --ds-radius-sm: 4px;
+  --ds-radius-md: 8px;
+  --ds-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+  --ds-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+// Dark overrides — only tokens that differ. Material-mirroring aliases
+// self-flip with the app's Material dark theme; P&L accents and geometry
+// stay identical. Shadows deepen — dark surfaces need more alpha to read.
+[data-theme="dark"] {
+  --ds-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --ds-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
