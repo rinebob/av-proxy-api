@@ -1,0 +1,367 @@
+// _widgets.scss — small interactive/display widget chrome (#1108).
+//
+// Graduated verbatim from SavantTrader's hand-rolled widget styles —
+// signal-filter-pills, chart-toolbar, review-header, signal-review-header,
+// signal-table, group-panel — deduplicated into one contract per pattern.
+// `--mat-sys-*` reads stay intentional (success/error/primary containers
+// exist in both app themes); accents go through `--ds-*`.
+//
+// Retired scope — deliberately NOT emitted: `.review`/`.accept` pill-btn
+// variants (ACR workflow is being retired), verdict buttons, status
+// badges for accept/consider/reject, expando/expansion styling. Do not
+// reintroduce them here.
+
+/// Segmented pill toggle — apply at the group container:
+/// `.pill-group { @include ds.pill-toggle; }` — option class is `.pill`
+/// (`<button class="pill">`). `&.flat` is the borderless compact variant
+/// (chart-toolbar interval/range). Options support `.active` and the
+/// `.long`/`.short` accent states (container-tinted, not --ds-* because
+/// these ride the mat-sys container pair like the source).
+@mixin pill-toggle($option: '.pill') {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  padding: 2px;
+
+  &.flat {
+    background: var(--mat-sys-surface-container-high);
+    border: none;
+    border-radius: 10px;
+  }
+
+  #{$option} {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--mat-sys-on-surface-variant);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+    &:hover:not(.active) {
+      background: var(--mat-sys-surface-container-high);
+      color: var(--mat-sys-on-surface);
+    }
+
+    &.active {
+      background: var(--mat-sys-primary-container);
+      color: var(--mat-sys-on-primary-container);
+      border-color: var(--mat-sys-primary);
+      box-shadow: 0 0 0 1px var(--mat-sys-primary);
+      font-weight: 700;
+    }
+
+    &.long.active {
+      background: var(--mat-sys-success-container);
+      color: var(--mat-sys-on-success-container);
+      border-color: var(--mat-sys-success);
+      box-shadow: 0 0 0 1px var(--mat-sys-success);
+    }
+
+    &.short.active {
+      background: var(--mat-sys-error-container);
+      color: var(--mat-sys-on-error-container);
+      border-color: var(--mat-sys-error);
+      box-shadow: 0 0 0 1px var(--mat-sys-error);
+    }
+  }
+
+  &.flat #{$option}.active {
+    box-shadow: none;
+    border-color: transparent;
+  }
+}
+
+/// Micro action pill + inner count chip — `.pill-btn`-class buttons and
+/// links with an optional `<span class="pill-count">` child:
+/// `.pill-btn { @include ds.pill-btn; }`. `.emph` inverts into the
+/// primary container (the `signals-total` look); `.small` is the 8px cut.
+@mixin pill-btn() {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container);
+  color: var(--mat-sys-on-surface-variant);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+  mat-icon { font-size: 11px; width: 11px; height: 11px; }
+
+  &:hover:not(:disabled) {
+    background: var(--mat-sys-surface-container-high);
+    border-color: var(--mat-sys-outline);
+  }
+
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  &.small { font-size: 8px; padding: 2px 4px; border-radius: 8px; }
+
+  &.emph {
+    background: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
+    border-color: var(--mat-sys-primary);
+    cursor: default; // display-total emphasis (signals-total), not a control
+
+    .pill-count {
+      background: var(--mat-sys-primary);
+      color: var(--mat-sys-on-primary);
+    }
+  }
+
+  .pill-count {
+    font-size: 8px;
+    font-weight: 700;
+    background: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface-variant);
+    padding: 0 3px;
+    border-radius: 4px;
+    min-width: 14px;
+    text-align: center;
+  }
+}
+
+/// Badge family — apply at the badge element: `.badge { @include ds.badge; }`.
+/// Variants: `&.dir-long`/`&.dir-short` (15% `--ds-*` tint), `&.type`
+/// (primary-container), `&.tf` (timeframe — neutral, radius 6px, not
+/// uppercase), `&.count` (count chip — radius 8px, 700; `&.count.muted`
+/// for the quiet variant).
+@mixin badge() {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  &.dir-long {
+    background: color-mix(in srgb, var(--ds-up) 15%, transparent);
+    color: var(--ds-up);
+  }
+
+  &.dir-short {
+    background: color-mix(in srgb, var(--ds-down) 15%, transparent);
+    color: var(--ds-down);
+  }
+
+  &.type {
+    background: var(--mat-sys-primary-container);
+    color: var(--mat-sys-primary);
+  }
+
+  &.tf {
+    background: var(--mat-sys-surface-container);
+    color: var(--mat-sys-on-surface-variant);
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 6px;
+    text-transform: none;
+  }
+
+  &.count {
+    background: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 8px;
+    min-width: 20px;
+    text-align: center;
+    justify-content: center;
+    text-transform: none;
+
+    &.muted {
+      background: var(--mat-sys-surface-container-high);
+      color: var(--mat-sys-on-surface-variant);
+      font-weight: 400;
+    }
+  }
+}
+
+/// 28px square icon button — `.icon-btn { @include ds.icon-btn; }`.
+/// `&.dim` is the pre-disabled quiet state (zoom-off etc.).
+@mixin icon-btn() {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mat-sys-on-surface-variant);
+  cursor: pointer;
+  transition: background 0.12s;
+
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+  &:hover:not(:disabled) { background: var(--mat-sys-surface-container-highest); }
+
+  &:disabled { opacity: 0.4; cursor: default; }
+  &.dim { opacity: 0.4; }
+}
+
+/// Secondary toolbar row — apply at the toolbar container:
+/// `.chart-toolbar { @include ds.toolbar-row; }`. Emits `.toolbar-spacer`
+/// child (flex: 1) and a `.title` text slot.
+@mixin toolbar-row() {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--mat-sys-surface-container);
+  border-bottom: 1px solid var(--ds-border-subtle);
+  min-height: 40px;
+  flex-shrink: 0;
+
+  .toolbar-spacer { flex: 1; }
+
+  .title { font-size: var(--ds-font-size-sm); font-weight: 600; }
+}
+
+/// Prev/next + counter navigation stepper — `.symbol-nav { @include
+/// ds.nav-stepper; }` with `.nav-btn` and `.nav-position` children.
+@mixin nav-stepper() {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  .nav-btn {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--mat-sys-on-surface-variant);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s;
+
+    mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+    &:hover:not(:disabled) { background: var(--mat-sys-surface-container-highest); }
+    &:disabled { opacity: 0.35; cursor: default; }
+  }
+
+  .nav-position {
+    font-size: 10px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--mat-sys-on-surface-variant);
+    white-space: nowrap;
+    min-width: 28px;
+    text-align: center;
+  }
+}
+
+/// Compact labeled/filter input — `.header-filter { @include ds.field-input; }`
+/// with `.icon` (mat-icon) and `.clear` (18px button) children around a
+/// bare `<input>`. The filter-input pattern generalized; `<select>`
+/// styling is deliberately out of scope (deferred thread).
+@mixin field-input() {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 120px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--mat-sys-outline);
+  border-radius: 4px;
+  background: var(--mat-sys-surface);
+  position: relative;
+
+  .icon {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    color: var(--mat-sys-on-surface-variant);
+    flex-shrink: 0;
+  }
+
+  input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    outline: none;
+    padding: 0;
+    min-width: 0;
+    font-family: inherit;
+    color: var(--ds-on-surface);
+
+    &::placeholder { color: var(--mat-sys-on-surface-variant); }
+  }
+
+  .clear {
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--mat-sys-on-surface-variant);
+    cursor: pointer;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    mat-icon { font-size: 12px; width: 12px; height: 12px; }
+
+    &:hover { background: var(--mat-sys-surface-container-highest); }
+  }
+}
+
+/// Single-select toggle chip — `.chip { @include ds.toggle-chip; }`.
+/// Wrap-friendly (consumer supplies the flex container).
+@mixin toggle-chip() {
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-highest);
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+
+  &:hover { border-color: var(--mat-sys-outline); }
+
+  &.active {
+    background: var(--mat-sys-primary-container);
+    color: var(--mat-sys-primary);
+    border-color: var(--mat-sys-primary);
+    box-shadow: 0 0 0 1px var(--mat-sys-primary-container);
+  }
+}
+
+/// Direction edge accent — companion marker, apply to any element:
+/// `tr { @include ds.dir-edge; }` emits `tr.dir-edge-long` /
+/// `tr.dir-edge-short` (3px left accent). Works on cards, list items —
+/// anything, not just table rows. `dense-table` stays unmodified.
+@mixin dir-edge() {
+  &.dir-edge-long { border-left: 3px solid var(--ds-up); }
+  &.dir-edge-short { border-left: 3px solid var(--ds-down); }
+}
