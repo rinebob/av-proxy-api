@@ -72,7 +72,13 @@
     }
   }
 
+  &.flat #{$option}:hover:not(.active) {
+    background: var(--mat-sys-surface-container-highest);
+  }
+
   &.flat #{$option}.active {
+    background: var(--mat-sys-primary);
+    color: var(--mat-sys-on-primary);
     box-shadow: none;
     border-color: transparent;
   }
