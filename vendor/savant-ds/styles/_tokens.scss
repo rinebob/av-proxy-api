@@ -1,4 +1,4 @@
-// _tokens.scss — the --ds-* custom-property layer (#1035).
+// _tokens.scss — the --ds-* custom-property layer (#1035, #1161/#1204).
 //
 // Emit ONCE per app, from the global stylesheet:
 //   src/styles.scss:  @use 'tokens';
@@ -6,35 +6,80 @@
 // emitting per-component would bloat output. Mixins in this package are
 // compile-time only and carry no emission constraint.
 //
-// Theme swap: `[data-theme="dark"]` on a root element — same convention
-// as ST's _variables-global.scss.
+// Theme swap: `[data-theme="dark"]` on a root element — the app's
+// bootstrap (FE #1207, index.html) will set it before first paint once
+// it ships. Until then nothing sets the attribute and the app renders
+// the :root light set — the same appearance the mat-sys aliases
+// resolved to. Dark is the product default; :root carries the light
+// set so every intermediate state (vendored sync shipped, bootstrap
+// pending) stays coherent. The app-level `--mat-sys-*` bridge in
+// styles.scss supplies the light set today; FE Phase 2 (#1209) adds the
+// dark block — until it lands, `data-theme="dark"` flips only --ds-*
+// surfaces and Material chrome stays light (don't ship the toggle
+// without it). #1163 removes the bridge entirely.
 //
-// Surface/feedback colors alias var(--mat-sys-*) so DS-styled and
-// Material-styled elements stay in sync during the Material exit.
-// Contract: until Material is fully removed, the consuming app MUST emit
-// --mat-sys-* somewhere applicable to :root (a Material theme, or ST's
-// hand-rolled block). Source order is irrelevant — var() aliases bind at
-// computed time — but with no --mat-sys-* emitted anywhere, the aliases
-// resolve to nothing and dependent declarations are dropped.
-// Dark mode: the aliases self-flip only if the app emits a dark Material
-// theme under [data-theme="dark"] — ST does not today, so only pure-DS
-// values can override below until that theme exists. Pure-DS values
-// (P&L accents, spacing, density) are literals.
+// `--ds-*` color values are self-contained literals — they do NOT alias
+// --mat-sys. Package mixins may still read --mat-sys-* directly for
+// Material-coexistence surfaces; that dependency exits in #1163.
+//
+// Palette source of truth: /dev/ds palette explorer (#1211) selects the
+// shipped values. There is no bake tooling — "bake" = update the
+// literals here AND the manifests in scripts/verify.mjs (LITERAL_VALUES
+// + DARK_VALUES) in one change, then `npm run verify` here and
+// `npm run sync:ds` in each consuming app.
+//
+// Naming contract: `on-{x}` pairs with the solid `--ds-{x}` fill;
+// `on-{x}-container` pairs ONLY with `--ds-{x}-container` — it is not a
+// text-on-solid color. Never emit `color: var(--ds-on-up-container)`
+// over a `var(--ds-up)` background. On-solid tokens for the direction/
+// feedback families land when a consumer needs one.
 
 :root {
-  // ── Color — Material mirrors ──────────────────────────────────────────
-  --ds-surface: var(--mat-sys-surface);
-  --ds-on-surface: var(--mat-sys-on-surface);
-  --ds-surface-variant: var(--mat-sys-surface-variant);
-  --ds-error: var(--mat-sys-error);
-  --ds-border-subtle: var(--mat-sys-outline-variant);
+  // ── Neutral surfaces — hue-free grey ramp ───────────────────────────
+  // Identity comes from the accent family, never from tinted surfaces.
+  --ds-surface: #ffffff;          // page background
+  --ds-surface-raised: #f5f6f8;   // cards, panels
+  --ds-surface-overlay: #eceef1;  // dialogs, menus
+  --ds-surface-variant: #f5f6f8;  // deprecated alias of -raised — kept
+                                  // for the ds-gallery consumer; retires
+                                  // in the literal sweep (#1213+)
+  --ds-on-surface: #1a1d21;       // primary text
+  --ds-on-surface-variant: #5b6470; // secondary/muted text
+  --ds-border-subtle: #d6dae1;    // hairlines, card borders
+  --ds-border-strong: #b9c0ca;    // emphasized edges
 
-  // ── Color — P&L / direction accents ───────────────────────────────────
-  // Signal-table badge convention ($up/$down in _pd-visual-language.scss).
+  // ── Brand Accent family ─────────────────────────────────────────────
+  // Swappable identity color — accent surfaces, borders, headings, glow.
+  // Provisional: Neon Cyan pending the /dev/ds palette lock.
+  --ds-accent: #0891b2;
+  --ds-on-accent: #ffffff;
+  --ds-accent-container: #cffafe;
+  --ds-on-accent-container: #164e63;
+  --ds-accent-border: #0891b2;
+  --ds-accent-glow: rgba(8, 145, 178, 0.30);
+
+  // ── Direction Colors — up/down, long/short ──────────────────────────
+  // Defaults preserve the established palette; user-pickable as a pair
+  // on /dev/ds. Containers tint banners/chips/pills.
   --ds-up: #4caf50;
+  --ds-on-up-container: #1b5e20;
+  --ds-up-container: #c8e6c9;
   --ds-down: #f44336;
+  --ds-on-down-container: #b71c1c;
+  --ds-down-container: #ffebee;
 
-  // ── Spacing — 4px base scale ──────────────────────────────────────────
+  // ── Feedback — status semantics, distinct from direction ────────────
+  --ds-success: #4caf50;
+  --ds-on-success-container: #1b5e20;
+  --ds-success-container: #c8e6c9;
+  --ds-error: #f44336;
+  --ds-on-error-container: #b71c1c;
+  --ds-error-container: #ffebee;
+  --ds-warning: #fb8c00;
+  --ds-on-warning-container: #e65100;
+  --ds-warning-container: #fff3e0;
+
+  // ── Spacing — 4px base scale ────────────────────────────────────────
   --ds-space-1: 4px;
   --ds-space-2: 8px;
   --ds-space-3: 12px;
@@ -42,7 +87,7 @@
   --ds-space-5: 24px;
   --ds-space-6: 32px;
 
-  // ── Typography ────────────────────────────────────────────────────────
+  // ── Typography ──────────────────────────────────────────────────────
   // Sizes from the dense-table / dialog conventions (12px body copy,
   // 14px prose, 16px dialog titles). 'bold' is 600 — the codebase's
   // de-facto emphasis weight (table headers, totals), not 700.
@@ -53,22 +98,59 @@
   --ds-font-weight-medium: 500;
   --ds-font-weight-bold: 600;
 
-  // ── Density ───────────────────────────────────────────────────────────
+  // ── Density ─────────────────────────────────────────────────────────
   // Spread-builder/dialog convention: 32px rows, 40px field containers.
   --ds-row-height: 32px;
   --ds-field-height: 40px;
 
-  // ── Elevation ─────────────────────────────────────────────────────────
+  // ── Elevation ───────────────────────────────────────────────────────
   --ds-radius-sm: 4px;
   --ds-radius-md: 8px;
   --ds-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
   --ds-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-// Dark overrides — only tokens that differ. Material-mirroring aliases
-// self-flip with the app's Material dark theme; P&L accents and geometry
-// stay identical. Shadows deepen — dark surfaces need more alpha to read.
-[data-theme="dark"] {
+// Dark theme — the product default once bootstrap sets
+// `data-theme="dark"` on <html>. Only tokens that differ are repeated.
+[data-theme='dark'] {
+  // ── Neutral surfaces — hue-free dark grey ramp ──────────────────────
+  --ds-surface: #0f1114;
+  --ds-surface-raised: #181b1f;
+  --ds-surface-overlay: #212529;
+  --ds-surface-variant: #181b1f;
+  --ds-on-surface: #e6e8eb;
+  --ds-on-surface-variant: #9aa3ad;
+  --ds-border-subtle: #2a2f36;
+  --ds-border-strong: #3d434c;
+
+  // ── Brand Accent — brighter on dark ─────────────────────────────────
+  --ds-accent: #22d3ee;
+  --ds-on-accent: #05252b;
+  --ds-accent-container: #123540;
+  --ds-on-accent-container: #a8f0fb;
+  --ds-accent-border: #22d3ee;
+  --ds-accent-glow: rgba(34, 211, 238, 0.40);
+
+  // ── Direction Colors — same hues, dark-mode containers ──────────────
+  --ds-up: #4caf50;
+  --ds-on-up-container: #86dd9a;
+  --ds-up-container: #153b21;
+  --ds-down: #f44336;
+  --ds-on-down-container: #ff9d95;
+  --ds-down-container: #41171b;
+
+  // ── Feedback ────────────────────────────────────────────────────────
+  --ds-success: #4caf50;
+  --ds-on-success-container: #86dd9a;
+  --ds-success-container: #153b21;
+  --ds-error: #f44336;
+  --ds-on-error-container: #ff9d95;
+  --ds-error-container: #41171b;
+  --ds-warning: #ffa726;
+  --ds-on-warning-container: #ffd699;
+  --ds-warning-container: #3a2c10;
+
+  // Shadows deepen — dark surfaces need more alpha to read.
   --ds-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
   --ds-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.5);
 }

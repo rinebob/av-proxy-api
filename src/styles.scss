@@ -34,10 +34,13 @@
     --sidenav-border: #e0e0e0;
     --border-radius: 8px;
 
-    /* savant-ds bridge — the package's surface/feedback tokens alias
-       --mat-sys-*, which SA's prebuilt indigo-pink theme does not emit.
-       Map the handful the DS reads onto the app's own palette vars so the
-       aliases resolve until SA adopts a real Material sys theme. */
+    /* savant-ds bridge — the shipped --ds-* tokens are self-contained
+       literals and do NOT read --mat-sys-*, but the vendored DS MIXINS
+       still do (e.g. ds.state-block reads --mat-sys-on-surface-variant)
+       and SA's prebuilt indigo-pink theme emits no usable values. This
+       block maps
+       the handful onto the app's palette vars until SA adopts a real
+       Material sys theme or the mixins migrate to --ds-* (#1163). */
     --mat-sys-surface: var(--card-background);
     --mat-sys-on-surface: var(--text-primary);
     --mat-sys-surface-variant: var(--background);

@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-10-22]
+
+### Changed
+- [Savant Design System] 1024-1205_SHARED-IMPL-DESIGN-SYSTEM: vendored savant-ds tokens synced to the 47-token literal contract (was stale-committed on the pre-#1204 mat-sys-mirror contract); styles.scss bridge comment corrected — --ds-* are literals, bridge serves mixin reads only
+
 ## [2026-10-18]
 
 ### Added
