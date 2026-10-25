@@ -118,3 +118,19 @@ A constant-maturity implied volatility: the 30-day implied vol of the underlying
 
 The latest interim high or low observed while the current swing is still unfolding. A confirmed pivot is only established when price reverses by the configured threshold and the swing completes. Until then, the current swing extreme may advance each trading day. The swing file exposes this value so the options-corpus pipeline can fetch the latest extreme's chain snapshot, update per-contract time series, and remove prior interim snapshots from GCS. See Topic #102.
 
+
+### Signoff Text
+
+A routine SMS sent when a pipeline run's work is fully done — last interval complete and PDR published — confirming "our work is done for that run." Carries run identity, market date, per-interval symbol counts, failure count, PDR confirmation, and duration in verbose readable prose (≤2 SMS segments). Four per trading day: intraday 0800/1000/1200 PT ticks and the POST A run. See Topic #198.
+
+### Hard-Down Exception
+
+An SMS-worthy failure condition limited to total failures: run doc missing, PDR never sent, or orchestrator never started — detected by watchdog absence checks, not by error logs. Partial failures never text; they surface inside the Signoff Text's counts. See Topic #198.
+
+### Canonical Alert Event
+
+The single in-repo emission point for operator notifications: pipeline code emits a structured event carrying the fully composed SMS text, separating message composition (versioned, unit-testable code) from delivery (Cloud Monitoring SMS, or a minimal dedicated sender as fallback). See Topic #198.
+
+### Daily Corpus Coverage
+
+The invariant that every options-enabled symbol has a Raw Corpus object for **every trading day** in `[daily coverage floor .. latest completed trading day]` — contrasted with the corpus's historically sparse coverage (pivot dates + nightly days only). `optionsEnabled` is itself the opt-in (a deliberately curated gate — no parallel flag exists). Maintained by the **calendar-coverage reconciler**: a scheduled diff of expected trading days vs. stored corpus objects that enqueues a seed task per gap. The **daily coverage floor** (2026-01-01) is deliberately distinct from the absolute corpus floor (2019-01-01) — daily density is only required back to the daily floor; pre-2026 coverage remains pivot-sparse by design. See Topic #213.
