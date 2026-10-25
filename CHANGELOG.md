@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-10-25]
+
+### Added
+- [Ops SMS Alerts] 198-200_DOCS-DOCS-OPS: PRD — pipeline SMS refresh (4 signoffs/day + hard-down exceptions, verbose readable texts)
+- [Ops SMS Alerts] 198-201_DOCS-DOCS-OPS: IMPL + TEST plans — ops-alerts composition seam, Twilio dedicated-sender decision, test matrix
+- [Ops SMS Alerts] 198-203_DOCS-DOCS-OPS: CONTEXT.md glossary — Signoff Text, Hard-Down Exception, Canonical Alert Event
+- [Ops SMS Alerts] 198-203_DOCS-DOCS-OPS: code review + UAT docs for delivery spike (PASS; inventory verified, SMS fixed-format confirmed)
+
 ## [2026-10-22]
 
 ### Changed
