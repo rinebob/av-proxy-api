@@ -21,6 +21,8 @@ const scripts = [
   'options-data-123-swing-set-types.ts',
   'options-data-168-symbol-metric-types.ts',
   'ops-119-firestore-indexes.ts',
+  // ops-sms-alerts-204-emit-alert.ts — mutating (writes + deletes an
+  // ops-alerts/verify:* doc in prod), run manually
   // options-data-124-swing-set-data-layer.ts — mutating (writes + deletes a
   // ZZTEST probe doc in prod), run manually
   // options-data-125-swing-set-generation.ts — mutating (writes + deletes

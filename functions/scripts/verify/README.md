@@ -161,6 +161,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #140 | `options-data-140-set-options-enabled.ts` *(mutating, not in run-all)* | BE: curation core — not-found gate, enable→enqueue, idempotent re-enable, disable | [options-data-140-set-options-enabled.md](options-data-140-set-options-enabled.md) |
 | #142 | `options-data-142-list-flag-filtering.ts` *(read-only, not in run-all)* | Post-deploy: partnerListTrackedSymbolsV2 ?optionable=/?optionsEnabled= filtering via real OIDC | [options-data-142-list-flag-filtering.md](options-data-142-list-flag-filtering.md) |
 | #119 | `ops-119-firestore-indexes.ts` | OPS: firestore.indexes.json ↔ prod drift check | [ops-119-firestore-indexes.md](ops-119-firestore-indexes.md) |
+| #204 | `ops-sms-alerts-204-emit-alert.ts` *(mutating, not in run-all)* | OPS: emitOpsAlert canonical log + audit doc write/read-back + dedupe overwrite (writes + deletes ops-alerts/verify:* doc) | [ops-sms-alerts-204-emit-alert.md](ops-sms-alerts-204-emit-alert.md) |
 
 ## Execution order
 
@@ -193,6 +194,10 @@ Topic #102 (Swing-driven options corpus):
 Topic #118 (Repo & deploy hygiene):
 
 1. **#119** (OPS: index drift check) — no dependencies; run after any index deploy or suspected drift
+
+Topic #198 (Ops SMS Alerts):
+
+1. **#204** (BE: canonical alert event + fail-safe emitter) — no dependencies; **mutating** — writes + deletes an `ops-alerts/verify:*` doc (not in run-all)
 
 Run all scripts for a task after the task's implementation is complete and unit tests pass. The run-all script handles ordering automatically.
 

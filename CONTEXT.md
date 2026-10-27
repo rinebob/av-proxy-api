@@ -129,7 +129,11 @@ An SMS-worthy failure condition limited to total failures: run doc missing, PDR 
 
 ### Canonical Alert Event
 
-The single in-repo emission point for operator notifications: pipeline code emits a structured event carrying the fully composed SMS text, separating message composition (versioned, unit-testable code) from delivery (Cloud Monitoring SMS, or a minimal dedicated sender as fallback). See Topic #198.
+The single in-repo emission point for operator notifications: pipeline code emits a structured event carrying the fully composed SMS text, separating message composition (versioned, unit-testable code) from delivery (a dedicated Twilio sender — Cloud Monitoring SMS was rejected because it cannot carry composed text). Emitted via `emitOpsAlert` — a fail-safe seam that writes a greppable `ops.alert` log line then persists a dedupe audit doc at `ops-alerts/{alertKey}` and never throws. See Topic #198.
+
+### Alert Key
+
+The deterministic dedupe/identity string on a Canonical Alert Event (`alertKey`), e.g. `intraday:0800:2026-10-25`. It doubles as the audit doc id under `ops-alerts/`, so re-emitting the same key overwrites rather than duplicates. See Topic #198.
 
 ### Daily Corpus Coverage
 

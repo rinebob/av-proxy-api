@@ -10,6 +10,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Ops SMS Alerts] 198-201_DOCS-DOCS-OPS: IMPL + TEST plans — ops-alerts composition seam, Twilio dedicated-sender decision, test matrix
 - [Ops SMS Alerts] 198-203_DOCS-DOCS-OPS: CONTEXT.md glossary — Signoff Text, Hard-Down Exception, Canonical Alert Event
 - [Ops SMS Alerts] 198-203_DOCS-DOCS-OPS: code review + UAT docs for delivery spike (PASS; inventory verified, SMS fixed-format confirmed)
+- [Ops SMS Alerts] 198-204_OPS-OPS-OPS: `ops.alert` canonical alert event + `emitOpsAlert` fail-safe emitter — greppable log line (complete smsText, `key=`, `ctx=`) + dedupe audit doc at `ops-alerts/{alertKey}`; never throws
+- [Ops SMS Alerts] 198-204_DOCS-OPS-OPS: prod verify script (write/read/overwrite/delete) + code review + UAT docs (both PASS)
 
 ## [2026-10-22]
 
