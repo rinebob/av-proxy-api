@@ -162,6 +162,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #142 | `options-data-142-list-flag-filtering.ts` *(read-only, not in run-all)* | Post-deploy: partnerListTrackedSymbolsV2 ?optionable=/?optionsEnabled= filtering via real OIDC | [options-data-142-list-flag-filtering.md](options-data-142-list-flag-filtering.md) |
 | #119 | `ops-119-firestore-indexes.ts` | OPS: firestore.indexes.json ↔ prod drift check | [ops-119-firestore-indexes.md](ops-119-firestore-indexes.md) |
 | #204 | `ops-sms-alerts-204-emit-alert.ts` *(mutating, not in run-all)* | OPS: emitOpsAlert canonical log + audit doc write/read-back + dedupe overwrite (writes + deletes ops-alerts/verify:* doc) | [ops-sms-alerts-204-emit-alert.md](ops-sms-alerts-204-emit-alert.md) |
+| #205 | `ops-sms-alerts-205-compose-texts.ts` | OPS: message composer — all signoff/exception text types composed + length/leak/content checks | [ops-sms-alerts-205-compose-texts.md](ops-sms-alerts-205-compose-texts.md) |
 
 ## Execution order
 
@@ -197,7 +198,8 @@ Topic #118 (Repo & deploy hygiene):
 
 Topic #198 (Ops SMS Alerts):
 
-1. **#204** (BE: canonical alert event + fail-safe emitter) — no dependencies; **mutating** — writes + deletes an `ops-alerts/verify:*` doc (not in run-all)
+1. **#205** (BE: message composer) — no dependencies; read-only
+2. **#204** (BE: canonical alert event + fail-safe emitter) — no dependencies; **mutating** — writes + deletes an `ops-alerts/verify:*` doc (not in run-all)
 
 Run all scripts for a task after the task's implementation is complete and unit tests pass. The run-all script handles ordering automatically.
 
