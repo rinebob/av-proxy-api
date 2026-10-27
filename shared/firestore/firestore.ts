@@ -30,6 +30,9 @@ export enum FirestoreCollection {
 
     // POST PDR delivery watchdog health docs
     REALTIME_HEALTH = 'realtime-health',
+
+    // Operator SMS alert audit docs (dedupe + observability, Topic #198)
+    OPS_ALERTS = 'ops-alerts',
     
     YEARS = 'years',
 

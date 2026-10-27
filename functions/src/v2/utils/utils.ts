@@ -57,6 +57,9 @@ export interface BetterLogPayload {
   error?: string;
   message?: string;
   runId?: string;
+  alertKey?: string;
+  /** Pre-serialized JSON context — callers JSON.stringify before passing. */
+  ctx?: string;
 }
 
 // Simple in-memory timer store for console.time-like measurements keyed by logger/file + label + context
@@ -79,7 +82,7 @@ export function betterLogger(file: string) {
   const should = (level: LogLevel) => LEVELS[level] <= threshold;
   function log(level: LogLevel, event: string, blPayload: BetterLogPayload) {
     if (!should(level)) return;
-    const { function: fn, symbol, marketDate, interval, endpoint, message, runId } = blPayload;
+    const { function: fn, symbol, marketDate, interval, endpoint, message, runId, alertKey, ctx } = blPayload;
 
     let msgString = `[${file} ${fn}] event=${event}`;
     msgString = symbol ? msgString + ` sym=${symbol}` : msgString;
@@ -89,6 +92,8 @@ export function betterLogger(file: string) {
     msgString = level ? msgString + ` level=${level}` : msgString;
     msgString = message ? msgString + ` message=${message}` : msgString;
     msgString = runId ? msgString + ` runId=${runId}` : msgString;
+    msgString = alertKey ? msgString + ` key=${alertKey}` : msgString;
+    msgString = ctx ? msgString + ` ctx=${ctx}` : msgString;
 
     console.log(`${msgString}`);
   }
