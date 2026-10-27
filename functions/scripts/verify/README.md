@@ -77,7 +77,7 @@ SHARED verification scripts confirm that the shared package exports the correct 
 - Nullable fields accept `null`
 - Empty-string fields accept empty strings
 
-These scripts do **not** hit Firestore or external APIs — they're pure import + shape verification. The real-environment aspect is that they import from the compiled shared package, not from source, so they confirm the build output is correct.
+These scripts do **not** hit Firestore or external APIs — they're pure import + shape verification. The real-environment aspect is that they import from the compiled shared package, not from source, so they confirm the build output is correct. (Exception: `options-data-219` additionally performs one read-only prod `tracked-symbols` query to exercise the codec across the real enabled-symbol universe.)
 
 ### BE area (handlers, CSV parser, refresh manager)
 
@@ -163,6 +163,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #119 | `ops-119-firestore-indexes.ts` | OPS: firestore.indexes.json ↔ prod drift check | [ops-119-firestore-indexes.md](ops-119-firestore-indexes.md) |
 | #204 | `ops-sms-alerts-204-emit-alert.ts` *(mutating, not in run-all)* | OPS: emitOpsAlert canonical log + audit doc write/read-back + dedupe overwrite (writes + deletes ops-alerts/verify:* doc) | [ops-sms-alerts-204-emit-alert.md](ops-sms-alerts-204-emit-alert.md) |
 | #205 | `ops-sms-alerts-205-compose-texts.ts` | OPS: message composer — all signoff/exception text types composed + length/leak/content checks | [ops-sms-alerts-205-compose-texts.md](ops-sms-alerts-205-compose-texts.md) |
+| #219 | `options-data-219-pick-grid-types.ts` | SHARED: pick-grid (380 cells) + cellId codec round-trip across real optionsEnabled universe (~49k ids) | [options-data-219-pick-grid-types.md](options-data-219-pick-grid-types.md) |
 
 ## Execution order
 
@@ -195,6 +196,10 @@ Topic #102 (Swing-driven options corpus):
 Topic #118 (Repo & deploy hygiene):
 
 1. **#119** (OPS: index drift check) — no dependencies; run after any index deploy or suspected drift
+
+Topic #213 (Options Corpus Bulk Ingest — delta-pick grid):
+
+1. **#219** (SHARED: grid config + cellId codec) — no dependencies; read-only
 
 Topic #198 (Ops SMS Alerts):
 

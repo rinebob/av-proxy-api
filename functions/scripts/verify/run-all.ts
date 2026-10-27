@@ -20,6 +20,7 @@ const scripts = [
   'options-data-122-zigzag-engine.ts',
   'options-data-123-swing-set-types.ts',
   'options-data-168-symbol-metric-types.ts',
+  'options-data-219-pick-grid-types.ts',
   'ops-119-firestore-indexes.ts',
   'ops-sms-alerts-205-compose-texts.ts',
   // ops-sms-alerts-204-emit-alert.ts — mutating (writes + deletes an
