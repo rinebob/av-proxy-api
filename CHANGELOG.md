@@ -3,6 +3,13 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-10-26]
+
+### Added
+- [Options Corpus Bulk Ingest] 213-219_SHARED-IMPL-OPTIONS-DATA: Delta-pick grid + cellId codec + pick-doc contract types — PICK_GRID (19 deltas x 10 DTEs x put/call = 380 cells), DayPick/DayMiss/CellYearDoc wire contract, hyphen-safe codec, entry/repair guards
+- [Options Corpus Bulk Ingest] 213-219_BE-IMPL-OPTIONS-DATA: Prod verify script — 380-cell grid + cellId round-trip across the real optionsEnabled universe (130 symbols / 49,400 ids)
+- [Options Corpus Bulk Ingest] 213-219_DOCS-DOCS-OPTIONS-DATA: Topic 213 docs — PRD, SPEC consumer contract, IMPL/TEST plans, code review + UAT (both PASS); thread renamed to "Full-Date Corpus Backfill (2026)" — actual scope
+
 ## [2026-10-25]
 
 ### Added
