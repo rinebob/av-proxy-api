@@ -33,8 +33,10 @@ export type PickOptionType = 'put' | 'call';
  *  delta at the nearest listed expiration to the target DTE. All fields are
  *  observed on that day's chain — never synthesized. */
 export interface DayPick {
-  /** Symbol's split-adjusted close that day — present on every entry. */
-  underlyingClose: number;
+  /** Symbol's split-adjusted close that day — present on every entry when an
+   *  adjusted close exists; omitted for the rare trading day without one
+   *  (TEST edge case: entry still written, close omitted). */
+  underlyingClose?: number;
   contractId: string;
   expiration: string;
   /** Actual calendar days to expiration — differs from the target DTE when
@@ -43,12 +45,15 @@ export interface DayPick {
   strike: number;
   /** Observed delta — closest to the target, not exactly the target. */
   delta: number;
-  iv: number;
-  mark: number;
-  bid: number;
-  ask: number;
-  volume: number;
-  openInterest: number;
+  /** Quote fields below are observed on the chain row; each is omitted (not
+   *  zero-filled) when the row lacks a parseable value — observed data is
+   *  never fabricated. AV chains populate them in practice. */
+  iv?: number;
+  mark?: number;
+  bid?: number;
+  ask?: number;
+  volume?: number;
+  openInterest?: number;
 }
 
 export type DayMissStatus = 'no_chain' | 'no_match';
