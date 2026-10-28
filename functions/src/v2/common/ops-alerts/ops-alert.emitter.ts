@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../../../firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
 import { betterLogger } from '../../utils/utils';
-import type { OpsAlertEvent } from './ops-alert.types';
+import { isValidAlertKey, type OpsAlertEvent } from './ops-alert.types';
 
 const logger = betterLogger('opsAlert');
 
@@ -23,7 +23,7 @@ const logger = betterLogger('opsAlert');
  */
 export async function emitOpsAlert(event: OpsAlertEvent): Promise<void> {
   try {
-    if (!event?.smsText || !event?.alertKey || event.alertKey.includes('/')) {
+    if (!event?.smsText || !isValidAlertKey(event?.alertKey)) {
       logger.error('ops.alert_emit_failed', {
         function: 'emitOpsAlert',
         message: `invalid event — ${

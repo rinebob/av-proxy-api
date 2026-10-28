@@ -33,6 +33,9 @@ export enum FirestoreCollection {
 
     // Operator SMS alert audit docs (dedupe + observability, Topic #198)
     OPS_ALERTS = 'ops-alerts',
+
+    // Send-once claim docs for operator SMS alerts (Topic #198)
+    OPS_ALERT_CLAIMS = 'ops-alert-claims',
     
     YEARS = 'years',
 

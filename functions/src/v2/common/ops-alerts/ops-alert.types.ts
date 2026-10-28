@@ -29,3 +29,12 @@ export interface OpsAlertEvent {
   /** Structured context for observability (counts, intervals, tick, condition). */
   context?: Record<string, unknown>;
 }
+
+/**
+ * alertKey validity — non-empty and free of '/', since it becomes a
+ * Firestore document id (audit doc, claim doc). Shared by the emitter and
+ * the send-once guard.
+ */
+export function isValidAlertKey(alertKey: string | undefined | null): alertKey is string {
+  return !!alertKey && !alertKey.includes('/');
+}
