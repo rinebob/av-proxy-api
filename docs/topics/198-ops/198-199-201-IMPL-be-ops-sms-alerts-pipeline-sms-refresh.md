@@ -48,6 +48,8 @@ flowchart TD
 
 5. **Send-once marker.** New optional field on run docs (e.g. `opsSms.sentAt`), set inside a Firestore transaction — additive, no schema migration. Mirrors the existing `partnerDataReady.messageSent` pattern.
 
+   **Implemented deviation (Task #206):** the send-once *authority* is a dedicated `ops-alert-claims/{alertKey}` doc claimed transactionally, not a single field on the run doc — one run doc carries 4+ distinct alert keys (3 intraday signoffs + POST signoff + exceptions) that a single `opsSms.sentAt` could not distinguish, and `run_missing` exceptions have no run doc at all. When `runDocPath` is passed, the same transaction stamps `opsSms.claimed[alertKey]` on the existing run doc for observability (records claim intent, not confirmed SMS delivery; never fabricates a run doc). Signoff call sites MUST pass `runDocPath`; exception call sites pass it only when the run doc is expected to exist.
+
 6. **Composer is pure.** Input: run-doc-shaped data (marketDate, interval stats, counts, durations, PDR status). Output: the exact SMS string (verbose readable, ≤ ~300 chars / 2 segments). Fully unit-testable, no Firestore, no clock — clock/dates injected.
 
 7. **Hard-down exceptions ride the same seam.** Watchdogs emit canonical alert events for `run_missing` / `pdr_missing` / orchestrator-no-start. Exception texts name what was expected, what happened, the runId, and where to look next.

@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-10-28]
+
+### Added
+- [Ops SMS Alerts] 198-206_BE-IMPL-OPS: send-once guard — transactional ops-alert-claims/{alertKey} authority + optional opsSms.claimed run-doc stamp; fail-closed, never emits twice under redelivery/concurrency
+- [Ops SMS Alerts] 198-206_DOCS-DOCS-OPS: mutating verify script (claim/concurrent/fabrication/non-veto checks) + code review + UAT docs (all PASS)
+
 ## [2026-10-26]
 
 ### Added
