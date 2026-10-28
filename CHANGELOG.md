@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - [Ops SMS Alerts] 198-206_BE-IMPL-OPS: send-once guard — transactional ops-alert-claims/{alertKey} authority + optional opsSms.claimed run-doc stamp; fail-closed, never emits twice under redelivery/concurrency
 - [Ops SMS Alerts] 198-206_DOCS-DOCS-OPS: mutating verify script (claim/concurrent/fabrication/non-veto checks) + code review + UAT docs (all PASS)
+- [Options Corpus Bulk Ingest] 213-221_SHARED-IMPL-OPTIONS-DATA: DayPick optional fields — quote/close omitted when unobserved, never fabricated
+- [Options Corpus Bulk Ingest] 213-221_BE-IMPL-OPTIONS-DATA: Picker core — pickCellsForDate + noChainPickEntries, deterministic ties, oracle-verified
+- [Options Corpus Bulk Ingest] 213-221_BE-IMPL-OPTIONS-DATA: Prod verify script — oracle cross-check on real GCS chains + report-only golden diff
+- [Options Corpus Bulk Ingest] 213-221_DOCS-DOCS-OPTIONS-DATA: SPEC omission semantics + code review PASS + UAT Complete
 
 ## [2026-10-26]
 

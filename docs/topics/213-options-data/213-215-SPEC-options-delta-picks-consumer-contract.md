@@ -9,7 +9,7 @@
 **Type:** SPEC  
 **Status:** Draft  
 **Created:** 2026-10-25  
-**Last Updated:** 2026-10-25  
+**Last Updated:** 2026-10-28  
 
 # SPEC: `options-delta-picks` — Consumer Contract
 
@@ -84,7 +84,7 @@ Examples:
 
 | Field | Meaning |
 |---|---|
-| `underlyingClose` | Symbol's split-adjusted close that day (from `sa-time-series`). Present on **every** entry including misses — backtests always need spot for the entry day. |
+| `underlyingClose` | Symbol's split-adjusted close that day (from `sa-time-series`). Present on every entry **when an adjusted close exists** — omitted for the rare trading day without one; backtests should treat absence as "spot unavailable", never 0. |
 | `contractId` | OCC-style ID: `{SYM}{YYMMDD}{C\|P}{strike×1000}` |
 | `expiration` | ISO date of the chosen expiration |
 | `dte` | **Actual** calendar days to expiration on that date — differs from target when the nearest listed expiration isn't exact |
@@ -93,6 +93,10 @@ Examples:
 | `iv` | Observed implied volatility for that contract |
 | `mark` / `bid` / `ask` | Observed quotes |
 | `volume` / `openInterest` | Observed that day |
+
+Quote fields (`iv`, `mark`, `bid`, `ask`, `volume`, `openInterest`) are
+omitted — never zero-filled — when a chain row lacks a parseable value.
+AV chains populate them in practice; absence means "not observed", not 0.
 
 A pick entry carries **no `status` field** — presence of `contractId` means pick.
 
