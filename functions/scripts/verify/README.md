@@ -165,6 +165,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #205 | `ops-sms-alerts-205-compose-texts.ts` | OPS: message composer — all signoff/exception text types composed + length/leak/content checks | [ops-sms-alerts-205-compose-texts.md](ops-sms-alerts-205-compose-texts.md) |
 | #206 | `ops-sms-alerts-206-send-once-guard.ts` *(mutating, not in run-all)* | OPS: send-once guard — claim/second-claim/concurrent-claim + run-doc stamp (writes + deletes ops-alert-claims/verify:* + scratch run doc) | [ops-sms-alerts-206-send-once-guard.md](ops-sms-alerts-206-send-once-guard.md) |
 | #219 | `options-data-219-pick-grid-types.ts` | SHARED: pick-grid (380 cells) + cellId codec round-trip across real optionsEnabled universe (~49k ids) | [options-data-219-pick-grid-types.md](options-data-219-pick-grid-types.md) |
+| #221 | `options-data-221-pick-cells.ts` | BE: picker core — oracle cross-check over real prod chains (7,980 cells / 21 days) + report-only golden diff | [options-data-221-pick-cells.md](options-data-221-pick-cells.md) |
 
 ## Execution order
 
