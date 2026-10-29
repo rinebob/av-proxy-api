@@ -19,6 +19,7 @@ import {
 } from '../../partner/constants';
 import { TimeSeriesJobTerminalStatus, TimeSeriesRunStatus } from './time-series-jobs.model';
 import { INTRADAY_MAX_RUN_DURATION_MS, MAX_NON_SUCCESS_JOBS_IN_RUN_DOC } from './job-config';
+import { emitIntradayTickSignoff } from './intraday-ops-signoff';
 import { computeRunBarStatus, prevTradingDay, isoWeek, monthOf } from '../../common/bar-status/bar-status.service';
 
 const logger = betterLogger('iS.Agg');
@@ -56,6 +57,10 @@ async function reconcileIntradayRunJobs(runId: string): Promise<void> {
 
   let successJobs = 0;
   let permanentFailureJobs = 0;
+  // PERMANENT_FAILURE symbols whose terminal callback was lost — merged into
+  // the run doc's permanentFailureSymbols so the run doc stays the canonical
+  // failed-symbol list (capped, like nonSuccessJobs, for doc size).
+  const permanentFailureSymbols: string[] = [];
   const nonSuccessJobs: Array<{ symbol: string; status: string; reason: string }> = [];
   const nowMs = Date.now();
 
@@ -69,7 +74,13 @@ async function reconcileIntradayRunJobs(runId: string): Promise<void> {
         : undefined;
 
     if (status === 'SUCCESS') { successJobs++; continue; }
-    if (status === 'PERMANENT_FAILURE') { permanentFailureJobs++; continue; }
+    if (status === 'PERMANENT_FAILURE') {
+      permanentFailureJobs++;
+      if (permanentFailureSymbols.length < MAX_NON_SUCCESS_JOBS_IN_RUN_DOC) {
+        permanentFailureSymbols.push(symbol);
+      }
+      continue;
+    }
 
     const reason =
       lastAttemptAtMs && nowMs - lastAttemptAtMs > INTRADAY_MAX_RUN_DURATION_MS
@@ -87,6 +98,11 @@ async function reconcileIntradayRunJobs(runId: string): Promise<void> {
       finishedJobs: successJobs + permanentFailureJobs,
       successJobs,
       permanentFailureJobs,
+      // arrayUnion() requires >= 1 element — omit the field when the re-scan
+      // found no failures.
+      ...(permanentFailureSymbols.length
+        ? { permanentFailureSymbols: FieldValue.arrayUnion(...permanentFailureSymbols) }
+        : {}),
       nonSuccessJobsCount: snap.size - successJobs,
       nonSuccessJobs,
     },
@@ -362,6 +378,50 @@ export async function onIntradayRunJobTerminal(
       return { totalDuration, didComplete };
     };
 
+    // Publish the PDR, then emit the tick signoff — only when the publish
+    // returned. A failed PDR is watchdog territory (pdr_missing exception),
+    // not a signoff. emitIntradayTickSignoff is fail-safe: never throws.
+    const publishPdrAndSignoff = async (
+      runDoc: {
+        createdJobs?: number;
+        successJobs?: number;
+        permanentFailureJobs?: number;
+        permanentFailureSymbols?: string[];
+        trigger?: RefreshTrigger;
+      },
+      totalDuration: number | undefined,
+    ): Promise<void> => {
+      let pdrSent = false;
+      try {
+        logger.info('intraday.agg.pdr_invoke', { runId, marketDate, clockPt, successJobs: runDoc.successJobs ?? 0, permanentFailureJobs: runDoc.permanentFailureJobs ?? 0 } as any);
+        await publishIntradayPdr({
+          runId,
+          marketDate,
+          clockPt,
+          successJobs: runDoc.successJobs ?? 0,
+          permanentFailureJobs: runDoc.permanentFailureJobs ?? 0,
+          trigger: runDoc.trigger,
+          totalDuration,
+        });
+        pdrSent = true;
+        logger.info('intraday.agg.pdr_returned', { runId } as any);
+      } catch (pdrErr: any) {
+        logger.warn('intraday.agg.pdr_failed', { runId, error: String(pdrErr?.message ?? pdrErr) } as any);
+      }
+      if (pdrSent) {
+        await emitIntradayTickSignoff({
+          runId,
+          marketDate,
+          clockPt,
+          createdJobs: runDoc.createdJobs,
+          successJobs: runDoc.successJobs ?? 0,
+          permanentFailureJobs: runDoc.permanentFailureJobs ?? 0,
+          failedSymbols: runDoc.permanentFailureSymbols,
+          durationMs: totalDuration,
+        });
+      }
+    };
+
     // --- Fast path ---
     logger.info('intraday.agg.path_check', { runId, created, finished, isFastPath: created > 0 && finished === created, isReconcilePath: created > 0 && finished > 0 && pastReconcileWindow } as any);
     if (created > 0 && finished === created) {
@@ -373,21 +433,7 @@ export async function onIntradayRunJobTerminal(
       }
       logger.info('intraday.agg.run_complete', { runId, marketDate, clockPt, totalDuration } as any);
 
-      try {
-        logger.info('intraday.agg.pdr_invoke', { runId, marketDate, clockPt, successJobs: runData.successJobs ?? 0, permanentFailureJobs: runData.permanentFailureJobs ?? 0 } as any);
-        await publishIntradayPdr({
-          runId,
-          marketDate,
-          clockPt,
-          successJobs: runData.successJobs ?? 0,
-          permanentFailureJobs: runData.permanentFailureJobs ?? 0,
-          trigger: runData.trigger as RefreshTrigger | undefined,
-          totalDuration,
-        });
-        logger.info('intraday.agg.pdr_returned', { runId } as any);
-      } catch (pdrErr: any) {
-        logger.warn('intraday.agg.pdr_failed', { runId, error: String(pdrErr?.message ?? pdrErr) } as any);
-      }
+      await publishPdrAndSignoff(runData, totalDuration);
       logger.info('intraday.agg.fast_path_exit', { runId } as any);
       return;
     }
@@ -412,19 +458,7 @@ export async function onIntradayRunJobTerminal(
       }
       logger.info('intraday.agg.run_complete_after_reconcile', { runId, marketDate, clockPt } as any);
 
-      try {
-        await publishIntradayPdr({
-          runId,
-          marketDate,
-          clockPt,
-          successJobs: reconData.successJobs ?? 0,
-          permanentFailureJobs: reconData.permanentFailureJobs ?? 0,
-          trigger: reconData.trigger as RefreshTrigger | undefined,
-          totalDuration,
-        });
-      } catch (pdrErr: any) {
-        logger.warn('intraday.agg.pdr_failed', { runId, error: String(pdrErr?.message ?? pdrErr) } as any);
-      }
+      await publishPdrAndSignoff(reconData, totalDuration);
     }
   } catch (e: any) {
     logger.error('intraday.agg.error', {

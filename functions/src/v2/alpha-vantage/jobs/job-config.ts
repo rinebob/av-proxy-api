@@ -42,6 +42,14 @@ export const MAX_RUN_DURATION_MS = 60 * 60 * 1000; // 60 minutes
 export const INTRADAY_FIRST_TICK = '0800';
 
 /**
+ * The scheduled intraday ticks that emit a routine ops signoff SMS after
+ * their PDR publish succeeds. Co-located with the schedule
+ * `0 8,10,12 * * 1-5 (PT)` — if the schedule changes, update this set.
+ * Heartbeat, manual, and other clockPt values must not emit signoffs.
+ */
+export const INTRADAY_SIGNOFF_TICKS: ReadonlySet<string> = new Set(['0800', '1000', '1200']);
+
+/**
  * Maximum run duration for intraday snapshot runs.
  *
  * Intraday runs drain faster than POST runs (~13 min at 1.0/sec for 760
