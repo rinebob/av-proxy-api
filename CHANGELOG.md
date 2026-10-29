@@ -12,6 +12,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Options Corpus Bulk Ingest] 213-221_BE-IMPL-OPTIONS-DATA: Picker core — pickCellsForDate + noChainPickEntries, deterministic ties, oracle-verified
 - [Options Corpus Bulk Ingest] 213-221_BE-IMPL-OPTIONS-DATA: Prod verify script — oracle cross-check on real GCS chains + report-only golden diff
 - [Options Corpus Bulk Ingest] 213-221_DOCS-DOCS-OPTIONS-DATA: SPEC omission semantics + code review PASS + UAT Complete
+- [Ops SMS Alerts] 198-207_BE-IMPL-OPS: Intraday tick signoff — emitIntradayTickSignoff gated on 0800/1000/1200, claim-then-emit after PDR publish on fast + reconcile paths; reconcile now records permanentFailureSymbols
+- [Ops SMS Alerts] 198-207_BE-IMPL-OPS: Intraday signoff unit tests — 23 tests covering tick gating, claim ordering, failure isolation, race suppression
+- [Ops SMS Alerts] 198-207_DOCS-DOCS-OPS: Mutating prod verify (18 checks) + code review PASS + UAT Complete
 
 ## [2026-10-26]
 

@@ -164,6 +164,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #204 | `ops-sms-alerts-204-emit-alert.ts` *(mutating, not in run-all)* | OPS: emitOpsAlert canonical log + audit doc write/read-back + dedupe overwrite (writes + deletes ops-alerts/verify:* doc) | [ops-sms-alerts-204-emit-alert.md](ops-sms-alerts-204-emit-alert.md) |
 | #205 | `ops-sms-alerts-205-compose-texts.ts` | OPS: message composer — all signoff/exception text types composed + length/leak/content checks | [ops-sms-alerts-205-compose-texts.md](ops-sms-alerts-205-compose-texts.md) |
 | #206 | `ops-sms-alerts-206-send-once-guard.ts` *(mutating, not in run-all)* | OPS: send-once guard — claim/second-claim/concurrent-claim + run-doc stamp (writes + deletes ops-alert-claims/verify:* + scratch run doc) | [ops-sms-alerts-206-send-once-guard.md](ops-sms-alerts-206-send-once-guard.md) |
+| #207 | `ops-sms-alerts-207-intraday-signoff.ts` *(mutating, not in run-all)* | OPS: intraday tick signoff end-to-end — claim/emit/dedupe + run-doc stamp + non-tick gate (writes + deletes intraday-runs/verify-* + claim + audit docs) | [ops-sms-alerts-207-intraday-signoff.md](ops-sms-alerts-207-intraday-signoff.md) |
 | #219 | `options-data-219-pick-grid-types.ts` | SHARED: pick-grid (380 cells) + cellId codec round-trip across real optionsEnabled universe (~49k ids) | [options-data-219-pick-grid-types.md](options-data-219-pick-grid-types.md) |
 | #221 | `options-data-221-pick-cells.ts` | BE: picker core — oracle cross-check over real prod chains (7,980 cells / 21 days) + report-only golden diff | [options-data-221-pick-cells.md](options-data-221-pick-cells.md) |
 
@@ -208,6 +209,7 @@ Topic #198 (Ops SMS Alerts):
 1. **#205** (BE: message composer) — no dependencies; read-only
 2. **#204** (BE: canonical alert event + fail-safe emitter) — no dependencies; **mutating** — writes + deletes an `ops-alerts/verify:*` doc (not in run-all)
 3. **#206** (BE: send-once guard) — blocked by #204 (claim doc feeds the emitter path); **mutating** — writes + deletes `ops-alert-claims/verify:*` + scratch run doc (not in run-all)
+4. **#207** (BE: intraday signoff emission) — blocked by #205 (composer), #206 (guard); **mutating** — writes + deletes `intraday-runs/verify-*` + claim + audit docs (not in run-all)
 
 Run all scripts for a task after the task's implementation is complete and unit tests pass. The run-all script handles ordering automatically.
 
