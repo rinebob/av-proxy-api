@@ -167,6 +167,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #207 | `ops-sms-alerts-207-intraday-signoff.ts` *(mutating, not in run-all)* | OPS: intraday tick signoff end-to-end — claim/emit/dedupe + run-doc stamp + non-tick gate (writes + deletes intraday-runs/verify-* + claim + audit docs) | [ops-sms-alerts-207-intraday-signoff.md](ops-sms-alerts-207-intraday-signoff.md) |
 | #219 | `options-data-219-pick-grid-types.ts` | SHARED: pick-grid (380 cells) + cellId codec round-trip across real optionsEnabled universe (~49k ids) | [options-data-219-pick-grid-types.md](options-data-219-pick-grid-types.md) |
 | #221 | `options-data-221-pick-cells.ts` | BE: picker core — oracle cross-check over real prod chains (7,980 cells / 21 days) + report-only golden diff | [options-data-221-pick-cells.md](options-data-221-pick-cells.md) |
+| #222 | `options-data-222-cell-writer.ts` *(mutating, not in run-all)* | BE: cell doc writer — merge decision table + header recompute + year sharding + idempotent re-run (writes + deletes ZZTEST-put-20-45/years/{2099,2100} docs) | [options-data-222-cell-writer.md](options-data-222-cell-writer.md) |
 
 ## Execution order
 
@@ -203,6 +204,8 @@ Topic #118 (Repo & deploy hygiene):
 Topic #213 (Options Corpus Bulk Ingest — delta-pick grid):
 
 1. **#219** (SHARED: grid config + cellId codec) — no dependencies; read-only
+2. **#221** (BE: picker core) — blocked by #219 (grid + types); read-only
+3. **#222** (BE: cell doc writer) — blocked by #219 (doc schema + guards); **mutating** — writes + deletes `options-delta-picks/ZZTEST-put-20-45/years/{2099,2100}` docs (not in run-all)
 
 Topic #198 (Ops SMS Alerts):
 
