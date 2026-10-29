@@ -11,6 +11,7 @@ export * from './gcs-corpus-adapter.service';
 export * from './gcs-time-series-adapter.service';
 export * from './historical-options-retrieval.service';
 export * from './nightly-corpus.service';
+export * from './options-delta-pick-cell.writer';
 export * from './options-delta-picker.service';
 export * from './options-index-query.service';
 export * from './options-index.writer';
