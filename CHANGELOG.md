@@ -15,6 +15,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Ops SMS Alerts] 198-207_BE-IMPL-OPS: Intraday tick signoff — emitIntradayTickSignoff gated on 0800/1000/1200, claim-then-emit after PDR publish on fast + reconcile paths; reconcile now records permanentFailureSymbols
 - [Ops SMS Alerts] 198-207_BE-IMPL-OPS: Intraday signoff unit tests — 23 tests covering tick gating, claim ordering, failure isolation, race suppression
 - [Ops SMS Alerts] 198-207_DOCS-DOCS-OPS: Mutating prod verify (18 checks) + code review PASS + UAT Complete
+- [Options Corpus Bulk Ingest] 213-222_BE-IMPL-OPTIONS-DATA: Cell doc writer — mergeDayEntries, pick-immutable/miss-repairable merge, idempotent re-runs
+- [Options Corpus Bulk Ingest] 213-222_BE-IMPL-OPTIONS-DATA: Mutating prod verify — merge decision table on real Firestore (ZZTEST probe, self-cleaning)
+- [Options Corpus Bulk Ingest] 213-222_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete
 
 ## [2026-10-26]
 
