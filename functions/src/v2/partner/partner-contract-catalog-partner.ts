@@ -12,6 +12,7 @@ import {
   parseOptionalNumber,
   parseOptionalNonNegativeNumber,
   parseOptionalBool,
+  parseOptionType,
 } from './partner-request.utils';
 import {
   allowedServiceAccounts,
@@ -57,12 +58,9 @@ const defaultDependencies: PartnerContractCatalogDependencies = {
   now: () => new Date(),
 };
 
+// V2's documented contract accepts only the letter forms (C|P).
 function parseOptionalType(value: unknown): 'call' | 'put' | null {
-  const raw = toFirstString(value).toUpperCase();
-  if (!raw) return null;
-  if (raw === 'C') return 'call';
-  if (raw === 'P') return 'put';
-  return null;
+  return parseOptionType(value, false);
 }
 
 function parseSortBy(value: unknown): CatalogSortField | null {

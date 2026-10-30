@@ -406,3 +406,32 @@ describe('partnerContractCatalogHandler — summary response with LengthBucketEn
     expect(res.json.mock.calls[0][0].code).toBe('NOT_FOUND');
   });
 });
+
+describe('partnerContractCatalogHandler — type filter contract (C|P letters only)', () => {
+  it('accepts the letter forms and normalizes to call/put', async () => {
+    for (const [input, expected] of [['C', 'call'], ['p', 'put']] as const) {
+      const queryCatalog = jest.fn().mockResolvedValue({ contracts: [], nextPageToken: undefined });
+      const req = createRequest({ query: { symbol: 'QQQ', type: input } });
+      const res = mockResponse();
+      const deps = buildDeps({ queryServiceFactory: () => createMockQueryService(queryCatalog) });
+
+      await partnerContractCatalogHandler(req as unknown as Request, res as unknown as Response, deps);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(queryCatalog).toHaveBeenCalledWith(expect.objectContaining({ type: expected }));
+    }
+  });
+
+  it('rejects the word forms — V2 accepts letters only', async () => {
+    for (const input of ['call', 'put']) {
+      const req = createRequest({ query: { symbol: 'QQQ', type: input } });
+      const res = mockResponse();
+      const deps = buildDeps();
+
+      await partnerContractCatalogHandler(req as unknown as Request, res as unknown as Response, deps);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json.mock.calls[0][0].error).toContain('type');
+    }
+  });
+});
