@@ -61,3 +61,43 @@ export function parseOptionalBool(value: unknown): boolean {
   const raw = toFirstString(value).toLowerCase();
   return raw === 'true' || raw === '1';
 }
+
+/**
+ * Parses an optional comma-separated date-list query param (e.g.
+ * `expirations=2026-05-15,2026-06-19`). Each element must be a valid
+ * `YYYY-MM-DD` calendar date. Duplicates are removed; the result is in
+ * canonical ascending order.
+ * Returns the date list, or `null` when absent or any element is invalid.
+ */
+export function parseOptionalDateList(value: unknown): string[] | null {
+  const raw = toFirstString(value);
+  if (!raw) return null;
+  const parts = raw.split(',').map((p) => p.trim()).filter((p) => p.length > 0);
+  if (parts.length === 0) return null;
+  const dates = new Set<string>();
+  for (const part of parts) {
+    const parsed = parseOptionalDate(part);
+    if (parsed === null) return null;
+    dates.add(parsed);
+  }
+  return [...dates].sort();
+}
+
+const OPTION_TYPE_TOKENS: Record<string, 'call' | 'put'> = {
+  C: 'call',
+  P: 'put',
+  CALL: 'call',
+  PUT: 'put',
+};
+
+/**
+ * Parses an option-type query param (`C`/`P`, and when `acceptWords` also
+ * `call`/`put`), case-insensitive, normalized to `call | put`.
+ * Returns `null` when absent or invalid.
+ */
+export function parseOptionType(value: unknown, acceptWords = true): 'call' | 'put' | null {
+  const raw = toFirstString(value).toUpperCase();
+  if (!raw) return null;
+  if (!acceptWords && (raw === 'CALL' || raw === 'PUT')) return null;
+  return OPTION_TYPE_TOKENS[raw] ?? null;
+}
