@@ -23,7 +23,13 @@ import {
   PartnerPublishStatus,
   PartnerTrigger,
 } from '../../partner/constants';
-import { MAX_NON_SUCCESS_JOBS_IN_RUN_DOC, MAX_RUN_DURATION_MS } from './job-config';
+import {
+  MAX_NON_SUCCESS_JOBS_IN_RUN_DOC,
+  MAX_RUN_DURATION_MS,
+  POST_ALL_INTERVALS_INITIAL_RUN_TYPE,
+  POST_ALL_INTERVALS_RETRY_RUN_TYPE,
+} from './job-config';
+import { emitPostASignoff } from './post-ops-signoff';
 
 const logger = betterLogger('rTRA');
 
@@ -36,6 +42,10 @@ async function reconcileRunJobs(runId: string): Promise<void> {
 
   let successJobs = 0;
   let permanentFailureJobs = 0;
+  // Collect failed symbols alongside the count so the run doc's
+  // permanentFailureSymbols stays complete on the reconcile path — the
+  // POST-A signoff reads them for its emit context.
+  const permanentFailureSymbols: string[] = [];
   const nonSuccessJobs: Array<{
     symbol: string;
     endpoint: string;
@@ -67,6 +77,9 @@ async function reconcileRunJobs(runId: string): Promise<void> {
     }
     if (status === 'PERMANENT_FAILURE') {
       permanentFailureJobs += 1;
+      if (permanentFailureSymbols.length < MAX_NON_SUCCESS_JOBS_IN_RUN_DOC) {
+        permanentFailureSymbols.push(symbol);
+      }
       continue;
     }
 
@@ -100,6 +113,11 @@ async function reconcileRunJobs(runId: string): Promise<void> {
       permanentFailureJobs,
       nonSuccessJobsCount,
       nonSuccessJobs,
+      // arrayUnion requires at least one element — skip the field entirely
+      // on the common all-success reconcile.
+      ...(permanentFailureSymbols.length
+        ? { permanentFailureSymbols: FieldValue.arrayUnion(...permanentFailureSymbols) }
+        : {}),
     },
     { merge: true },
   );
@@ -263,10 +281,10 @@ export async function onRealtimeRunJobTerminal(args: OnRealtimeRunJobTerminalArg
 
         // Derive includeSymbols / excludeSymbols semantics for RS based on
         // runType and sequence:
-        // - A (ts-post-all-intervals-initial): initial full-universe run.
+        // - A (POST_ALL_INTERVALS_INITIAL_RUN_TYPE): initial full-universe run.
         //   RS treats this as the full universe minus excludeSymbols.
         //   excludeSymbols = retrySymbols, includeSymbols omitted.
-        // - B/C (ts-post-all-intervals-retry): retry-only passes.
+        // - B/C (POST_ALL_INTERVALS_RETRY_RUN_TYPE): retry-only passes.
         //   RS reads includeSymbols only; these are symbols that became
         //   fresh in this retry pass.
 
@@ -280,10 +298,10 @@ export async function onRealtimeRunJobTerminal(args: OnRealtimeRunJobTerminalArg
         let excludeSymbols: string[] = [];
         let includeSymbols: string[] = [];
 
-        if (runTypeStr === 'ts-post-all-intervals-initial' && seq === 'A') {
+        if (runTypeStr === POST_ALL_INTERVALS_INITIAL_RUN_TYPE && seq === 'A') {
           // Initial A run: full universe minus retrySymbols.
           excludeSymbols = retrySymbolsArr;
-        } else if (runTypeStr === 'ts-post-all-intervals-retry' && (seq === 'B' || seq === 'C')) {
+        } else if (runTypeStr === POST_ALL_INTERVALS_RETRY_RUN_TYPE && (seq === 'B' || seq === 'C')) {
           // Retry runs (B/C): only includeSymbols matter for RS.
           includeSymbols = retrySuccessArr;
         }
@@ -324,6 +342,16 @@ export async function onRealtimeRunJobTerminal(args: OnRealtimeRunJobTerminalArg
             sendTime: Timestamp.fromMillis(nowMs),
             messagePayload: payload,
           },
+        });
+
+        // POST-A signoff — fires only when all three A-pass interval PDRs
+        // are sent; emitPostASignoff gates sequence/runType itself and is
+        // fail-safe (never throws).
+        await emitPostASignoff({
+          runId,
+          marketDate: runData.marketDate,
+          sequence: seq,
+          runType: runTypeStr,
         });
       } catch (pubErr: any) {
         logger.error('realtime.run_pdr_error', {
@@ -440,9 +468,9 @@ export async function onRealtimeRunJobTerminal(args: OnRealtimeRunJobTerminalArg
         let excludeSymbols: string[] = [];
         let includeSymbols: string[] = [];
 
-        if (runTypeStr === 'ts-post-all-intervals-initial' && seq === 'A') {
+        if (runTypeStr === POST_ALL_INTERVALS_INITIAL_RUN_TYPE && seq === 'A') {
           excludeSymbols = retrySymbolsArr;
-        } else if (runTypeStr === 'ts-post-all-intervals-retry' && (seq === 'B' || seq === 'C')) {
+        } else if (runTypeStr === POST_ALL_INTERVALS_RETRY_RUN_TYPE && (seq === 'B' || seq === 'C')) {
           includeSymbols = retrySuccessArr;
         }
 
@@ -477,6 +505,15 @@ export async function onRealtimeRunJobTerminal(args: OnRealtimeRunJobTerminalArg
             sendTime: Timestamp.fromMillis(nowMs),
             messagePayload: payload,
           },
+        });
+
+        // POST-A signoff on the reconcile path — same all-intervals gate;
+        // post-reconcile doc fields feed the helper's triggering-run args.
+        await emitPostASignoff({
+          runId,
+          marketDate: reconciledData.marketDate,
+          sequence: seq,
+          runType: runTypeStr,
         });
       } catch (pubErr: any) {
         logger.error('realtime.run_pdr_error_after_reconcile', {

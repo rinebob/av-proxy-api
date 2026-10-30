@@ -50,6 +50,14 @@ export const INTRADAY_FIRST_TICK = '0800';
 export const INTRADAY_SIGNOFF_TICKS: ReadonlySet<string> = new Set(['0800', '1000', '1200']);
 
 /**
+ * Run-type discriminator written on realtime-runs docs for POST passes:
+ * the initial full-universe pass (sequence A) vs retry-only passes (B/C).
+ * The POST-A ops signoff gates on the initial type.
+ */
+export const POST_ALL_INTERVALS_INITIAL_RUN_TYPE = 'ts-post-all-intervals-initial';
+export const POST_ALL_INTERVALS_RETRY_RUN_TYPE = 'ts-post-all-intervals-retry';
+
+/**
  * Maximum run duration for intraday snapshot runs.
  *
  * Intraday runs drain faster than POST runs (~13 min at 1.0/sec for 760
