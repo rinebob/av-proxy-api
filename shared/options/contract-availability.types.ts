@@ -6,7 +6,7 @@
  * `options-file-index/{symbol}/ts-contracts` catalog — the canonical list of
  * contracts that actually have time-series data — and (2) `corpusDates`, the
  * dates for which a corpus object exists under
- * `historical-options-corpus/{symbol}/`.
+ * `historical-options/v1/{symbol}/`.
  */
 
 import type { ContractCatalogEntry, ContractCatalogErrorResponse } from './contract-catalog.types';
