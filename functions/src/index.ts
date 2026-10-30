@@ -141,6 +141,8 @@ export { refreshHistoricalOptionsCorpusNightly } from './v2/historical-options-c
 export { sweepHistoricalOptionsCorpus } from './v2/historical-options-corpus/jobs/corpus-sweep.scheduler';
 export { processHistoricalOptionsTsBuildTask } from './v2/historical-options-corpus/handlers/ts-build.task';
 export { getHistoricalOptionsCorpusCoverage } from './v2/historical-options-corpus/handlers/corpus-coverage.http';
+export { processOptionsDeltaPickMaterializeTask } from './v2/historical-options-corpus/handlers/pick-materialize.task';
+export { triggerDeltaPickMaterialize } from './v2/historical-options-corpus/handlers/trigger-delta-pick-materialize.http';
 
 // Swing-set generation + maintenance (Topic #102 / Thread #103, Tasks #126/#127)
 export { generateSwingSetsTask } from './v2/swing-set/handlers/generate-swing-sets.task';

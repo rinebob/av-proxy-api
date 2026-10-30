@@ -15,6 +15,7 @@ export * from './options-delta-pick-cell.writer';
 export * from './options-delta-picker.service';
 export * from './options-index-query.service';
 export * from './options-index.writer';
+export * from './pick-materialize.service';
 export * from './storage-file-viewer.service';
 export * from './pilot.service';
 export * from './time-series-builder.service';
