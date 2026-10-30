@@ -22,6 +22,7 @@ const scripts = [
   'options-data-168-symbol-metric-types.ts',
   'options-data-219-pick-grid-types.ts',
   'options-data-221-pick-cells.ts',
+  'options-data-244-availability-services.ts',
   'ops-119-firestore-indexes.ts',
   'ops-sms-alerts-205-compose-texts.ts',
   // ops-sms-alerts-204-emit-alert.ts — mutating (writes + deletes an
