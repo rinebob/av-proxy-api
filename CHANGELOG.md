@@ -9,6 +9,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Ops SMS Alerts] 198-208_BE-IMPL-OPS: POST-A last-interval signoff — emitPostASignoff reconstructs sibling DAILY/WEEKLY/MONTHLY runIds, requires all 3 messageSent, claims signoff:post:{date}:A, emits composePostSignoff on fast + reconcile paths; LIVE/sequence-A/POST runId gate (MANUAL passes emit nothing); reconcile now records permanentFailureSymbols
 - [Ops SMS Alerts] 198-208_BE-IMPL-OPS: POST-A signoff unit tests — 28 tests covering sibling gate, claim ordering, MANUAL/B/C/spoofed-doc-field identity gates, failure isolation, both completion paths
 - [Ops SMS Alerts] 198-208_DOCS-DOCS-OPS: Mutating prod verify (18 checks incl. MANUAL gate) + code review PASS (2 passes) + UAT Complete
+- [Options Corpus Bulk Ingest] 213-223_BE-IMPL-OPTIONS-DATA: Materialization fanout — per-symbol corpus walk → pick → merge (380 cell docs/symbol); ops trigger enqueues per enabled symbol; GCS-only, idempotent
+- [Options Corpus Bulk Ingest] 213-223_BE-IMPL-OPTIONS-DATA: Mutating prod verify — real QQQ materialization (380 docs / 78,660 entries) + zero-write re-run
+- [Options Corpus Bulk Ingest] 213-223_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete
 
 ## [2026-10-28]
 
