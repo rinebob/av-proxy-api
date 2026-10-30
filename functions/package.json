@@ -21,7 +21,7 @@
     "test:compile": "npm run copy-shared && tsc --noEmit -p tests/tsconfig.json"
   },
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "lib/src/index.js",
   "dependencies": {
