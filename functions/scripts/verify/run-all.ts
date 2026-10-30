@@ -46,6 +46,8 @@ const scripts = [
   // tracked-symbols/ZZTEST + ZZTEST_* docs in prod), run manually
   // options-data-222-cell-writer.ts — mutating (writes + deletes
   // options-delta-picks/ZZTEST-put-20-45/years/{2099,2100} docs), run manually
+  // options-data-223-materialize-picks.ts — mutating (writes the REAL
+  // {SYM}-*/years/* cell docs — the materialization artifact itself), run manually
 ];
 
 let passed = 0;
