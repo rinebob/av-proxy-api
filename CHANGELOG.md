@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-10-30]
+
+### Added
+- [Options Corpus Bulk Ingest] 213-243_SHARED-IMPL-OPTIONS-DATA: Contract-availability endpoint contract types — filters, response envelope (contracts + corpusDates + truncated flag, 2000 cap), error alias
+- [Options Corpus Bulk Ingest] 213-243_BE-IMPL-OPTIONS-DATA: parseContractAvailabilityQuery + parseOptionalDateList/parseOptionType — strict reject incl. overridden params, expirations list override
+- [Options Corpus Bulk Ingest] 213-243_BE-REFACTOR-OPTIONS-DATA: V2 parseOptionalType deduped onto canonical parseOptionType; type-boundary tests added
+- [Options Corpus Bulk Ingest] 213-243_DOCS-OPTIONS-DATA: PRD/IMPL/TEST/CODE-REVIEW/UAT docs for task 243
+
 ## [2026-10-29]
 
 ### Added
