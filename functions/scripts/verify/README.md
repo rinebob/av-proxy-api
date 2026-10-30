@@ -165,6 +165,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #205 | `ops-sms-alerts-205-compose-texts.ts` | OPS: message composer — all signoff/exception text types composed + length/leak/content checks | [ops-sms-alerts-205-compose-texts.md](ops-sms-alerts-205-compose-texts.md) |
 | #206 | `ops-sms-alerts-206-send-once-guard.ts` *(mutating, not in run-all)* | OPS: send-once guard — claim/second-claim/concurrent-claim + run-doc stamp (writes + deletes ops-alert-claims/verify:* + scratch run doc) | [ops-sms-alerts-206-send-once-guard.md](ops-sms-alerts-206-send-once-guard.md) |
 | #207 | `ops-sms-alerts-207-intraday-signoff.ts` *(mutating, not in run-all)* | OPS: intraday tick signoff end-to-end — claim/emit/dedupe + run-doc stamp + non-tick gate (writes + deletes intraday-runs/verify-* + claim + audit docs) | [ops-sms-alerts-207-intraday-signoff.md](ops-sms-alerts-207-intraday-signoff.md) |
+| #208 | `ops-sms-alerts-208-post-a-signoff.ts` *(mutating, not in run-all)* | OPS: POST-A signoff — partial/full sibling gate + claim/emit/dedupe + B/C gate (writes + deletes realtime-runs/verify-* siblings + claim + audit docs) | [ops-sms-alerts-208-post-a-signoff.md](ops-sms-alerts-208-post-a-signoff.md) |
 | #219 | `options-data-219-pick-grid-types.ts` | SHARED: pick-grid (380 cells) + cellId codec round-trip across real optionsEnabled universe (~49k ids) | [options-data-219-pick-grid-types.md](options-data-219-pick-grid-types.md) |
 | #221 | `options-data-221-pick-cells.ts` | BE: picker core — oracle cross-check over real prod chains (7,980 cells / 21 days) + report-only golden diff | [options-data-221-pick-cells.md](options-data-221-pick-cells.md) |
 | #222 | `options-data-222-cell-writer.ts` *(mutating, not in run-all)* | BE: cell doc writer — merge decision table + header recompute + year sharding + idempotent re-run (writes + deletes ZZTEST-put-20-45/years/{2099,2100} docs) | [options-data-222-cell-writer.md](options-data-222-cell-writer.md) |
@@ -213,6 +214,7 @@ Topic #198 (Ops SMS Alerts):
 2. **#204** (BE: canonical alert event + fail-safe emitter) — no dependencies; **mutating** — writes + deletes an `ops-alerts/verify:*` doc (not in run-all)
 3. **#206** (BE: send-once guard) — blocked by #204 (claim doc feeds the emitter path); **mutating** — writes + deletes `ops-alert-claims/verify:*` + scratch run doc (not in run-all)
 4. **#207** (BE: intraday signoff emission) — blocked by #205 (composer), #206 (guard); **mutating** — writes + deletes `intraday-runs/verify-*` + claim + audit docs (not in run-all)
+5. **#208** (BE: POST-A signoff emission) — blocked by #205 (composer), #206 (guard); **mutating** — writes + deletes `realtime-runs/verify-*` siblings + claim + audit docs (not in run-all)
 
 Run all scripts for a task after the task's implementation is complete and unit tests pass. The run-all script handles ordering automatically.
 
