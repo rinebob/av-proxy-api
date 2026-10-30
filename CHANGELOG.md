@@ -10,6 +10,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Options Corpus Bulk Ingest] 213-243_BE-IMPL-OPTIONS-DATA: parseContractAvailabilityQuery + parseOptionalDateList/parseOptionType — strict reject incl. overridden params, expirations list override
 - [Options Corpus Bulk Ingest] 213-243_BE-REFACTOR-OPTIONS-DATA: V2 parseOptionalType deduped onto canonical parseOptionType; type-boundary tests added
 - [Options Corpus Bulk Ingest] 213-243_DOCS-OPTIONS-DATA: PRD/IMPL/TEST/CODE-REVIEW/UAT docs for task 243
+- [Options Corpus Bulk Ingest] 213-244_CONFIG-OPTIONS-DATA: ts-contracts composite indexes (type+firstObserved, type+strike) for typed availability range queries
+- [Options Corpus Bulk Ingest] 213-244_SHARED-IMPL-OPTIONS-DATA: Correct canonical corpus prefix (historical-options/v1) in contract-availability types doc
+- [Options Corpus Bulk Ingest] 213-244_BE-IMPL-OPTIONS-DATA: Availability data services — primary-range precedence + post-filters + chunked expirations `in` + strikeStep cent grid + response-ordered paging (early-exit at cap+1) + deterministic sort/2,000 cap/truncated; CorpusDatesService strict YYYY-MM-DD listing under historical-options/v1/{SYMBOL}/
+- [Options Corpus Bulk Ingest] 213-244_BE-IMPL-OPTIONS-DATA: Unit tests — immutable fake Firestore (orderBy/limit/cursor metadata) + structural fake bucket; 28 tests
+- [Options Corpus Bulk Ingest] 213-244_BE-IMPL-OPTIONS-DATA: Prod verify script — read-only 15-assert run on real Firestore/GCS incl. new index paths; registered in README + run-all
+- [Options Corpus Bulk Ingest] 213-244_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete
 
 ## [2026-10-29]
 
