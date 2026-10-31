@@ -141,6 +141,15 @@ describe('parseContractAvailabilityQuery', () => {
     expect(empty).toEqual({ ok: false, error: expect.stringContaining('expirations') });
   });
 
+  it('rejects an expirations list longer than the 30-item cap', () => {
+    const ok = Array.from({ length: 30 }, (_, i) => `2026-01-${String(i + 1).padStart(2, '0')}`).join(',');
+    expect(parseContractAvailabilityQuery({ symbol: 'QQQ', expirations: ok })).toMatchObject({ ok: true });
+
+    const over = ok + ',2026-02-01';
+    const result = parseContractAvailabilityQuery({ symbol: 'QQQ', expirations: over });
+    expect(result).toEqual({ ok: false, error: expect.stringContaining('expirations') });
+  });
+
   it('rejects non-numeric and negative numeric params', () => {
     expect(parseContractAvailabilityQuery({ symbol: 'QQQ', strikeStep: 'abc' })).toEqual({
       ok: false, error: expect.stringContaining('strikeStep'),
