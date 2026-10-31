@@ -42,6 +42,7 @@ export { partnerIvMetricsV2 } from './v2/partner/iv-metrics-partner';
 export { partnerHistoricalOptionsContractV2 } from './v2/partner/historical-options-contract-partner';
 export { partnerListContractsV2 } from './v2/partner/list-contracts-partner';
 export { partnerContractCatalogV2 } from './v2/partner/partner-contract-catalog-partner';
+export { partnerContractAvailabilityV1 } from './v2/partner/contract-availability-partner';
 export { partnerSpreadTimeSeries } from './v2/partner/spread-time-series-partner';
 export { partnerSpreadTimeSeriesBatch } from './v2/partner/spread-time-series-batch-partner';
 export { partnerTechnicalIndicatorsV2 } from './v2/partner/technical-indicators-partner';
