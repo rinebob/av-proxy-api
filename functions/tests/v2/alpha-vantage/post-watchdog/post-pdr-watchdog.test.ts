@@ -7,9 +7,13 @@ const mockDocGet = jest.fn();
 const mockDocSet = jest.fn();
 const mockDbDoc = jest.fn();
 const mockCollectionGet = jest.fn();
+const mockTxGet = jest.fn();
+const mockTxSet = jest.fn();
+const mockRunTransaction = jest.fn();
 
-function makeDocRef(_path: string) {
+function makeDocRef(path: string) {
   return {
+    path,
     get: mockDocGet,
     set: mockDocSet,
   };
@@ -29,6 +33,7 @@ jest.mock('../../../../src/firebase-admin-init', () => ({
   db: {
     doc: mockDbDoc,
     collection: mockDbCollection,
+    runTransaction: mockRunTransaction,
   },
 }));
 
@@ -38,6 +43,7 @@ import {
   checkPostPdrDelivery,
   checkPostCPdrDelivery,
 } from '../../../../src/v2/alpha-vantage/post-watchdog/post-pdr-watchdog';
+import { TimeSeriesRunStatus } from '../../../../src/v2/alpha-vantage/jobs/time-series-jobs.model';
 
 // --- Helpers -----------------------------------------------------------
 
@@ -45,6 +51,18 @@ function resetMocks() {
   jest.clearAllMocks();
   mockDbDoc.mockImplementation((path: string) => makeDocRef(path));
   mockDocSet.mockResolvedValue(undefined);
+  // Send-once guard: claims always win by default (claim doc absent, run
+  // doc present); flip mockTxGet in tests that need 'already-claimed'.
+  mockTxGet.mockImplementation(async (ref: { path: string }) =>
+    ref.path.startsWith('ops-alert-claims/')
+      ? { exists: false, data: () => undefined }
+      : { exists: true, data: () => ({}) },
+  );
+  mockTxSet.mockImplementation(() => undefined);
+  mockRunTransaction.mockImplementation(
+    async (fn: (tx: { get: typeof mockTxGet; set: typeof mockTxSet }) => unknown) =>
+      fn({ get: mockTxGet, set: mockTxSet }),
+  );
 }
 
 /** Returns the path of the Nth db.doc() call. */
@@ -123,7 +141,8 @@ describe('POST PDR delivery watchdog', () => {
         .filter((s) => s.includes('level=error') && s.includes('post.watchdog.pdr_missing'));
       expect(errorLogs.length).toBeGreaterThanOrEqual(1);
 
-      expect(mockDocSet).toHaveBeenCalledTimes(1);
+      // Health doc + the exception audit doc (Task #210).
+      expect(mockDocSet).toHaveBeenCalledTimes(2);
       const data = setData(0);
       expect(data.tickStatus).toBe('pdr_missing');
       expect(data.alertState).toBe('pdr_missing');
@@ -148,7 +167,8 @@ describe('POST PDR delivery watchdog', () => {
         .filter((s) => s.includes('level=error') && s.includes('post.watchdog.run_missing'));
       expect(errorLogs.length).toBeGreaterThanOrEqual(1);
 
-      expect(mockDocSet).toHaveBeenCalledTimes(1);
+      // Health doc + the exception audit doc (Task #210).
+      expect(mockDocSet).toHaveBeenCalledTimes(2);
       const data = setData(0);
       expect(data.tickStatus).toBe('run_missing');
       expect(data.alertState).toBe('run_missing');
@@ -304,7 +324,7 @@ describe('POST PDR delivery watchdog', () => {
       const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
       mockDocGet
         .mockResolvedValueOnce(runSnap(true, true))                                    // DAILY retried + sent
-        .mockResolvedValueOnce(runSnap(true, false, { status: 'COMPLETE', createdJobs: 0 })) // WEEKLY empty retry
+        .mockResolvedValueOnce(runSnap(true, false, { status: TimeSeriesRunStatus.COMPLETE, createdJobs: 0 })) // WEEKLY empty retry
         .mockResolvedValueOnce(runSnap(true, true));                                   // MONTHLY sent
 
       await checkPostPdrDelivery({ marketDate: '2026-09-11', sequence: 'B', clockPt: '1800' });
@@ -323,7 +343,7 @@ describe('POST PDR delivery watchdog', () => {
       const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
       mockDocGet
         .mockResolvedValueOnce(runSnap(true, true))
-        .mockResolvedValueOnce(runSnap(true, false, { status: 'COMPLETE', createdJobs: 0 }))
+        .mockResolvedValueOnce(runSnap(true, false, { status: TimeSeriesRunStatus.COMPLETE, createdJobs: 0 }))
         .mockResolvedValueOnce(runSnap(true, true));
 
       await checkPostPdrDelivery({ marketDate: '2026-09-11' });
@@ -337,7 +357,7 @@ describe('POST PDR delivery watchdog', () => {
     it('B interval with real jobs and no PDR still alerts pdr_missing', async () => {
       const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
       mockDocGet
-        .mockResolvedValueOnce(runSnap(true, false, { status: 'COMPLETE', createdJobs: 5 }))
+        .mockResolvedValueOnce(runSnap(true, false, { status: TimeSeriesRunStatus.COMPLETE, createdJobs: 5 }))
         .mockResolvedValueOnce(runSnap(true, true))
         .mockResolvedValueOnce(runSnap(true, true));
 
@@ -433,6 +453,195 @@ describe('POST PDR delivery watchdog', () => {
       expect(mockDbDoc).not.toHaveBeenCalled();
       expect(mockDocSet).not.toHaveBeenCalled();
       expect(errorLogs(logSpy, 'post.watchdog.')).toHaveLength(0);
+      logSpy.mockRestore();
+    });
+  });
+
+  describe('Exception alert events (Task #210)', () => {
+    /** db.doc() paths written under ops-alerts/ — one per emitted event. */
+    function alertDocPaths(): string[] {
+      return mockDbDoc.mock.calls
+        .map((c) => c[0] as string)
+        .filter((p) => p.startsWith('ops-alerts/'));
+    }
+
+    /** Audit payloads written by the emitter (identified by smsText). */
+    function auditDocs(): any[] {
+      return mockDocSet.mock.calls
+        .map((c) => c[0])
+        .filter((d: any) => d && typeof d === 'object' && 'smsText' in d);
+    }
+
+    /** Claim writes recorded inside the send-once transaction. */
+    function txSetPaths(): string[] {
+      return mockTxSet.mock.calls.map((c) => (c[0] as { path: string }).path);
+    }
+
+    it('emits one exception event when an interval run doc is missing', async () => {
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(false))
+        .mockResolvedValueOnce(runSnap(true, true));
+
+      await checkPostPdrDelivery({ marketDate: '2026-09-11' });
+
+      expect(alertDocPaths()).toEqual([
+        'ops-alerts/exception:post:2026-09-11:A:weekly:run_missing',
+      ]);
+      const audit = auditDocs()[0];
+      expect(audit.kind).toBe('exception');
+      expect(audit.smsText).toContain('POST A WEEKLY');
+      expect(audit.smsText).toContain('never ran');
+      // Send-once claim recorded under the same alertKey.
+      expect(txSetPaths()).toContain(
+        'ops-alert-claims/exception:post:2026-09-11:A:weekly:run_missing',
+      );
+    });
+
+    it('emits pdr_missing exception and stamps the run doc', async () => {
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(true, false, { status: TimeSeriesRunStatus.COMPLETE, createdJobs: 5 }))
+        .mockResolvedValueOnce(runSnap(true, true));
+
+      await checkPostPdrDelivery({ marketDate: '2026-09-11' });
+
+      expect(alertDocPaths()).toEqual([
+        'ops-alerts/exception:post:2026-09-11:A:weekly:pdr_missing',
+      ]);
+      const audit = auditDocs()[0];
+      expect(audit.smsText).toContain('POST A WEEKLY');
+      expect(audit.smsText).toContain('data-ready message was never sent');
+      // The existing run doc gets the opsSms.claimed stamp (doc exists).
+      expect(txSetPaths()).toContain(
+        'realtime-runs/2026-09-11-FRI-A-WEEKLY-LIVE-POST-1335',
+      );
+    });
+
+    it('emits orchestrator_no_start when a COMPLETE A interval has zero jobs', async () => {
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(true, false, { status: TimeSeriesRunStatus.COMPLETE, createdJobs: 0 }))
+        .mockResolvedValueOnce(runSnap(true, true));
+
+      await checkPostPdrDelivery({ marketDate: '2026-09-11' });
+
+      expect(alertDocPaths()).toEqual([
+        'ops-alerts/exception:post:2026-09-11:A:weekly:orchestrator_no_start',
+      ]);
+      const audit = auditDocs()[0];
+      expect(audit.smsText).toContain('never started');
+      expect(audit.smsText).toContain('no jobs were created');
+    });
+
+    it('emits no event for a B/C empty-retry (no_jobs) interval', async () => {
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(true, false, { status: TimeSeriesRunStatus.COMPLETE, createdJobs: 0 }))
+        .mockResolvedValueOnce(runSnap(true, true));
+
+      await checkPostPdrDelivery({ marketDate: '2026-09-11', sequence: 'B', clockPt: '1800' });
+
+      expect(alertDocPaths()).toEqual([]);
+      expect(auditDocs()).toEqual([]);
+    });
+
+    it('emits one event per missing interval — all 3 missing → 3 events', async () => {
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(false))
+        .mockResolvedValueOnce(runSnap(false))
+        .mockResolvedValueOnce(runSnap(false));
+
+      await checkPostPdrDelivery({ marketDate: '2026-09-11' });
+
+      expect(alertDocPaths()).toEqual([
+        'ops-alerts/exception:post:2026-09-11:A:daily:run_missing',
+        'ops-alerts/exception:post:2026-09-11:A:weekly:run_missing',
+        'ops-alerts/exception:post:2026-09-11:A:monthly:run_missing',
+      ]);
+    });
+
+    it('emits nothing on a clean day', async () => {
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(true, true));
+
+      await checkPostPdrDelivery({ marketDate: '2026-09-11' });
+
+      expect(alertDocPaths()).toEqual([]);
+      expect(auditDocs()).toEqual([]);
+    });
+
+    it('B-sequence pdr_missing emits under the B alert key', async () => {
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(true, false, { status: TimeSeriesRunStatus.COMPLETE, createdJobs: 3 }))
+        .mockResolvedValueOnce(runSnap(true, true));
+
+      await checkPostPdrDelivery({ marketDate: '2026-09-11', sequence: 'B', clockPt: '1800' });
+
+      expect(alertDocPaths()).toEqual([
+        'ops-alerts/exception:post:2026-09-11:B:weekly:pdr_missing',
+      ]);
+      const audit = auditDocs()[0];
+      expect(audit.smsText).toContain('POST B WEEKLY');
+      expect(audit.smsText).toContain('data-ready message was never sent');
+    });
+
+    it('C-sequence run_missing emits under the resolved retry-target date and C key', async () => {
+      mockCollectionGet.mockResolvedValueOnce(targetSnap('2026-09-10')); // Thursday retry target
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(false))
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(true, true));
+
+      await checkPostCPdrDelivery({ todayEt: '2026-09-11' });
+
+      expect(alertDocPaths()).toEqual([
+        'ops-alerts/exception:post:2026-09-10:C:daily:run_missing',
+      ]);
+      const audit = auditDocs()[0];
+      expect(audit.smsText).toContain('POST C DAILY');
+      expect(audit.smsText).toContain('never ran');
+    });
+
+    it('claim transaction failure suppresses emission — watchdog completes, health doc still writes', async () => {
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      mockRunTransaction.mockRejectedValue(new Error('tx down'));
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(false))
+        .mockResolvedValueOnce(runSnap(true, true));
+
+      await checkPostPdrDelivery({ marketDate: '2026-09-11' });
+
+      // Fail-closed: no claim → no emit; the check itself did not throw.
+      expect(alertDocPaths()).toEqual([]);
+      expect(auditDocs()).toEqual([]);
+      const data = setData(0);
+      expect(data.tickStatus).toBe('run_missing');
+      expect(errorLogs(logSpy, 'post.watchdog.run_missing').length).toBe(1);
+      logSpy.mockRestore();
+    });
+
+    it('suppresses the event when the send-once claim was already taken — health doc + ERROR log still write', async () => {
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      // Every claim doc already exists → the guard returns already-claimed.
+      mockTxGet.mockImplementation(async () => ({ exists: true, data: () => ({}) }));
+      mockDocGet
+        .mockResolvedValueOnce(runSnap(true, true))
+        .mockResolvedValueOnce(runSnap(false))
+        .mockResolvedValueOnce(runSnap(true, true));
+
+      await checkPostPdrDelivery({ marketDate: '2026-09-11' });
+
+      expect(alertDocPaths()).toEqual([]);
+      expect(auditDocs()).toEqual([]);
+      // Diagnostics unaffected — health doc + ERROR log still written.
+      expect(errorLogs(logSpy, 'post.watchdog.run_missing').length).toBe(1);
+      const data = setData(0);
+      expect(data.tickStatus).toBe('run_missing');
       logSpy.mockRestore();
     });
   });

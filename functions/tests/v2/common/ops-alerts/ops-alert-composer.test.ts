@@ -215,6 +215,28 @@ describe('composeException', () => {
     const text = composeException({ condition: 'run_missing', marketDate: DATE });
     expect(text).toContain('the scheduled run');
   });
+
+  it('names the scheduled window on POST exceptions when clockPt is provided', () => {
+    const text = composeException({
+      condition: 'run_missing',
+      marketDate: DATE,
+      sequence: 'B',
+      interval: 'WEEKLY',
+      clockPt: '1800',
+    });
+    expect(text).toContain('the POST B WEEKLY run (scheduled 1800 PT)');
+  });
+
+  it('omits the window clause on POST exceptions when clockPt is absent', () => {
+    const text = composeException({
+      condition: 'run_missing',
+      marketDate: DATE,
+      sequence: 'B',
+      interval: 'WEEKLY',
+    });
+    expect(text).toContain('the POST B WEEKLY run ');
+    expect(text).not.toContain('scheduled');
+  });
 });
 
 describe('SMS budget and charset', () => {
@@ -238,6 +260,11 @@ describe('SMS budget and charset', () => {
         runId: `rt-${DATE}-c-monthly`,
       }),
       composeException({ condition: 'orchestrator_no_start', marketDate: DATE, clockPt: '1200' }),
+      // Longest real variant: POST exception with the scheduled-window clause.
+      composeException({
+        condition: 'orchestrator_no_start', marketDate: DATE,
+        sequence: 'A', interval: 'MONTHLY', clockPt: '1335',
+      }),
     ];
     for (const t of texts) {
       expect(t.length).toBeLessThanOrEqual(300);
@@ -266,6 +293,10 @@ describe('SMS budget and charset', () => {
         runId: `rt-${DATE}-c-monthly`,
       }),
       composeException({ condition: 'orchestrator_no_start', marketDate: DATE, clockPt: '1200' }),
+      composeException({
+        condition: 'orchestrator_no_start', marketDate: DATE,
+        sequence: 'A', interval: 'MONTHLY', clockPt: '1335',
+      }),
     ];
     for (const t of texts) {
       expect(t).toMatch(/^[\x20-\x7E]+$/);
