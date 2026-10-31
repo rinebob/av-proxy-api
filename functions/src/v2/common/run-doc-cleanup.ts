@@ -104,7 +104,8 @@ async function cleanupCollection(
  *
  * Runs at 2:00 AM ET every day. Cleans up both `realtime-runs` and
  * `intraday-runs` collections, deleting run docs and all child job docs
- * older than RUN_DOC_TTL_MS (2 days).
+ * older than RUN_DOC_TTL_MS (4 days — must span holiday weekends so the
+ * C pass can still resolve Friday's retry docs on the next trading day).
  */
 export const cleanupOldRunDocs = onSchedule(
   {

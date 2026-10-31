@@ -99,11 +99,14 @@ export const JOB_FUNCTION_MEMORY = '512MiB' as const;
  * After this duration, a nightly cleanup function will delete the run doc
  * and all child job docs to prevent unbounded Firestore growth.
  *
- * Both intraday-runs and realtime-runs use the same 2-day TTL:
+ * Both intraday-runs and realtime-runs use the same 4-day TTL:
  * - Intraday runs are only useful for same-day observability.
- * - POST runs rarely need inspection beyond the next trading day.
+ * - POST retry docs must outlive the longest trading-day gap: Friday's
+ *   B-pass docs are the C pass's target on Monday morning, and a holiday
+ *   Monday pushes that to Tuesday (~82h). A 2-day TTL deleted them
+ *   Sunday night, silently severing the Friday→next-trading-day C chain.
  */
-export const RUN_DOC_TTL_MS = 2 * 24 * 60 * 60 * 1000; // 2 days
+export const RUN_DOC_TTL_MS = 4 * 24 * 60 * 60 * 1000; // 4 days
 
 /**
  * Maximum number of run documents to delete in a single cleanup invocation.
