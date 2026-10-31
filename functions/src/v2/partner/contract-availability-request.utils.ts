@@ -24,6 +24,13 @@ export type ContractAvailabilityQueryResult =
 const EXPIRATIONS_ERROR = 'Invalid expirations — expected comma-separated YYYY-MM-DD dates';
 
 /**
+ * Upper bound on the explicit `expirations` list. Each chunk of 30 values
+ * costs one Firestore `in` query; capping at a single chunk keeps a request
+ * bounded (the range params remain the escape hatch for larger sets).
+ */
+export const MAX_EXPIRATIONS_LIST = 30;
+
+/**
  * Normalizes a scalar query value: strings trimmed, first element of arrays,
  * numbers coerced. `undefined` = absent (or empty string); `''` = provided
  * but unusable (object/boolean/etc.) — callers must treat it as invalid
@@ -83,6 +90,9 @@ export function parseContractAvailabilityQuery(query: Record<string, unknown>): 
   if (expirationsRaw !== undefined) {
     const list = parseOptionalDateList(expirationsRaw);
     if (list === null) return { ok: false, error: EXPIRATIONS_ERROR };
+    if (list.length > MAX_EXPIRATIONS_LIST) {
+      return { ok: false, error: `Invalid expirations — at most ${MAX_EXPIRATIONS_LIST} dates are accepted per request` };
+    }
     expirations = list;
   }
 
