@@ -4,6 +4,8 @@
  * composition happens upstream (composer), delivery downstream (sender).
  */
 
+import type { OpsExceptionCondition } from './ops-alert.composer';
+
 /** Routine signoff vs hard-down exception. */
 export type OpsAlertKind = 'signoff' | 'exception';
 
@@ -11,7 +13,7 @@ export type OpsAlertKind = 'signoff' | 'exception';
  * A fully composed operator alert.
  *
  * `alertKey` is the dedupe/audit identity — unique per (run, condition),
- * e.g. 'signoff:post-a:2026-10-23' or 'exception:intraday:2026-10-23:0800:pdr_missing'.
+ * e.g. 'signoff:post:2026-10-23:A' or 'exception:intraday:2026-10-23:0800:pdr_missing'.
  * Re-emitting the same alertKey overwrites the audit doc rather than
  * duplicating it.
  */
@@ -38,3 +40,38 @@ export interface OpsAlertEvent {
 export function isValidAlertKey(alertKey: string | undefined | null): alertKey is string {
   return !!alertKey && !alertKey.includes('/');
 }
+
+/**
+ * Canonical alertKey builders for exception events — the single source
+ * of truth for exception key formats so watchdogs, tests, and verify
+ * scripts can't drift on casing or segment order. Interval segments use
+ * the enum (lowercase) vocabulary; condition segments are lowercase
+ * snake_case. Signoff keys are still built at their call sites
+ * (intraday-ops-signoff / post-ops-signoff) — add builders here if a
+ * third signoff key site ever appears.
+ */
+export const opsAlertKey = {
+  /**
+   * Intraday hard-down exception:
+   * 'exception:intraday:{marketDate}:{clockPt}:{condition}'
+   */
+  exceptionIntraday(
+    marketDate: string,
+    clockPt: string,
+    condition: OpsExceptionCondition,
+  ): string {
+    return `exception:intraday:${marketDate}:${clockPt}:${condition}`;
+  },
+  /**
+   * POST hard-down exception:
+   * 'exception:post:{marketDate}:{sequence}:{interval}:{condition}'
+   */
+  exceptionPost(
+    marketDate: string,
+    sequence: string,
+    interval: string,
+    condition: OpsExceptionCondition,
+  ): string {
+    return `exception:post:${marketDate}:${sequence}:${interval}:${condition}`;
+  },
+} as const;

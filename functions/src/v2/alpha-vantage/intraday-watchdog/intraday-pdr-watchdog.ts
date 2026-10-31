@@ -7,6 +7,12 @@ import { FirestoreCollection } from '@shared/firestore';
 
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { clockPtNow } from '../../common/bar-status/bar-status.service';
+import {
+  emitWatchdogException,
+  exceptionConditionForRunDoc,
+} from '../../common/ops-alerts/ops-alert.exceptions';
+import type { OpsExceptionCondition } from '../../common/ops-alerts/ops-alert.composer';
+import { opsAlertKey } from '../../common/ops-alerts/ops-alert.types';
 import { getIntradaySkipReason } from '../data-refresher/intraday-calendar-gate';
 import { TS_DAILY_INTRADAY_WATCHDOG_SCHEDULE } from '../../common/function-schedules';
 
@@ -37,6 +43,36 @@ export type IntradayWatchdogPdrState = 'sent' | 'not_sent' | 'n/a';
 export type IntradayWatchdogAlertState = 'none' | 'pdr_missing' | 'run_missing';
 
 /**
+ * Fail-open calendar lookup: returns the skip reason, or `null` when the
+ * tick is expected OR the calendar can't decide. MarketCalendarService
+ * throws for years outside its holiday table — proceeding with the
+ * check is safer than crashing the scheduled watchdog before the health
+ * doc and any exception alert can be written (mirrors safePostSkipReason).
+ *
+ * Note: only weekdays can reach the catch — isTradingDay short-circuits
+ * Sat/Sun before the holiday-table lookup that throws. A weekday holiday
+ * in an uncovered year proceeds — a false alarm is safer than silence
+ * for a real failure.
+ */
+function safeIntradaySkipReason(
+  marketDate: string,
+  clockPt: string,
+  fnString: string,
+): ReturnType<typeof getIntradaySkipReason> {
+  try {
+    return getIntradaySkipReason(marketDate, clockPt);
+  } catch (e) {
+    logger.warn('intraday.watchdog.calendar_error', {
+      function: fnString,
+      marketDate,
+      clockPt,
+      message: `calendar lookup failed (${e instanceof Error ? e.message : e}) — proceeding`,
+    } as BetterLogPayload);
+    return null;
+  }
+}
+
+/**
  * Checks whether the intraday run for the given market date and tick
  * delivered its Partner Data Ready (PDR) message.
  *
@@ -59,7 +95,7 @@ export async function checkIntradayPdrDelivery(options: {
   const fnString = 'cIPD';
 
   // Calendar gate: skip silently if the market was closed for this tick.
-  const skipReason = getIntradaySkipReason(marketDate, clockPt);
+  const skipReason = safeIntradaySkipReason(marketDate, clockPt, fnString);
   if (skipReason) {
     logger.info('intraday.watchdog.skip', {
       function: fnString,
@@ -81,12 +117,17 @@ export async function checkIntradayPdrDelivery(options: {
   const runId = `${marketDate}-${dow.toUpperCase()}-LIVE-${clockPt}`;
 
   // Query the intraday run doc.
-  const runRef = db.doc(`${FirestoreCollection.INTRADAY_RUNS}/${runId}`);
+  const runDocPath = `${FirestoreCollection.INTRADAY_RUNS}/${runId}`;
+  const runRef = db.doc(runDocPath);
   const runSnap = await runRef.get();
 
   let tickStatus: IntradayWatchdogTickStatus;
   let pdrState: IntradayWatchdogPdrState;
   let alertState: IntradayWatchdogAlertState;
+  // Hard-down exception for the canonical alert seam (Task #210) —
+  // emitted after the health doc (the primary observability surface)
+  // has been written.
+  let exceptionCondition: OpsExceptionCondition | null = null;
 
   if (!runSnap.exists) {
     tickStatus = 'run_missing';
@@ -98,6 +139,7 @@ export async function checkIntradayPdrDelivery(options: {
       marketDate,
       clockPt,
     } as BetterLogPayload);
+    exceptionCondition = 'run_missing';
   } else {
     const runData = runSnap.data() as any;
     const pdrSent = runData?.partnerDataReady?.messageSent === true;
@@ -115,6 +157,7 @@ export async function checkIntradayPdrDelivery(options: {
         marketDate,
         clockPt,
       } as BetterLogPayload);
+      exceptionCondition = exceptionConditionForRunDoc(runData?.createdJobs);
     }
   }
 
@@ -129,6 +172,20 @@ export async function checkIntradayPdrDelivery(options: {
     alertState,
     checkedAt: Timestamp.now(),
   });
+
+  // Canonical exception event — once per condition per run via the
+  // send-once guard; no runDocPath when the run doc doesn't exist.
+  if (exceptionCondition) {
+    await emitWatchdogException({
+      alertKey: opsAlertKey.exceptionIntraday(marketDate, clockPt, exceptionCondition),
+      condition: exceptionCondition,
+      marketDate,
+      clockPt,
+      runId,
+      runDocPath: runSnap.exists ? runDocPath : undefined,
+      context: { clockPt },
+    });
+  }
 }
 
 /**

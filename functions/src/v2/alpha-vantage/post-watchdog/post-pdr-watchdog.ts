@@ -7,6 +7,12 @@ import { FirestoreCollection } from '@shared/firestore';
 
 import { betterLogger, type BetterLogPayload } from '../../utils/utils';
 import { TimeSeriesRunStatus } from '../jobs/time-series-jobs.model';
+import {
+  emitWatchdogException,
+  exceptionConditionForRunDoc,
+} from '../../common/ops-alerts/ops-alert.exceptions';
+import type { OpsExceptionCondition } from '../../common/ops-alerts/ops-alert.composer';
+import { opsAlertKey } from '../../common/ops-alerts/ops-alert.types';
 import { getPostSkipReason } from '../data-refresher/post-calendar-gate';
 import { getLatestRetryRunMarketDateForInterval } from '../data-refresher/post-retry-target';
 import {
@@ -130,10 +136,20 @@ export async function checkPostPdrDelivery(options: {
   const intervalStatuses: Record<string, PostWatchdogIntervalStatus> = {};
   let overallTickStatus: PostWatchdogTickStatus = 'ok';
   let overallAlertState: PostWatchdogAlertState = 'none';
+  // Hard-down exceptions ride the canonical alert seam (Task #210) —
+  // collected during the loop and emitted after the health doc (the
+  // primary observability surface) has been written.
+  const exceptions: Array<{
+    interval: TimeSeriesInterval;
+    condition: OpsExceptionCondition;
+    runId: string;
+    runDocPath?: string;
+  }> = [];
 
   for (const interval of POST_INTERVALS) {
     const runId = `${marketDate}-${dowStr}-${sequence}-${interval.toUpperCase()}-LIVE-POST-${clockPt}`;
-    const runRef = db.doc(`${FirestoreCollection.REALTIME_RUNS}/${runId}`);
+    const runDocPath = `${FirestoreCollection.REALTIME_RUNS}/${runId}`;
+    const runRef = db.doc(runDocPath);
     const runSnap = await runRef.get();
 
     let status: PostWatchdogIntervalStatus;
@@ -150,17 +166,21 @@ export async function checkPostPdrDelivery(options: {
         marketDate,
         interval,
       } as BetterLogPayload);
+      exceptions.push({ interval, condition: 'run_missing', runId });
     } else {
       const runData = runSnap.data() as any;
       const pdrSent = runData?.partnerDataReady?.messageSent === true;
+      const createdJobs: number | undefined = runData?.createdJobs;
       // B/C intervals with an empty retry set complete with zero jobs —
       // no job-terminal events fire, so no PDR is ever published. An A
       // run with zero jobs is still anomalous (full universe) and keeps
-      // the pdr_missing alert.
+      // the pdr_missing alert. `?? 0` also lands a COMPLETE doc missing
+      // createdJobs entirely in no_jobs — "no jobs observed" stays true
+      // (both writers initialize the field; absent = malformed).
       const zeroJobComplete =
         sequence !== 'A' &&
         runData?.status === TimeSeriesRunStatus.COMPLETE &&
-        (runData?.createdJobs ?? 0) === 0;
+        (createdJobs ?? 0) === 0;
       if (pdrSent) {
         status = 'ok';
       } else if (zeroJobComplete) {
@@ -177,6 +197,12 @@ export async function checkPostPdrDelivery(options: {
           marketDate,
           interval,
         } as BetterLogPayload);
+        exceptions.push({
+          interval,
+          condition: exceptionConditionForRunDoc(createdJobs),
+          runId,
+          runDocPath,
+        });
       }
     }
 
@@ -195,6 +221,25 @@ export async function checkPostPdrDelivery(options: {
     alertState: overallAlertState,
     checkedAt: Timestamp.now(),
   });
+
+  // Canonical exception events — one per hard-down condition per run,
+  // deduped by alertKey through the send-once guard. The key keeps the
+  // enum (lowercase) vocabulary; the composed text uppercases the
+  // interval to match run-doc naming ("the POST A WEEKLY run") and
+  // names the scheduled window via clockPt.
+  for (const ex of exceptions) {
+    await emitWatchdogException({
+      alertKey: opsAlertKey.exceptionPost(marketDate, sequence, ex.interval, ex.condition),
+      condition: ex.condition,
+      marketDate,
+      clockPt,
+      sequence,
+      interval: ex.interval.toUpperCase(),
+      runId: ex.runId,
+      runDocPath: ex.runDocPath,
+      context: { clockPt, interval: ex.interval },
+    });
+  }
 }
 
 /**

@@ -45,7 +45,8 @@ export type OpsExceptionCondition =
 export interface ExceptionInput {
   condition: OpsExceptionCondition;
   marketDate?: string;
-  /** PT clock label — identifies an intraday run. */
+  /** PT clock label — identifies an intraday run; on POST runs it names
+   *  the scheduled window the run was expected in (e.g. '1335'|'1800'|'0400'). */
   clockPt?: string;
   /** POST sequence — identifies a POST run together with `interval`. */
   sequence?: string;
@@ -171,8 +172,10 @@ export function composePostSignoff(input: PostSignoffInput): string {
 }
 
 function runLabel(input: ExceptionInput): string {
-  if (input.sequence && input.interval) {
-    return `the POST ${input.sequence} ${input.interval} run`;
+  if (input.sequence) {
+    const interval = input.interval ? ` ${input.interval}` : '';
+    const window = input.clockPt ? ` (scheduled ${input.clockPt} PT)` : '';
+    return `the POST ${input.sequence}${interval} run${window}`;
   }
   if (input.clockPt) {
     return `the intraday ${input.clockPt} PT run`;
