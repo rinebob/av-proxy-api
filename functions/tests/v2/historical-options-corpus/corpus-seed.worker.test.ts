@@ -217,6 +217,37 @@ describe('seedCorpusItem', () => {
     expect(deps.enqueueTask).not.toHaveBeenCalled();
   });
 
+  it('does not fire onSeedSuccess on a permanent failure (Task #224 — no pick task on no-store)', async () => {
+    const onSeedSuccess = jest.fn().mockResolvedValue(undefined);
+    const deps = createDependencies({
+      retrieval: {
+        fetch: jest.fn().mockRejectedValue(new Error('malformed response')),
+      } as any,
+      onSeedSuccess,
+    });
+
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 },
+      deps,
+    );
+
+    expect(result.status).toBe('permanent_failure');
+    expect(onSeedSuccess).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onSeedSuccess on a pre-floor skip', async () => {
+    const onSeedSuccess = jest.fn().mockResolvedValue(undefined);
+    const deps = createDependencies({ onSeedSuccess });
+
+    const result = await seedCorpusItem(
+      { runId: 'run-1', symbol: 'QQQ', date: '2018-12-31', attempt: 1 },
+      deps,
+    );
+
+    expect(result.status).toBe('skipped');
+    expect(onSeedSuccess).not.toHaveBeenCalled();
+  });
+
   it('computes metrics after a fresh write (Task #171)', async () => {
     const computeForDate = jest.fn().mockResolvedValue({ symbol: 'QQQ', date: '2026-01-02', written: true, fields: [] });
     const deps = createDependencies({ metrics: { computeForDate } });

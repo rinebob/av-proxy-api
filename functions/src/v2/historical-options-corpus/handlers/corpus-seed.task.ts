@@ -12,7 +12,7 @@ import { GcsCorpusAdapter } from '../services/gcs-corpus-adapter.service';
 import { HistoricalOptionsRetrievalService } from '../services/historical-options-retrieval.service';
 import { MAX_CORPUS_SEED_ATTEMPTS, seedCorpusItem } from '../services/corpus-seed.worker';
 import { createOptionsEnabledChecker } from '../services/options-enabled-gate';
-import { isTsBuildLeaseHeld } from '../services/ts-build-lease.service';
+import { isTsBuildDateCovered } from '../services/ts-build-lease.service';
 import { MetricBuildService } from '../../symbol-metrics/build.service';
 import { RankBuildService } from '../../symbol-metrics/rank-build.service';
 import { SymbolMetricsRepository } from '../../symbol-metrics/services/symbol-metrics.repository';
@@ -20,6 +20,8 @@ import { IvRankLatestRepository } from '../../symbol-metrics/services/iv-rank-la
 import { DailyAdjustedReader } from '../../swing-set/services/daily-adjusted-reader.service';
 import { optionsCorpusBucket } from '../types';
 import { OPTIONS_CORPUS_SEED_TASK_QUEUE, type CorpusSeedPayload } from '../types';
+import { handleCorpusSeedSuccess } from './corpus-seed.core';
+import { OPTIONS_PICK_MATERIALIZE_TASK_QUEUE, type PickMaterializePayload } from './pick-materialize.task';
 import { OPTIONS_TS_BUILD_TASK_QUEUE, type TsBuildPayload } from './ts-build.task';
 
 export { OPTIONS_CORPUS_SEED_TASK_QUEUE };
@@ -76,15 +78,20 @@ export const processHistoricalOptionsCorpusSeedTask = onTaskDispatched<CorpusSee
       },
       logger: (message, meta) => console.log(`[corpus-seed] ${message}`, meta ?? {}),
       onSeedSuccess: async (symbol, date) => {
-        // A held lease means a range build owns this symbol and already covers
-        // the date — enqueuing would just bounce on the lease every 60s.
-        if (await isTsBuildLeaseHeld(db, symbol)) {
-          console.log('[corpus-seed] skip ts-build enqueue — range build holds lease', { symbol, date });
-          return;
-        }
-        const tsQueue = getFunctions().taskQueue<TsBuildPayload>(OPTIONS_TS_BUILD_TASK_QUEUE);
-        await tsQueue.enqueue({ symbol, date });
-        console.log('[corpus-seed] enqueued ts-build', { symbol, date });
+        await handleCorpusSeedSuccess(symbol, date, {
+          // Task #224 — nightly pick append: the pick queue is dedicated to
+          // delta-pick materialization and runs in parallel with ts-build.
+          enqueuePick: async (payload: PickMaterializePayload) => {
+            await getFunctions().taskQueue<PickMaterializePayload>(OPTIONS_PICK_MATERIALIZE_TASK_QUEUE)
+              .enqueue(payload);
+          },
+          enqueueTsBuild: async (payload: TsBuildPayload) => {
+            await getFunctions().taskQueue<TsBuildPayload>(OPTIONS_TS_BUILD_TASK_QUEUE)
+              .enqueue(payload);
+          },
+          isTsBuildDateCovered: (sym, dt) => isTsBuildDateCovered(db, sym, dt),
+          logger: (message, meta) => console.log(`[corpus-seed] ${message}`, meta ?? {}),
+        });
       },
       // Task #171 — compute symbol metrics wherever the corpus object is
       // confirmed present (fresh write or alreadyExists). Errors are
