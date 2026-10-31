@@ -174,6 +174,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #223 | `options-data-223-materialize-picks.ts` *(mutating, not in run-all)* | BE: materialization fanout — real per-symbol materialization (corpus walk → pick → merge) + 380-doc read-back + idempotent re-run (writes the REAL {SYM}-*/years/* docs) | [options-data-223-materialize-picks.md](options-data-223-materialize-picks.md) |
 | #244 | `options-data-244-availability-services.ts` | BE: availability data services — real prod ts-contracts queries (ordering/cap/ranges/expirations/strikeStep) + real corpus-dates listing (~10 min on QQQ, full-collection reads) | [options-data-244-availability-services.md](options-data-244-availability-services.md) |
 | #246 | `options-data-246-contract-availability.ts` *(read-only, in run-all)* | BE: deployed partnerContractAvailabilityV1 — 405/401, envelope + entry fields, corpusDates ordering, filter narrowing, 400/404; **requires deploy + SA creds (skips authed checks without them)** | [options-data-246-contract-availability.md](options-data-246-contract-availability.md) |
+| #251 | `options-data-251-availability-read-ceiling.ts` | BE: availability read ceiling — wide `strikeGte=0`/`firstObserved` primaries under 60s budget + `truncated` on ceiling (read-only; ~50k Firestore reads on QQQ) | [options-data-251-availability-read-ceiling.md](options-data-251-availability-read-ceiling.md) |
 
 ## Execution order
 
@@ -215,6 +216,7 @@ Topic #213 (Options Corpus Bulk Ingest — delta-pick grid):
 4. **#223** (BE: materialization fanout) — blocked by #221 (picker) + #222 (writer); **mutating** — writes the REAL `options-delta-picks/{SYM}-*/years/*` docs for the target symbol — the materialization artifact itself, not a probe (not in run-all)
 5. **#244** (BE: availability data services) — blocked by #243 (shared types + parser); read-only (slow on QQQ — full ts-contracts scans)
 6. **#246** (BE: deployed availability endpoint) — blocked by #245 (handler + wiring; requires a functions deploy); read-only — authed checks skip without SA creds
+7. **#251** (BE: availability read ceiling) — blocked by #244 (service); read-only — wide-primary scans on QQQ (~50k reads) prove the scanned-doc ceiling + `truncated`
 
 Topic #198 (Ops SMS Alerts):
 

@@ -24,6 +24,7 @@ const scripts = [
   'options-data-221-pick-cells.ts',
   'options-data-244-availability-services.ts',
   'options-data-246-contract-availability.ts',
+  'options-data-251-availability-read-ceiling.ts',
   'ops-119-firestore-indexes.ts',
   'ops-sms-alerts-205-compose-texts.ts',
   // ops-sms-alerts-204-emit-alert.ts — mutating (writes + deletes an
