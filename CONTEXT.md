@@ -125,7 +125,7 @@ A routine SMS sent when a pipeline run's work is fully done — last interval co
 
 ### Hard-Down Exception
 
-An SMS-worthy failure condition limited to total failures: run doc missing, PDR never sent, or orchestrator never started — detected by watchdog absence checks, not by error logs. Partial failures never text; they surface inside the Signoff Text's counts. See Topic #198.
+An SMS-worthy failure condition limited to total failures: run doc missing, PDR never sent, or orchestrator never started — detected by watchdog absence checks, not by error logs. Partial failures never text; they surface inside the Signoff Text's counts. Canonical condition names: `run_missing` (no run doc), `orchestrator_no_start` (run doc exists, zero jobs created), `pdr_missing` (jobs exist, no PDR); `no_jobs` marks an expected empty B/C retry and never texts. See Topic #198.
 
 ### Canonical Alert Event
 
@@ -133,7 +133,7 @@ The single in-repo emission point for operator notifications: pipeline code emit
 
 ### Alert Key
 
-The deterministic dedupe/identity string on a Canonical Alert Event (`alertKey`), e.g. `intraday:0800:2026-10-25`. It doubles as the audit doc id under `ops-alerts/`, so re-emitting the same key overwrites rather than duplicates. See Topic #198.
+The deterministic dedupe/identity string on a Canonical Alert Event (`alertKey`) — built only via the `opsAlertKey` builders, e.g. `signoff:intraday:{date}:{tick}`, `signoff:post:{date}:{seq}`, `exception:intraday:{date}:{tick}:{condition}`, `exception:post:{date}:{seq}:{interval}:{condition}`. It doubles as the audit doc id under `ops-alerts/` (and the claim doc id under `ops-alert-claims/`), so re-emitting the same key overwrites rather than duplicates. See Topic #198.
 
 ### Daily Corpus Coverage
 
