@@ -44,7 +44,7 @@ flowchart LR
 ## Key decisions
 
 1. **Multi-range (locked):** Firestore allows one range field per query. Deterministic precedence — `expiration` > `firstObserved` > `strike` — the first present range dim runs server-side; all remaining filters (other ranges, `strikeStep`, `expirations` overflow) apply in memory.
-2. **`expirations` list:** overrides `expirationGte/Lte`. `in` queries chunked at 30 values (Firestore `in` limit); chunks merged + deduped client-side.
+2. **`expirations` list:** overrides `expirationGte/Lte`. `in` queries chunked at 30 values (Firestore `in` limit); chunks merged + deduped client-side. **Amended during T3:** the parser caps the list at `MAX_EXPIRATIONS_LIST = 30` (one chunk) — an unbounded list would allow arbitrary parallel `in` queries per request; `400` on overflow, range params remain the escape hatch. The service's chunker is retained as defense-in-depth and for direct-service callers.
 3. **`strikeStep`:** in-memory only — strike converted to integer cents, keep when `cents % stepCents === 0`.
 4. **Truncation:** after post-filter + in-memory sort (expiration asc → strike asc → contractId asc), take `CAP + 1`; if extra exists, drop it and set `truncated: true`. Read amplification on broad queries is accepted (discovery endpoint, low volume).
 5. **Response:** `contracts` = `ContractCatalogEntry` (strip `lastUpdated`); `corpusDates` sorted ascending.

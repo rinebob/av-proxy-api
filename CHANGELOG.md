@@ -16,6 +16,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Options Corpus Bulk Ingest] 213-244_BE-IMPL-OPTIONS-DATA: Unit tests — immutable fake Firestore (orderBy/limit/cursor metadata) + structural fake bucket; 28 tests
 - [Options Corpus Bulk Ingest] 213-244_BE-IMPL-OPTIONS-DATA: Prod verify script — read-only 15-assert run on real Firestore/GCS incl. new index paths; registered in README + run-all
 - [Options Corpus Bulk Ingest] 213-244_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete
+- [Options Corpus Bulk Ingest] 213-245_BE-IMPL-OPTIONS-DATA: partnerContractAvailabilityV1 partner endpoint — GET contract availability (contracts + corpusDates), V2 auth/envelope, 404 OPTIONS_NOT_ENABLED gate, concurrent Firestore+GCS fetch
+- [Options Corpus Bulk Ingest] 213-245_BE-IMPL-OPTIONS-DATA: expirations per-request cap (MAX_EXPIRATIONS_LIST = 30, one `in` chunk) — unbounded lists would fan out into arbitrary parallel Firestore queries; range params are the escape hatch
+- [Options Corpus Bulk Ingest] 213-245_BE-IMPL-OPTIONS-DATA: Unit tests — handler suite (405/401/403/404/400/envelope/strip/500s via injectable deps) + cap boundary; 20+1 tests
+- [Options Corpus Bulk Ingest] 213-245_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (3 axes + re-review) + UAT Complete + IMPL/TEST cap amendments
 - [Ops SMS Alerts] 198-209_BE-IMPL-OPS: POST calendar gate + shared validated retry-target resolver — scheduled A/B/C passes skip closed days; C resolves newest valid ≤today trading-day target
 - [Ops SMS Alerts] 198-209_BE-IMPL-OPS: POST B/C PDR watchdogs (19:15 + 05:15 PT Mon–Fri) — empty-retry no_jobs, per-sequence health docs, closed-day + closed-today gates, calendar fail-open
 - [Ops SMS Alerts] 198-209_BE-IMPL-OPS: B/C watchdog + calendar-gate unit tests (29 focused; full suite 1050)

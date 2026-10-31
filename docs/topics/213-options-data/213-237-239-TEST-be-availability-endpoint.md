@@ -48,7 +48,7 @@
 
 - Empty `ts-contracts` for symbol → `contracts: []`, `count: 0`, `truncated: false`.
 - Malformed date / inverted range pair (`gte > lte`) / `strikeStep <= 0` → `400`.
-- `expirations` > 30 values → chunked `in` queries merged without dupes.
+- `expirations` > 30 values → `400` (per-request cap; the range params are the escape hatch). At ≤30 the list runs as `in` chunks merged without dupes.
 - `strikeStep` with non-grid-aligned strikes (e.g. $2.50 strikes, step 10) → no false positives via integer-cent math.
 - Expired-only result sets (frozen docs, no `latest`) → fields omitted cleanly.
 - Exactly 2000 vs 2001 matching → `truncated` boundary.
