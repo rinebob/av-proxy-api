@@ -28,6 +28,8 @@ import { TimeSeriesJobStatus, TimeSeriesJobMode, TimeSeriesRunStatus } from '../
 import { RunIdFactory, type RealtimeRunParams } from '../jobs/runid-factory';
 import { clockPtNow } from '../../common/bar-status/bar-status.service';
 import { getIntradaySkipReason } from './intraday-calendar-gate';
+import { getPostSkipReason } from './post-calendar-gate';
+import { getLatestRetryRunMarketDateForInterval } from './post-retry-target';
 import { forceCompleteStaleIntradayRuns } from './intraday-self-healing';
 
 const tsJobLogger = betterLogger('aVTSRM');
@@ -150,27 +152,6 @@ export function orderTrackedSymbols(allTracked: string[]): string[] {
   ordered.push(...remaining);
 
   return ordered;
-}
-
-async function getLatestRetryRunMarketDateForInterval(
-  interval: TimeSeriesInterval,
-): Promise<string | null> {
-  const runsRef = db.collection(FirestoreCollection.REALTIME_RUNS);
-
-  const snap = await runsRef
-    .where('interval', '==', interval)
-    .where('runType', '==', 'ts-post-all-intervals-retry')
-    .orderBy('marketDate', 'desc')
-    .limit(1)
-    .get();
-
-  if (snap.empty) {
-    return null;
-  }
-
-  const data = snap.docs[0].data() as any;
-  const md = String(data.marketDate || '');
-  return md || null;
 }
 
 /**
@@ -1388,6 +1369,21 @@ export const refreshAvTimeSeriesPostAllIntervals = onSchedule({
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true' || isManualOverride;
   const trigger = isManualOverride ? RefreshTrigger.MANUAL : RefreshTrigger.SCHEDULER;
 
+  // Calendar gate: scheduled passes skip on market-closed days (weekend
+  // crons never fire; holidays skip). Manual/emulator invocations stay
+  // ungated so an operator can force a run on a closed day deliberately.
+  if (!isManualRun) {
+    const skipReason = getPostSkipReason(marketDate);
+    if (skipReason) {
+      tsJobLogger.info('post.scheduler.skip', {
+        function: 'rATSPAI',
+        marketDate,
+        message: `market closed (${skipReason}) — POST A pass skipped`,
+      } as BetterLogPayload);
+      return;
+    }
+  }
+
   await runAllTimeSeriesIntervalsPost({
     trigger,
     marketDate,
@@ -1405,6 +1401,20 @@ export const refreshAvDailyTimeSeriesPostEveningRetry00 = onSchedule({
   const { marketDate } = getEtMarketDateAndDow();
 
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
+
+  // Calendar gate: skip the scheduled pass on market-closed days
+  // (same rule as the A pass and the watchdog checks).
+  if (!isManualRun) {
+    const skipReason = getPostSkipReason(marketDate);
+    if (skipReason) {
+      tsJobLogger.info('post.scheduler.skip', {
+        function: 'rTSDPER00',
+        marketDate,
+        message: `market closed (${skipReason}) — POST B pass skipped`,
+      } as BetterLogPayload);
+      return;
+    }
+  }
 
   await runAllTimeSeriesIntervalsPost({
     trigger: RefreshTrigger.SCHEDULER,
@@ -1428,12 +1438,29 @@ export const refreshAvDailyTimeSeriesPostMorning0700 = onSchedule({
   secrets: ['ALPHAVANTAGE_API_KEY'],
 }, async () => {
   const isManualRun = process.env.FUNCTIONS_EMULATOR === 'true';
-  const targetMarketDate = await getLatestRetryRunMarketDateForInterval(TimeSeriesInterval.DAILY);
+  const { marketDate: todayEt } = getEtMarketDateAndDow();
+
+  // Calendar gate: when today is market-closed, defer the catch-up pass
+  // to the next trading day — the retry-run docs persist (RUN_DOC_TTL_MS
+  // spans weekends + holiday Mondays), so the same target is resolved then.
+  if (!isManualRun) {
+    const skipReason = getPostSkipReason(todayEt);
+    if (skipReason) {
+      tsJobLogger.info('post.scheduler.skip', {
+        function: 'rTSDPM0700',
+        marketDate: todayEt,
+        message: `market closed (${skipReason}) — POST C pass deferred`,
+      } as BetterLogPayload);
+      return;
+    }
+  }
+
+  const targetMarketDate = await getLatestRetryRunMarketDateForInterval(TimeSeriesInterval.DAILY, todayEt);
 
   if (!targetMarketDate) {
     tsJobLogger.info('ts.jobs.a_run.skip_no_retry', {
       function: 'rTSDPM0700',
-      reason: 'no_retry_runs_found',
+      message: 'no retry runs found — C pass skipped',
     } as BetterLogPayload);
     return;
   }
