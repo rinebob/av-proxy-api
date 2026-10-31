@@ -18,16 +18,29 @@ import {
 /** Firestore `in` operator accepts at most 30 values per query. */
 const IN_CHUNK_SIZE = 30;
 
-/** Docs per page on the response-ordered scan. */
-const DEFAULT_PAGE_SIZE = 500;
+/**
+ * Hard bound on docs scanned per query. Wide primaries (e.g.
+ * `strikeGte=0`, full-history `firstObserved`) would otherwise materialize
+ * the entire subcollection and blow the function's time/memory budget.
+ * Hitting the ceiling sets `truncated` — honest "more matches may exist".
+ */
+const DEFAULT_READ_CEILING = 25_000;
 
 export interface AvailabilityQueryResult {
   contracts: ContractCatalogEntry[];
-  /** True when results were capped at `maxContracts`. */
+  /** True when results were capped at `maxContracts` OR the read
+   *  ceiling stopped a scan before exhaustion — either way, more
+   *  matching contracts may exist beyond what was returned. */
   truncated: boolean;
 }
 
 type RangeField = 'expiration' | 'firstObserved' | 'strike';
+
+/** Fetch outcome: post-filtered docs plus whether the read ceiling fired. */
+interface ScanFetch {
+  docs: ContractCatalogDoc[];
+  hitReadCeiling: boolean;
+}
 
 /**
  * Query service for the contract availability endpoint.
@@ -41,22 +54,28 @@ type RangeField = 'expiration' | 'firstObserved' | 'strike';
  * contractId asc), then capped at `maxContracts` — `truncated` reports
  * whether more matches existed beyond the cap.
  *
- * Read bounding: when the only server-side dims are `type` and
- * `expiration` (i.e. the unfiltered and expiration-primary cases), the
- * scan runs in RESPONSE order — (expiration, strike, __name__) — in
- * `pageSize` pages and early-exits once `maxContracts + 1` post-filtered
- * matches are collected. An unfiltered `?symbol=QQQ` reads ~2001 docs
- * instead of the entire ~395k-doc collection. Requires the
- * (expiration, strike) and (type, expiration, strike) composite indexes
- * — both already exist in `firestore.indexes.json`. firstObserved- and
- * strike-primary queries keep a single `get()` on the pushed range:
- * the range itself bounds the read, but their stream order is not the
- * response order, so a `cap + 1` early exit would be incorrect.
+ * Read bounding: all scans run via `Query.stream()` in a deterministic
+ * server-side order under a hard scanned-doc ceiling
+ * ({@link DEFAULT_READ_CEILING}) — `truncated` reports when the ceiling
+ * fired. Early `for await` exit destroys the consumer-side stream; the
+ * SDK's internal pipe chain does NOT forward the destroy to the gRPC
+ * `runQuery` RPC, which pauses via flow-control backpressure (billed
+ * reads stay bounded near the ceiling) and closes on server idle
+ * timeout. The ordered scan (only server-side dims `type` +
+ * `expiration`, i.e. unfiltered and expiration-primary) additionally
+ * early-exits once `maxContracts + 1` post-filtered matches are
+ * collected — an unfiltered `?symbol=QQQ` reads ~2001 docs. Requires
+ * the (expiration, strike), (type, expiration, strike),
+ * (type, firstObserved), and (type, strike) composite indexes — all
+ * already exist in `firestore.indexes.json`. firstObserved- and
+ * strike-primary scans stream in primary-field order and cannot
+ * early-exit on matches (stream order ≠ response order), so the
+ * ceiling is their only bound besides range width.
  */
 export class ContractAvailabilityQueryService {
   constructor(
     private readonly db: Firestore,
-    private readonly pageSize = DEFAULT_PAGE_SIZE,
+    private readonly readCeiling = DEFAULT_READ_CEILING,
   ) {}
 
   async queryAvailability(
@@ -70,20 +89,21 @@ export class ContractAvailabilityQueryService {
 
     const primary = this.selectPrimaryRange(filters);
     let filtered: ContractCatalogDoc[];
+    let hitReadCeiling = false;
     if (filters.expirations !== undefined) {
-      const docs = await this.fetchByExpirationList(colRef, filters, filters.expirations);
-      filtered = docs.filter((d) => this.postFilter(d, filters, null));
+      const fetched = await this.fetchByExpirationList(colRef, filters, filters.expirations);
+      hitReadCeiling = fetched.hitReadCeiling;
+      filtered = fetched.docs.filter((d) => this.postFilter(d, filters, null));
     } else if (primary === 'firstObserved' || primary === 'strike') {
-      const docs = await this.fetchByPrimaryRange(colRef, filters, primary);
-      filtered = docs.filter((d) => this.postFilter(d, filters, primary));
+      ({ docs: filtered, hitReadCeiling } = await this.fetchByPrimaryRange(colRef, filters, primary));
     } else {
-      // Ordered scan already emits docs post-filtered and in response
-      // order, capped at maxContracts + 1.
-      filtered = await this.fetchOrderedPages(colRef, filters, maxContracts + 1);
+      // Ordered scan emits docs post-filtered and in response order,
+      // capped at maxContracts + 1 matches or the read ceiling.
+      ({ docs: filtered, hitReadCeiling } = await this.fetchOrderedScan(colRef, filters, maxContracts + 1));
     }
     filtered.sort(compareContracts);
 
-    const truncated = filtered.length > maxContracts;
+    const truncated = filtered.length > maxContracts || hitReadCeiling;
     const contracts = filtered.slice(0, maxContracts).map(stripLastUpdated);
     return { contracts, truncated };
   }
@@ -101,87 +121,132 @@ export class ContractAvailabilityQueryService {
     return null;
   }
 
+  /**
+   * Streams the pushed primary range in primary-field order,
+   * post-filtering each doc and collecting every match — a `cap + 1`
+   * early exit would be wrong here (stream order ≠ response order), so
+   * the scan runs to range exhaustion or the read ceiling.
+   */
   private async fetchByPrimaryRange(
     colRef: CollectionReference,
     filters: ContractAvailabilityFilters,
-    primary: RangeField | null,
-  ): Promise<ContractCatalogDoc[]> {
+    primary: 'firstObserved' | 'strike',
+  ): Promise<ScanFetch> {
     let q: Query = colRef;
     if (filters.type) q = q.where('type', '==', filters.type);
-    if (primary === 'expiration') {
-      if (filters.expirationGte !== undefined) q = q.where('expiration', '>=', filters.expirationGte);
-      if (filters.expirationLte !== undefined) q = q.where('expiration', '<=', filters.expirationLte);
-    } else if (primary === 'firstObserved') {
+    if (primary === 'firstObserved') {
       if (filters.firstObservedGte !== undefined) q = q.where('firstObserved', '>=', filters.firstObservedGte);
       if (filters.firstObservedLte !== undefined) q = q.where('firstObserved', '<=', filters.firstObservedLte);
     } else if (primary === 'strike') {
       if (filters.strikeGte !== undefined) q = q.where('strike', '>=', filters.strikeGte);
       if (filters.strikeLte !== undefined) q = q.where('strike', '<=', filters.strikeLte);
     }
-    const snap = await q.get();
-    return snap.docs.map((d) => d.data() as ContractCatalogDoc);
+    q = q.orderBy(primary).orderBy(FieldPath.documentId());
+
+    const matched: ContractCatalogDoc[] = [];
+    const hitReadCeiling = await this.scanBounded(q, (doc) => {
+      if (this.postFilter(doc, filters, primary)) matched.push(doc);
+      return 'continue';
+    });
+    return { docs: matched, hitReadCeiling };
   }
 
   /**
-   * Pages through the collection in response order —
+   * Streams the collection in response order —
    * (expiration, strike, __name__) — post-filtering each doc and
-   * stopping as soon as `want` matches are collected or the collection
-   * is exhausted. Expiration bounds and `type` are pushed server-side;
-   * every other dimension post-filters. Correct for early exit because
-   * the stream order IS the sort order.
+   * stopping as soon as `want` matches are collected, the collection
+   * is exhausted, or the read ceiling is hit — a dense range + sparse
+   * post-filter would otherwise scan every doc. Expiration bounds and
+   * `type` are pushed server-side; every other dimension post-filters.
+   * Correct for early exit because the stream order IS the sort order.
    */
-  private async fetchOrderedPages(
+  private async fetchOrderedScan(
     colRef: CollectionReference,
     filters: ContractAvailabilityFilters,
     want: number,
-  ): Promise<ContractCatalogDoc[]> {
+  ): Promise<ScanFetch> {
+    let q: Query = colRef;
+    if (filters.type) q = q.where('type', '==', filters.type);
+    if (filters.expirationGte !== undefined) q = q.where('expiration', '>=', filters.expirationGte);
+    if (filters.expirationLte !== undefined) q = q.where('expiration', '<=', filters.expirationLte);
+    q = q
+      .orderBy('expiration')
+      .orderBy('strike')
+      .orderBy(FieldPath.documentId());
+
     const matched: ContractCatalogDoc[] = [];
-    let cursor: QueryDocumentSnapshot | undefined;
-    for (;;) {
-      let q: Query = colRef;
-      if (filters.type) q = q.where('type', '==', filters.type);
-      if (filters.expirationGte !== undefined) q = q.where('expiration', '>=', filters.expirationGte);
-      if (filters.expirationLte !== undefined) q = q.where('expiration', '<=', filters.expirationLte);
-      q = q
-        .orderBy('expiration')
-        .orderBy('strike')
-        .orderBy(FieldPath.documentId())
-        .limit(this.pageSize);
-      if (cursor) q = q.startAfter(cursor);
-      const snap = await q.get();
-      for (const d of snap.docs) {
-        const doc = d.data() as ContractCatalogDoc;
-        if (this.postFilter(doc, filters, 'expiration')) {
-          matched.push(doc);
-          if (matched.length >= want) return matched;
-        }
-      }
-      if (snap.docs.length < this.pageSize) return matched;
-      cursor = snap.docs[snap.docs.length - 1];
-    }
+    const hitReadCeiling = await this.scanBounded(q, (doc) => {
+      if (!this.postFilter(doc, filters, 'expiration')) return 'continue';
+      matched.push(doc);
+      return matched.length >= want ? 'stop' : 'continue';
+    });
+    return { docs: matched, hitReadCeiling };
   }
 
-  /** Chunked `expiration in (…)` queries, merged and deduped by contractId. */
+  /**
+   * Chunked `expiration in (…)` queries, merged and deduped by
+   * contractId. Chunks share one scanned-doc budget so the ceiling is a
+   * per-request bound, not per-chunk — the 30-value `in` cap bounds
+   * value count, not doc count, so an un-capped `get()` on a dense
+   * expiration could still materialize tens of thousands of docs.
+   * Sequential per chunk: the ceiling makes parallel fan-out pointless
+   * once it fires.
+   */
   private async fetchByExpirationList(
     colRef: CollectionReference,
     filters: ContractAvailabilityFilters,
     expirations: string[],
-  ): Promise<ContractCatalogDoc[]> {
+  ): Promise<ScanFetch> {
     const byId = new Map<string, ContractCatalogDoc>();
-    const snaps = await Promise.all(
-      Array.from({ length: Math.ceil(expirations.length / IN_CHUNK_SIZE) }, (_, i) => {
-        let q: Query = colRef.where('expiration', 'in', expirations.slice(i * IN_CHUNK_SIZE, (i + 1) * IN_CHUNK_SIZE));
-        if (filters.type) q = q.where('type', '==', filters.type);
-        return q.get();
-      }),
-    );
-    for (const snap of snaps) {
-      for (const d of snap.docs) {
-        const doc = d.data() as ContractCatalogDoc;
+    const budget = { scanned: 0 };
+    let hitReadCeiling = false;
+    for (let i = 0; i < expirations.length && !hitReadCeiling; i += IN_CHUNK_SIZE) {
+      let q: Query = colRef.where('expiration', 'in', expirations.slice(i, i + IN_CHUNK_SIZE));
+      if (filters.type) q = q.where('type', '==', filters.type);
+      hitReadCeiling = await this.scanBounded(q, (doc) => {
         byId.set(doc.contractId, doc);
-      }
+        return 'continue';
+      }, budget);
     }
-    return [...byId.values()];
+    return { docs: [...byId.values()], hitReadCeiling };
+  }
+
+  /**
+   * Streams `q`, invoking `visit` on each doc until it returns `'stop'`
+   * (early exit, no ceiling), the stream exhausts, or the scanned-doc
+   * budget reaches the read ceiling. `budget` lets multi-query paths
+   * (the `expirations` chunk loop) share one ceiling across scans —
+   * when omitted each call gets a fresh counter. The ceiling check
+   * runs after `visit` so an early exit on the ceiling-th doc still
+   * wins — matching the ordered scan's cap+1 semantics. A mid-stream
+   * error propagates to the caller (→ 500) — partial results are never
+   * returned silently.
+   */
+  private async scanBounded(
+    q: Query,
+    visit: (doc: ContractCatalogDoc) => 'continue' | 'stop',
+    budget: { scanned: number } = { scanned: 0 },
+  ): Promise<boolean> {
+    if (budget.scanned >= this.readCeiling) return true;
+    for await (const snap of this.scan(q)) {
+      budget.scanned++;
+      if (visit(snap.data() as ContractCatalogDoc) === 'stop') return false;
+      if (budget.scanned >= this.readCeiling) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Server-pushed doc stream for a query. `Query.stream()` returns a
+   * Node Readable at runtime (async-iterable — the SDK types it as
+   * `NodeJS.ReadableStream`, which omits `[Symbol.asyncIterator]`, hence
+   * the cast). Early `for await` exit destroys the consumer-side
+   * stream; the upstream gRPC RPC is NOT cancelled (the SDK's pipe
+   * chain doesn't forward destroy) — it pauses on flow-control
+   * backpressure and closes on server idle timeout.
+   */
+  private scan(q: Query): AsyncIterable<QueryDocumentSnapshot> {
+    return q.stream() as unknown as AsyncIterable<QueryDocumentSnapshot>;
   }
 
   /**
