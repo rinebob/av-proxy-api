@@ -32,19 +32,23 @@ Every new or renamed partner HTTPS Cloud Function endpoint (e.g., `partnerContra
 
 6. **POST endpoints need a JSON body, not query params.** The verify step for POST endpoints must send a body. Use `Invoke-RestMethod` with `-Method POST -Body $json`.
 
+7. **`gcloud run services update --update-secrets` crashes on Firebase-deployed functions.** It fails with `ValueError: Invalid secret path 'projects/<name>/secrets/<SECRET>' in annotation` — the gcloud CLI cannot parse the secret annotation format that `firebase deploy` writes (project *name* rather than number/version form). This was still broken on 2026-10-31 after `gcloud components update`, including when updating all secrets at once. **Do not use `gcloud run services update` to rotate function secrets.** Instead: update the secret via `gcloud secrets versions add` (Step 1), then `firebase deploy` the function (Step 5) — deploy recycles instances and writes annotations it can read. Secrets are loaded at instance start, so without a recycle warm instances keep serving the old version indefinitely.
+
 ## Steps
 
 ### 1. Update `EXPECTED_GOOGLE_AUDIENCE` Secret
 
-The `EXPECTED_GOOGLE_AUDIENCE` secret in Secret Manager is a comma-separated list of accepted audience URLs. Every new endpoint's function URL must be appended.
+The `EXPECTED_GOOGLE_AUDIENCE` secret in Secret Manager is a comma-separated list of accepted audience URLs. Append **both** the new endpoint's `cloudfunctions.net` URL **and** its `run.app` URL (a partner may mint a token scoped to either host — see `partnerHistoricalOptionsContractV2`/`partnerIvMetricsV2` entries for precedent). A token's `aud` only needs to match one entry; the base host `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net` is a permanent entry that satisfies any function.
 
 ```powershell
 # Read the current value
 gcloud secrets versions access latest --secret=EXPECTED_GOOGLE_AUDIENCE --project=alpha-vantage-proxy-api
 
-# Append the new endpoint URL to the existing comma-separated list, then update:
-echo "https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net,<existing_urls>,https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/NEW_FUNCTION_NAME" | gcloud secrets versions add EXPECTED_GOOGLE_AUDIENCE --data-file=- --project=alpha-vantage-proxy-api
+# Append BOTH new endpoint URLs to the existing comma-separated list, then update:
+echo "<existing_urls>,https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/NEW_FUNCTION_NAME,https://newfunctionname-HASH-uc.a.run.app" | gcloud secrets versions add EXPECTED_GOOGLE_AUDIENCE --data-file=- --project=alpha-vantage-proxy-api
 ```
+
+**The new version only takes effect on the next instance start** — running instances keep the old secret. A `firebase deploy` (Step 5) recycles instances; `gcloud run services update --update-secrets` does NOT work (see Gotcha #7). Until a recycle, tokens scoped to the new URLs get `403 "Google ID token audience mismatch"` — the base-host `aud` still works in the meantime.
 
 ### 2. Grant `roles/run.invoker` on the Cloud Run Service
 
@@ -157,3 +161,4 @@ For the full list of deployed partner endpoints, see `docs/partner/partner-endpo
 | `partnerSpreadTimeSeriesBatch` | `partnerspreadtimeseriesbatch` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerSpreadTimeSeriesBatch` |
 | `partnerDataReadyPublishV2` | `partnerdatareadypublishv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerDataReadyPublishV2` |
 | `partnerSwingSetsV2` | `partnerswingsetsv2` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerSwingSetsV2` |
+| `partnerContractAvailabilityV1` | `partnercontractavailabilityv1` | `https://us-central1-alpha-vantage-proxy-api.cloudfunctions.net/partnerContractAvailabilityV1` |

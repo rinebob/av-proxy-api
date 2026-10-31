@@ -28,6 +28,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - [Ops SMS Alerts] 198-209_BE-BUG-OPS: Run-doc TTL 48h→96h — Friday retry docs now survive weekends/holiday Mondays to the next trading-day C pass (Bug #248)
 
+## [2026-10-31]
+
+### Added
+- [Options Corpus Bulk Ingest] 213-246_BE-IMPL-OPTIONS-DATA: Deployed-endpoint verify script for partnerContractAvailabilityV1 — read-only HTTPS checks (401/405/envelope/entry fields/corpusDates ordering/narrowing/index-backed primaries/400/404/403), 3 token sources, clean no-creds skip, Cloud-Run-vs-app 403 disambiguation, Windows socket-teardown fix; registered in README + run-all
+- [Options Corpus Bulk Ingest] 213-246_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete — live run vs deployed endpoint 30 PASS / 1 SKIP; deploy-partner-endpoint.md Gotcha #7 (gcloud --update-secrets crash) + dual-URL aud guidance + endpoint table row
+
 ## [2026-10-29]
 
 ### Added
