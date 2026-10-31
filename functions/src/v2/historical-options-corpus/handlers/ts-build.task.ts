@@ -54,7 +54,7 @@ export const processHistoricalOptionsTsBuildTask = onTaskDispatched<TsBuildPaylo
       isOptionsEnabled: createOptionsEnabledChecker(),
       buildSymbol: (symbol, startDate, endDate, options) =>
         service.buildSymbol(symbol, startDate, endDate, undefined, undefined, options),
-      acquireLease: (symbol) => acquireTsBuildLease(db, symbol),
+      acquireLease: (symbol, coveredUntil) => acquireTsBuildLease(db, symbol, undefined, coveredUntil),
       releaseLease: (symbol) => releaseTsBuildLease(db, symbol),
       enqueueTask: async (payload, delaySeconds) => {
         await queue.enqueue(

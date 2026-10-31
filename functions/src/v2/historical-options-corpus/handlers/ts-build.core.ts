@@ -21,9 +21,11 @@ export interface TsBuildDeps {
   /**
    * Per-symbol mutual exclusion. Returns false when another task holds the
    * symbol's lease — the payload is re-enqueued with a delay rather than
-   * racing on the same contract JSONL files.
+   * racing on the same contract JSONL files. `coveredUntil` records the
+   * build's end date on the lease so producers can skip only dates the
+   * holder actually covers.
    */
-  acquireLease?: (symbol: string) => Promise<boolean>;
+  acquireLease?: (symbol: string, coveredUntil?: string) => Promise<boolean>;
   releaseLease?: (symbol: string) => Promise<void>;
   /** Enqueue a follow-up task (continuation or deferred retry). */
   enqueueTask?: (payload: TsBuildPayload, delaySeconds?: number) => Promise<void>;
@@ -63,7 +65,7 @@ export async function handleTsBuildTask(
   }
 
   if (deps.acquireLease) {
-    const acquired = await deps.acquireLease(symbol);
+    const acquired = await deps.acquireLease(symbol, endDate);
     if (!acquired) {
       deps.logger('lease busy — deferred', { symbol, startDate, endDate, delaySeconds: LEASE_DEFER_SECONDS });
       await deps.enqueueTask?.(payload, LEASE_DEFER_SECONDS);
