@@ -39,6 +39,9 @@ const scripts = [
   // ops-sms-alerts-209-post-bc-watchdog.ts — mutating (writes + deletes
   // realtime-runs + realtime-health probes for 2026-12-30 in prod; requires
   // GCLOUD_PROJECT=alpha-vantage-proxy-api), run manually
+  // ops-sms-alerts-210-watchdog-exceptions.ts — mutating (writes + deletes
+  // run-doc/health/alert/claim probes for 2026-12-30 in prod; requires
+  // GCLOUD_PROJECT=alpha-vantage-proxy-api), run manually
   // options-data-124-swing-set-data-layer.ts — mutating (writes + deletes a
   // ZZTEST probe doc in prod), run manually
   // options-data-125-swing-set-generation.ts — mutating (writes + deletes

@@ -28,10 +28,13 @@
 import * as admin from 'firebase-admin';
 import { db } from '../../src/firebase-admin-init';
 import { FirestoreCollection } from '@shared/firestore';
+import { TimeSeriesInterval } from '@shared/alpha-vantage';
 import {
   checkPostPdrDelivery,
   checkPostCPdrDelivery,
 } from '../../src/v2/alpha-vantage/post-watchdog/post-pdr-watchdog';
+import { opsAlertKey } from '../../src/v2/common/ops-alerts/ops-alert.types';
+import { TimeSeriesRunStatus } from '../../src/v2/alpha-vantage/jobs/time-series-jobs.model';
 
 function assert(condition: boolean, message: string): void {
   if (!condition) {
@@ -49,6 +52,17 @@ const runId = (seq: string, interval: string, clockPt: string) =>
   `${MARKET_DATE}-WED-${seq}-${interval}-LIVE-POST-${clockPt}`;
 const HEALTH_BASE = `${FirestoreCollection.REALTIME_HEALTH}/${MARKET_DATE}`;
 
+// Task #210: the B WEEKLY pdr_missing probe below emits a canonical
+// exception event — its audit + claim docs are pre-cleaned before the
+// check (a SIGKILLed prior run would otherwise leave a claim that
+// silently suppresses the emit) and deleted in `finally`.
+const B_PDR_KEY = opsAlertKey.exceptionPost(
+  MARKET_DATE,
+  'B',
+  TimeSeriesInterval.WEEKLY,
+  'pdr_missing',
+);
+
 const intervalDoc = (
   seq: string,
   interval: string,
@@ -61,7 +75,7 @@ const intervalDoc = (
   marketDate: MARKET_DATE,
   phase: 'POST',
   interval: interval.toLowerCase(),
-  status: 'COMPLETE',
+  status: TimeSeriesRunStatus.COMPLETE,
   probe: true,
   task: 209,
   // Fresh timestamp so cleanupOldRunDocs reclaims any leaked probe.
@@ -85,6 +99,10 @@ async function main() {
   }
 
   try {
+  console.log('--- Pre-cleaning any leftover probe alert/claim docs ---');
+  await db.doc(`${FirestoreCollection.OPS_ALERTS}/${B_PDR_KEY}`).delete();
+  await db.doc(`${FirestoreCollection.OPS_ALERT_CLAIMS}/${B_PDR_KEY}`).delete();
+
   console.log('--- Seeding B probe docs (all PDR sent except MONTHLY zero-job) ---');
   for (const interval of ['DAILY', 'WEEKLY']) {
     await db
@@ -158,6 +176,11 @@ async function main() {
           .delete();
       }
     }
+    // Task #210: the pdr_missing probe above now also emits a canonical
+    // exception event — clean up its audit + claim docs (the opsSms
+    // stamp dies with the probe run doc).
+    await db.doc(`${FirestoreCollection.OPS_ALERTS}/${B_PDR_KEY}`).delete();
+    await db.doc(`${FirestoreCollection.OPS_ALERT_CLAIMS}/${B_PDR_KEY}`).delete();
     const gone = await db.doc(`${HEALTH_BASE}-C`).get();
     assert(!gone.exists, 'probe health docs deleted');
   }
