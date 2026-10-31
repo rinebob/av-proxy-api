@@ -11,9 +11,15 @@ import { DashboardLayoutComponent } from './feat/admin-dashboard/components/dash
 import { HealthDashboardComponent } from './feat/health-view/comps/health-dashboard/health-dashboard.component';
 import { ChartViewComponent } from './feat/chart-view/chart-view.component';
 import { StorageViewerComponent } from './feat/storage-file-viewer/comps/storage-viewer/storage-viewer.component';
+import { PrivacyPolicyComponent } from './feat/legal/privacy-policy.component';
+import { TermsOfServiceComponent } from './feat/legal/terms-of-service.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
+  // Public legal pages — required for A2P 10DLC / toll-free SMS compliance
+  // review; intentionally unguarded so Twilio/carrier reviewers can fetch them.
+  { path: 'privacy', component: PrivacyPolicyComponent },
+  { path: 'terms', component: TermsOfServiceComponent },
   { path: 'stock-data', component: StockDataComponent, canActivate: [authGuard] },
   { path: 'charts', component: ChartViewComponent, canActivate: [authGuard] },
   { path: 'calendars', component: BzCalendarViewComponent, canActivate: [authGuard] },
