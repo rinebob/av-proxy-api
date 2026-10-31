@@ -48,7 +48,9 @@ export interface ContractAvailabilityResponse {
   symbol: string;
   contracts: ContractCatalogEntry[];
   count: number;
-  /** True when `contracts` was capped at CONTRACT_AVAILABILITY_MAX_CONTRACTS. */
+  /** True when `contracts` was capped at CONTRACT_AVAILABILITY_MAX_CONTRACTS
+   *  or the server's scanned-doc read ceiling fired — either way more
+   *  matches may exist. */
   truncated: boolean;
   /** Dates with a corpus object for the symbol, sorted ascending (YYYY-MM-DD). */
   corpusDates: string[];
