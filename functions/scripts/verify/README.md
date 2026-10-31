@@ -172,6 +172,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #222 | `options-data-222-cell-writer.ts` *(mutating, not in run-all)* | BE: cell doc writer — merge decision table + header recompute + year sharding + idempotent re-run (writes + deletes ZZTEST-put-20-45/years/{2099,2100} docs) | [options-data-222-cell-writer.md](options-data-222-cell-writer.md) |
 | #223 | `options-data-223-materialize-picks.ts` *(mutating, not in run-all)* | BE: materialization fanout — real per-symbol materialization (corpus walk → pick → merge) + 380-doc read-back + idempotent re-run (writes the REAL {SYM}-*/years/* docs) | [options-data-223-materialize-picks.md](options-data-223-materialize-picks.md) |
 | #244 | `options-data-244-availability-services.ts` | BE: availability data services — real prod ts-contracts queries (ordering/cap/ranges/expirations/strikeStep) + real corpus-dates listing (~10 min on QQQ, full-collection reads) | [options-data-244-availability-services.md](options-data-244-availability-services.md) |
+| #246 | `options-data-246-contract-availability.ts` *(read-only, in run-all)* | BE: deployed partnerContractAvailabilityV1 — 405/401, envelope + entry fields, corpusDates ordering, filter narrowing, 400/404; **requires deploy + SA creds (skips authed checks without them)** | [options-data-246-contract-availability.md](options-data-246-contract-availability.md) |
 
 ## Execution order
 
@@ -212,6 +213,7 @@ Topic #213 (Options Corpus Bulk Ingest — delta-pick grid):
 3. **#222** (BE: cell doc writer) — blocked by #219 (doc schema + guards); **mutating** — writes + deletes `options-delta-picks/ZZTEST-put-20-45/years/{2099,2100}` docs (not in run-all)
 4. **#223** (BE: materialization fanout) — blocked by #221 (picker) + #222 (writer); **mutating** — writes the REAL `options-delta-picks/{SYM}-*/years/*` docs for the target symbol — the materialization artifact itself, not a probe (not in run-all)
 5. **#244** (BE: availability data services) — blocked by #243 (shared types + parser); read-only (slow on QQQ — full ts-contracts scans)
+6. **#246** (BE: deployed availability endpoint) — blocked by #245 (handler + wiring; requires a functions deploy); read-only — authed checks skip without SA creds
 
 Topic #198 (Ops SMS Alerts):
 
