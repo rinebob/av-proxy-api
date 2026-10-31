@@ -16,6 +16,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Options Corpus Bulk Ingest] 213-244_BE-IMPL-OPTIONS-DATA: Unit tests — immutable fake Firestore (orderBy/limit/cursor metadata) + structural fake bucket; 28 tests
 - [Options Corpus Bulk Ingest] 213-244_BE-IMPL-OPTIONS-DATA: Prod verify script — read-only 15-assert run on real Firestore/GCS incl. new index paths; registered in README + run-all
 - [Options Corpus Bulk Ingest] 213-244_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete
+- [Ops SMS Alerts] 198-209_BE-IMPL-OPS: POST calendar gate + shared validated retry-target resolver — scheduled A/B/C passes skip closed days; C resolves newest valid ≤today trading-day target
+- [Ops SMS Alerts] 198-209_BE-IMPL-OPS: POST B/C PDR watchdogs (19:15 + 05:15 PT Mon–Fri) — empty-retry no_jobs, per-sequence health docs, closed-day + closed-today gates, calendar fail-open
+- [Ops SMS Alerts] 198-209_BE-IMPL-OPS: B/C watchdog + calendar-gate unit tests (29 focused; full suite 1050)
+- [Ops SMS Alerts] 198-209_DOCS-DOCS-OPS: Mutating prod verify (13 checks) + code review PASS (2 passes) + UAT Complete + monitoring-doc TTL sync
+
+### Fixed
+- [Ops SMS Alerts] 198-209_BE-BUG-OPS: Run-doc TTL 48h→96h — Friday retry docs now survive weekends/holiday Mondays to the next trading-day C pass (Bug #248)
 
 ## [2026-10-29]
 

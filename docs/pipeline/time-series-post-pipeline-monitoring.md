@@ -58,7 +58,7 @@ onSchedule (A/B/C)
                  │      └─ If past MAX_RUN_DURATION_MS (60min):
                  │           ├─ reconcileRunJobs (force-complete)
                  │           └─ 8. enqueueDataReadyInternal → publish PDR
-                 └─ 9. Nightly cleanup deletes run docs older than 2 days
+                 └─ 9. Nightly cleanup deletes run docs older than 4 days
 ```
 
 ---
@@ -195,7 +195,7 @@ db.collection('realtime-runs').doc('2026-09-01-TUE-A-WEEKLY-LIVE-POST-1335').get
 db.collection('realtime-runs').doc('2026-09-01-TUE-A-DAILY-LIVE-POST-1335').get()
 ```
 
-> **Note:** Run docs are deleted after 2 days by `cleanupOldRunDocs`. If the run is older than 2 days, the docs will be gone. Use log-based verification instead.
+> **Note:** Run docs are deleted after 4 days by `cleanupOldRunDocs`. If the run is older than 4 days, the docs will be gone. Use log-based verification instead.
 
 ---
 
@@ -516,9 +516,9 @@ timestamp<="2026-09-02T00:00:00Z"
 
 **Schedule:** `0 2 * * *` (2:00 AM ET / 6:00 AM UTC daily)
 
-**TTL:** 2 days (`RUN_DOC_TTL_MS = 2 * 24 * 60 * 60 * 1000`)
+**TTL:** 4 days (`RUN_DOC_TTL_MS = 4 * 24 * 60 * 60 * 1000`)
 
-**What it does:** Deletes `realtime-runs` and `intraday-runs` documents (and their `jobs` subcollections) where `runCreatedAt` is older than 2 days.
+**What it does:** Deletes `realtime-runs` and `intraday-runs` documents (and their `jobs` subcollections) where `runCreatedAt` is older than 4 days.
 
 **Log events:**
 
@@ -538,7 +538,7 @@ timestamp>="2026-09-03T05:00:00Z"
 timestamp<="2026-09-03T07:00:00Z"
 ```
 
-> **Important:** This cleanup is why `realtime-runs` docs older than 2 days will be missing from Firestore. The `runs` collection (PDR-side) is NOT cleaned up and persists indefinitely.
+> **Important:** This cleanup is why `realtime-runs` docs older than 4 days will be missing from Firestore. The `runs` collection (PDR-side) is NOT cleaned up and persists indefinitely.
 
 ---
 
@@ -669,9 +669,9 @@ textPayload=~"TIMER END label=realtime_job.tx"
 
 **Diagnostic:** `realtime-runs/{runId}` document doesn't exist.
 
-**Cause:** The `cleanupOldRunDocs` function deletes run docs older than 2 days (TTL = 2 days, runs at 2:00 AM ET daily). This is expected behavior, not a bug.
+**Cause:** The `cleanupOldRunDocs` function deletes run docs older than 4 days (TTL = 4 days, runs at 2:00 AM ET daily). This is expected behavior, not a bug.
 
-**Workaround:** Use log-based verification (Stage 6 and Stage 7 queries) instead of Firestore for runs older than 2 days. The `runs/{runId}` collection (PDR-side) is NOT cleaned up and can also be checked.
+**Workaround:** Use log-based verification (Stage 6 and Stage 7 queries) instead of Firestore for runs older than 4 days. The `runs/{runId}` collection (PDR-side) is NOT cleaned up and can also be checked.
 
 ### Symptom: Reconciliation triggered (run took >60min)
 
@@ -701,7 +701,7 @@ textPayload=~"realtime.run_reconcile_before_complete"
 | Cloud Tasks rate | 1.2/sec, 20 concurrent (`CLOUD_TASKS_RATE_LIMITS`) | `job-config.ts` |
 | Cloud Tasks retry | 5 attempts, 10-300s backoff | `job-config.ts` |
 | Worker memory | 512MiB (`JOB_FUNCTION_MEMORY`) | `job-config.ts` |
-| Run doc TTL | 2 days (`RUN_DOC_TTL_MS`) | `job-config.ts` |
+| Run doc TTL | 4 days (`RUN_DOC_TTL_MS`) | `job-config.ts` |
 | Cleanup schedule | `0 2 * * *` (2:00 AM ET) | `function-schedules.ts` |
 | Cleanup max runs/invocation | 200 (`CLEANUP_MAX_RUNS_PER_INVOCATION`) | `job-config.ts` |
 | Pub/Sub topic | `partner-data-ready` | `partner/constants.ts` |
