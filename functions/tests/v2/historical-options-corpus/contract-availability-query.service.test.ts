@@ -56,41 +56,39 @@ function compareByOrder(a: ContractCatalogDoc, b: ContractCatalogDoc, orderBys: 
 
 interface QueryMeta {
   orderBy: string[];
-  limit?: number;
-  startAfter: boolean;
+  /** How the query was consumed — the service only streams. */
+  via: 'stream';
 }
 
 /**
  * A chainable fake that records `where` calls per query and evaluates them
- * against a fixed doc set at `get()` time, including `orderBy`, `limit`,
- * and `startAfter` semantics — enough to exercise the ordered paging
- * loop faithfully. `where`/`orderBy`/etc. return new instances carrying
+ * against a fixed doc set at read time — enough to exercise the streamed
+ * scan loops faithfully. `where`/`orderBy` return new instances carrying
  * accumulated state, matching the real SDK's immutable query chain.
+ * `streamed.count` tracks docs consumed; `streamed.closed` counts
+ * iterators closed early (generator `return()`), proving early exits
+ * actually propagate to the stream's consumer side.
  */
 class FakeQuery {
   constructor(
     private readonly docs: ContractCatalogDoc[],
     private readonly executed: WhereClause[][],
     private readonly meta: QueryMeta[],
+    private readonly streamed: { count: number; closed: number },
     public readonly clauses: WhereClause[] = [],
     private readonly orderBys: string[] = [],
-    private readonly limitN?: number,
-    private readonly afterDoc?: ContractCatalogDoc,
   ) {}
   private derive(o: {
     clauses?: WhereClause[];
     orderBys?: string[];
-    limitN?: number;
-    afterDoc?: ContractCatalogDoc;
   }): FakeQuery {
     return new FakeQuery(
       this.docs,
       this.executed,
       this.meta,
+      this.streamed,
       o.clauses ?? this.clauses,
       o.orderBys ?? this.orderBys,
-      o.limitN ?? this.limitN,
-      o.afterDoc ?? this.afterDoc,
     );
   }
   where(field: string, op: string, value: unknown): FakeQuery {
@@ -99,30 +97,38 @@ class FakeQuery {
   orderBy(field: unknown): FakeQuery {
     return this.derive({ orderBys: [...this.orderBys, typeof field === 'string' ? field : '__name__'] });
   }
-  limit(n: number): FakeQuery {
-    return this.derive({ limitN: n });
-  }
-  startAfter(snapshot: { id: string }): FakeQuery {
-    return this.derive({ afterDoc: this.docs.find((d) => d.contractId === snapshot.id) });
-  }
-  async get(): Promise<{ docs: Array<{ id: string; data(): ContractCatalogDoc }> }> {
+  /** Mirrors `Query.stream()` — records clauses/orderBy, yields matching
+   *  docs in order; the generator's `finally` marks early iterator
+   *  close so tests can assert the service really exits the consumer
+   *  stream early. */
+  stream(): AsyncIterable<{ id: string; data(): ContractCatalogDoc }> {
     this.executed.push(this.clauses);
-    this.meta.push({
-      orderBy: [...this.orderBys],
-      limit: this.limitN,
-      startAfter: this.afterDoc !== undefined,
-    });
+    this.meta.push({ orderBy: [...this.orderBys], via: 'stream' });
     let hits = this.docs.filter((d) => this.clauses.every((c) => matches(d, c)));
     if (this.orderBys.length) hits = [...hits].sort((a, b) => compareByOrder(a, b, this.orderBys));
-    if (this.afterDoc) hits = hits.filter((d) => compareByOrder(d, this.afterDoc!, this.orderBys) > 0);
-    if (this.limitN !== undefined) hits = hits.slice(0, this.limitN);
-    return { docs: hits.map((d) => ({ id: d.contractId, data: () => d })) };
+    const streamed = this.streamed;
+    return {
+      async *[Symbol.asyncIterator]() {
+        let completed = false;
+        try {
+          for (const d of hits) {
+            streamed.count++;
+            yield { id: d.contractId, data: () => d };
+          }
+          completed = true;
+        } finally {
+          if (!completed) streamed.closed++;
+        }
+      },
+    };
   }
 }
 
 interface FakeFirestore {
   executedQueries: WhereClause[][];
   queryMeta: QueryMeta[];
+  /** Docs yielded by fake streams + iterators closed early. */
+  streamedDocs: { count: number; closed: number };
   /** Every `collection/doc/collection` path walked, joined with `/`. */
   paths: string[];
   db: unknown;
@@ -131,18 +137,19 @@ interface FakeFirestore {
 function createFakeFirestore(docs: ContractCatalogDoc[]): FakeFirestore {
   const executed: WhereClause[][] = [];
   const meta: QueryMeta[] = [];
+  const streamed = { count: 0, closed: 0 };
   const paths: string[] = [];
   const db = {
     collection: jest.fn((col: string) => ({
       doc: jest.fn((docId: string) => ({
         collection: jest.fn((sub: string) => {
           paths.push(`${col}/${docId}/${sub}`);
-          return new FakeQuery(docs, executed, meta);
+          return new FakeQuery(docs, executed, meta, streamed);
         }),
       })),
     })),
   };
-  return { executedQueries: executed, queryMeta: meta, paths, db };
+  return { executedQueries: executed, queryMeta: meta, streamedDocs: streamed, paths, db };
 }
 
 // ---- Tests ----
@@ -155,10 +162,10 @@ const DOCS = [
   catalogDoc({ contractId: 'QQZTEST', expiration: '2026-05-15', strike: 512.5, type: 'call', firstObserved: '2026-01-05' }),
 ];
 
-function svc(docs: ContractCatalogDoc[] = DOCS, pageSize?: number) {
+function svc(docs: ContractCatalogDoc[] = DOCS, readCeiling?: number) {
   const fake = createFakeFirestore(docs);
-  const service = new ContractAvailabilityQueryService(fake.db as unknown as Firestore, pageSize);
-  return { service, executed: fake.executedQueries, meta: fake.queryMeta, paths: fake.paths };
+  const service = new ContractAvailabilityQueryService(fake.db as unknown as Firestore, readCeiling);
+  return { service, executed: fake.executedQueries, meta: fake.queryMeta, streamed: fake.streamedDocs, paths: fake.paths };
 }
 
 describe('ContractAvailabilityQueryService — collection path', () => {
@@ -352,46 +359,45 @@ describe('ContractAvailabilityQueryService — ordering, cap, shape', () => {
   });
 });
 
-describe('ContractAvailabilityQueryService — ordered pages', () => {
-  it('orders server-side (expiration → strike → __name__) and caps reads at cap+1 matches', async () => {
+describe('ContractAvailabilityQueryService — ordered scan', () => {
+  it('orders server-side (expiration → strike → __name__) and stops at cap+1 matches', async () => {
     const docs = Array.from({ length: 10 }, (_, i) =>
       catalogDoc({ contractId: `C${String(i).padStart(2, '0')}`, expiration: '2026-05-15', strike: 500 + i }),
     );
-    const { service, meta } = svc(docs, 3);
+    const { service, meta, streamed } = svc(docs);
     const r = await service.queryAvailability({ symbol: 'QQQ' }, 4);
     expect(meta[0].orderBy).toEqual(['expiration', 'strike', '__name__']);
-    expect(meta[0].limit).toBe(3);
-    // want = 5 → page 1 (3) + page 2 (2 consumed) — never reads page 3
-    expect(meta).toHaveLength(2);
-    expect(meta[1].startAfter).toBe(true);
+    expect(meta[0].via).toBe('stream');
+    // want = 5 → consumes only 5 docs — never scans the rest
+    expect(streamed.count).toBe(5);
     expect(r.truncated).toBe(true);
     expect(r.contracts.map((c) => c.contractId)).toEqual(['C00', 'C01', 'C02', 'C03']);
   });
 
-  it('keeps paging until cap+1 post-filtered matches, skipping non-matches', async () => {
+  it('keeps scanning until cap+1 post-filtered matches, skipping non-matches', async () => {
     // strikes 500..509; only even-dollar strikes pass strikeStep=2
     const docs = Array.from({ length: 10 }, (_, i) =>
       catalogDoc({ contractId: `C${i}`, expiration: '2026-05-15', strike: 500 + i }),
     );
-    const { service, meta } = svc(docs, 3);
+    const { service, streamed } = svc(docs);
     const r = await service.queryAvailability({ symbol: 'QQQ', strikeStep: 2 }, 2);
-    // page1: 500,502 match (2); page2: 504 match (3 ≥ want) → stops
-    expect(meta).toHaveLength(2);
+    // want = 3 → 500,502,504 match on docs 0,2,4 → stops after 5 consumed
+    expect(streamed.count).toBe(5);
     expect(r.truncated).toBe(true);
     expect(r.contracts.map((c) => c.contractId)).toEqual(['C0', 'C2']);
   });
 
-  it('reads every page when the post-filter is sparse and matches are late in the scan', async () => {
+  it('reads every doc when the post-filter is sparse and matches are late in the scan', async () => {
     const docs = Array.from({ length: 7 }, (_, i) =>
       catalogDoc({ contractId: `C${i}`, expiration: '2026-05-15', strike: 500 + i }),
     );
-    const { service, meta } = svc(docs, 3);
+    const { service, streamed } = svc(docs);
     // 50600¢ is the only strike divisible by 1100¢ — a strikeStep-only
     // query stays on the ordered path (no range dim) and must scan to
     // the last doc.
     const r = await service.queryAvailability({ symbol: 'QQQ', strikeStep: 11 });
     expect(r.contracts.map((c) => c.contractId)).toEqual(['C6']);
-    expect(meta).toHaveLength(3); // 3 + 3 + 1 — exhausted
+    expect(streamed.count).toBe(7); // exhausted
     expect(r.truncated).toBe(false);
   });
 
@@ -402,11 +408,97 @@ describe('ContractAvailabilityQueryService — ordered pages', () => {
     expect(meta[0].orderBy).toEqual(['expiration', 'strike', '__name__']);
   });
 
-  it('does NOT order/paginate for firstObserved or strike primaries — one selective get()', async () => {
+  it('streams primary-range scans in primary-field order', async () => {
+    const docs = Array.from({ length: 7 }, (_, i) =>
+      catalogDoc({ contractId: `C${i}`, firstObserved: `2026-01-0${i + 1}` }),
+    );
+    const { service, meta, streamed } = svc(docs);
+    const r = await service.queryAvailability({ symbol: 'QQQ', firstObservedGte: '2026-01-01' });
+    expect(meta[0].orderBy).toEqual(['firstObserved', '__name__']);
+    expect(meta[0].via).toBe('stream');
+    expect(streamed.count).toBe(7); // exhausted
+    expect(r.contracts).toHaveLength(7);
+    expect(r.truncated).toBe(false);
+  });
+
+  it('streams strike-primary scans in strike order', async () => {
     const { service, meta } = svc();
-    await service.queryAvailability({ symbol: 'QQQ', firstObservedGte: '2026-02-01' });
     await service.queryAvailability({ symbol: 'QQQ', strikeGte: 505 });
-    expect(meta).toHaveLength(2);
-    expect(meta.every((m) => m.orderBy.length === 0 && m.limit === undefined)).toBe(true);
+    expect(meta[0].orderBy).toEqual(['strike', '__name__']);
+    expect(meta[0].via).toBe('stream');
+  });
+});
+
+describe('ContractAvailabilityQueryService — read ceiling', () => {
+  it('stops the primary-range scan at the ceiling and reports truncated', async () => {
+    // 10 matching docs, ceiling 5 → consumes 5 and stops.
+    const docs = Array.from({ length: 10 }, (_, i) =>
+      catalogDoc({ contractId: `C${String(i).padStart(2, '0')}`, firstObserved: `2026-01-${String(i + 1).padStart(2, '0')}` }),
+    );
+    const { service, streamed } = svc(docs, 5);
+    const r = await service.queryAvailability({ symbol: 'QQQ', firstObservedGte: '2026-01-01' }, 100);
+    expect(streamed.count).toBe(5);
+    expect(streamed.closed).toBe(1); // iterator closed early — consumer-side close propagated
+    expect(r.truncated).toBe(true);
+    expect(r.contracts).toHaveLength(5); // everything scanned so far matched
+  });
+
+  it('stops the ordered scan at the ceiling before cap+1 matches and reports truncated', async () => {
+    // strikeStep-only query stays on the ordered path. Only doc C9
+    // (strike 510) would pass step 10 — but the ceiling stops the scan
+    // at doc 5 before it's reached, so matches never reach `want`.
+    const docs = Array.from({ length: 10 }, (_, i) =>
+      catalogDoc({ contractId: `C${i}`, expiration: '2026-05-15', strike: 501 + i }),
+    );
+    const { service, streamed } = svc(docs, 5);
+    const r = await service.queryAvailability({ symbol: 'QQQ', strikeStep: 10 });
+    expect(streamed.count).toBe(5);
+    expect(r.contracts).toHaveLength(0);
+    expect(r.truncated).toBe(true);
+  });
+
+  it('does not trigger when the collection exhausts under the ceiling', async () => {
+    const docs = Array.from({ length: 5 }, (_, i) =>
+      catalogDoc({ contractId: `C${i}`, firstObserved: `2026-01-0${i + 1}` }),
+    );
+    const { service } = svc(docs, 50);
+    const r = await service.queryAvailability({ symbol: 'QQQ', firstObservedGte: '2026-01-01' });
+    expect(r.truncated).toBe(false);
+    expect(r.contracts).toHaveLength(5);
+  });
+
+  it('applies the same ceiling on the expirations `in` path', async () => {
+    // The 30-value `in` cap bounds value count, not doc count — a dense
+    // expiration could still return thousands of docs per chunk.
+    const { service, streamed } = svc(DOCS, 3);
+    const r = await service.queryAvailability({ symbol: 'QQQ', expirations: ['2026-05-15', '2026-06-19'] });
+    expect(streamed.count).toBe(3);
+    expect(r.truncated).toBe(true);
+    expect(r.contracts).toHaveLength(3);
+  });
+
+  it('does not trigger on the expirations path under the ceiling', async () => {
+    const { service } = svc(DOCS, 50);
+    const r = await service.queryAvailability({ symbol: 'QQQ', expirations: ['2026-05-15', '2026-06-19'] });
+    expect(r.truncated).toBe(false);
+    expect(r.contracts).toHaveLength(5);
+  });
+
+  it('shares the scanned-doc budget across in-list chunks', async () => {
+    // 35 expirations → 2 chunks. Chunk 1 scans the 4 docs expiring
+    // 2026-05-15; chunk 2 scans the single 06-19 doc — neither chunk
+    // alone reaches ceiling 5, but the shared budget does.
+    const expirations = [
+      ...Array.from({ length: 29 }, (_, i) => `2027-01-${String(i + 1).padStart(2, '0')}`),
+      '2026-05-15',
+      ...Array.from({ length: 4 }, (_, i) => `2027-02-0${i + 1}`),
+      '2026-06-19',
+    ];
+    const { service, executed, streamed } = svc(DOCS, 5);
+    const r = await service.queryAvailability({ symbol: 'QQQ', expirations });
+    expect(executed).toHaveLength(2);
+    expect(streamed.count).toBe(5); // 4 from chunk 1 + 1 from chunk 2
+    expect(r.truncated).toBe(true);
+    expect(r.contracts).toHaveLength(5);
   });
 });
