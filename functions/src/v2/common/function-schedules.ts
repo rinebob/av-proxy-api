@@ -52,6 +52,27 @@ export const TS_DAILY_INTRADAY_WATCHDOG_SCHEDULE = '15 8,10,12 * * 1-5';
  */
 export const TS_POST_PDR_WATCHDOG_SCHEDULE = '0 19 * * 1-5';
 
+/**
+ * POST B-pass PDR delivery watchdog schedule.
+ *
+ * Purpose: fires at 7:15 PM PT, after the B (1800) POST run's 60-minute
+ * window, to verify PDR delivery (or empty-retry completion) for all
+ * 3 intervals.
+ * Cron: 15 19 * * 1-5 (7:15 PM PT, weekdays)
+ * Timezone: America/Los_Angeles (set at function registration).
+ */
+export const TS_POST_B_PDR_WATCHDOG_SCHEDULE = '15 19 * * 1-5';
+
+/**
+ * POST C-pass PDR delivery watchdog schedule.
+ *
+ * Purpose: fires at 5:15 AM PT, after the C (0400) next-morning catch-up
+ * run's window, to verify PDR delivery for the C pass's target date.
+ * Cron: 15 5 * * 1-5 (5:15 AM PT, weekdays)
+ * Timezone: America/Los_Angeles (set at function registration).
+ */
+export const TS_POST_C_PDR_WATCHDOG_SCHEDULE = '15 5 * * 1-5';
+
 // for refreshAlphaVantageDataV2
 // functions/src/alpha-vantage/data-refresher/av-refresh-manager.ts
 /**

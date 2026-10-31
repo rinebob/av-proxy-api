@@ -125,6 +125,7 @@ export { runIntradaySnapshotDev, processIntradaySnapshotJobDev } from './v2/alph
 // PDR delivery watchdogs
 export { intradayPdrWatchdog } from './v2/alpha-vantage/intraday-watchdog/intraday-pdr-watchdog';
 export { postPdrWatchdog } from './v2/alpha-vantage/post-watchdog/post-pdr-watchdog';
+export { postPdrWatchdogB, postPdrWatchdogC } from './v2/alpha-vantage/post-watchdog/post-pdr-watchdog';
 
 export { processFullBackfillRunTask } from './v2/alpha-vantage/data-refresher/av-full-backfill.task';
 
