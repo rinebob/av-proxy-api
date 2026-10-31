@@ -33,6 +33,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - [Options Corpus Bulk Ingest] 213-246_BE-IMPL-OPTIONS-DATA: Deployed-endpoint verify script for partnerContractAvailabilityV1 — read-only HTTPS checks (401/405/envelope/entry fields/corpusDates ordering/narrowing/index-backed primaries/400/404/403), 3 token sources, clean no-creds skip, Cloud-Run-vs-app 403 disambiguation, Windows socket-teardown fix; registered in README + run-all
 - [Options Corpus Bulk Ingest] 213-246_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete — live run vs deployed endpoint 30 PASS / 1 SKIP; deploy-partner-endpoint.md Gotcha #7 (gcloud --update-secrets crash) + dual-URL aud guidance + endpoint table row
+- [Ops SMS Alerts] 198-210_BE-IMPL-OPS: Watchdogs emit canonical exception events — intraday + POST A/B/C hard-down conditions (run_missing/pdr_missing/orchestrator_no_start) via shared emitWatchdogException (compose → claim → emit, fail-safe); opsAlertKey single-source builders; POST scheduled-window text; intraday calendar fail-open; B/C no_jobs stays silent
+- [Ops SMS Alerts] 198-210_BE-IMPL-OPS: Watchdog exception + helper + composer tests — condition classification, send-once suppression, claim-fail-closed, scheduled-window/budget/ASCII, uncovered-year weekend skip (101 focused; full suite 1097)
+- [Ops SMS Alerts] 198-210_BE-IMPL-OPS: Mutating prod verify — real exception events end-to-end (audit/claim/stamp/no-fabrication/send-once re-run), pre-clean + allSettled cleanup; registered in README, excluded from run-all; 209 script aligned (key builder + pre-clean + enum)
+- [Ops SMS Alerts] 198-210_DOCS-DOCS-OPS: CODE-REVIEW PASS (2 three-axis passes) + UAT Complete — prod verify run all checks green
 
 ## [2026-10-29]
 
