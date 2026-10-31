@@ -8,11 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - [Options Corpus Bulk Ingest] 213-251_BE-IMPL-OPTIONS-DATA: Prod read-ceiling verify script + registration
 - [Options Corpus Bulk Ingest] 213-251_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete
+- [Options Corpus Bulk Ingest] 213-224_BE-IMPL-OPTIONS-DATA: Wire seed success to enqueue single-date pick materialization
+- [Options Corpus Bulk Ingest] 213-224_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete — live prod E2E
 
 ### Changed
 - [Options Corpus Bulk Ingest] 213-251_SHARED-DOCS-OPTIONS-DATA: Document read-ceiling truncation in availability types
 - [Options Corpus Bulk Ingest] 213-251_BE-IMPL-OPTIONS-DATA: Bound availability scans with a shared 25k scanned-doc ceiling
 - [Options Corpus Bulk Ingest] 213-251_BE-IMPL-OPTIONS-DATA: Availability ceiling tests — stream fake, cancellation, shared budget
+
+### Fixed
+- [Options Corpus Bulk Ingest] 213-214_BE-BUG-OPTIONS-DATA: Record build coverage on ts-build lease so producers skip only covered dates (PRD 10a — post-range starvation)
 
 ## [2026-10-30]
 
