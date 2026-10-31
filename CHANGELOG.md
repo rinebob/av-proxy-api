@@ -3,6 +3,17 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-10-31]
+
+### Added
+- [Options Corpus Bulk Ingest] 213-251_BE-IMPL-OPTIONS-DATA: Prod read-ceiling verify script + registration
+- [Options Corpus Bulk Ingest] 213-251_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS (2 passes) + UAT Complete
+
+### Changed
+- [Options Corpus Bulk Ingest] 213-251_SHARED-DOCS-OPTIONS-DATA: Document read-ceiling truncation in availability types
+- [Options Corpus Bulk Ingest] 213-251_BE-IMPL-OPTIONS-DATA: Bound availability scans with a shared 25k scanned-doc ceiling
+- [Options Corpus Bulk Ingest] 213-251_BE-IMPL-OPTIONS-DATA: Availability ceiling tests — stream fake, cancellation, shared budget
+
 ## [2026-10-30]
 
 ### Added
