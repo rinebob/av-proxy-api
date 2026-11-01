@@ -64,6 +64,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 10. Options Delta Picks: endpoint-only — consumers read pick docs
+    // through partnerOptionsDeltaPicksV1, never directly. Backend writers
+    // use Admin SDK (bypasses rules).
+    match /options-delta-picks/{document=**} {
+      allow read, write: if false;
+    }
+
     // Optional: Default deny for any other collections not explicitly matched
     // match /{document=**} {
     //   allow read, write: if false;

@@ -46,6 +46,7 @@ export { partnerContractAvailabilityV1 } from './v2/partner/contract-availabilit
 export { partnerSpreadTimeSeries } from './v2/partner/spread-time-series-partner';
 export { partnerSpreadTimeSeriesBatch } from './v2/partner/spread-time-series-batch-partner';
 export { partnerTechnicalIndicatorsV2 } from './v2/partner/technical-indicators-partner';
+export { partnerOptionsDeltaPicksV1 } from './v2/partner/options-delta-picks-partner';
 
 // Note: HTTP dataReadyWebhook has been removed. Publishing is internal-only via enqueueDataReadyInternal.
 
