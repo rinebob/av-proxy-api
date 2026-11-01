@@ -135,6 +135,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [2026-09-27]
 
 ### Added
+- [IV time series] 158-189_BE-IMPL-OPTIONS-DATA: partnerIvRankV2 screener endpoint — iv-rank-latest collection scan; sort=/dir=/minN= over ivRank|ivPct|ivN windows; service-account gated
 - [IV time series] 158-188_BE-IMPL-OPTIONS-DATA: Seed-worker rank-pass hook + disable cleanup — rank pass after metrics on every confirmed-present date; iv-rank-latest delete on optionsEnabled true→false; mid-flight disable re-check
 - [IV time series] 158-186_BE-IMPL-OPTIONS-DATA: IV rank/percentile pure computers — calendar-day windows over IV30 rows, rank-in-range + iv≤cur percentile + sample count
 - [IV time series] 158-187_BE-IMPL-OPTIONS-DATA: RankBuildService + iv-rank-latest repository — second-order rank pass, day-entry merge write, latest-doc regress guard
