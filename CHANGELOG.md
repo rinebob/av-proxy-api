@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-11-01]
+
+### Added
+- [Options Corpus Bulk Ingest] 213-225_SHARED-IMPL-OPTIONS-DATA: Pick-endpoint wire types + exported cell-codec symbol pattern
+- [Options Corpus Bulk Ingest] 213-225_BE-IMPL-OPTIONS-DATA: partnerOptionsDeltaPicksV1 — grid-validated delta-pick cell doc endpoint + options-delta-picks rules deny
+- [Options Corpus Bulk Ingest] 213-225_BE-IMPL-OPTIONS-DATA: Prod pick-endpoint verify script + registration
+- [Options Corpus Bulk Ingest] 213-225_DOCS-DOCS-OPTIONS-DATA: Discovery doc live + review/UAT + endpoint inventory + changelog
+
 ## [2026-10-31]
 
 ### Added

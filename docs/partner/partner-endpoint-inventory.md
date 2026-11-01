@@ -2,7 +2,7 @@
 
 Single source of truth for all deployed partner HTTPS Cloud Function endpoints. Other docs should link here instead of maintaining their own lists.
 
-Last updated: 2026-09-25
+Last updated: 2026-11-01
 
 ---
 
@@ -21,6 +21,7 @@ These endpoints serve data to partner applications (read-only from Firestore or 
 | `partnerHistoricalOptionsContractV2` | `partnerhistoricaloptionscontractv2` | GET | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Pre-materialized per-contract options time series from GCS | `docs/partner/options-data/historical-options-contract-v2-discovery.md` |
 | `partnerListContractsV2` | `partnerlistcontractsv2` | GET | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Discover available option contract IDs by expiration/strike/type | `docs/partner/options-data/historical-options-contract-v2-discovery.md` |
 | `partnerContractCatalogV2` | `partnercontractcatalogv2` | GET | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Query contract catalog with filtering (expiration range, strike buckets, type, moneyness) | `docs/partner/options-data/partner-contract-catalog-v2-as-built.md` |
+| `partnerOptionsDeltaPicksV1` | `partneroptionsdeltapicksv1` | GET | Options-enabled symbols (404 `OPTIONS_NOT_ENABLED` otherwise) | SA-only (OIDC; Firebase → 403) | Year-sharded delta-pick cell doc (`symbol`/`type`/`delta`/`dte`/`year` vs the pick grid; off-grid → 400) | `docs/partner/options-data/options-delta-picks-discovery.md` |
 | `partnerSpreadTimeSeries` | `partnerspreadtimeseries` | POST | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Historical time series for a single options spread | `docs/partner/options-data/spread-time-series-discovery.md` |
 | `partnerSpreadTimeSeriesBatch` | `partnerspreadtimeseriesbatch` | POST | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Batch spread time series (up to 200 spreads per request) | `docs/partner/options-data/spread-time-series-discovery.md` |
 | `partnerTechnicalIndicatorsV2` | `partnertechnicalindicatorsv2` | GET | None (any tracked symbol) | Dual-auth (OIDC/Firebase) | On-demand AV technical indicators (Hilbert Transform family) — config-driven, calls AV directly | `docs/PRD-av-endpoints-hilbert.md` |

@@ -166,6 +166,7 @@ directly. Onboarding a new partner is pure IAM, no code:
 1. Create/mint their service account (e.g. `<partner>-caller-prod@<their-project>.iam.gserviceaccount.com`) — they self-host it, or we provision one in `alpha-vantage-proxy-api` and hand over impersonation rights.
 2. Add the SA email to the `ALLOWED_SERVICE_ACCOUNT_EMAILS` secret (comma-separated). Currently: `maintenance-bot@…`, `rel-str-partner-caller-prod@rel-str.iam…` (ST).
 3. **Endpoint URL registration**: when a *new* `partner*` endpoint ships, its URL(s) must be added to `EXPECTED_GOOGLE_AUDIENCE` — both the `us-central1-alpha-vantage-proxy-api.cloudfunctions.net/<Name>` and `<name>-<hash>-uc.a.run.app` forms. Callers mint tokens with `aud` = any listed URL; a missing URL means that endpoint can't be reached even by allowlisted SAs.
+   **Gotcha**: firebase deploys pin each function's `secretKeyRef` to the *version* of the secret that was latest at deploy time — updating the secret does **not** propagate to already-deployed functions. After appending a URL, redeploy the affected function (`firebase deploy --only functions:<name>`) so it re-pins to the new version. Symptom of a stale pin: `403 Google ID token audience mismatch` for a correct token.
 4. Verify with a minted token:
 
    ```powershell
