@@ -142,6 +142,7 @@ export { storageFileViewer } from './v2/historical-options-corpus/handlers/stora
 export { processOptionsIndexWriteTask } from './v2/historical-options-corpus/handlers/options-index-write.task';
 export { refreshHistoricalOptionsCorpusNightly } from './v2/historical-options-corpus/jobs/historical-options-nightly.scheduler';
 export { sweepHistoricalOptionsCorpus } from './v2/historical-options-corpus/jobs/corpus-sweep.scheduler';
+export { reconcileOptionsCorpusCoverage } from './v2/historical-options-corpus/jobs/corpus-reconcile.scheduler';
 export { processHistoricalOptionsTsBuildTask } from './v2/historical-options-corpus/handlers/ts-build.task';
 export { getHistoricalOptionsCorpusCoverage } from './v2/historical-options-corpus/handlers/corpus-coverage.http';
 export { processOptionsDeltaPickMaterializeTask } from './v2/historical-options-corpus/handlers/pick-materialize.task';

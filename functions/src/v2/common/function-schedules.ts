@@ -132,6 +132,20 @@ export const SWING_SET_SWEEP_SCHEDULE = '0 20 * * 1-5';
  */
 export const CORPUS_SWEEP_SCHEDULE = '0 21 * * 1-5';
 
+// for reconcileOptionsCorpusCoverage
+// functions/src/v2/historical-options-corpus/jobs/corpus-reconcile.scheduler.ts
+/**
+ * Standing corpus coverage reconciler schedule.
+ *
+ * Purpose: diff expected trading days [2026-01-01 .. yesterday ET] vs stored
+ * corpus objects per options-enabled symbol and seed genuine gaps — the
+ * self-healing path for terminal holes (Task #220). Runs ~90 min after the
+ * corpus sweep (9:00 PM PT) so that sweep's dispatched seeds have landed.
+ * Cron: 30 22 * * 1-5 (10:30 PM PT, weekdays)
+ * Timezone: America/Los_Angeles (set at function registration).
+ */
+export const OPTIONS_CORPUS_RECONCILE_SCHEDULE = '30 22 * * 1-5';
+
 // for refreshBenzingaCalendarDataV2
 // functions/src/benzinga/data-refresher/bz-calendar-refresh-manager.ts
 /**

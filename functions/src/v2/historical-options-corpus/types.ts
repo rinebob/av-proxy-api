@@ -62,6 +62,24 @@ export interface CorpusRunDoc {
   apiCalls: number;
   dryRun: boolean;
   pilot: boolean;
+  /**
+   * Reconcile-sweep summary (Task #220): per-symbol coverage counts recorded
+   * after dispatch. Absent on non-reconcile runs.
+   */
+  perSymbol?: Record<string, CorpusReconcileSymbolCounts>;
+}
+
+/** Per-symbol coverage counts recorded on a reconcile run doc (Task #220). */
+export interface CorpusReconcileSymbolCounts {
+  /** Expected trading days in the sweep window. */
+  planned: number;
+  /** Expected dates with a stored corpus object. */
+  present: number;
+  /** Expected dates with no stored object — incl. live-queue-suppressed. */
+  missing: number;
+  /** Seed tasks dispatched for this symbol this sweep. */
+  enqueued: number;
+  error?: string;
 }
 
 /** Result of reading a stored corpus item. */
@@ -112,6 +130,14 @@ export const HISTORICAL_OPTIONS_CORPUS_PREFIX = 'historical-options/v1';
  * planner, the seed worker, and the ts-build task.
  */
 export const OPTIONS_CORPUS_FLOOR_DATE = '2019-01-01';
+
+/**
+ * Earliest date the daily-coverage reconciler expects a stored chain for
+ * every options-enabled symbol (PRD: the 2026 backfill window). Deliberately
+ * distinct from OPTIONS_CORPUS_FLOOR_DATE — the pivot corpus reaches back to
+ * 2019, but standing daily coverage is only guaranteed from 2026-01-01.
+ */
+export const OPTIONS_CORPUS_DAILY_FLOOR_DATE = '2026-01-01';
 
 // Single fixed buckets — env override only for non-prod testing. The bucket
 // name is config, not a secret; it's already in firebase.json storage rules.

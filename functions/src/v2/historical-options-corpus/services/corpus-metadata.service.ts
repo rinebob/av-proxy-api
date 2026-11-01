@@ -6,6 +6,7 @@ import {
   OPTIONS_CORPUS_RUNS_COLLECTION,
   type CorpusItemDoc,
   type CorpusItemKey,
+  type CorpusReconcileSymbolCounts,
   type CorpusRunDoc,
 } from '../types';
 
@@ -185,6 +186,21 @@ export class CorpusMetadataService {
   async incrementFailed(runId: string): Promise<void> {
     await this.runRef(runId).update({
       failedItems: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    } as any);
+  }
+
+  /**
+   * Records the reconcile sweep's per-symbol coverage counts on the run doc
+   * (Task #220). Written after dispatch so a mid-dispatch failure leaves the
+   * run in_progress without a misleading summary.
+   */
+  async updateRunSummary(
+    runId: string,
+    perSymbol: Record<string, CorpusReconcileSymbolCounts>,
+  ): Promise<void> {
+    await this.runRef(runId).update({
+      perSymbol,
       updatedAt: FieldValue.serverTimestamp(),
     } as any);
   }
