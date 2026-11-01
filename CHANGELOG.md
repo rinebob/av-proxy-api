@@ -10,6 +10,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Options Corpus Bulk Ingest] 213-225_BE-IMPL-OPTIONS-DATA: partnerOptionsDeltaPicksV1 — grid-validated delta-pick cell doc endpoint + options-delta-picks rules deny
 - [Options Corpus Bulk Ingest] 213-225_BE-IMPL-OPTIONS-DATA: Prod pick-endpoint verify script + registration
 - [Options Corpus Bulk Ingest] 213-225_DOCS-DOCS-OPTIONS-DATA: Discovery doc live + review/UAT + endpoint inventory + changelog
+- [Options Corpus Bulk Ingest] 213-220_BE-IMPL-OPTIONS-DATA: Explicit items manifest for planCorpusRun
+- [Options Corpus Bulk Ingest] 213-220_BE-REFACTOR-OPTIONS-DATA: Extract shared queue-liveness predicates from coverage service
+- [Options Corpus Bulk Ingest] 213-220_BE-IMPL-OPTIONS-DATA: Standing coverage reconciler — scheduled sweep + gap dispatch (deployed + verified)
+- [Options Corpus Bulk Ingest] 213-220_BE-IMPL-OPTIONS-DATA: Prod reconcile verify script + registration
+- [Options Corpus Bulk Ingest] 213-220_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS + UAT Complete — live deployed-run evidence
 
 ## [2026-10-31]
 
