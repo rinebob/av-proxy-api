@@ -21,6 +21,7 @@ import { getStorage } from 'firebase-admin/storage';
 import {
   OPTIONS_CORPUS_FLOOR_DATE,
   optionsCorpusBucket,
+  type CorpusItemDoc,
   type CorpusItemKind,
   type CorpusItemStatus,
   type CorpusRunDoc,
@@ -144,6 +145,62 @@ const DEAD_RUN: ReadonlySet<CorpusRunDoc['status']> = new Set([
  *  seed tasks retry for minutes, not days. */
 const STALE_QUEUE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Is this run item a live queue entry? Shared with the coverage reconciler
+ * (Task #220): a pending/in_progress item inside a non-terminal run, touched
+ * within the stale-queue window, is already being healed — callers must not
+ * double-dispatch it.
+ */
+export function isLiveQueueEntry(
+  item: { status: CorpusItemStatus; runState?: CorpusRunDoc['status']; touchedAtMs: number },
+  nowMs: number,
+): boolean {
+  return (
+    (item.status === 'pending' || item.status === 'in_progress') &&
+    !(item.runState !== undefined && DEAD_RUN.has(item.runState)) &&
+    nowMs - item.touchedAtMs < STALE_QUEUE_MS
+  );
+}
+
+/**
+ * Latest-wins fold of run items into a date → item map — an item in a newer
+ * run (or touched more recently) decides the date's queue state. Shared with
+ * the coverage reconciler (Task #220) so both readers apply identical
+ * ordering semantics.
+ */
+export function latestItemsByDate(
+  items: CoverageRunItem[],
+): Map<string, CoverageRunItem> {
+  const byDate = new Map<string, CoverageRunItem>();
+  for (const item of items) {
+    const prev = byDate.get(item.date);
+    if (!prev || item.touchedAtMs >= prev.touchedAtMs) byDate.set(item.date, item);
+  }
+  return byDate;
+}
+
+/**
+ * Project `CorpusMetadataService.listItemsForSymbol` rows into
+ * {@link CoverageRunItem}s — the shape the liveness predicates consume.
+ * Shared by the coverage report, the reconcile scheduler, and the #220
+ * verify script (three identical copies before this helper).
+ */
+export function toCoverageRunItems(
+  items: Array<{
+    data: CorpusItemDoc;
+    runState?: CorpusRunDoc['status'];
+    touchedAtMs: number;
+  }>,
+): CoverageRunItem[] {
+  return items.map((item) => ({
+    date: item.data.date,
+    status: item.data.status,
+    runState: item.runState,
+    touchedAtMs: item.touchedAtMs,
+    ...(item.data.error ? { error: item.data.error } : {}),
+  }));
+}
+
 const upper = (s: string) => s.trim().toUpperCase();
 
 function emptySymbolReport(
@@ -180,11 +237,7 @@ async function computeSymbolCoverage(
 
   const objectByDate = new Map(objects.map((o) => [o.date, o]));
   const plannedByDate = new Map(items.map((i) => [i.date, i]));
-  const latestRunItem = new Map<string, CoverageRunItem>();
-  for (const item of runItems) {
-    const prev = latestRunItem.get(item.date);
-    if (!prev || item.touchedAtMs >= prev.touchedAtMs) latestRunItem.set(item.date, item);
-  }
+  const latestRunItem = latestItemsByDate(runItems);
 
   const allDates = new Set<string>([
     ...items.map((i) => i.date),
@@ -227,11 +280,7 @@ async function computeSymbolCoverage(
         row.runStatus = latest.status;
         if (latest.runState) row.runState = latest.runState;
       }
-      const liveQueue =
-        latest !== undefined &&
-        (latest.status === 'pending' || latest.status === 'in_progress') &&
-        !(latest.runState !== undefined && DEAD_RUN.has(latest.runState)) &&
-        nowMs - latest.touchedAtMs < STALE_QUEUE_MS;
+      const liveQueue = latest !== undefined && isLiveQueueEntry(latest, nowMs);
       if (!latest || (!TERMINAL_FAILURE.has(latest.status) && !liveQueue)) {
         // Never attempted; success/skipped without a stored object; or a
         // stale queue entry in a dead run — either way, a live coverage gap.
@@ -301,13 +350,7 @@ export function createCorpusCoverageDeps(): CorpusCoverageDeps {
     planPivots: (symbol) => planPivotSeeds(symbol, planner),
     listObjects: (symbol) => gcs.listItems(symbol),
     listRunItems: async (symbol) =>
-      (await metadata.listItemsForSymbol(symbol)).map((item) => ({
-        date: item.data.date,
-        status: item.data.status,
-        runState: item.runState,
-        touchedAtMs: item.touchedAtMs,
-        ...(item.data.error ? { error: item.data.error } : {}),
-      })),
+      toCoverageRunItems(await metadata.listItemsForSymbol(symbol)),
     logger: console,
   };
 }
