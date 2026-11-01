@@ -96,3 +96,23 @@ export interface CellYearDoc {
   days: Record<string, DayPickEntry>;
   updatedAt: TimestampLike;
 }
+
+// ---- Partner endpoint wire types (Task #225) ----
+
+/**
+ * Success response for `partnerOptionsDeltaPicksV1` — the stored cell-year
+ * doc fields plus `ok: true`; `updatedAt` is serialized to ISO-8601 (or
+ * null when the writer hasn't stamped it).
+ */
+export interface DeltaPicksCellYearResponse extends Omit<CellYearDoc, 'updatedAt'> {
+  ok: true;
+  updatedAt: string | null;
+}
+
+/** Error response for `partnerOptionsDeltaPicksV1`. */
+export interface DeltaPicksErrorResponse {
+  ok: false;
+  error: string;
+  code: string;
+  timestamp: string;
+}

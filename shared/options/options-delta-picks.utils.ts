@@ -57,7 +57,13 @@ export interface ParsedCellId {
   dte: number;
 }
 
-const SYMBOL_PATTERN = /^[A-Z0-9]+(-[A-Z0-9]+)*$/i;
+/**
+ * Symbol alphabet the cellId codec accepts — the endpoint validates request
+ * symbols against this (not the looser partner-wide pattern) so a symbol the
+ * codec can't encode fails as a 400 at the boundary instead of a 500 inside
+ * the handler.
+ */
+export const PICK_CELL_SYMBOL_PATTERN = /^[A-Z0-9]+(-[A-Z0-9]+)*$/i;
 
 export function buildCellId(
   symbol: string,
@@ -66,7 +72,7 @@ export function buildCellId(
   dte: number,
 ): string {
   if (
-    !SYMBOL_PATTERN.test(symbol) ||
+    !PICK_CELL_SYMBOL_PATTERN.test(symbol) ||
     !Number.isSafeInteger(deltaPct) || deltaPct <= 0 ||
     !Number.isSafeInteger(dte) || dte <= 0
   ) {
