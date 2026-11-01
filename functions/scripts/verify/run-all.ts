@@ -57,6 +57,9 @@ const scripts = [
   // options-delta-picks/ZZTEST-put-20-45/years/{2099,2100} docs), run manually
   // options-data-223-materialize-picks.ts — mutating (writes the REAL
   // {SYM}-*/years/* cell docs — the materialization artifact itself), run manually
+  // options-data-225-pick-endpoint.ts — read-only handler invocation against
+  // prod options-delta-picks, but needs GCLOUD_PROJECT=alpha-vantage-proxy-api
+  // + ADC; run manually
 ];
 
 let passed = 0;
