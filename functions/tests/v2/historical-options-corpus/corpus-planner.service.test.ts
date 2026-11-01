@@ -27,16 +27,20 @@ describe('planCorpusRun', () => {
     ]);
   });
 
-  it('skips dates already present in the provided existing set', async () => {
+  it('persists an explicit items manifest verbatim — no calendar expansion', async () => {
+    const manifest = [
+      { symbol: 'QQQ', date: '2026-01-05' },
+      { symbol: 'QQQ', date: '2026-01-08' },
+    ];
     const plan = await planCorpusRun({
       symbols: ['QQQ'],
       startDate: '2026-01-01',
       endDate: '2026-01-10',
-      existingItemKeys: new Set(['QQQ_2026-01-02']),
-      calendar,
+      items: manifest,
     });
 
-    expect(plan.items.some((i) => i.date === '2026-01-02')).toBe(false);
+    expect(plan.items).toEqual(manifest);
+    expect(plan.totalItems).toBe(2);
   });
 
   it('returns an existing plan idempotently when metadata has the run', async () => {

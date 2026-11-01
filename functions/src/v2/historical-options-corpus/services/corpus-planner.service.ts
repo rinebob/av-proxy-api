@@ -16,8 +16,15 @@ export interface PlanCorpusRunOptions {
   dryRun?: boolean;
   /** When true, this is a bounded pilot run. */
   pilot?: boolean;
-  /** Optional set of already-stored item keys to exclude from the plan. */
-  existingItemKeys?: Set<string>;
+  /**
+   * Explicit item manifest — when provided, the plan persists exactly these
+   * (symbol, date) pairs and the computed-mode options
+   * (`maxTradingDatesPerSymbol`, `calendar`) are unused. Items must belong
+   * to `symbols` — `listItemsForSymbol` finds run items via the run doc's
+   * `symbols` array-contains index. Used by the reconcile sweep, whose
+   * coverage diff has already decided the dispatch set (Task #220).
+   */
+  items?: CorpusItemKey[];
   calendar?: TradingCalendarService;
   metadata?: CorpusMetadataService;
 }
@@ -40,7 +47,7 @@ export async function planCorpusRun(
     maxTradingDatesPerSymbol,
     dryRun = false,
     pilot = false,
-    existingItemKeys,
+    items: manifest,
     calendar = new TradingCalendarService(),
     metadata,
   } = options;
@@ -66,19 +73,20 @@ export async function planCorpusRun(
     }
   }
 
-  const tradingDates = calendar.getTradingDates(startDate, endDate);
-  const datesPerSymbol = maxTradingDatesPerSymbol
-    ? tradingDates.slice(0, maxTradingDatesPerSymbol)
-    : tradingDates;
+  const items: CorpusItemKey[] = manifest ?? (() => {
+    const tradingDates = calendar.getTradingDates(startDate, endDate);
+    const datesPerSymbol = maxTradingDatesPerSymbol
+      ? tradingDates.slice(0, maxTradingDatesPerSymbol)
+      : tradingDates;
 
-  const items: CorpusItemKey[] = [];
-  for (const symbol of normalizedSymbols) {
-    for (const date of datesPerSymbol) {
-      const key = `${symbol}_${date}`;
-      if (existingItemKeys?.has(key)) continue;
-      items.push({ symbol, date });
+    const out: CorpusItemKey[] = [];
+    for (const symbol of normalizedSymbols) {
+      for (const date of datesPerSymbol) {
+        out.push({ symbol, date });
+      }
     }
-  }
+    return out;
+  })();
 
   const plan: CorpusRunPlan = {
     runId: effectiveRunId,
