@@ -39,6 +39,7 @@ export { partnerIntradaySnapshotV2 } from './v2/partner/intraday-snapshot-partne
 export { partnerCompanyOverviewV2 } from './v2/partner/company-overview-partner';
 export { partnerHistoricalOptionsV2 } from './v2/partner/historical-options-partner';
 export { partnerIvMetricsV2 } from './v2/partner/iv-metrics-partner';
+export { partnerIvRankV2 } from './v2/partner/iv-rank-partner';
 export { partnerHistoricalOptionsContractV2 } from './v2/partner/historical-options-contract-partner';
 export { partnerListContractsV2 } from './v2/partner/list-contracts-partner';
 export { partnerContractCatalogV2 } from './v2/partner/partner-contract-catalog-partner';
