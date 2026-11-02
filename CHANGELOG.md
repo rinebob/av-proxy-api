@@ -15,6 +15,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [Options Corpus Bulk Ingest] 213-220_BE-IMPL-OPTIONS-DATA: Standing coverage reconciler — scheduled sweep + gap dispatch (deployed + verified)
 - [Options Corpus Bulk Ingest] 213-220_BE-IMPL-OPTIONS-DATA: Prod reconcile verify script + registration
 - [Options Corpus Bulk Ingest] 213-220_DOCS-DOCS-OPTIONS-DATA: CODE-REVIEW PASS + UAT Complete — live deployed-run evidence
+- [Options Corpus Bulk Ingest] 213-226_BE-IMPL-OPTIONS-DATA: Golden-pick verification — prod-path regen, strict equality gate, classifier + drift-guard tests, registration
+- [Options Corpus Bulk Ingest] 213-226_BE-IMPL-OPTIONS-DATA: Regenerate golden baseline from production output + per-date provenance fingerprints
+- [Options Corpus Bulk Ingest] 213-226_DOCS-DOCS-OPTIONS-DATA: Verify guide + SPEC/TEST corrections + CODE-REVIEW PASS (2 passes) + UAT Complete
 
 ## [2026-10-31]
 

@@ -18,8 +18,10 @@
 - **J1 — Materialize a symbol**: run materialize task for `QQQ` → all 380
   cell docs under `options-delta-picks/QQQ-*/years/2026` exist; `days` keys
   cover stored corpus dates; spot-check `QQQ-put-20-45` April entries match
-  the validated prototype example
-  (`src/assets/data/options-delta-picks-QQQ-put-0.20-45-apr2026.example.json`).
+  the regenerated golden baseline
+  (`src/assets/data/options-delta-picks-QQQ-put-0.20-45-apr2026.example.json`
+  — production-path output since 2026-11-01, provenance-stamped; see
+  `functions/scripts/verify/options-data-226-golden-picks.md`).
 - **J2 — Nightly append**: simulate/post a seed-success for
   `(symbol, date)` → pick task appends `days.{date}` to every cell; `lastDate`
   advances; pick entries unchanged for prior days.

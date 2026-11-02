@@ -58,23 +58,25 @@ Examples:
   "missCount": 4,                    // days with any miss status
   "days": {
     "2026-04-01": {
-      "underlyingClose": 584.31,     // split-adjusted close, always present
-      "contractId": "QQQ260515P00565000",
+      "underlyingClose": 583.6665865823986,  // adjusted close, present when one exists
+      "contractId": "QQQ260515P00541000",
       "expiration": "2026-05-15",
       "dte": 44,                     // actual DTE of the chosen expiration
-      "strike": 565,
-      "delta": -0.204,               // observed delta (not the target)
-      "iv": 0.198,
-      "mark": 8.42,
-      "bid": 8.30,
-      "ask": 8.54,
-      "volume": 412,
-      "openInterest": 5210
+      "strike": 541,
+      "delta": -0.20074,             // observed delta (not the target)
+      "iv": 0.2978,
+      "mark": 7.25,
+      "bid": 7.19,
+      "ask": 7.30,
+      "volume": 45,
+      "openInterest": 252
     },
-    "2026-04-14": {
-      "status": "no_chain",
-      "underlyingClose": 617.80
+    "2026-06-30": {
+      "status": "no_chain",            // illustrative miss shape — April
+      "underlyingClose": 627.91        // example days are all picks
     }
+    // (the checked-in .example.json also carries a top-level `provenance`
+    //  block — verification metadata, not part of the consumer schema)
   },
   "updatedAt": "<serverTimestamp>"
 }
@@ -124,7 +126,7 @@ the selected contract rolls forward as the nearest-DTE expiration changes and
 delta drifts. Consumers must not assume continuity of `contractId` across days —
 they should expect the contract to change and use `contractId` +
 `expiration` + `dte` to detect rolls (in the April example, the pick rolls from
-the May-15 expiry to Jun-19 on Apr 23 as the nearest-DTE expiry hops forward).
+the May-29 expiry to Jun-05 on Apr 23 as the nearest-DTE expiry hops forward).
 
 Only real listed contracts are ever returned — observed delta, never a
 synthetic/interpolated strike.
