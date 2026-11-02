@@ -22,6 +22,7 @@ const scripts = [
   'options-data-168-symbol-metric-types.ts',
   'options-data-219-pick-grid-types.ts',
   'options-data-221-pick-cells.ts',
+  'options-data-226-golden-picks.ts',
   'options-data-244-availability-services.ts',
   'options-data-246-contract-availability.ts',
   'options-data-251-availability-read-ceiling.ts',

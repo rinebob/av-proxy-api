@@ -177,6 +177,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #246 | `options-data-246-contract-availability.ts` *(read-only, in run-all)* | BE: deployed partnerContractAvailabilityV1 — 405/401, envelope + entry fields, corpusDates ordering, filter narrowing, 400/404; **requires deploy + SA creds (skips authed checks without them)** | [options-data-246-contract-availability.md](options-data-246-contract-availability.md) |
 | #251 | `options-data-251-availability-read-ceiling.ts` | BE: availability read ceiling — wide `strikeGte=0`/`firstObserved` primaries under 60s budget + `truncated` on ceiling (read-only; ~50k Firestore reads on QQQ) | [options-data-251-availability-read-ceiling.md](options-data-251-availability-read-ceiling.md) |
 | #225 | `options-data-225-pick-endpoint.ts` *(read-only, not in run-all — needs GCLOUD_PROJECT + ADC)* | BE: pick-doc endpoint handler — validation matrix (off-grid 400s naming param), real prod cell-doc read + envelope, optionsEnabled gate, missing-shard 404 | [options-data-225-pick-endpoint.md](options-data-225-pick-endpoint.md) |
+| #226 | `options-data-226-golden-picks.ts` *(read-only — needs ADC for corpus bucket + bars + cell doc)* | BE: golden-file pick verification — regen `QQQ-put-20-45` April window via the prod materialize path (GCS chains + adjusted closes + real writer on in-memory store), strict day-for-day equality vs the golden asset with per-day root-cause classification on any diff, live-doc cross-check; `--write-asset` re-blesses the baseline | [options-data-226-golden-picks.md](options-data-226-golden-picks.md) |
 
 ## Execution order
 
@@ -221,6 +222,7 @@ Topic #213 (Options Corpus Bulk Ingest — delta-pick grid):
 7. **#251** (BE: availability read ceiling) — blocked by #244 (service); read-only — wide-primary scans on QQQ (~50k reads) prove the scanned-doc ceiling + `truncated`
 8. **#220** (BE: standing coverage reconciler) — no dependencies; dry default read-only diff report, `--execute` writes a real run doc + enqueues seed tasks for uncovered gaps (not in run-all; **requires `GCLOUD_PROJECT=alpha-vantage-proxy-api`** + ADC, `FIREBASE_SERVICE_ACCOUNT_ID` for execute)
 9. **#225** (BE: pick-doc endpoint) — blocked by #223 (needs real cell docs); read-only handler invocation against prod `options-delta-picks` (not in run-all; **requires `GCLOUD_PROJECT=alpha-vantage-proxy-api`** + ADC)
+10. **#226** (BE: golden-file pick verification) — blocked by #223 (materialization path); read-only regen + strict day-for-day equality vs the golden asset, root-cause classification on any diff (in run-all; needs ADC for the corpus bucket, `symbol-data` bars, and the cell doc)
 
 Topic #198 (Ops SMS Alerts):
 
