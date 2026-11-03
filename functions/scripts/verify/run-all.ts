@@ -64,6 +64,8 @@ const scripts = [
   // options-data-225-pick-endpoint.ts — read-only handler invocation against
   // prod options-delta-picks, but needs GCLOUD_PROJECT=alpha-vantage-proxy-api
   // + ADC; run manually
+  // options-data-190-iv-rank.ts — mutating (writes real day-entry rank fields
+  // + iv-rank-latest in prod — the feature's own output), run manually
 ];
 
 let passed = 0;
