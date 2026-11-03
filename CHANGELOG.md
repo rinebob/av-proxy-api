@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [IV time series] 158-190_BE-IMPL-OPTIONS-DATA: IV-rank prod verify script + registration
 - [IV time series] 158-190_DOCS-DOCS-OPTIONS-DATA: Verify guide + CODE-REVIEW PASS (2 passes) + UAT Complete
 - [IV time series] 158-189_DOCS-DOCS-OPTIONS-DATA: partnerIvRankV2 endpoint inventory row
+- [IV time series] 158-158_DOCS-DOCS-OPTIONS-DATA: Partner discovery docs for partnerIvMetricsV2 + partnerIvRankV2 — params, envelopes, field semantics, error tables, onboarding checklist
 
 ## [2026-11-01]
 
