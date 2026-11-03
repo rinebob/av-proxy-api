@@ -19,9 +19,12 @@ real `options_corpus_runs` item state for live-queue suppression, and real
 2. **Live-queue suppression** — gaps already pending/in_progress in a
    non-terminal run (< 24h old) are suppressed, not double-dispatched.
 3. **Run doc** — one `options_corpus_runs` doc per sweep; items = dispatched
-   gaps only; `perSymbol` records planned/present/missing/enqueued.
+   gaps + flagged suspects (Task #227); `perSymbol` records
+   planned/present/missing/enqueued (+flagged/thinChains).
 4. **Seed dispatch** (`--execute` only) — `{runId, symbol, date, attempt:1}`
-   payloads on `processHistoricalOptionsCorpusSeedTask`.
+   payloads on `processHistoricalOptionsCorpusSeedTask`; flagged-suspect
+   dispatches also carry `forceRefetch: true` (+`kind` when the flagged
+   object had pivot provenance).
 
 ## Run it
 

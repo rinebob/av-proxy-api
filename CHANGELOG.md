@@ -10,6 +10,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - [IV time series] 158-190_DOCS-DOCS-OPTIONS-DATA: Verify guide + CODE-REVIEW PASS (2 passes) + UAT Complete
 - [IV time series] 158-189_DOCS-DOCS-OPTIONS-DATA: partnerIvRankV2 endpoint inventory row
 - [IV time series] 158-158_DOCS-DOCS-OPTIONS-DATA: Partner discovery docs for partnerIvMetricsV2 + partnerIvRankV2 — params, envelopes, field semantics, error tables, onboarding checklist
+- [Options Corpus Bulk Ingest] 213-227_BE-IMPL-OPTIONS-DATA: Chain sanity flags — put/call/row counts + empty/calls_only/puts_only stamps on seed outcomes + GCS objects; real conditional-write precondition
+- [Options Corpus Bulk Ingest] 213-227_BE-IMPL-OPTIONS-DATA: Reconciler re-seeds flagged suspects via forceRefetch; confirmed thin chains logged + retired; shared CorpusObjectRef/corpusItemKey
+- [Options Corpus Bulk Ingest] 213-227_BE-IMPL-OPTIONS-DATA: Prod chain-sanity verify script + registration
+- [Options Corpus Bulk Ingest] 213-227_DOCS-DOCS-OPTIONS-DATA: Verify guide + CODE-REVIEW PASS (3 passes) + UAT Complete + README/220-guide updates
 
 ## [2026-11-01]
 
