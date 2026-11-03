@@ -25,6 +25,7 @@ These endpoints serve data to partner applications (read-only from Firestore or 
 | `partnerSpreadTimeSeries` | `partnerspreadtimeseries` | POST | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Historical time series for a single options spread | `docs/partner/options-data/spread-time-series-discovery.md` |
 | `partnerSpreadTimeSeriesBatch` | `partnerspreadtimeseriesbatch` | POST | **QQQ, TQQQ only** | Dual-auth (OIDC/Firebase) | Batch spread time series (up to 200 spreads per request) | `docs/partner/options-data/spread-time-series-discovery.md` |
 | `partnerTechnicalIndicatorsV2` | `partnertechnicalindicatorsv2` | GET | None (any tracked symbol) | Dual-auth (OIDC/Firebase) | On-demand AV technical indicators (Hilbert Transform family) — config-driven, calls AV directly | `docs/PRD-av-endpoints-hilbert.md` |
+| `partnerIvRankV2` | `partnerivrankv2` | GET | Options-enabled symbols via `iv-rank-latest` membership (disabled symbols' docs deleted on false-transition) | SA-only (OIDC; Firebase → 403) | Cross-symbol IV-rank screener table (`iv-rank-latest` docs), strict `sort`/`dir`/`minN` params | (none yet) |
 | `partnerSwingSetsV2` | `partnerswingsetsv2` | GET | None (tracked + `optionsEnabled` symbols) | Dual-auth (OIDC/Firebase) — **service account required** | Canonical ZigZag swing sets from `options-swing-sets` (single `paramsId` or all four keyed by paramsId) | `docs/topics/102-options-data/102-103-113-IMPL-options-data-be-swing-driven-options-corpus-swing-set-platform.md` §5 |
 
 ## Internal / Operational Endpoints
@@ -40,7 +41,7 @@ These endpoints are for internal operations and testing, not partner data consum
 ## Notes
 
 - **Dual-auth**: Accepts either Google OIDC ID token (preferred for partners) or Firebase ID token (internal). See `docs/partner/partner-auth-and-audience.md`.
-- **Symbol gating**: Options-data endpoints (`partnerHistoricalOptionsV2`, `partnerContractCatalogV2`, `partnerListContractsV2`, `partnerHistoricalOptionsContractV2`, `partnerIvMetricsV2`) serve exactly the `optionsEnabled` set in `tracked_symbols` — no static list. The spread-pricing endpoints (`partnerSpreadTimeSeries`, `partnerSpreadTimeSeriesBatch`) remain pilot-scoped to `ALLOWED_SYMBOLS` (`QQQ`, `TQQQ`) in `@shared/core`.
+- **Symbol gating**: Options-data endpoints (`partnerHistoricalOptionsV2`, `partnerContractCatalogV2`, `partnerListContractsV2`, `partnerHistoricalOptionsContractV2`, `partnerIvMetricsV2`, `partnerIvRankV2`) serve exactly the `optionsEnabled` set in `tracked_symbols` — no static list (`partnerIvRankV2` gates by `iv-rank-latest` membership, which tracks the enabled set via the disable hook). The spread-pricing endpoints (`partnerSpreadTimeSeries`, `partnerSpreadTimeSeriesBatch`) remain pilot-scoped to `ALLOWED_SYMBOLS` (`QQQ`, `TQQQ`) in `@shared/core`.
 - **Cloud Run service names** are all lowercase (see deploy workflow gotcha #1 in `.devin/workflows/deploy-partner-endpoint.md`).
 - **All partner endpoints** require `EXPECTED_GOOGLE_AUDIENCE` and `ALLOWED_SERVICE_ACCOUNT_EMAILS` secrets to be mounted.
 - For post-deployment steps, see `.devin/workflows/deploy-partner-endpoint.md`.
