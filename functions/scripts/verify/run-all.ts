@@ -44,6 +44,9 @@ const scripts = [
   // ops-sms-alerts-210-watchdog-exceptions.ts — mutating (writes + deletes
   // run-doc/health/alert/claim probes for 2026-12-30 in prod; requires
   // GCLOUD_PROJECT=alpha-vantage-proxy-api), run manually
+  // ops-sms-alerts-211-sms-delivery.ts — mutating + sends a REAL SMS to the
+  // operator phone via Twilio (requires provisioned secrets; local mode
+  // needs TWILIO_* env vars), run deliberately
   // options-data-124-swing-set-data-layer.ts — mutating (writes + deletes a
   // ZZTEST probe doc in prod), run manually
   // options-data-125-swing-set-generation.ts — mutating (writes + deletes
@@ -66,6 +69,9 @@ const scripts = [
   // + ADC; run manually
   // options-data-190-iv-rank.ts — mutating (writes real day-entry rank fields
   // + iv-rank-latest in prod — the feature's own output), run manually
+  // options-data-227-chain-sanity-flags.ts — dry default is read-only but
+  // needs GCLOUD_PROJECT=alpha-vantage-proxy-api + ADC + real GCS downloads;
+  // --stamp-flags writes object metadata, run deliberately
 ];
 
 let passed = 0;

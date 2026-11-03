@@ -83,7 +83,7 @@ async function main() {
       listEnabledSymbols: async () =>
         (await listOptionsEnabledSymbols()).filter((s) => !bound || bound.has(s.toUpperCase())),
       listExpectedDates: async (startDate, end) => calendar.getTradingDates(startDate, end),
-      listObjectDates: async (symbol) => (await gcs.listItems(symbol)).map((o) => o.date),
+      listObjects: (symbol) => gcs.listItems(symbol),
       listRunItems: async (symbol) =>
         toCoverageRunItems(await metadata.listItemsForSymbol(symbol)),
       planRun: execute
