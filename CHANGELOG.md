@@ -3,6 +3,13 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-11-03]
+
+### Added
+- [IV time series] 158-190_BE-IMPL-OPTIONS-DATA: IV-rank prod verify script + registration
+- [IV time series] 158-190_DOCS-DOCS-OPTIONS-DATA: Verify guide + CODE-REVIEW PASS (2 passes) + UAT Complete
+- [IV time series] 158-189_DOCS-DOCS-OPTIONS-DATA: partnerIvRankV2 endpoint inventory row
+
 ## [2026-11-01]
 
 ### Added
