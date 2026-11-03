@@ -1,7 +1,7 @@
 import { getFunctions } from 'firebase-admin/functions';
 import { getStorage } from 'firebase-admin/storage';
 
-import { optionsCorpusBucket, type CorpusSeedPayload } from '../types';
+import { corpusItemKey, optionsCorpusBucket, type CorpusSeedPayload } from '../types';
 import { CorpusMetadataService, type CorpusRunPlan } from './corpus-metadata.service';
 import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import { planCorpusRun, type PlanCorpusRunOptions } from './corpus-planner.service';
@@ -61,7 +61,7 @@ export class NightlyCorpusService {
     let skippedExistingItems = 0;
 
     for (const item of runPlan.items) {
-      const itemKey = `${item.symbol}_${item.date}`;
+      const itemKey = corpusItemKey(item);
       const existingItem = await this.deps.metadata.getItemDoc(runPlan.runId, itemKey);
       if (existingItem?.status === 'success') {
         skippedExistingItems += 1;

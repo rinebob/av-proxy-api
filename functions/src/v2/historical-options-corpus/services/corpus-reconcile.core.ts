@@ -13,17 +13,21 @@
  * leftovers, and stale queue entries DO re-enqueue — that is the heal.
  *
  * The diff produces the dispatch manifest directly: the surviving gap list
+ * plus unconfirmed flagged suspects (Task #227, re-seeded via forceRefetch)
  * is passed to the planner as explicit `items` (one source of truth — no
  * excluded-keys recompute, no second calendar evaluation inside the
  * planner). One `options_corpus_runs` doc per sweep: item docs = dispatched
- * gaps only (no dead pending docs for suppressed entries), `perSymbol`
+ * entries only (no dead pending docs for suppressed entries), `perSymbol`
  * records the planned/present/missing/enqueued counts after dispatch.
  *
  * Side-effect-free seam: all reads/writes/enqueues are injected deps.
  */
 import {
   OPTIONS_CORPUS_RUNS_COLLECTION,
+  corpusItemKey,
   type CorpusItemKey,
+  type CorpusItemKind,
+  type CorpusObjectRef,
   type CorpusReconcileSymbolCounts,
   type CorpusRunDoc,
   type CorpusSeedPayload,
@@ -46,6 +50,10 @@ export interface CorpusReconcileResult {
   enqueued: number;
   /** Gaps skipped because a live run already has them queued. */
   suppressed: number;
+  /** Task #227: suspect chains re-seeded via forceRefetch. */
+  flagged: number;
+  /** Task #227: upstream-confirmed thin chains logged, not re-seeded. */
+  thinChains: number;
   failed: string[];
 }
 
@@ -54,8 +62,9 @@ export interface CorpusReconcileDeps {
   listEnabledSymbols: () => Promise<string[]>;
   /** TradingCalendarService.getTradingDates bound — expected dates in the window. */
   listExpectedDates: (startDate: string, endDate: string) => Promise<string[]>;
-  /** Stored corpus object dates for a symbol (GcsCorpusAdapter.listItems). */
-  listObjectDates: (symbol: string) => Promise<string[]>;
+  /** Stored corpus object refs for a symbol (GcsCorpusAdapter.listItems —
+   *  carries kind + Task #227 chainFlag/chainFlagConfirmed metadata). */
+  listObjects: (symbol: string) => Promise<CorpusObjectRef[]>;
   /** Latest-decidable run items for a symbol (live-queue suppression). */
   listRunItems: (symbol: string) => Promise<CoverageRunItem[]>;
   /** planCorpusRun bound — persists the run doc + item docs for the manifest. */
@@ -89,6 +98,8 @@ export async function runCorpusReconcile(
     totalGaps: 0,
     enqueued: 0,
     suppressed: 0,
+    flagged: 0,
+    thinChains: 0,
     failed: [],
   };
 
@@ -96,35 +107,73 @@ export async function runCorpusReconcile(
   // list — not a recomputed product — is what the planner persists and what
   // dispatch enqueues, so counts can never disagree with what landed.
   const manifest: CorpusItemKey[] = [];
+  // Task #227: manifest entries dispatched for suspect chains get
+  // forceRefetch so the worker refetches past the GCS-hit shortcut. The
+  // value carries the flagged object's kind so the healed rewrite keeps
+  // its pivot provenance (interim objects stay supersede-eligible).
+  // null = forced with no kind; absent key = not forced.
+  const forced = new Map<string, CorpusItemKind | null>();
 
+  const expectedSet = new Set(expected);
   const CHUNK = 10;
   for (let i = 0; i < symbols.length; i += CHUNK) {
     await Promise.all(
       symbols.slice(i, i + CHUNK).map(async (symbol) => {
         try {
-          const covered = new Set(await deps.listObjectDates(symbol));
+          const refs = await deps.listObjects(symbol);
+          const covered = new Set(refs.map((r) => r.date));
           const gaps = expected.filter((date) => !covered.has(date));
-          // Run-item state is only needed to suppress live-queued gaps — a
-          // fully-covered symbol costs one GCS list and no Firestore scan.
-          const latestByDate = gaps.length > 0
+          // Task #227: flagged objects inside the window are suspect coverage —
+          // unconfirmed ones are gap-eligible for re-seed, confirmed ones are
+          // logged as known thin chains (not retried forever).
+          const suspect = refs.filter(
+            (r) => r.chainFlag && expectedSet.has(r.date),
+          );
+          const unconfirmed = suspect.filter((r) => !r.chainFlagConfirmed);
+          const confirmed = suspect.filter((r) => r.chainFlagConfirmed);
+
+          // Run-item state is only needed to suppress live-queued gaps and
+          // suspect re-seeds — a fully-covered healthy symbol costs one GCS
+          // list and no Firestore scan.
+          const latestByDate = gaps.length > 0 || unconfirmed.length > 0
             ? latestItemsByDate(await deps.listRunItems(symbol))
             : new Map<string, CoverageRunItem>();
 
           let enqueued = 0;
-          for (const date of gaps) {
+          // A pending/in_progress item in a live run already owns this date.
+          // (An item in 'failure' awaiting the worker's own retry enqueue is
+          // NOT live — a same-window re-dispatch loses to a gcs-hit anyway,
+          // and the 22:30 slot makes collision rare.)
+          const tryDispatch = (date: string, suspectRef?: CorpusObjectRef): boolean => {
             const latest = latestByDate.get(date);
-            // A pending/in_progress item in a live run already owns this
-            // gap. (An item in 'failure' awaiting the worker's own retry
-            // enqueue is NOT live — a same-window re-dispatch loses to a
-            // gcs-hit anyway, and the 22:30 slot makes collision rare.)
             if (latest && isLiveQueueEntry(latest, nowMs)) {
               result.suppressed += 1;
-              continue;
+              return false;
             }
             manifest.push({ symbol, date });
+            if (suspectRef) {
+              forced.set(corpusItemKey({ symbol, date }), suspectRef.kind ?? null);
+            }
             enqueued += 1;
+            return true;
+          };
+          for (const date of gaps) {
+            tryDispatch(date);
+          }
+          let flagged = 0;
+          for (const ref of unconfirmed) {
+            if (tryDispatch(ref.date, ref)) flagged += 1;
+          }
+          for (const ref of confirmed) {
+            logger.info(
+              `corpus-reconcile ${symbol}: thin-chain ${ref.date} ${ref.chainFlag}` +
+                ' — upstream-confirmed, not re-seeding',
+            );
           }
           result.totalGaps += gaps.length;
+          result.flagged += flagged;
+          const thinChains = confirmed.length;
+          result.thinChains += thinChains;
           const missing = gaps.length;
           const present = expected.length - gaps.length;
           result.perSymbol[symbol] = {
@@ -132,12 +181,16 @@ export async function runCorpusReconcile(
             present,
             missing,
             enqueued,
+            ...(flagged > 0 ? { flagged } : {}),
+            ...(thinChains > 0 ? { thinChains } : {}),
           };
           // PRD story 8: per-symbol reconcile line — planned/covered/missing/
           // enqueued is auditable from logs, not only the run doc.
           logger.info(
             `corpus-reconcile ${symbol}: planned=${expected.length} ` +
-              `present=${present} missing=${missing} enqueued=${enqueued}`,
+              `present=${present} missing=${missing} enqueued=${enqueued}` +
+              (flagged > 0 ? ` flagged=${flagged}` : '') +
+              (thinChains > 0 ? ` thinChains=${thinChains}` : ''),
           );
         } catch (e) {
           const error = e instanceof Error ? e.message : String(e);
@@ -175,9 +228,14 @@ export async function runCorpusReconcile(
   const DISPATCH_CHUNK = 20;
   for (let i = 0; i < plan.items.length; i += DISPATCH_CHUNK) {
     await Promise.all(
-      plan.items.slice(i, i + DISPATCH_CHUNK).map((item) =>
-        deps.enqueueSeed({ runId, symbol: item.symbol, date: item.date, attempt: 1 }),
-      ),
+      plan.items.slice(i, i + DISPATCH_CHUNK).map((item) => {
+        const forcedKind = forced.get(corpusItemKey(item));
+        return deps.enqueueSeed({
+          runId, symbol: item.symbol, date: item.date, attempt: 1,
+          ...(forcedKind !== undefined ? { forceRefetch: true } : {}),
+          ...(forcedKind ? { kind: forcedKind } : {}),
+        });
+      }),
     );
   }
   result.enqueued = plan.items.length;

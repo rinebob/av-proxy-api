@@ -47,8 +47,7 @@ export const reconcileOptionsCorpusCoverage = onSchedule(
         listEnabledSymbols: listOptionsEnabledSymbols,
         listExpectedDates: async (startDate, endDate) =>
           calendar.getTradingDates(startDate, endDate),
-        listObjectDates: async (symbol) =>
-          (await gcs.listItems(symbol)).map((o) => o.date),
+        listObjects: (symbol) => gcs.listItems(symbol),
         listRunItems: async (symbol) =>
           toCoverageRunItems(await metadata.listItemsForSymbol(symbol)),
         planRun: (options) => planCorpusRun({ ...options, calendar, metadata }),

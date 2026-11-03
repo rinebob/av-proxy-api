@@ -10,8 +10,7 @@ import {
   fanoutPivotSeeds,
   type PivotSeedFanoutDeps,
 } from '../../../src/v2/historical-options-corpus/services/pivot-seed-fanout';
-import type { CorpusSeedPayload } from '../../../src/v2/historical-options-corpus/types';
-import type { GcsCorpusObjectRef } from '../../../src/v2/historical-options-corpus/services/gcs-corpus-adapter.service';
+import type { CorpusObjectRef, CorpusSeedPayload } from '../../../src/v2/historical-options-corpus/types';
 
 const CORPUS_ID = deriveParamsId(CORPUS_ZIGZAG_CONFIG);
 
@@ -28,7 +27,7 @@ function swingDoc(pivotDates: string[], currentExtremeDate: string | null = null
   };
 }
 
-function makeDeps(docs: SwingSetDoc[], objects: GcsCorpusObjectRef[] = []) {
+function makeDeps(docs: SwingSetDoc[], objects: CorpusObjectRef[] = []) {
   const plans: any[] = [];
   const statuses: [string, string][] = [];
   const tasks: CorpusSeedPayload[] = [];

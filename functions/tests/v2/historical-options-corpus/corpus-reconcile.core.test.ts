@@ -21,7 +21,7 @@ const TRADING_DATES = ['2026-01-02', '2026-01-05', '2026-01-06', '2026-01-07'];
 interface DepOverrides {
   symbols?: string[];
   expected?: string[];
-  objects?: Record<string, string[]>;
+  objects?: Record<string, Array<string | { date: string; kind?: 'confirmed' | 'interim'; chainFlag?: 'empty' | 'calls_only' | 'puts_only'; chainFlagConfirmed?: boolean }>>;
   runItems?: Record<string, CoverageRunItem[]>;
   objectError?: Record<string, Error>;
 }
@@ -38,10 +38,12 @@ function makeDeps(overrides: DepOverrides = {}) {
     listExpectedDates: jest
       .fn()
       .mockImplementation(async () => overrides.expected ?? TRADING_DATES),
-    listObjectDates: jest.fn().mockImplementation(async (symbol: string) => {
+    listObjects: jest.fn().mockImplementation(async (symbol: string) => {
       const err = overrides.objectError?.[symbol];
       if (err) throw err;
-      return overrides.objects?.[symbol] ?? [];
+      return (overrides.objects?.[symbol] ?? []).map((o) =>
+        typeof o === 'string' ? { date: o } : o,
+      );
     }),
     listRunItems: jest
       .fn()
@@ -236,6 +238,117 @@ describe('runCorpusReconcile', () => {
 
     expect(second.enqueued).toHaveLength(0);
     expect(result.suppressed).toBe(4);
+  });
+
+  describe('chain sanity flags (Task #227)', () => {
+    it('re-seeds a flagged unconfirmed covered date with forceRefetch', async () => {
+      const { deps, enqueued } = makeDeps({
+        objects: {
+          QQQ: TRADING_DATES.map((d) =>
+            d === '2026-01-06' ? { date: d, chainFlag: 'calls_only' as const } : { date: d },
+          ),
+        },
+      });
+
+      const result = await runCorpusReconcile(deps, WINDOW);
+
+      expect(enqueued).toHaveLength(1);
+      expect(enqueued[0]).toMatchObject({
+        symbol: 'QQQ', date: '2026-01-06', attempt: 1, forceRefetch: true,
+      });
+      expect(result.perSymbol.QQQ).toMatchObject({
+        planned: 4, present: 4, missing: 0, enqueued: 1, flagged: 1,
+      });
+      expect(result.flagged).toBe(1);
+    });
+
+    it('does not count the suspect date as missing — it is gap-eligible, not absent', async () => {
+      const { deps, enqueued } = makeDeps({
+        objects: {
+          QQQ: [
+            '2026-01-02',
+            '2026-01-05',
+            { date: '2026-01-06', chainFlag: 'calls_only' as const },
+            { date: '2026-01-07', chainFlag: 'calls_only' as const },
+          ],
+        },
+      });
+
+      const result = await runCorpusReconcile(deps, WINDOW);
+
+      expect(enqueued.map((e) => e.date)).toEqual(['2026-01-06', '2026-01-07']);
+      expect(result.totalGaps).toBe(0);
+      expect(result.perSymbol.QQQ).toMatchObject({ present: 4, missing: 0, flagged: 2 });
+    });
+
+    it('suppresses a flagged date that already has a live queue entry', async () => {
+      const { deps, enqueued } = makeDeps({
+        objects: { QQQ: [{ date: '2026-01-02', chainFlag: 'puts_only' as const }, ...TRADING_DATES.slice(1)] },
+        runItems: {
+          QQQ: [runItem('2026-01-02', 'pending', NOW_MS - 60_000, 'in_progress')],
+        },
+      });
+
+      const result = await runCorpusReconcile(deps, WINDOW);
+
+      expect(enqueued).toHaveLength(0);
+      expect(result.suppressed).toBe(1);
+    });
+
+    it('logs an upstream-confirmed thin chain instead of re-seeding it forever', async () => {
+      const { deps, enqueued, logger } = makeDeps({
+        objects: {
+          QQQ: TRADING_DATES.map((d) =>
+            d === '2026-01-05'
+              ? { date: d, chainFlag: 'empty' as const, chainFlagConfirmed: true }
+              : { date: d },
+          ),
+        },
+      });
+
+      const result = await runCorpusReconcile(deps, WINDOW);
+
+      expect(enqueued).toHaveLength(0);
+      expect(result.perSymbol.QQQ).toMatchObject({ present: 4, missing: 0, enqueued: 0, thinChains: 1 });
+      expect(result.thinChains).toBe(1);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('thin-chain 2026-01-05 empty'),
+      );
+    });
+
+    it('preserves the flagged object kind on the forceRefetch dispatch', async () => {
+      const { deps, enqueued } = makeDeps({
+        objects: {
+          QQQ: TRADING_DATES.map((d) =>
+            d === '2026-01-06'
+              ? { date: d, kind: 'interim' as const, chainFlag: 'empty' as const }
+              : { date: d },
+          ),
+        },
+      });
+
+      await runCorpusReconcile(deps, WINDOW);
+
+      // The healed rewrite would otherwise stamp a kind-less object —
+      // losing the interim stamp the pivot supersede sweep keys on.
+      expect(enqueued[0]).toMatchObject({
+        symbol: 'QQQ', date: '2026-01-06', forceRefetch: true, kind: 'interim',
+      });
+    });
+
+    it('ignores flagged objects outside the expected window', async () => {
+      const { deps, enqueued } = makeDeps({
+        objects: {
+          QQQ: [...TRADING_DATES, { date: '2026-01-03', chainFlag: 'calls_only' as const }],
+        },
+      });
+
+      const result = await runCorpusReconcile(deps, WINDOW);
+
+      expect(enqueued).toHaveLength(0);
+      expect(result.flagged).toBe(0);
+      expect(result.perSymbol.QQQ).toMatchObject({ present: 4, missing: 0 });
+    });
   });
 
   it('still writes the run doc when the enabled set is empty', async () => {

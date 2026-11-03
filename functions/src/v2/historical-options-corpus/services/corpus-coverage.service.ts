@@ -24,11 +24,12 @@ import {
   type CorpusItemDoc,
   type CorpusItemKind,
   type CorpusItemStatus,
+  type CorpusObjectRef,
   type CorpusRunDoc,
 } from '../types';
 import { normalizeSymbolList } from '../../common/http-admin';
 import { CorpusMetadataService } from './corpus-metadata.service';
-import { GcsCorpusAdapter, type GcsCorpusObjectRef } from './gcs-corpus-adapter.service';
+import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import { listOptionsEnabledSymbols } from './options-enabled-gate';
 import {
   createPivotPlannerDeps,
@@ -114,7 +115,7 @@ export interface CorpusCoverageDeps {
   /** planPivotSeeds bound to its planner deps. */
   planPivots: (symbol: string) => Promise<PivotWorkItem[]>;
   /** GcsCorpusAdapter.listItems bound to the corpus bucket. */
-  listObjects: (symbol: string) => Promise<GcsCorpusObjectRef[]>;
+  listObjects: (symbol: string) => Promise<CorpusObjectRef[]>;
   /** All `options_corpus_runs` items for a symbol, newest-decidable. */
   listRunItems: (symbol: string) => Promise<CoverageRunItem[]>;
   /** Clock override for staleness checks — tests inject a fixed now. */

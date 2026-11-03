@@ -6,11 +6,12 @@ import {
   OPTIONS_CORPUS_RUNS_COLLECTION,
   OPTIONS_CORPUS_SEED_TASK_QUEUE,
   optionsCorpusBucket,
+  type CorpusObjectRef,
   type CorpusRunDoc,
   type CorpusSeedPayload,
 } from '../types';
 import { CorpusMetadataService, type CorpusRunPlan } from './corpus-metadata.service';
-import { GcsCorpusAdapter, type GcsCorpusObjectRef } from './gcs-corpus-adapter.service';
+import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import {
   createPivotPlannerDeps,
   planPivotSeeds,
@@ -34,7 +35,7 @@ export interface PivotSeedFanoutDeps {
    * Lists the symbol's stored corpus objects (`{date, kind}`) — the coverage
    * diff input and the superseded-interim scan (Task #154).
    */
-  listObjects: (symbol: string) => Promise<GcsCorpusObjectRef[]>;
+  listObjects: (symbol: string) => Promise<CorpusObjectRef[]>;
   /** Deletes one stored corpus object (interim supersede cleanup). */
   deleteObject: (symbol: string, date: string) => Promise<unknown>;
   createRunPlan: (plan: CorpusRunPlan) => Promise<void>;

@@ -5,6 +5,7 @@ import { planCorpusRun, type PlanCorpusRunOptions } from './corpus-planner.servi
 import { GcsCorpusAdapter } from './gcs-corpus-adapter.service';
 import {
   OPTIONS_CORPUS_RUNS_COLLECTION,
+  corpusItemKey,
   optionsCorpusBucket,
   type CorpusItemKey,
   type CorpusSeedPayload,
@@ -177,7 +178,7 @@ export class HistoricalOptionsPilotService {
           const planned = await this.deps.planPivots(symbol);
           let plannedCount = 0;
           for (const item of planned) {
-            const key = `${item.symbol}_${item.date}`;
+            const key = corpusItemKey(item);
             if (seen.has(key)) continue; // defensive: planner already dedupes
             seen.add(key);
             items.push({ symbol: item.symbol, date: item.date });
@@ -230,7 +231,7 @@ export class HistoricalOptionsPilotService {
     let presentItems = 0;
     let missingItems = 0;
     const symbolRow = (s: string) => perSymbol.find((p) => p.symbol === s);
-    const itemKey = (s: string, d: string) => `${s}_${d}`;
+    const itemKey = (s: string, d: string) => corpusItemKey({ symbol: s, date: d });
     // Pivots mode removes the 20-dates/symbol bound — chunked parallel scans
     // keep the coverage diff inside the callable timeout (same as fanout).
     const CHUNK = 20;

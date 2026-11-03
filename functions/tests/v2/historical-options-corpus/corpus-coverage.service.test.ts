@@ -12,7 +12,7 @@ import {
   type CoverageRunItem,
 } from '../../../src/v2/historical-options-corpus/services/corpus-coverage.service';
 import type { PivotWorkItem } from '../../../src/v2/historical-options-corpus/services/pivot-work-planner';
-import type { GcsCorpusObjectRef } from '../../../src/v2/historical-options-corpus/services/gcs-corpus-adapter.service';
+import type { CorpusObjectRef } from '../../../src/v2/historical-options-corpus/types';
 
 const pivot = (symbol: string, date: string, kind: 'confirmed' | 'interim'): PivotWorkItem => ({
   symbol,
@@ -20,7 +20,7 @@ const pivot = (symbol: string, date: string, kind: 'confirmed' | 'interim'): Piv
   kind,
 });
 
-const obj = (date: string, kind?: 'confirmed' | 'interim'): GcsCorpusObjectRef => ({ date, kind });
+const obj = (date: string, kind?: 'confirmed' | 'interim'): CorpusObjectRef => ({ date, kind });
 
 const runItem = (
   date: string,
