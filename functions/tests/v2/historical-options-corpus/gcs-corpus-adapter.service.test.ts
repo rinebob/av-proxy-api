@@ -17,6 +17,8 @@ interface FakeFile {
   exists: jest.Mock;
   download: jest.Mock;
   getMetadata: jest.Mock;
+  setMetadata: jest.Mock;
+  delete: jest.Mock;
 }
 
 function createFakeBucket(): { bucket: Bucket; files: Map<string, FakeFile> } {
@@ -24,17 +26,45 @@ function createFakeBucket(): { bucket: Bucket; files: Map<string, FakeFile> } {
   let generationCounter = 1;
 
   const bucket = {
+    getFiles: jest.fn().mockImplementation(async (options?: { prefix?: string }) => {
+      // Real GCS only lists objects that exist — bucket.file() eagerly
+      // creates a handle, so never-written names must not leak into listings.
+      return [[...files.values()]
+        .filter((f) => f.data !== undefined)
+        .filter((f) => !options?.prefix || f.name.startsWith(options.prefix))
+        .map((f) => ({
+          name: f.name,
+          metadata: { metadata: f.metadata ?? {} },
+        }))];
+    }),
     file(name: string): File {
       if (!files.has(name)) {
         files.set(name, {
           name,
           data: undefined,
           generation: undefined,
-          save: jest.fn().mockImplementation(async (data: Buffer, options?: { metadata?: { metadata?: Record<string, string> } }) => {
+          save: jest.fn().mockImplementation(async (data: Buffer, options?: {
+            metadata?: { metadata?: Record<string, string> };
+            preconditionOpts?: { ifGenerationMatch?: number };
+          }) => {
             const file = files.get(name)!;
+            if (options?.preconditionOpts?.ifGenerationMatch === 0 && file.data) {
+              throw Object.assign(new Error('Precondition Failed'), { code: 412 });
+            }
             file.data = data;
             file.generation = generationCounter++;
             file.metadata = options?.metadata?.metadata ?? {};
+          }),
+          setMetadata: jest.fn().mockImplementation(async (meta: { metadata?: Record<string, string> }) => {
+            const file = files.get(name)!;
+            if (!file.data) throw Object.assign(new Error('Not found'), { code: 404 });
+            file.metadata = { ...(file.metadata ?? {}), ...(meta?.metadata ?? {}) };
+            return [file.metadata];
+          }),
+          delete: jest.fn().mockImplementation(async () => {
+            const file = files.get(name)!;
+            if (!file.data) throw Object.assign(new Error('Not found'), { code: 404 });
+            file.data = undefined;
           }),
           exists: jest.fn().mockImplementation(async () => {
             const file = files.get(name)!;
@@ -114,6 +144,26 @@ describe('GcsCorpusAdapter', () => {
     expect((file as any).save).toHaveBeenCalledTimes(1);
     const savedBuffer: Buffer = ((file as any).save as jest.Mock).mock.calls[0][0];
     expect(savedBuffer.length).toBeGreaterThan(0);
+    // The conditional write must reach save() as preconditionOpts — a
+    // top-level ifGenerationMatch is silently dropped by the SDK.
+    expect((file as any).save).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      expect.objectContaining({ preconditionOpts: { ifGenerationMatch: 0 } }),
+    );
+  });
+
+  it('returns alreadyExists when the conditional write hits a stored object', async () => {
+    const { bucket } = createFakeBucket();
+    const adapter = new GcsCorpusAdapter(bucket);
+
+    const first = await adapter.writeItem('QQQ', '2026-01-02', response, analysis);
+    // The fake bucket enforces ifGenerationMatch:0 like real GCS — this save
+    // 412s instead of overwriting, so the stored object is never clobbered.
+    const second = await adapter.writeItem('QQQ', '2026-01-02', response, analysis);
+
+    expect(second.alreadyExists).toBe(true);
+    expect(second.sha256).toBe(first.sha256);
+    expect(second.generation).toBe(first.generation);
   });
 
   it('reports alreadyExists and reads stored metadata on 412', async () => {
@@ -206,5 +256,94 @@ describe('GcsCorpusAdapter', () => {
     const metadata = await adapter.getMetadata('QQQ', '2026-01-01');
 
     expect(metadata).toBeUndefined();
+  });
+
+  describe('chain sanity flags (Task #227)', () => {
+    const twoSided: AvHistoricalOptionsResponse = {
+      ...response,
+      data: [...response.data, { type: AvOptionType.PUT }],
+    };
+
+    it('stamps the chainFlag on the stored object metadata at write time', async () => {
+      const { bucket } = createFakeBucket();
+      const adapter = new GcsCorpusAdapter(bucket);
+
+      // The shared fixture is a single CALL contract — calls_only.
+      await adapter.writeItem('QQQ', '2026-01-02', response, analysis);
+
+      const file = bucket.file(adapter.getObjectPath('QQQ', '2026-01-02'));
+      expect((file as any).metadata.chainFlag).toBe('calls_only');
+    });
+
+    it('leaves chainFlag absent for a healthy two-sided chain', async () => {
+      const { bucket } = createFakeBucket();
+      const adapter = new GcsCorpusAdapter(bucket);
+
+      await adapter.writeItem('QQQ', '2026-01-02', twoSided, analysis);
+
+      const file = bucket.file(adapter.getObjectPath('QQQ', '2026-01-02'));
+      expect((file as any).metadata.chainFlag).toBeUndefined();
+    });
+
+    it('projects chainFlag + chainFlagConfirmed through listItems', async () => {
+      const { bucket } = createFakeBucket();
+      const adapter = new GcsCorpusAdapter(bucket);
+      await adapter.writeItem('QQQ', '2026-01-02', response, analysis); // calls_only
+      await adapter.writeItem('QQQ', '2026-01-05', twoSided, analysis); // healthy
+      await adapter.markChainConfirmed('QQQ', '2026-01-02', 'calls_only');
+
+      const refs = await adapter.listItems('QQQ');
+      const byDate = new Map(refs.map((r) => [r.date, r]));
+
+      expect(byDate.get('2026-01-02')).toMatchObject({ chainFlag: 'calls_only', chainFlagConfirmed: true });
+      expect(byDate.get('2026-01-05')?.chainFlag).toBeUndefined();
+    });
+
+    it('markChainConfirmed merges without clobbering existing metadata', async () => {
+      const { bucket } = createFakeBucket();
+      const adapter = new GcsCorpusAdapter(bucket);
+      await adapter.writeItem('QQQ', '2026-01-02', response, analysis, 'confirmed');
+
+      await adapter.markChainConfirmed('QQQ', '2026-01-02', 'calls_only');
+
+      const file = bucket.file(adapter.getObjectPath('QQQ', '2026-01-02'));
+      expect((file as any).metadata).toMatchObject({
+        chainFlag: 'calls_only',
+        chainFlagConfirmed: 'true',
+        kind: 'confirmed',
+      });
+    });
+
+    it('markChainConfirmed on an unstamped object stamps the flag too (manual forceRefetch path)', async () => {
+      const { bucket } = createFakeBucket();
+      const adapter = new GcsCorpusAdapter(bucket);
+      const path = adapter.getObjectPath('QQQ', '2026-03-04');
+      const file = bucket.file(path);
+      (file as any).data = Buffer.from('existing');
+      (file as any).metadata = { sha256: 'old' }; // pre-flagging-code object — no chainFlag
+
+      await adapter.markChainConfirmed('QQQ', '2026-03-04', 'calls_only');
+
+      // chainFlagConfirmed without chainFlag would escape both reconciler
+      // buckets — the mark must keep the object thin-chain-visible.
+      expect((file as any).metadata).toMatchObject({
+        sha256: 'old',
+        chainFlag: 'calls_only',
+        chainFlagConfirmed: 'true',
+      });
+    });
+
+    it('setChainFlag stamps a flag on an existing object (backfill path)', async () => {
+      const { bucket } = createFakeBucket();
+      const adapter = new GcsCorpusAdapter(bucket);
+      const path = adapter.getObjectPath('QQQ', '2026-03-04');
+      const file = bucket.file(path);
+      (file as any).data = Buffer.from('existing');
+      (file as any).metadata = { sha256: 'old' };
+
+      await adapter.setChainFlag('QQQ', '2026-03-04', 'calls_only');
+
+      expect((file as any).metadata).toMatchObject({ sha256: 'old', chainFlag: 'calls_only' });
+    });
   });
 });

@@ -115,6 +115,47 @@ describe('CorpusMetadataService', () => {
     expect(run?.apiCalls).toBe(1);
   });
 
+  it('flattens the chain bag onto the item doc (Task #227)', async () => {
+    const firestore = createFakeFirestore();
+    const service = new CorpusMetadataService(firestore);
+
+    await service.setItemSuccess('run-4', 'QQQ_2026-01-02', {
+      gcsPath: 'gs://bucket/historical-options/v1/QQQ/2026-01-02.json.gz',
+      sha256: 'abc',
+      bytes: 123,
+      apiCalls: 1,
+      chain: { putCount: 0, callCount: 5800, rowCount: 5800, flag: 'calls_only' },
+      chainFlagConfirmed: true,
+    });
+
+    const item = await service.getItemDoc('run-4', 'QQQ_2026-01-02');
+    expect(item).toMatchObject({
+      putCount: 0,
+      callCount: 5800,
+      rowCount: 5800,
+      chainFlag: 'calls_only',
+      chainFlagConfirmed: true,
+    });
+  });
+
+  it('omits chainFlag on the doc for a healthy (flagless) chain bag', async () => {
+    const firestore = createFakeFirestore();
+    const service = new CorpusMetadataService(firestore);
+
+    await service.setItemSuccess('run-5', 'QQQ_2026-01-02', {
+      gcsPath: 'gs://bucket/historical-options/v1/QQQ/2026-01-02.json.gz',
+      sha256: 'abc',
+      bytes: 123,
+      apiCalls: 1,
+      chain: { putCount: 10, callCount: 12, rowCount: 22 },
+    });
+
+    const item = await service.getItemDoc('run-5', 'QQQ_2026-01-02');
+    expect(item).toMatchObject({ putCount: 10, callCount: 12, rowCount: 22 });
+    expect(item?.chainFlag).toBeUndefined();
+    expect(item?.chainFlagConfirmed).toBeUndefined();
+  });
+
   it('records a failed item and increments the failed counter', async () => {
     const firestore = createFakeFirestore();
     const service = new CorpusMetadataService(firestore);

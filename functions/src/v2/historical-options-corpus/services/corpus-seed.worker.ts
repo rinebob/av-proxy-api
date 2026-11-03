@@ -1,5 +1,6 @@
 import { AlphaVantageUpstreamError, AlphaVantageUpstreamErrorCategory } from '../../alpha-vantage/utils';
-import { OPTIONS_CORPUS_FLOOR_DATE, type CorpusItemKey, type CorpusSeedPayload } from '../types';
+import { OPTIONS_CORPUS_FLOOR_DATE, corpusItemKey, type CorpusSeedPayload } from '../types';
+import { chainSanityCounts } from './chain-sanity';
 import type { MetricBuildResult } from '../../symbol-metrics/build.service';
 import type { RankBuildResult } from '../../symbol-metrics/rank-build.service';
 import type { CorpusMetadataService } from './corpus-metadata.service';
@@ -66,7 +67,7 @@ export async function seedCorpusItem(
   deps: SeedWorkerDependencies,
 ): Promise<SeedWorkerResult> {
   const { runId, symbol, date, attempt } = payload;
-  const key = itemKey({ symbol, date });
+  const key = corpusItemKey(payload);
 
   deps.logger('seed.start', { runId, symbol, date, attempt });
 
@@ -101,24 +102,25 @@ export async function seedCorpusItem(
   }
 
   // Idempotency: if a valid object already exists in GCS, do not call AV again.
+  // Task #227 forceRefetch bypasses this check — the reconciler dispatches it
+  // for flagged (suspect) objects that otherwise count as covered forever.
+  // Task #227: an upstream-confirmed thin chain short-circuits even under
+  // forceRefetch — stray/manual dispatches must not refetch it forever.
   const storedMetadata = await deps.gcs.getMetadata(symbol, date);
-  if (storedMetadata) {
-    await deps.metadata.setItemSuccess(runId, key, {
-      gcsPath: storedMetadata.gcsPath,
-      sha256: storedMetadata.sha256,
-      bytes: storedMetadata.bytes,
-      generation: storedMetadata.generation,
-      apiCalls: 0,
-    });
-    await deps.metadata.incrementCompleted(runId, 0);
+  if (storedMetadata && (!payload.forceRefetch || storedMetadata.chainFlagConfirmed)) {
     deps.logger('seed.skip.gcs-hit', { runId, symbol, date });
     // # Reason: notifySeedSuccess is intentionally called here even though the
     // corpus item already existed. The ts-build builder is idempotent (reads
     // existing JSONL, merges, deduplicates by date), so a redundant enqueue
     // produces the same output as a single run. This avoids a separate GCS
     // check for the time-series file.
-    await notifySeedSuccess(deps, symbol, date);
-    await computeSymbolMetrics(deps, symbol, date);
+    await recordPresentAndFanout(deps, payload, {
+      gcsPath: storedMetadata.gcsPath,
+      sha256: storedMetadata.sha256,
+      bytes: storedMetadata.bytes,
+      generation: storedMetadata.generation,
+      apiCalls: 0,
+    });
     return { status: 'skipped', reason: 'gcs-hit' };
   }
 
@@ -128,17 +130,44 @@ export async function seedCorpusItem(
     // Throttling is owned by the retrieval service; the worker does not add a
     // second wait so a shared throttle instance paces the AV request rate.
     const { response, analysis } = await deps.retrieval.fetch({ symbol, date });
+    const chain = chainSanityCounts(response);
+
+    if (storedMetadata && payload.forceRefetch && chain.flag) {
+      // Refetch reproduced the flag — upstream-confirmed thin/malformed chain.
+      // Keep the original object (still-suspect data doesn't churn storage)
+      // and stamp flag+confirmed so the object stays reconciler-visible as a
+      // thin chain even if it was never flag-stamped before.
+      await deps.gcs.markChainConfirmed(symbol, date, chain.flag);
+      deps.logger('seed.chain-confirmed', { runId, symbol, date, ...chain });
+      await recordPresentAndFanout(deps, payload, {
+        gcsPath: storedMetadata.gcsPath,
+        sha256: storedMetadata.sha256,
+        bytes: storedMetadata.bytes,
+        generation: storedMetadata.generation,
+        apiCalls: 1,
+        chain,
+        chainFlagConfirmed: true,
+      });
+      return {
+        status: 'stored',
+        gcsPath: storedMetadata.gcsPath,
+        bytes: storedMetadata.bytes,
+        sha256: storedMetadata.sha256,
+        apiCalls: 1,
+      };
+    }
+
+    // A healthy forceRefetch replaces the suspect object (conditional write
+    // would 412 against it); a delete-then-write gap self-heals on the next
+    // reconcile because the date then reads as a real coverage gap.
+    if (storedMetadata) {
+      await deps.gcs.deleteItem(symbol, date);
+    }
     const writeResult = await deps.gcs.writeItem(symbol, date, response, analysis, payload.kind);
 
-    await deps.metadata.setItemSuccess(runId, key, {
-      gcsPath: writeResult.gcsPath,
-      sha256: writeResult.sha256,
-      bytes: writeResult.bytes,
-      generation: writeResult.generation,
-      apiCalls: 1,
-    });
-    await deps.metadata.incrementCompleted(runId, 1);
-
+    if (chain.flag) {
+      deps.logger('seed.chain-flag', { runId, symbol, date, ...chain });
+    }
     deps.logger('seed.stored', {
       runId,
       symbol,
@@ -147,9 +176,14 @@ export async function seedCorpusItem(
       bytes: writeResult.bytes,
       alreadyExists: writeResult.alreadyExists,
     });
-
-    await notifySeedSuccess(deps, symbol, date);
-    await computeSymbolMetrics(deps, symbol, date);
+    await recordPresentAndFanout(deps, payload, {
+      gcsPath: writeResult.gcsPath,
+      sha256: writeResult.sha256,
+      bytes: writeResult.bytes,
+      generation: writeResult.generation,
+      apiCalls: 1,
+      chain,
+    });
 
     return {
       status: 'stored',
@@ -172,9 +206,30 @@ export async function seedCorpusItem(
 
     const nextAttempt = attempt + 1;
     await deps.metadata.setItemFailure(runId, key, message, 'failure');
-    await deps.enqueueTask({ runId, symbol, date, attempt: nextAttempt, kind: payload.kind });
+    await deps.enqueueTask({
+      runId, symbol, date, attempt: nextAttempt, kind: payload.kind,
+      forceRefetch: payload.forceRefetch,
+    });
     return { status: 'retry_enqueued', nextAttempt };
   }
+}
+
+/**
+ * Shared confirmed-present tail (Task #227): run-item success + completion
+ * increment + ts-build/metrics fanout. Every path that confirms the corpus
+ * object is present — gcs-hit, chain-confirmed, fresh store — runs the same
+ * sequence so a future post-success seam can't be wired into only some of
+ * them.
+ */
+async function recordPresentAndFanout(
+  deps: SeedWorkerDependencies,
+  payload: CorpusSeedPayload,
+  details: Parameters<CorpusMetadataService['setItemSuccess']>[2],
+): Promise<void> {
+  await deps.metadata.setItemSuccess(payload.runId, corpusItemKey(payload), details);
+  await deps.metadata.incrementCompleted(payload.runId, details.apiCalls);
+  await notifySeedSuccess(deps, payload.symbol, payload.date);
+  await computeSymbolMetrics(deps, payload.symbol, payload.date);
 }
 
 /**
@@ -234,10 +289,6 @@ async function computeSymbolMetrics(deps: SeedWorkerDependencies, symbol: string
       deps.logger('seed.rank.error', { symbol, date, error: message });
     }
   }
-}
-
-function itemKey(item: CorpusItemKey): string {
-  return `${item.symbol.toUpperCase()}_${item.date}`;
 }
 
 /**

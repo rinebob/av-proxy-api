@@ -4,11 +4,13 @@ import { db, FieldValue } from '../../../firebase-admin-init';
 import {
   OPTIONS_CORPUS_ITEMS_SUBCOLLECTION,
   OPTIONS_CORPUS_RUNS_COLLECTION,
+  corpusItemKey,
   type CorpusItemDoc,
   type CorpusItemKey,
   type CorpusReconcileSymbolCounts,
   type CorpusRunDoc,
 } from '../types';
+import type { ChainSanity } from './chain-sanity';
 
 /** Cap on runs scanned by listItemsForSymbol — newest first by createdAt. */
 const LIST_ITEMS_FOR_SYMBOL_RECENT_RUNS = 50;
@@ -92,7 +94,7 @@ export class CorpusMetadataService {
     for (let i = 0; i < plan.items.length; i += ITEM_BATCH_SIZE) {
       const batch = this.firestore.batch();
       for (const item of plan.items.slice(i, i + ITEM_BATCH_SIZE)) {
-        const key = this.itemKey(item);
+        const key = corpusItemKey(item);
         const itemDoc: Omit<CorpusItemDoc, 'attemptedAt'> & {
           attemptedAt?: FirebaseFirestore.FieldValue;
         } = {
@@ -143,6 +145,9 @@ export class CorpusMetadataService {
       bytes: number;
       generation?: string;
       apiCalls: number;
+      /** Task #227: chain-sanity outcome for fetched items. */
+      chain?: ChainSanity;
+      chainFlagConfirmed?: boolean;
     },
   ): Promise<void> {
     await this.itemRef(runId, itemKey).set(
@@ -153,6 +158,15 @@ export class CorpusMetadataService {
         bytes: details.bytes,
         ...(details.generation ? { generation: details.generation } : {}),
         apiCalls: details.apiCalls,
+        ...(details.chain
+          ? {
+              putCount: details.chain.putCount,
+              callCount: details.chain.callCount,
+              rowCount: details.chain.rowCount,
+              ...(details.chain.flag ? { chainFlag: details.chain.flag } : {}),
+            }
+          : {}),
+        ...(details.chainFlagConfirmed ? { chainFlagConfirmed: true } : {}),
         completedAt: FieldValue.serverTimestamp(),
       } as any,
       { merge: true },
@@ -272,9 +286,5 @@ export class CorpusMetadataService {
       out.push(...batch.flat());
     }
     return out;
-  }
-
-  itemKey(item: CorpusItemKey): string {
-    return `${item.symbol.toUpperCase()}_${item.date}`;
   }
 }

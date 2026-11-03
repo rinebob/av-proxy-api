@@ -1,3 +1,4 @@
+import { AvOptionType } from '@shared/alpha-vantage';
 import { AlphaVantageUpstreamError, AlphaVantageUpstreamErrorCategory } from '../../../src/v2/alpha-vantage/utils';
 import { CorpusMetadataService } from '../../../src/v2/historical-options-corpus/services/corpus-metadata.service';
 import { GcsCorpusAdapter, GcsCorpusWriteError } from '../../../src/v2/historical-options-corpus/services/gcs-corpus-adapter.service';
@@ -47,6 +48,8 @@ function createDependencies(overrides: Partial<SeedWorkerDependencies> = {}): Se
         generation: '123',
         alreadyExists: false,
       }),
+      deleteItem: jest.fn().mockResolvedValue(true),
+      markChainConfirmed: jest.fn().mockResolvedValue(undefined),
       getObjectPath: jest.fn().mockReturnValue('historical-options/v1/QQQ/2026-01-02.json.gz'),
     } as unknown as GcsCorpusAdapter,
     metadata: {
@@ -410,6 +413,169 @@ describe('seedCorpusItem', () => {
     await seedCorpusItem({ runId: 'r', symbol: 'QQQ', date: '2026-01-02', attempt: 1 }, disabled);
 
     expect(computeForDate).not.toHaveBeenCalled();
+  });
+
+  describe('chain sanity flags (Task #227)', () => {
+    const callsOnlyPayload = {
+      response: {
+        endpoint: 'HISTORICAL_OPTIONS',
+        message: 'success',
+        data: [{ type: AvOptionType.CALL }, { type: AvOptionType.CALL }],
+      },
+      analysis: responsePayload.analysis,
+    };
+    const twoSidedPayload = {
+      response: {
+        endpoint: 'HISTORICAL_OPTIONS',
+        message: 'success',
+        data: [{ type: AvOptionType.CALL }, { type: AvOptionType.PUT }],
+      },
+      analysis: responsePayload.analysis,
+    };
+    const suspectStored = {
+      gcsPath: 'historical-options/v1/QQQ/2026-01-02.json.gz',
+      bytes: 50, sha256: 'old-sha', generation: '999',
+      version: 'v1', schema: 'historical-options', symbol: 'QQQ', date: '2026-01-02',
+    };
+
+    it('records put/call/row counts and the chain flag on the run item', async () => {
+      const deps = createDependencies({
+        retrieval: { fetch: jest.fn().mockResolvedValue(callsOnlyPayload) } as any,
+      });
+
+      await seedCorpusItem({ runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 }, deps);
+
+      expect(deps.metadata.setItemSuccess).toHaveBeenCalledWith(
+        'run-1', 'QQQ_2026-01-02',
+        expect.objectContaining({
+          chain: expect.objectContaining({
+            putCount: 0, callCount: 2, rowCount: 2, flag: 'calls_only',
+          }),
+        }),
+      );
+      expect(deps.logger).toHaveBeenCalledWith(
+        'seed.chain-flag', expect.objectContaining({ flag: 'calls_only', putCount: 0, callCount: 2 }),
+      );
+    });
+
+    it('records counts without a flag for a healthy two-sided chain', async () => {
+      const deps = createDependencies({
+        retrieval: { fetch: jest.fn().mockResolvedValue(twoSidedPayload) } as any,
+      });
+
+      await seedCorpusItem({ runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1 }, deps);
+
+      const details = (deps.metadata.setItemSuccess as jest.Mock).mock.calls[0][2];
+      expect(details.chain).toMatchObject({ putCount: 1, callCount: 1, rowCount: 2 });
+      expect(details.chain.flag).toBeUndefined();
+      expect(deps.logger).not.toHaveBeenCalledWith('seed.chain-flag', expect.anything());
+    });
+
+    it('forceRefetch bypasses the GCS-hit shortcut and replaces the object on a healthy refetch', async () => {
+      const deps = createDependencies({
+        retrieval: { fetch: jest.fn().mockResolvedValue(twoSidedPayload) } as any,
+        gcs: {
+          getMetadata: jest.fn().mockResolvedValue(suspectStored),
+          deleteItem: jest.fn().mockResolvedValue(true),
+          writeItem: jest.fn().mockResolvedValue({
+            gcsPath: suspectStored.gcsPath, bytes: 100, sha256: 'new-sha',
+            generation: '1000', alreadyExists: false,
+          }),
+          markChainConfirmed: jest.fn(),
+          getObjectPath: jest.fn().mockReturnValue(suspectStored.gcsPath),
+        } as any,
+      });
+
+      const result = await seedCorpusItem(
+        { runId: 'run-2', symbol: 'QQQ', date: '2026-01-02', attempt: 1, forceRefetch: true },
+        deps,
+      );
+
+      expect(result.status).toBe('stored');
+      expect(deps.retrieval.fetch).toHaveBeenCalled();
+      expect(deps.gcs.deleteItem).toHaveBeenCalledWith('QQQ', '2026-01-02');
+      expect(deps.gcs.writeItem).toHaveBeenCalled();
+      expect(deps.gcs.markChainConfirmed).not.toHaveBeenCalled();
+      const details = (deps.metadata.setItemSuccess as jest.Mock).mock.calls[0][2];
+      expect(details.chain.flag).toBeUndefined();
+      expect(details.chainFlagConfirmed).toBeUndefined();
+    });
+
+    it('forceRefetch marks the object upstream-confirmed when the refetch is still flagged', async () => {
+      const deps = createDependencies({
+        retrieval: { fetch: jest.fn().mockResolvedValue(callsOnlyPayload) } as any,
+        gcs: {
+          getMetadata: jest.fn().mockResolvedValue(suspectStored),
+          deleteItem: jest.fn(),
+          writeItem: jest.fn(),
+          markChainConfirmed: jest.fn().mockResolvedValue(undefined),
+          getObjectPath: jest.fn().mockReturnValue(suspectStored.gcsPath),
+        } as any,
+      });
+
+      const result = await seedCorpusItem(
+        { runId: 'run-2', symbol: 'QQQ', date: '2026-01-02', attempt: 1, forceRefetch: true },
+        deps,
+      );
+
+      expect(result.status).toBe('stored');
+      // The original object is kept — still-suspect data doesn't churn storage;
+      // the confirmed mark stops the reconcile -> re-seed loop.
+      expect(deps.gcs.markChainConfirmed).toHaveBeenCalledWith('QQQ', '2026-01-02', 'calls_only');
+      expect(deps.gcs.deleteItem).not.toHaveBeenCalled();
+      expect(deps.gcs.writeItem).not.toHaveBeenCalled();
+      expect(deps.metadata.setItemSuccess).toHaveBeenCalledWith(
+        'run-2', 'QQQ_2026-01-02',
+        expect.objectContaining({
+          sha256: 'old-sha',
+          chain: expect.objectContaining({ flag: 'calls_only' }),
+          chainFlagConfirmed: true,
+        }),
+      );
+      expect(deps.logger).toHaveBeenCalledWith(
+        'seed.chain-confirmed',
+        expect.objectContaining({ flag: 'calls_only' }),
+      );
+    });
+
+    it('short-circuits a forceRefetch on an upstream-confirmed object — no AV call', async () => {
+      const deps = createDependencies({
+        retrieval: { fetch: jest.fn() } as any,
+        gcs: {
+          getMetadata: jest.fn().mockResolvedValue({ ...suspectStored, chainFlagConfirmed: true }),
+          getObjectPath: jest.fn().mockReturnValue(suspectStored.gcsPath),
+        } as any,
+      });
+
+      const result = await seedCorpusItem(
+        { runId: 'run-3', symbol: 'QQQ', date: '2026-01-02', attempt: 1, forceRefetch: true },
+        deps,
+      );
+
+      // A stray/duplicate forceRefetch on a confirmed-thin chain resolves as
+      // a cheap gcs-hit — confirmed chains are never refetched.
+      expect(result).toEqual({ status: 'skipped', reason: 'gcs-hit' });
+      expect(deps.retrieval.fetch).not.toHaveBeenCalled();
+    });
+
+    it('propagates forceRefetch on the retry re-enqueue', async () => {
+      const deps = createDependencies({
+        retrieval: {
+          fetch: jest.fn().mockRejectedValue(
+            new AlphaVantageUpstreamError(AlphaVantageUpstreamErrorCategory.TIMEOUT),
+          ),
+        } as any,
+      });
+
+      await seedCorpusItem(
+        { runId: 'run-1', symbol: 'QQQ', date: '2026-01-02', attempt: 1, forceRefetch: true },
+        deps,
+      );
+
+      expect(deps.enqueueTask).toHaveBeenCalledWith(
+        expect.objectContaining({ attempt: 2, forceRefetch: true }),
+      );
+    });
   });
 
   it('preserves kind on the retry re-enqueue (Task #154 — unstamped interims would escape supersede)', async () => {

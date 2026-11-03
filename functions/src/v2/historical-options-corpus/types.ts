@@ -31,6 +31,13 @@ export type CorpusItemStatus =
   /** Terminal: curation gate dropped the item (optionsEnabled !== true). */
   | 'skipped';
 
+/**
+ * Chain-sanity flag for a stored corpus object (Task #227). A chain that is
+ * empty or one-sided is suspect — flagged at seed time, re-seeded once by
+ * the reconciler, then upstream-confirmed if the refetch reproduces it.
+ */
+export type CorpusChainFlag = 'empty' | 'calls_only' | 'puts_only';
+
 /** Firestore document stored under `options_corpus_runs/{runId}/items/{symbol}_{date}`. */
 export interface CorpusItemDoc {
   symbol: string;
@@ -45,6 +52,18 @@ export interface CorpusItemDoc {
   attemptedAt?: Timestamp;
   completedAt?: Timestamp;
   apiCalls?: number;
+  /** Task #227: contract-type counts from the stored chain. */
+  putCount?: number;
+  callCount?: number;
+  rowCount?: number;
+  /** Task #227: suspect-chain flag when the stored chain is empty/one-sided. */
+  chainFlag?: CorpusChainFlag;
+  /**
+   * Task #227: a forced re-seed refetched the chain and it was still flagged —
+   * the thin/malformed shape is upstream-confirmed; the reconciler stops
+   * re-seeding it (logged as a known thin chain).
+   */
+  chainFlagConfirmed?: boolean;
 }
 
 /** Firestore document stored under `options_corpus_runs/{runId}`. */
@@ -79,6 +98,10 @@ export interface CorpusReconcileSymbolCounts {
   missing: number;
   /** Seed tasks dispatched for this symbol this sweep. */
   enqueued: number;
+  /** Task #227: suspect chains re-seeded via forceRefetch. */
+  flagged?: number;
+  /** Task #227: upstream-confirmed thin chains logged, not re-seeded. */
+  thinChains?: number;
   error?: string;
 }
 
@@ -100,6 +123,26 @@ export interface CorpusItemKey {
   date: string;
 }
 
+/** Canonical run-item doc key: `{SYMBOL}_{YYYY-MM-DD}`, symbol uppercased. */
+export function corpusItemKey(item: CorpusItemKey): string {
+  return `${item.symbol.toUpperCase()}_${item.date}`;
+}
+
+/**
+ * Lightweight listing entry for a stored corpus object — what the adapter's
+ * `listItems` projects off GCS object metadata. Domain type so injected-dep
+ * consumers (reconcile core, coverage service) stay storage-agnostic.
+ */
+export interface CorpusObjectRef {
+  date: string;
+  /** Seed provenance stamp, absent for objects written without a kind. */
+  kind?: CorpusItemKind;
+  /** Task #227: suspect-chain flag stamped at write (or by the stamp pass). */
+  chainFlag?: CorpusChainFlag;
+  /** Task #227: a forced re-seed reproduced the flag — upstream-confirmed. */
+  chainFlagConfirmed?: boolean;
+}
+
 /** Provenance of a corpus seed item — stamped onto the GCS object metadata. */
 export type CorpusItemKind = 'confirmed' | 'interim';
 
@@ -115,6 +158,12 @@ export interface CorpusSeedPayload {
    * permanent. Undefined for non-pivot producers (nightly/pilot).
    */
   kind?: CorpusItemKind;
+  /**
+   * Task #227: skip the GCS-hit shortcut and refetch — dispatched by the
+   * reconciler for flagged (suspect) stored objects. A healthy refetch
+   * replaces the object; a still-flagged refetch marks it upstream-confirmed.
+   */
+  forceRefetch?: boolean;
 }
 
 /** Queue name for Stage-1 corpus seed tasks (matches the exported function id). */

@@ -9,10 +9,13 @@ import type {
 
 import {
   HISTORICAL_OPTIONS_CORPUS_PREFIX,
+  type CorpusChainFlag,
   type CorpusItemKind,
+  type CorpusObjectRef,
   type CorpusReadResult,
   type HistoricalOptionsCorpusEnvelope,
 } from '../types';
+import { chainSanityCounts } from './chain-sanity';
 
 export interface GcsWriteResult {
   gcsPath: string;
@@ -20,13 +23,6 @@ export interface GcsWriteResult {
   sha256: string;
   generation: string;
   alreadyExists: boolean;
-}
-
-/** Lightweight listing entry for a stored corpus object. */
-export interface GcsCorpusObjectRef {
-  date: string;
-  /** Seed provenance stamp, absent for objects written without a kind. */
-  kind?: CorpusItemKind;
 }
 
 export interface GcsCorpusMetadata {
@@ -38,6 +34,8 @@ export interface GcsCorpusMetadata {
   schema: string;
   symbol: string;
   date: string;
+  /** Task #227: upstream-confirmed thin chain — forceRefetch short-circuits. */
+  chainFlagConfirmed?: boolean;
 }
 
 export class GcsCorpusWriteError extends Error {
@@ -98,22 +96,48 @@ export class GcsCorpusAdapter {
   }
 
   /**
-   * Lists stored corpus objects for a symbol as `{date, kind}` refs — used by
-   * the sweep to diff coverage and find superseded interim snapshots.
+   * Lists stored corpus objects for a symbol as `{date, kind, chainFlag,
+   * chainFlagConfirmed}` refs — used by the sweep to diff coverage, find
+   * superseded interim snapshots, and spot suspect chains (Task #227).
    */
-  async listItems(symbol: string): Promise<GcsCorpusObjectRef[]> {
+  async listItems(symbol: string): Promise<CorpusObjectRef[]> {
     const prefix = `${this.prefix}/${symbol.toUpperCase()}/`;
     const [files] = await this.bucket.getFiles({ prefix });
-    const refs: GcsCorpusObjectRef[] = [];
+    const refs: CorpusObjectRef[] = [];
     for (const file of files) {
       const match = /\/(\d{4}-\d{2}-\d{2})\.json\.gz$/.exec(file.name);
       if (!match) continue;
+      const custom = (file.metadata?.metadata as Record<string, string> | undefined) ?? {};
       refs.push({
         date: match[1],
-        kind: (file.metadata?.metadata as Record<string, string> | undefined)?.kind as CorpusItemKind | undefined,
+        kind: custom.kind as CorpusItemKind | undefined,
+        chainFlag: custom.chainFlag as CorpusChainFlag | undefined,
+        chainFlagConfirmed: custom.chainFlagConfirmed === 'true',
       });
     }
     return refs;
+  }
+
+  /**
+   * Merges a chain-sanity flag onto an existing object's custom metadata
+   * (Task #227 stamp path) — metadata-only, the payload is never rewritten.
+   */
+  async setChainFlag(symbol: string, date: string, flag: CorpusChainFlag): Promise<void> {
+    await this.getFile(symbol, date).setMetadata({ metadata: { chainFlag: flag } });
+  }
+
+  /**
+   * Marks a flagged object upstream-confirmed (Task #227): a forced re-seed
+   * refetched the chain and it was still empty/one-sided — the reconciler
+   * stops re-seeding it and logs it as a known thin chain. The refetched
+   * `flag` is stamped alongside the confirmed mark so the object stays in
+   * the reconciler's `suspect` bucket even when it was never flag-stamped
+   * (e.g. a manual forceRefetch on a pre-flagging-code object).
+   */
+  async markChainConfirmed(symbol: string, date: string, flag: CorpusChainFlag): Promise<void> {
+    await this.getFile(symbol, date).setMetadata({
+      metadata: { chainFlag: flag, chainFlagConfirmed: 'true' },
+    });
   }
 
   /**
@@ -148,6 +172,9 @@ export class GcsCorpusAdapter {
     const serialized = JSON.stringify(envelope);
     const compressed = gzipSync(serialized);
     const path = this.getObjectPath(symbol, date);
+    // Task #227: stamp the suspect-chain flag onto the object so the
+    // reconciler can detect malformed coverage without downloading payloads.
+    const chainFlag = chainSanityCounts(response).flag;
 
     const file = this.bucket.file(path);
 
@@ -163,11 +190,14 @@ export class GcsCorpusAdapter {
             schema: envelope.schema,
             sha256: envelope.checksum.value,
             ...(kind ? { kind } : {}),
+            ...(chainFlag ? { chainFlag } : {}),
           },
         },
-        ifGenerationMatch: 0,
+        // SaveOptions has no top-level ifGenerationMatch — preconditions live
+        // under preconditionOpts or the SDK silently drops them.
+        preconditionOpts: { ifGenerationMatch: 0 },
         validation: 'crc32c',
-      } as any);
+      });
     } catch (error: any) {
       if (error?.code === 412) {
         return await this.loadStoredWriteResult(file, path, compressed.length, true);
@@ -243,6 +273,7 @@ export class GcsCorpusAdapter {
         schema: custom.schema ?? '',
         symbol: custom.symbol ?? symbol.toUpperCase(),
         date: custom.date ?? date,
+        chainFlagConfirmed: custom.chainFlagConfirmed === 'true',
       };
     } catch (error: any) {
       if (error?.code === 404) {
