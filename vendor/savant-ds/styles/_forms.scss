@@ -1,0 +1,361 @@
+// _forms.scss — form-control widget chrome (#1163 phases C–D / #1348).
+//
+// Same contract as _widgets.scss: mixins emit var(--ds-*) / var(--mat-sys-*)
+// references only, applied at a container or element per the doc comment.
+// State layers ride --ds-state-* and --ds-disabled-* (#1348 token pass).
+// Accent-as-identity convention (same as ds-btn): control outlines read
+// --ds-accent-border; hover adds the accent glow; focus = accent + glow.
+
+/// Labeled field — apply at the wrapper:
+///   <label class="field">
+///     <span class="field-label">Strike</span>
+///     <input class="field-input" />
+///   </label>
+/// Input may be input|select|textarea carrying .field-input. Emits the
+/// input chrome shared by ds-select / ds-combobox / ds-date via the
+/// `ds-input-chrome` helper below. Emits `box-sizing: border-box`
+/// so --ds-field-height is the OUTER height (border included) — the app
+/// has no global border-box reset.
+@mixin ds-input-chrome() {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--ds-field-height);
+  padding: 0 var(--ds-space-3);
+  border: 1px solid var(--ds-accent-border);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface);
+  color: var(--ds-on-surface);
+  font-family: inherit;
+  font-size: var(--ds-font-size-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
+
+  // Placeholder carries identity (accent-tinted, invites input);
+  // typed values stay --ds-on-surface — content, not chrome.
+  &::placeholder {
+    color: color-mix(in srgb, var(--ds-accent) 60%, var(--ds-on-surface-variant));
+  }
+
+  &::selection {
+    background: var(--ds-selection);
+  }
+
+  &:hover:not(:disabled):not(:focus) {
+    border-color: var(--ds-accent);
+    box-shadow: 0 0 0 2px var(--ds-accent-glow);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--ds-accent);
+    box-shadow: 0 0 0 2px var(--ds-accent-glow);
+  }
+
+  &:disabled {
+    background: var(--ds-disabled-bg);
+    color: var(--ds-disabled-fg);
+    cursor: not-allowed;
+  }
+}
+
+/// Full field — label + control. `.field { @include ds.ds-field; }`.
+/// textarea.field-input auto-heights (min 3 rows).
+@mixin ds-field() {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+
+  .field-label {
+    font-size: 11px;
+    font-weight: var(--ds-font-weight-medium);
+    color: var(--ds-on-surface-variant);
+  }
+
+  .field-input { @include ds-input-chrome; }
+
+  textarea.field-input {
+    height: auto;
+    min-height: 72px;
+    padding: var(--ds-space-2) var(--ds-space-3);
+    resize: vertical;
+  }
+
+  .field-hint {
+    font-size: 11px;
+    color: var(--ds-on-surface-variant);
+  }
+
+  &.invalid .field-input { border-color: var(--ds-error); }
+  &.invalid .field-label { color: var(--ds-error); }
+}
+
+/// Styled native checkbox — `<label class="check">` wrapping
+/// `<input type="checkbox">` + text node. appearance:none draws the box;
+/// ::after draws the check on :checked.
+@mixin ds-check() {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-font-size-sm);
+  color: var(--ds-on-surface);
+  cursor: pointer;
+  user-select: none;
+
+  input[type='checkbox'] {
+    appearance: none;
+    box-sizing: border-box;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex-shrink: 0;
+    border: 1.5px solid var(--ds-accent-border);
+    border-radius: 3px;
+    background: var(--ds-surface);
+    cursor: pointer;
+    position: relative;
+    transition: background 0.12s, border-color 0.12s;
+
+    &:hover:not(:disabled) { border-color: var(--ds-accent); }
+
+    &:focus-visible {
+      outline: 2px solid var(--ds-accent);
+      outline-offset: 1px;
+    }
+
+    &:checked {
+      background: var(--ds-accent);
+      border-color: var(--ds-accent);
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 4px;
+        height: 8px;
+        border: solid var(--ds-on-accent);
+        border-width: 0 2px 2px 0;
+        transform: translate(-50%, -62%) rotate(45deg);
+      }
+    }
+
+    &:disabled {
+      border-color: var(--ds-disabled-bg);
+      background: var(--ds-disabled-bg);
+      cursor: not-allowed;
+    }
+  }
+
+  &:has(input:disabled) {
+    color: var(--ds-disabled-fg);
+    cursor: not-allowed;
+  }
+}
+
+/// Styled native radio — same contract as ds-check, circular.
+@mixin ds-radio() {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-font-size-sm);
+  color: var(--ds-on-surface);
+  cursor: pointer;
+  user-select: none;
+
+  input[type='radio'] {
+    appearance: none;
+    box-sizing: border-box;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex-shrink: 0;
+    border: 1.5px solid var(--ds-accent-border);
+    border-radius: 50%;
+    background: var(--ds-surface);
+    cursor: pointer;
+    transition: border-color 0.12s;
+
+    &:hover:not(:disabled) { border-color: var(--ds-accent); }
+
+    &:focus-visible {
+      outline: 2px solid var(--ds-accent);
+      outline-offset: 1px;
+    }
+
+    &:checked {
+      border: 5px solid var(--ds-accent);
+    }
+
+    &:disabled {
+      border-color: var(--ds-disabled-bg);
+      background: var(--ds-disabled-bg);
+      cursor: not-allowed;
+    }
+  }
+
+  &:has(input:disabled) {
+    color: var(--ds-disabled-fg);
+    cursor: not-allowed;
+  }
+}
+
+/// Slide switch — `<label class="switch">` wrapping an
+/// `<input type="checkbox" class="switch-input">` + text node.
+/// The input itself becomes the track; ::after is the thumb.
+@mixin ds-switch() {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-font-size-sm);
+  color: var(--ds-on-surface);
+  cursor: pointer;
+  user-select: none;
+
+  .switch-input {
+    appearance: none;
+    box-sizing: border-box;
+    width: 34px;
+    height: 18px;
+    margin: 0;
+    flex-shrink: 0;
+    border-radius: 9px;
+    border: 1px solid var(--ds-accent-border);
+    background: var(--ds-surface-overlay);
+    cursor: pointer;
+    position: relative;
+    transition: background 0.15s, border-color 0.15s;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--ds-on-surface-variant);
+      transition: left 0.15s, background 0.15s;
+    }
+
+    &:checked {
+      background: var(--ds-accent);
+      border-color: var(--ds-accent);
+
+      &::after {
+        left: 18px;
+        background: var(--ds-on-accent);
+      }
+    }
+
+    &:hover:not(:disabled):not(:checked) { border-color: var(--ds-accent); }
+
+    &:focus-visible {
+      outline: 2px solid var(--ds-accent);
+      outline-offset: 1px;
+    }
+
+    &:disabled {
+      background: var(--ds-disabled-bg);
+      border-color: var(--ds-disabled-bg);
+      cursor: not-allowed;
+
+      &::after { background: var(--ds-disabled-fg); }
+    }
+  }
+
+  &:has(.switch-input:disabled) {
+    color: var(--ds-disabled-fg);
+    cursor: not-allowed;
+  }
+}
+
+/// Styled native select — wrapper supplies the chevron:
+///   <label class="ds-select"><select class="field-input">…</select></label>
+/// Apply at the wrapper; styles the select child + a ::after chevron.
+@mixin ds-select() {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+
+  select {
+    @include ds-input-chrome;
+    appearance: none;
+    padding-right: calc(var(--ds-space-4) + var(--ds-space-2));
+    cursor: pointer;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    right: var(--ds-space-3);
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border: solid var(--ds-on-surface-variant);
+    border-width: 0 2px 2px 0;
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+  }
+
+  &:has(select:disabled)::after { border-color: var(--ds-disabled-fg); }
+}
+
+/// Combobox / autocomplete — `.combobox` container: a `.field-input`
+/// plus a `.combo-panel` list of `.combo-option` children.
+/// `.combo-option.active` = highlighted; `.combo-option.selected` = chosen.
+/// Panel visibility is consumer-controlled — the mixin emits no .open
+/// class; the consumer toggles the panel in markup (e.g. @if).
+/// ARIA contract: input gets role="combobox" + aria-expanded/controls;
+/// panel is role="listbox" with role="option" children and the active
+/// option mirrored to aria-activedescendant.
+@mixin ds-combobox() {
+  position: relative;
+  min-width: 0;
+
+  input { @include ds-input-chrome; }
+
+  .combo-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--ds-border-subtle);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface-overlay);
+    box-shadow: var(--ds-shadow-2);
+  }
+
+  .combo-option {
+    display: flex;
+    align-items: center;
+    padding: 6px var(--ds-space-2);
+    border-radius: var(--ds-radius-sm);
+    font-size: var(--ds-font-size-sm);
+    color: var(--ds-on-surface);
+    cursor: pointer;
+
+    &:hover, &.active { background: var(--ds-state-hover); }
+    &:focus-visible {
+      outline: 2px solid var(--ds-accent);
+      outline-offset: -2px;
+    }
+    &.selected { color: var(--ds-accent-text); font-weight: var(--ds-font-weight-medium); }
+  }
+}
+
+/// Date input — native input[type=date] with ds-field chrome plus an
+/// accent picker indicator. `<input type="date" class="ds-date">`.
+@mixin ds-date() {
+  @include ds-input-chrome;
+
+  &::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+
+    &:hover { opacity: 1; }
+  }
+}

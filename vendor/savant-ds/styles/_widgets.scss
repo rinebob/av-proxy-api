@@ -211,7 +211,7 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--mat-sys-on-surface-variant);
+  color: var(--ds-accent);
   cursor: pointer;
   transition: background 0.12s;
 
@@ -238,7 +238,12 @@
 
   .toolbar-spacer { flex: 1; }
 
-  .title { font-size: var(--ds-font-size-sm); font-weight: 600; }
+  .title { font-size: var(--ds-font-size-sm); font-weight: 600; color: var(--ds-accent-text); }
+
+  // Accent-identity (#1348): glyph controls inside a toolbar read the
+  // theme accent, same convention as ds-btn / field outlines.
+  .icon-btn { color: var(--ds-accent); }
+  .nav-btn  { color: var(--ds-accent); }
 }
 
 /// Prev/next + counter navigation stepper — `.symbol-nav { @include
@@ -255,7 +260,7 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: var(--mat-sys-on-surface-variant);
+    color: var(--ds-accent);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -370,4 +375,100 @@
 @mixin dir-edge() {
   &.dir-edge-long { border-left: 3px solid var(--ds-up); }
   &.dir-edge-short { border-left: 3px solid var(--ds-down); }
+}
+
+/// Page-level button hierarchy — `.ds-btn` (#1163 phase A / #1348).
+/// Replaces the six button archetypes the app ships today (mat-button,
+/// mat-stroked/flat/raised, mat-icon-button→icon-btn, native buttons).
+/// Apply at the element: `<button class="ds-btn">`. Variants:
+///   (none)    ghost/text — mat-button role (Login, dialog Cancel)
+///   .outline  stroked — mat-stroked-button role (New Order)
+///   .fill     accent fill — mat-flat/raised CTA role (Sign in, Confirm)
+///   .danger   ghost text in --ds-error (destructive confirms)
+///   .small    compact 26px
+/// Accent-as-identity convention: ghost and outline read --ds-accent
+/// for borders and --ds-accent-text for TEXT (AA-safe on light surfaces),
+/// and every hover highlights via the accent
+/// container pair — the theme's one color carries the hierarchy.
+/// State layers ride the --ds-state-* tokens (#1348 token gap pass);
+/// fill hover mixes toward --ds-on-accent so it reads "engaged" in
+/// both themes (darkens bright cyan, lightens deep cyan).
+@mixin ds-btn() {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--ds-row-height);
+  padding: 0 var(--ds-space-3);
+  border: none;
+  border-radius: var(--ds-radius-sm);
+  background: transparent;
+  color: var(--ds-accent-text);
+  font-family: inherit;
+  font-size: var(--ds-font-size-sm);
+  font-weight: var(--ds-font-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  &:hover:not(:disabled) {
+    background: var(--ds-accent-container);
+    color: var(--ds-on-accent-container);
+  }
+  &:active:not(:disabled) { background: var(--ds-state-active); }
+  &:focus-visible {
+    outline: 2px solid var(--ds-accent);
+    outline-offset: 1px;
+  }
+  &:disabled {
+    color: var(--ds-disabled-fg);
+    cursor: not-allowed;
+  }
+
+  &.outline {
+    border: 1px solid var(--ds-accent);
+    color: var(--ds-accent-text);
+
+    &:hover:not(:disabled) {
+      background: var(--ds-accent-container);
+      color: var(--ds-on-accent-container);
+    }
+    &:disabled { border-color: var(--ds-disabled-bg); }
+  }
+
+  &.fill {
+    background: var(--ds-accent);
+    color: var(--ds-on-accent);
+    font-weight: var(--ds-font-weight-bold);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--ds-accent) 82%, var(--ds-on-accent));
+    }
+    &:disabled {
+      background: var(--ds-disabled-bg);
+      color: var(--ds-disabled-fg);
+    }
+  }
+
+  &.danger {
+    color: var(--ds-error);
+
+    &:hover:not(:disabled) {
+      background: var(--ds-error-container);
+      color: var(--ds-on-error-container);
+    }
+    &:disabled { color: var(--ds-disabled-fg); }
+  }
+
+  &.small {
+    height: 26px;
+    padding: 0 var(--ds-space-2);
+    font-size: 11px;
+
+    mat-icon { font-size: 14px; width: 14px; height: 14px; }
+  }
 }

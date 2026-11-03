@@ -137,3 +137,166 @@
     text-align: center;
   }
 }
+
+/// Element-neutral dialog shell — `<div class="ds-dialog">` with
+/// `.title`, `.content`, `.actions` children (#1163 phase B / #1348).
+/// Replaces mat-dialog's visual layer; positioning stays consumer-side
+/// (a future ds-dialog service will sit on CDK overlay). `.title` and
+/// `.content` carry the dialog-chrome density conventions.
+/// ARIA contract: role="dialog" + aria-modal + aria-labelledby on .title.
+@mixin ds-dialog() {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  max-width: 480px;
+  border: 1px solid var(--ds-accent-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-overlay);
+  box-shadow: var(--ds-shadow-2);
+  overflow: hidden;
+
+  .title {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-3) var(--ds-space-4);
+    font-size: var(--ds-font-size-lg);
+    font-weight: var(--ds-font-weight-bold);
+    color: var(--ds-accent-text);
+    border-bottom: 1px solid var(--ds-border-subtle);
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: var(--ds-accent);
+    }
+  }
+
+  .content {
+    padding: var(--ds-space-3) var(--ds-space-4);
+    font-size: var(--ds-font-size-sm);
+    color: var(--ds-on-surface);
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+  }
+
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-2) var(--ds-space-4) var(--ds-space-3);
+  }
+}
+
+/// Dropdown menu — `.ds-menu` panel of `.menu-item` children
+/// (#1163 phase B). Item supports `:disabled`, `.danger`, and a
+/// `mat-icon` leading slot. Separators are `.menu-sep` hr elements.
+/// ARIA contract: role="menu" on the panel, role="menuitem" on items;
+/// roving tabindex or aria-activedescendant for keyboard navigation.
+@mixin ds-menu() {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--ds-accent-border);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface-overlay);
+  box-shadow: var(--ds-shadow-2);
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    width: 100%;
+    padding: 6px var(--ds-space-2);
+    border: none;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: var(--ds-on-surface);
+    font-family: inherit;
+    font-size: var(--ds-font-size-sm);
+    text-align: left;
+    cursor: pointer;
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: var(--ds-accent);
+    }
+
+    &:hover:not(:disabled) { background: var(--ds-state-hover); }
+    &:active:not(:disabled) { background: var(--ds-state-active); }
+    &:focus-visible {
+      outline: 2px solid var(--ds-accent);
+      outline-offset: -2px;
+    }
+
+    &.danger { color: var(--ds-error); mat-icon { color: var(--ds-error); } }
+
+    &:disabled {
+      color: var(--ds-disabled-fg);
+      cursor: not-allowed;
+
+      mat-icon { color: var(--ds-disabled-fg); }
+    }
+  }
+
+  .menu-sep {
+    border: none;
+    border-top: 1px solid var(--ds-border-subtle);
+    margin: 4px 0;
+  }
+}
+
+/// Tooltip bubble — `.ds-tip` (#1163, D-candidate for matTooltip).
+/// Inverted-surface convention: reads as a float above everything.
+@mixin ds-tooltip() {
+  padding: 4px var(--ds-space-2);
+  border: 1px solid var(--ds-accent-border);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-on-surface);
+  color: var(--ds-surface);
+  font-size: 11px;
+  font-weight: var(--ds-font-weight-medium);
+  box-shadow: var(--ds-shadow-1);
+  white-space: nowrap;
+}
+
+/// Toast / snackbar — `.ds-toast` bar with text + optional `.action`
+/// slot (#1163 phase G). Surface-raised on shadow; action reads accent.
+/// ARIA contract: role="status" (polite announcements).
+@mixin ds-toast() {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--ds-accent-border);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-on-surface);
+  color: var(--ds-surface);
+  font-size: var(--ds-font-size-sm);
+  box-shadow: var(--ds-shadow-2);
+
+  .action {
+    padding: 2px var(--ds-space-2);
+    border: none;
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-accent-container);
+    color: var(--ds-on-accent-container);
+    font-family: inherit;
+    font-size: var(--ds-font-size-sm);
+    font-weight: var(--ds-font-weight-bold);
+    text-transform: uppercase;
+    cursor: pointer;
+
+    &:hover { text-decoration: underline; }
+    &:focus-visible {
+      outline: 2px solid var(--ds-accent);
+      outline-offset: 1px;
+    }
+  }
+}

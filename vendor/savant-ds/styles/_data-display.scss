@@ -152,3 +152,54 @@
     color: var(--ds-border-subtle);
   }
 }
+
+/// Full table — wraps dense-table and adds sort-header + pager chrome
+/// (#1163 phase E / #1348). Apply at a `.ds-table` wrapper containing
+/// `<table>` + `.pager`; the table child gets the dense-table contract.
+/// `th.sortable` emits the interactive header treatment (.asc/.desc
+/// draw the direction arrow on ::after); sortable headers must be
+/// keyboard-focusable (tabindex=0 + aria-sort).
+@mixin ds-table() {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--ds-accent-border);
+  border-radius: var(--ds-radius-sm);
+  overflow: hidden;
+
+  table { @include dense-table; }
+
+  th.sortable {
+    cursor: pointer;
+    user-select: none;
+
+    &:hover { color: var(--mat-sys-on-surface); }
+
+    &::after {
+      content: '⇅';
+      margin-left: 4px;
+      opacity: 0.4;
+      font-size: 10px;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--ds-accent);
+      outline-offset: -2px;
+    }
+    &.asc::after  { content: '↑'; opacity: 1; color: var(--ds-accent-text); }
+    &.desc::after { content: '↓'; opacity: 1; color: var(--ds-accent-text); }
+  }
+
+  .pager {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: 4px var(--ds-space-3);
+    border-top: 1px solid var(--ds-border-subtle);
+    background: var(--mat-sys-surface-container);
+    font-size: 11px;
+    color: var(--mat-sys-on-surface-variant);
+
+    .pager-info { margin-right: auto; }
+  }
+}

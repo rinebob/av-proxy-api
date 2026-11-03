@@ -1,0 +1,190 @@
+// _layout.scss — container widget chrome (#1163 phase F + #1162 shared
+// card / #1348). Mixins emit var() references only; applied at the
+// container element per the doc comment.
+
+/// Shared card — `<article class="card">` with `.card-head` (.card-title
+/// + optional .card-sub), `.card-body`, `.card-foot` children.
+/// #1162's migration target for mat-card + the ~30 hand-rolled cards.
+/// .flush on .card-body removes padding for media/table content.
+@mixin ds-card() {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--ds-accent-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-raised);
+  overflow: hidden;
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border-bottom: 1px solid var(--ds-border-subtle);
+    min-height: var(--ds-row-height);
+  }
+
+  .card-title {
+    font-size: var(--ds-font-size-sm);
+    font-weight: var(--ds-font-weight-bold);
+    color: var(--ds-accent-text);
+  }
+
+  .card-sub {
+    font-size: 11px;
+    color: var(--ds-on-surface-variant);
+    margin-left: auto;
+  }
+
+  .card-body {
+    padding: var(--ds-space-3);
+    font-size: var(--ds-font-size-sm);
+    color: var(--ds-on-surface);
+
+    &.flush { padding: 0; }
+  }
+
+  .card-foot {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border-top: 1px solid var(--ds-border-subtle);
+    font-size: 11px;
+    color: var(--ds-on-surface-variant);
+  }
+}
+
+/// Accordion — `.ds-acc` stack of `.ds-panel` children. Each panel:
+/// `<div class="ds-panel"><button class="acc-head"><span>Title</span>
+/// <mat-icon class="chev">expand_more</mat-icon></button>
+/// <div class="acc-body">…</div></div>`
+/// `.open` on .ds-panel shows .acc-body + rotates .chev; body is
+/// display:none by default (expansion is consumer-toggled).
+/// ARIA contract: .acc-head is a <button> with aria-expanded +
+/// aria-controls pointing at .acc-body (role="region").
+@mixin ds-accordion() {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+
+  .ds-panel {
+    border: 1px solid var(--ds-accent-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface-raised);
+    overflow: hidden;
+  }
+
+  .acc-head {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    width: 100%;
+    padding: var(--ds-space-2) var(--ds-space-3);
+    min-height: var(--ds-row-height);
+    border: none;
+    background: transparent;
+    color: var(--ds-accent-text);
+    font-family: inherit;
+    font-size: var(--ds-font-size-sm);
+    font-weight: var(--ds-font-weight-medium);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover { background: var(--ds-state-hover); }
+    &:focus-visible {
+      outline: 2px solid var(--ds-accent);
+      outline-offset: -2px;
+    }
+
+    .chev {
+      margin-left: auto;
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: var(--ds-accent);
+      transition: transform 0.15s;
+    }
+  }
+
+  .acc-body {
+    display: none;
+    padding: var(--ds-space-2) var(--ds-space-3) var(--ds-space-3);
+    border-top: 1px solid var(--ds-border-subtle);
+    font-size: var(--ds-font-size-sm);
+    color: var(--ds-on-surface);
+  }
+
+  .ds-panel.open {
+    .acc-head .chev { transform: rotate(180deg); }
+    .acc-body { display: block; }
+  }
+}
+
+/// Tabs — `.ds-tabs` container: `.tab-bar` row of `.tab` buttons +
+/// `.tab-body` content. `.tab.active` gets the accent underline;
+/// `.tab:disabled` dims. mat-tab-group's replacement (#1163 phase F).
+/// ARIA contract: .tab-bar is role="tablist"; .tab is role="tab" with
+/// aria-selected + aria-controls; .tab-body is role="tabpanel" with
+/// aria-labelledby. Arrow-key navigation per the WAI-ARIA tabs pattern.
+@mixin ds-tabs() {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  .tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    border-bottom: 1px solid var(--ds-border-subtle);
+  }
+
+  .tab {
+    position: relative;
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: none;
+    background: transparent;
+    color: var(--ds-on-surface-variant);
+    font-family: inherit;
+    font-size: var(--ds-font-size-sm);
+    font-weight: var(--ds-font-weight-medium);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, background 0.15s;
+
+    &:hover:not(:disabled):not(.active) {
+      color: var(--ds-on-surface);
+      background: var(--ds-state-hover);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--ds-accent);
+      outline-offset: -2px;
+    }
+
+    &.active {
+      color: var(--ds-accent-text);
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: var(--ds-space-2);
+        right: var(--ds-space-2);
+        bottom: -1px;
+        height: 2px;
+        border-radius: 1px;
+        background: var(--ds-accent);
+      }
+    }
+
+    &:disabled {
+      color: var(--ds-disabled-fg);
+      cursor: not-allowed;
+    }
+  }
+
+  .tab-body {
+    padding: var(--ds-space-3) var(--ds-space-2);
+    font-size: var(--ds-font-size-sm);
+    color: var(--ds-on-surface);
+  }
+}

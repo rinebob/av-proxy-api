@@ -6,10 +6,12 @@
 // chunk as dead CSS. Tokens are emitted once via `@use 'tokens'` in the
 // app's global stylesheet (see README).
 //
-// Forwards are added as each layer ships.
+// All mixin layers forward; tokens stay out of @use (see note above).
 
 @forward 'page';
+@forward 'layout';
 @forward 'dialog';
 @forward 'feedback';
 @forward 'data-display';
+@forward 'forms';
 @forward 'widgets';

@@ -57,6 +57,9 @@
   --ds-on-accent-container: #164e63;
   --ds-accent-border: #0891b2;
   --ds-accent-glow: rgba(8, 145, 178, 0.30);
+  // Text-role accent — deepened so accent-colored TEXT meets AA on
+  // light surfaces (borders/glyphs keep the raw accent; text is thin).
+  --ds-accent-text: #0e7490;
 
   // ── Direction Colors — up/down, long/short ──────────────────────────
   // Defaults preserve the established palette; user-pickable as a pair
@@ -78,6 +81,18 @@
   --ds-warning: #fb8c00;
   --ds-on-warning-container: #e65100;
   --ds-warning-container: #fff3e0;
+
+  // ── State layers & overlay chrome (#1348/#1163) — tokens the new
+  //     element family needs: scrim for ds-dialog/menu/toast, state
+  //     alphas for hover/active on any control, disabled pair, and a
+  //     text-selection tint. Values track Material state-layer ratios
+  //     against this palette's on-surface. ────────────────────────────
+  --ds-state-hover: rgba(26, 29, 33, 0.06);
+  --ds-state-active: rgba(26, 29, 33, 0.10);
+  --ds-scrim: rgba(0, 0, 0, 0.32);
+  --ds-disabled-bg: rgba(26, 29, 33, 0.12);
+  --ds-disabled-fg: rgba(26, 29, 33, 0.38);
+  --ds-selection: rgba(8, 145, 178, 0.25);
 
   // ── Spacing — 4px base scale ────────────────────────────────────────
   --ds-space-1: 4px;
@@ -130,6 +145,7 @@
   --ds-on-accent-container: #a8f0fb;
   --ds-accent-border: #22d3ee;
   --ds-accent-glow: rgba(34, 211, 238, 0.40);
+  --ds-accent-text: #22d3ee;
 
   // ── Direction Colors — same hues, dark-mode containers ──────────────
   --ds-up: #4caf50;
@@ -149,6 +165,14 @@
   --ds-warning: #ffa726;
   --ds-on-warning-container: #ffd699;
   --ds-warning-container: #3a2c10;
+
+  // State layers & overlay chrome — mirror of the light block (#1348).
+  --ds-state-hover: rgba(230, 232, 235, 0.08);
+  --ds-state-active: rgba(230, 232, 235, 0.14);
+  --ds-scrim: rgba(0, 0, 0, 0.60);
+  --ds-disabled-bg: rgba(230, 232, 235, 0.12);
+  --ds-disabled-fg: rgba(230, 232, 235, 0.38);
+  --ds-selection: rgba(34, 211, 238, 0.35);
 
   // Shadows deepen — dark surfaces need more alpha to read.
   --ds-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
