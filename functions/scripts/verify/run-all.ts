@@ -72,6 +72,9 @@ const scripts = [
   // options-data-227-chain-sanity-flags.ts — dry default is read-only but
   // needs GCLOUD_PROJECT=alpha-vantage-proxy-api + ADC + real GCS downloads;
   // --stamp-flags writes object metadata, run deliberately
+  // options-data-229-ts-build-repair.ts — dry default is read-only but
+  // needs GCLOUD_PROJECT + ADC + logging.read; --enqueue mutates the prod
+  // task queue, run deliberately
 ];
 
 let passed = 0;
