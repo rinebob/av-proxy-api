@@ -3,6 +3,15 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-11-04]
+
+### Added
+- [Options Corpus Bulk Ingest] 213-229_BE-IMPL-OPTIONS-DATA: Ts-build repair pass — Cloud Logging enumeration of `failedContracts>0` builds, deduped re-enqueue payloads, contract+error triage artifact
+- [Options Corpus Bulk Ingest] 213-229_DOCS-DOCS-OPTIONS-DATA: Verify guide + CODE-REVIEW PASS (3 passes) + UAT Complete + Topic AS-BUILT
+
+### Changed
+- [Options Corpus Bulk Ingest] 213-229_BE-CHORE-OPTIONS-DATA: `google-auth-library` promoted to direct prod dependency (pre-existing aggregator import resolved transitively)
+
 ## [2026-11-03]
 
 ### Added

@@ -181,6 +181,7 @@ Each task that has verification scripts gets a `{domain}-{task-slug}.md` guide i
 | #225 | `options-data-225-pick-endpoint.ts` *(read-only, not in run-all — needs GCLOUD_PROJECT + ADC)* | BE: pick-doc endpoint handler — validation matrix (off-grid 400s naming param), real prod cell-doc read + envelope, optionsEnabled gate, missing-shard 404 | [options-data-225-pick-endpoint.md](options-data-225-pick-endpoint.md) |
 | #226 | `options-data-226-golden-picks.ts` *(read-only — needs ADC for corpus bucket + bars + cell doc)* | BE: golden-file pick verification — regen `QQQ-put-20-45` April window via the prod materialize path (GCS chains + adjusted closes + real writer on in-memory store), strict day-for-day equality vs the golden asset with per-day root-cause classification on any diff, live-doc cross-check; `--write-asset` re-blesses the baseline | [options-data-226-golden-picks.md](options-data-226-golden-picks.md) |
 | #227 | `options-data-227-chain-sanity-flags.ts` *(dry default read-only; `--stamp-flags` writes object metadata — not in run-all, needs GCLOUD_PROJECT + ADC)* | BE: chain sanity flags — ref census of stamped `chainFlag`/`chainFlagConfirmed` metadata + payload recount drift report + reconcile dry-run (flagged suspects → `forceRefetch` dispatches, confirmed-empty → thin-chain log) + run-item count fields | [options-data-227-chain-sanity-flags.md](options-data-227-chain-sanity-flags.md) |
+| #229 | `options-data-229-ts-build-repair.ts` *(dry default read-only; `--enqueue` re-enqueues failed build tasks — not in run-all, needs GCLOUD_PROJECT + ADC + `logging.read`)* | BE: ts-build repair pass — Cloud Logging census of `failedContracts>0` build tasks + unhealed contract/error triage list + idempotent re-enqueue on `processHistoricalOptionsTsBuildTask` | [options-data-229-ts-build-repair.md](options-data-229-ts-build-repair.md) |
 
 ## Execution order
 
@@ -227,6 +228,7 @@ Topic #213 (Options Corpus Bulk Ingest — delta-pick grid):
 9. **#225** (BE: pick-doc endpoint) — blocked by #223 (needs real cell docs); read-only handler invocation against prod `options-delta-picks` (not in run-all; **requires `GCLOUD_PROJECT=alpha-vantage-proxy-api`** + ADC)
 10. **#226** (BE: golden-file pick verification) — blocked by #223 (materialization path); read-only regen + strict day-for-day equality vs the golden asset, root-cause classification on any diff (in run-all; needs ADC for the corpus bucket, `symbol-data` bars, and the cell doc)
 11. **#227** (BE: chain sanity flags) — blocked by #220 (reconciler consumes the flags); dry default read-only census + recount drift + reconcile dry-run, `--stamp-flags` writes `chainFlag` object metadata for pre-flagging-code suspects (not in run-all; **requires `GCLOUD_PROJECT=alpha-vantage-proxy-api`** + ADC)
+12. **#229** (BE: ts-build repair pass) — no dependencies; run after the 2026 ts-build drain completes; dry default read-only failed-build census + unhealed triage, `--enqueue` re-enqueues the failed (symbol, date-range) tasks (not in run-all; **requires `GCLOUD_PROJECT=alpha-vantage-proxy-api`** + ADC + `logging.read`)
 
 Topic #198 (Ops SMS Alerts):
 
